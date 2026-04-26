@@ -502,7 +502,6 @@ CREATE TRIGGER IF NOT EXISTS trg_vault_docs_scope_consistency_upd
 	24: `ALTER TABLE vault_documents ADD COLUMN chat_id TEXT;
 CREATE INDEX IF NOT EXISTS idx_vault_docs_team_chat ON vault_documents(team_id, chat_id) WHERE team_id IS NOT NULL;`,
 
-<<<<<<< HEAD
 	// Version 25 → 26: change agent_heartbeats.provider_id FK to ON DELETE SET NULL
 	// (mirrors PG migration 000057). SQLite cannot ALTER FK clauses, so the table
 	// must be rebuilt. Explicit 25-column INSERT/SELECT to avoid silent column drift.
@@ -566,9 +565,18 @@ CREATE INDEX IF NOT EXISTS idx_heartbeats_due
 	// Version 26 → 27: rename Zalo channel types to align with Zalo's own
 	// product taxonomy (mirrors PG migration 000058). Three-step swap via
 	// zalo_oa_tmp sentinel — defensive against future unique constraints.
-	26: `UPDATE channel_instances SET channel_type = 'zalo_oa_tmp' WHERE channel_type = 'zalo_oauth';
-UPDATE channel_instances SET channel_type = 'zalo_bot'    WHERE channel_type = 'zalo_oa';
-UPDATE channel_instances SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';`,
+	//
+	// Idempotency guard: each step gates on the existence of the legacy
+	// 'zalo_oauth' marker so that re-running the patch on a post-rename DB
+	// (e.g. after manual SchemaVersion downgrade) is a no-op rather than
+	// silently flipping new 'zalo_oa' rows back to 'zalo_bot'.
+	26: `UPDATE channel_instances SET channel_type = 'zalo_oa_tmp'
+  WHERE channel_type = 'zalo_oauth';
+UPDATE channel_instances SET channel_type = 'zalo_bot'
+  WHERE channel_type = 'zalo_oa'
+    AND EXISTS (SELECT 1 FROM channel_instances WHERE channel_type = 'zalo_oa_tmp');
+UPDATE channel_instances SET channel_type = 'zalo_oa'
+  WHERE channel_type = 'zalo_oa_tmp';`,
 }
 
 // addHooksTables is the SQLite incremental migration for schema v19 → v20.
