@@ -290,7 +290,7 @@ func validateProviderURL(rawURL string, providerType string) error {
 	}
 	host := u.Hostname()
 	// Block obvious internal targets
-	blocked := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+	blocked := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
 	for _, b := range blocked {
 		if strings.EqualFold(host, b) {
 			return fmt.Errorf("provider URL cannot point to %s", b)
