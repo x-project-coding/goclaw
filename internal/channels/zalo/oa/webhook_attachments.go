@@ -161,7 +161,7 @@ func downloadOAMedia(ctx context.Context, fileURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("new request: %w", err)
 	}
-	client := &http.Client{Timeout: 0} // ctx governs deadline
+	client := tools.NewSSRFSafeClient(0) // ctx governs deadline
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download: %w", err)

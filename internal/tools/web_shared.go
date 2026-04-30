@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -197,6 +200,55 @@ func CheckSSRF(rawURL string) error {
 	}
 
 	return nil
+}
+
+// NewSSRFSafeClient returns an http.Client that pins each Dial to a
+// freshly-validated IP and re-runs CheckSSRF on every redirect hop —
+// closes DNS-rebind TOCTOU and 3xx-to-link-local bypasses. timeout=0
+// leaves the request ctx as the only deadline.
+func NewSSRFSafeClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			if ip := net.ParseIP(host); ip != nil {
+				if isPrivateIP(host) {
+					return nil, fmt.Errorf("blocked private IP at dial: %s", host)
+				}
+				return dialer.DialContext(ctx, network, addr)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP.String()) {
+					return nil, fmt.Errorf("hostname %s resolves to private IP %s", host, ip.IP)
+				}
+			}
+			// Pin to the first validated IP — net stack won't re-resolve.
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		},
+		MaxIdleConns:        10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return errors.New("stopped after 5 redirects")
+			}
+			if err := CheckSSRF(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect blocked: %w", err)
+			}
+			return nil
+		},
+	}
 }
 
 // --- External Content Wrapping (matching TS src/security/external-content.ts) ---
