@@ -1,4 +1,6 @@
 import { useTranslation } from "react-i18next";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -13,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { ToolNameSelect } from "@/components/shared/tool-name-select";
 import { SkillNameSelect } from "@/components/shared/skill-name-select";
+import { generateSecret } from "@/lib/generate-secret";
+import { toast } from "@/stores/use-toast-store";
 import type { FieldDef } from "./channel-schemas";
 
 const INHERIT = "__inherit__";
@@ -95,22 +99,44 @@ function FieldRenderer({
 
   switch (field.type) {
     case "text":
-    case "password":
+    case "password": {
+      const showGenerate = field.type === "password" && field.generatable;
+      const handleGenerate = () => {
+        onChange(generateSecret());
+        toast.info(t("fieldConfig.generate.toast"));
+      };
       return (
         <div className="grid gap-1.5">
           <Label htmlFor={id}>
             {label}{labelSuffix}{editHint}
           </Label>
-          <Input
-            id={id}
-            type={field.type}
-            value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder}
-          />
+          <div className={showGenerate ? "flex gap-2" : undefined}>
+            <Input
+              id={id}
+              type={field.type}
+              value={(value as string) ?? ""}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={field.placeholder}
+              aria-live={showGenerate ? "polite" : undefined}
+            />
+            {showGenerate && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleGenerate}
+                aria-label={t("fieldConfig.generate.button")}
+                className="shrink-0"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span className="ml-1.5">{t("fieldConfig.generate.button")}</span>
+              </Button>
+            )}
+          </div>
           {help && <p className="text-xs text-muted-foreground">{help}</p>}
         </div>
       );
+    }
 
     case "number":
       return (

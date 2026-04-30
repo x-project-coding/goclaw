@@ -266,7 +266,6 @@
     "connection_mode": { "label": "连接模式", "help": "WebSocket 无需公网 IP — 仅需出站连接" },
     "webhook_port": { "label": "Webhook 端口", "help": "0 = 共享主网关端口（推荐）" },
     "webhook_path": { "label": "Webhook 路径", "help": "URL 路由路径。Zalo：小写字母、数字、连字符（2–63 字符），用作 /channels/zalo/webhook/<slug>。Lark：主服务器上的完整路径（例如 /feishu/events）。" },
-    "webhook_url": { "label": "Webhook URL" },
     "topic_session_mode": { "label": "话题会话模式", "help": "使用线程 root_id 进行会话隔离" },
     "render_mode": { "label": "渲染模式" },
     "text_chunk_limit": { "label": "文本分段限制", "help": "每条消息最大字符数" },
@@ -286,6 +285,10 @@
     "private_reply_message": {
       "label": "私信内容",
       "help": "支持 commenter_name 和 post_title 占位符。留空使用英文默认文本。"
+    },
+    "generate": {
+      "button": "生成",
+      "toast": "已生成密钥。请立即复制 Webhook Secret 并粘贴到 bot.zapps.me → setWebhook → secret_token。"
     }
   },
   "fieldOptions": {

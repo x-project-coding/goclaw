@@ -16,6 +16,8 @@ export interface FieldDef {
   disabledWhen?: { key: string; value: string; hint?: string };
   /** Hide in an "Advanced" collapsible section — for rarely-needed fields */
   advanced?: boolean;
+  /** Password fields only: render a Generate button that fills a 32-byte URL-safe random string. */
+  generatable?: boolean;
 }
 
 // --- Shared option lists ---
@@ -67,7 +69,7 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
   ],
   zalo_bot: [
     { key: "token", label: "OA Access Token", type: "password", required: true },
-    { key: "webhook_secret", label: "Webhook Secret", type: "password", showWhen: { key: "transport", value: "webhook" }, help: "Operator-chosen secret you also pass to setWebhook(secret_token). Zalo echoes it back as X-Bot-Api-Secret-Token on every POST. Channel runs in bootstrap mode (acks Zalo's setWebhook verification ping with HTTP 200, drops events) until this is set, so you can save the URL on bot.zapps.me first and paste the secret after." },
+    { key: "webhook_secret", label: "Webhook Secret", type: "password", generatable: true, showWhen: { key: "transport", value: "webhook" }, help: "Operator-chosen secret you also pass to setWebhook(secret_token). Zalo echoes it back as X-Bot-Api-Secret-Token on every POST. Channel runs in bootstrap mode (acks Zalo's setWebhook verification ping with HTTP 200, drops events) until this is set, so you can save the URL on bot.zapps.me first and paste the secret after." },
   ],
   zalo_oa: [
     { key: "app_id", label: "App ID", type: "text", required: true, placeholder: "1234567890", help: "From the Zalo OA developer console" },
@@ -174,8 +176,7 @@ export const configSchema: Record<string, FieldDef[]> = {
   ],
   zalo_bot: [
     { key: "transport", label: "Ingestion Mode", type: "select", options: [{ value: "webhook", label: "Webhook (recommended)" }, { value: "polling", label: "Polling" }], defaultValue: "webhook", help: "Webhook is event-driven and lighter on the server. Polling needs no public endpoint." },
-    { key: "webhook_path", label: "Webhook Path", type: "text", required: true, placeholder: "my-bot", showWhen: { key: "transport", value: "webhook" }, help: "URL: /channels/zalo/webhook/<slug>. Lowercase letters, numbers, hyphens. 2–63 chars." },
-    { key: "webhook_url", label: "Webhook URL", type: "text", placeholder: "https://...", showWhen: { key: "transport", value: "webhook" }, help: "Public URL Zalo POSTs updates to. Must be HTTPS." },
+    { key: "webhook_path", label: "Webhook Path", type: "text", required: true, placeholder: "my-bot", showWhen: { key: "transport", value: "webhook" }, help: "URL: /channels/zalo/webhook/<slug>. Lowercase letters, numbers, hyphens. 2–63 chars. The full Webhook URL to paste into bot.zapps.me appears in the Webhook setup card below." },
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
     { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 5 },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Zalo user IDs" },

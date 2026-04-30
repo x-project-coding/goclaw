@@ -345,7 +345,6 @@
       "label": "Webhook Path",
       "help": "URL routing path. For Zalo: lowercase letters, numbers, hyphens (2–63 chars), used as /channels/zalo/webhook/<slug>. For Lark: full path on main server (e.g. /feishu/events)."
     },
-    "webhook_url": { "label": "Webhook URL" },
     "topic_session_mode": {
       "label": "Topic Session Mode",
       "help": "Use thread root_id for session isolation"
@@ -389,6 +388,10 @@
     "private_reply_message": {
       "label": "DM Message",
       "help": "Supports the placeholders commenter_name and post_title. Empty = default English text."
+    },
+    "generate": {
+      "button": "Generate",
+      "toast": "Secret generated. Copy this Webhook Secret now and paste it into bot.zapps.me → setWebhook → secret_token."
     }
   },
   "fieldOptions": {

@@ -266,7 +266,6 @@
     "connection_mode": { "label": "Chế độ kết nối", "help": "WebSocket không cần IP công khai — chỉ kết nối ra ngoài" },
     "webhook_port": { "label": "Cổng webhook", "help": "0 = chia sẻ cổng gateway chính (khuyến nghị)" },
     "webhook_path": { "label": "Đường dẫn webhook", "help": "Đường dẫn định tuyến URL. Zalo: chữ thường, số và dấu gạch ngang (2–63 ký tự), dùng làm /channels/zalo/webhook/<slug>. Lark: đường dẫn trên máy chủ chính (ví dụ /feishu/events)." },
-    "webhook_url": { "label": "URL Webhook" },
     "topic_session_mode": { "label": "Chế độ phiên chủ đề", "help": "Dùng root_id của luồng để cách ly phiên" },
     "render_mode": { "label": "Chế độ hiển thị" },
     "text_chunk_limit": { "label": "Giới hạn ký tự", "help": "Số ký tự tối đa mỗi tin nhắn" },
@@ -286,6 +285,10 @@
     "private_reply_message": {
       "label": "Nội dung DM",
       "help": "Hỗ trợ biến commenter_name và post_title. Để trống dùng mặc định tiếng Anh."
+    },
+    "generate": {
+      "button": "Tạo",
+      "toast": "Đã tạo secret. Hãy sao chép Webhook Secret ngay và dán vào bot.zapps.me → setWebhook → secret_token."
     }
   },
   "fieldOptions": {
