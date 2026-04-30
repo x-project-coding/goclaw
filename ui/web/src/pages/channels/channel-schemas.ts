@@ -191,7 +191,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
   ],
   zalo_bot: [
-    { key: "transport", label: "Ingestion Mode", type: "select", options: [{ value: "webhook", label: "Webhook (recommended)" }, { value: "polling", label: "Polling" }], defaultValue: "webhook", help: "Webhook is event-driven and lighter on the server. Polling needs no public endpoint." },
+    { key: "transport", label: "Ingestion Mode", type: "select", options: [{ value: "polling", label: "Polling (recommended)" }, { value: "webhook", label: "Webhook" }], defaultValue: "polling", help: "Polling needs no public endpoint and works out of the box. Webhook is event-driven but requires bot.zapps.me to push to your URL." },
     { key: "webhook_path", label: "Webhook Path", type: "text", required: true, placeholder: "my-bot", showWhen: { key: "transport", value: "webhook" }, help: "URL: /channels/zalo/webhook/<slug>. Lowercase letters, numbers, hyphens. 2–63 chars. The full Webhook URL to paste into bot.zapps.me appears in the Webhook setup card below." },
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
     { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 5 },
