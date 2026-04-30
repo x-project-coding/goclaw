@@ -29,8 +29,10 @@ const maxTextLength = 2000
 
 // SendText splits replies via channels.ChunkMarkdown so >2000-char
 // messages reach the user as multiple ordered sends. Returns the final
-// upstream message_id.
-func (c *Channel) SendText(ctx context.Context, userID, text string) (string, error) {
+// upstream message_id. quoteID, when non-empty, is sent as Zalo's
+// message.quote_message_id on the FIRST chunk only — continuation chunks
+// ride unquoted.
+func (c *Channel) SendText(ctx context.Context, userID, text, quoteID string) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return "", nil
 	}
@@ -40,15 +42,41 @@ func (c *Channel) SendText(ctx context.Context, userID, text string) (string, er
 	}
 	var lastMID string
 	for i, part := range parts {
-		mid, err := c.post(ctx, pathSendMessage, buildTextBody(userID, part))
+		q := ""
+		if i == 0 {
+			q = quoteID
+		}
+		mid, err := c.postCSWithQuoteFallback(ctx, userID, part, q)
 		if err != nil {
 			return lastMID, fmt.Errorf("zalo_oa.sendtext part %d/%d: %w", i+1, len(parts), err)
 		}
 		lastMID = mid
 		slog.Info("zalo_oa.sent", "type", "text", "message_id", mid, "oa_id", c.creds.OAID,
-			"part", i+1, "total_parts", len(parts))
+			"part", i+1, "total_parts", len(parts), "quoted", q != "")
 	}
 	return lastMID, nil
+}
+
+// postCSWithQuoteFallback posts a text body and, on FamilyPayload errors
+// when a quote was set, retries once without the quote field. Covers the
+// expired/deleted source-message case without masking other error families.
+func (c *Channel) postCSWithQuoteFallback(ctx context.Context, userID, text, quoteID string) (string, error) {
+	mid, err := c.post(ctx, pathSendMessage, buildTextBody(userID, text, quoteID))
+	if err == nil || quoteID == "" {
+		return mid, err
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && Classify(apiErr.Code).Family == FamilyPayload {
+		slog.Warn("zalo_oa.send.quote_dropped_payload_error",
+			"oa_id", c.creds.OAID,
+			"user_id", userID,
+			"quote_message_id", quoteID,
+			"zalo_code", apiErr.Code,
+			"zalo_msg", apiErr.Message,
+			"hint", "quoted message likely expired/deleted; retrying without quote")
+		return c.post(ctx, pathSendMessage, buildTextBody(userID, text, ""))
+	}
+	return mid, err
 }
 
 // SendImage uploads + sends an image. mime must be image/jpeg or image/png
@@ -88,10 +116,14 @@ func (c *Channel) SendGIF(ctx context.Context, userID string, data []byte) (stri
 // Payload builders for /v3.0/oa/message/cs. Images + gifs use template/media;
 // files use plain type=file; text has no attachment wrapper.
 
-func buildTextBody(userID, text string) map[string]any {
+func buildTextBody(userID, text, quoteMessageID string) map[string]any {
+	msg := map[string]any{"text": text}
+	if quoteMessageID != "" {
+		msg["quote_message_id"] = quoteMessageID
+	}
 	return map[string]any{
 		"recipient": map[string]any{"user_id": userID},
-		"message":   map[string]any{"text": text},
+		"message":   msg,
 	}
 }
 

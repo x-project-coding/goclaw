@@ -146,6 +146,16 @@ type BlockReplyChannel interface {
 	BlockReplyEnabled() *bool
 }
 
+// DMQuoteChannel is optionally implemented by channels that want the gateway
+// consumer to stamp reply_to_message_id on DM outbound metadata (the
+// standard group-only behavior is bypassed). The channel's Send path is
+// responsible for translating the metadata into the platform-specific quote
+// payload. Implementations must be O(1) — Manager holds an RLock while
+// calling QuoteInboundOnDM.
+type DMQuoteChannel interface {
+	QuoteInboundOnDM() bool
+}
+
 // WebhookChannel extends Channel with an HTTP handler that can be mounted
 // on the main gateway mux instead of starting a separate HTTP server.
 // This allows webhook-based channels (e.g. Feishu/Lark) to share the main

@@ -129,7 +129,12 @@ func (c *Channel) ForceRefreshForTest() {
 
 func (c *Channel) Type() string { return channels.TypeZaloOA }
 
+// QuoteInboundOnDM enables outbound message.quote_message_id wiring for
+// Zalo OA — every CS reply quotes the user's last inbound message.
+func (c *Channel) QuoteInboundOnDM() bool { return true }
+
 var _ channels.WebhookChannel = (*Channel)(nil)
+var _ channels.DMQuoteChannel = (*Channel)(nil)
 
 // WebhookHandler returns (path, handler) on the first caller across the
 // shared router; subsequent calls return ("", nil). Per-instance dispatch
@@ -215,8 +220,9 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		msg.Media[i].Caption = common.StripMarkdown(msg.Media[i].Caption)
 	}
 
+	quoteID := msg.Metadata["reply_to_message_id"]
 	if len(msg.Media) == 0 {
-		_, err := c.SendText(ctx, msg.ChatID, msg.Content)
+		_, err := c.SendText(ctx, msg.ChatID, msg.Content, quoteID)
 		return err
 	}
 	if len(msg.Media) > 1 {
@@ -264,7 +270,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 			} else {
 				fallback = fallback + "\n\n" + heads
 			}
-			_, terr := c.SendText(ctx, msg.ChatID, fallback)
+			_, terr := c.SendText(ctx, msg.ChatID, fallback, "")
 			return terr
 		}
 		if len(data) > zaloFileCapBytes {
@@ -280,7 +286,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	if trailing == "" {
 		return nil
 	}
-	if _, terr := c.SendText(ctx, msg.ChatID, trailing); terr != nil {
+	if _, terr := c.SendText(ctx, msg.ChatID, trailing, ""); terr != nil {
 		slog.Error("zalo_oa.send.text_after_attachment_failed",
 			"oa_id", c.creds.OAID, "user_id", msg.ChatID,
 			"attachment_message_id", attachMID, "error", terr)
