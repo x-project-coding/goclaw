@@ -573,7 +573,10 @@ CREATE INDEX IF NOT EXISTS idx_heartbeats_due
 	// 'zalo_oauth'/'zalo_oa_tmp' marker would silently no-op on prod).
 	26: `UPDATE channel_instances SET channel_type = 'zalo_oa_tmp' WHERE channel_type = 'zalo_oauth';
 UPDATE channel_instances SET channel_type = 'zalo_bot'    WHERE channel_type = 'zalo_oa';
-UPDATE channel_instances SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';`,
+UPDATE channel_instances SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';
+UPDATE channel_contacts  SET channel_type = 'zalo_oa_tmp' WHERE channel_type = 'zalo_oauth';
+UPDATE channel_contacts  SET channel_type = 'zalo_bot'    WHERE channel_type = 'zalo_oa';
+UPDATE channel_contacts  SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';`,
 }
 
 // addHooksTables is the SQLite incremental migration for schema v19 → v20.

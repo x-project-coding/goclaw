@@ -15,3 +15,9 @@
 UPDATE channel_instances SET channel_type = 'zalo_oa_tmp' WHERE channel_type = 'zalo_oauth';
 UPDATE channel_instances SET channel_type = 'zalo_bot'    WHERE channel_type = 'zalo_oa';
 UPDATE channel_instances SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';
+
+-- channel_contacts.channel_type stores the same taxonomy and is read by
+-- ResolveTenantUserID. Skipping the swap silently loses per-user mappings.
+UPDATE channel_contacts SET channel_type = 'zalo_oa_tmp' WHERE channel_type = 'zalo_oauth';
+UPDATE channel_contacts SET channel_type = 'zalo_bot'    WHERE channel_type = 'zalo_oa';
+UPDATE channel_contacts SET channel_type = 'zalo_oa'     WHERE channel_type = 'zalo_oa_tmp';
