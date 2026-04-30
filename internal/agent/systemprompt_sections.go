@@ -445,17 +445,37 @@ func buildRuntimeSection(cfg SystemPromptConfig) []string {
 	return lines
 }
 
-// buildChannelFormattingHint returns platform-specific formatting guidance.
-// Zalo does not render any markup, so we instruct the model to use plain text.
+// buildChannelFormattingHint returns platform-specific formatting guidance:
+// markdown rendering, per-message length caps, and outbound attachment
+// constraints. The runtime will still auto-chunk and reject unsupported
+// MIMEs at the channel layer, but a heads-up here saves a round-trip.
 func buildChannelFormattingHint(channelType string) []string {
 	switch channelType {
-	case "zalo", "zalo_personal":
+	case "zalo_personal":
 		return []string{
 			"## Output Formatting",
 			"",
 			"This channel (Zalo) does NOT support any text formatting — no Markdown, no HTML, no bold/italic/code.",
-			"Always respond in clean plain text. Do not use **, __, `, ```, #, > or any markup syntax.",
-			"For lists use simple dashes or bullets (•). For code, just paste the code as-is without fencing.",
+			"Always respond in clean plain text. Do NOT use **, __, ` (backticks), ```, #, --- (horizontal rule), >, ![]() or any other markup syntax — they appear as literal characters to the user.",
+			"For lists use simple dashes or bullets (•). For code, paste it as-is without fencing. Use blank lines to separate sections, not `---`.",
+			"",
+		}
+	case "zalo_oa", "zalo_bot":
+		// OA and Bot share identical Zalo API constraints (PDF/DOC/DOCX
+		// upload allowlist, 1 MB image cap, 5 MB GIF/file cap, 2000-char
+		// text cap, no markdown rendering).
+		return []string{
+			"## Output Formatting (Zalo Official Account / Bot)",
+			"",
+			"Plain text only — Zalo does NOT render Markdown or HTML. The user sees the literal characters of any markup you emit.",
+			"Do NOT use **, __, ` (backticks), ```, #, --- (horizontal rule), >, ![]() or tables. No emphasis syntax of any kind.",
+			"For lists use simple dashes or bullets (•). Separate sections with blank lines, never `---`. For code, paste it raw, no fences.",
+			"",
+			"### Outbound attachment limits (Zalo API constraints — non-negotiable)",
+			"- Files: PDF, DOC, DOCX only, ≤ 5 MB. xlsx / csv / xls / pptx / txt / zip will be REJECTED by Zalo with error -210. If you need to deliver tabular data, either (a) convert to PDF first via the appropriate skill, or (b) summarize the data inline as plain text.",
+			"- Images: JPG or PNG, ≤ 1 MB (auto-compressed to JPEG when larger).",
+			"- GIF: ≤ 5 MB via the dedicated GIF endpoint.",
+			"- Per-message text cap: 2000 characters. Longer replies are auto-split into multiple messages, but try to be concise.",
 			"",
 		}
 	default:

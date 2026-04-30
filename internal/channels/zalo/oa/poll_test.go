@@ -67,6 +67,7 @@ func newPollChannel(t *testing.T, ps *pollServer, oaID string) (*Channel, *bus.M
 		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 	cfg := config.ZaloOAConfig{
+		Transport:           "polling",
 		PollIntervalSeconds: 1,
 	}
 	msgBus := bus.New()

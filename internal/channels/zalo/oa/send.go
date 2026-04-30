@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/nextlevelbuilder/goclaw/internal/channels"
 )
 
 // isZaloSupportedFileMIME: /v2.0/oa/upload/file accepts PDF/DOC/DOCX only;
@@ -21,13 +23,35 @@ func isZaloSupportedFileMIME(mime string) bool {
 	return false
 }
 
-// SendText delivers plain text. Returns the upstream message_id.
+// maxTextLength is Zalo OA's per-message text cap (error -210 above this).
+// Matches the same constant in zalo_bot / zalo_personal — all three Zalo
+// flavors share the 2000-char ceiling and the channels.ChunkMarkdown
+// fence-aware splitter.
+const maxTextLength = 2000
+
+// SendText delivers plain text. Splits replies longer than the Zalo cap
+// into multiple sequential sends via the shared markdown-aware chunker,
+// so the LLM's full answer reaches the user without breaking code fences.
+// Returns the final upstream message_id (or first error encountered).
 func (c *Channel) SendText(ctx context.Context, userID, text string) (string, error) {
-	mid, err := c.post(ctx, pathSendMessage, buildTextBody(userID, text))
-	if err == nil {
-		slog.Info("zalo_oa.sent", "type", "text", "message_id", mid, "oa_id", c.creds.OAID)
+	if strings.TrimSpace(text) == "" {
+		return "", nil
 	}
-	return mid, err
+	parts := channels.ChunkMarkdown(text, maxTextLength)
+	if len(parts) == 0 {
+		return "", nil
+	}
+	var lastMID string
+	for i, part := range parts {
+		mid, err := c.post(ctx, pathSendMessage, buildTextBody(userID, part))
+		if err != nil {
+			return lastMID, fmt.Errorf("zalo_oa.sendtext part %d/%d: %w", i+1, len(parts), err)
+		}
+		lastMID = mid
+		slog.Info("zalo_oa.sent", "type", "text", "message_id", mid, "oa_id", c.creds.OAID,
+			"part", i+1, "total_parts", len(parts))
+	}
+	return lastMID, nil
 }
 
 // SendImage uploads + sends an image. mime must be image/jpeg or image/png

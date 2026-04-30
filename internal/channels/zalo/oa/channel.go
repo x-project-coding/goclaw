@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,7 +59,26 @@ type Channel struct {
 	catchUpWG sync.WaitGroup
 
 	webhookRouter *common.Router
+	resolvedSlug  string // resolved slug stored at Start; surfaced to RPC
+
+	// Bootstrap mode: webhook configured but no secret yet. Increments on
+	// each acked-and-dropped event so operators see the counter ticking
+	// while they finish the Zalo console flow.
+	bootstrapDroppedCount atomic.Int64
 }
+
+// inBootstrap reports whether the channel is webhook + signature-enforcing
+// + has no secret yet. Bootstrap mode acks Zalo's URL-verification ping
+// with 200 so the operator can paste the URL on developers.zalo.me, then
+// retrieve the OA Secret Key and paste it back via the Credentials tab.
+func (c *Channel) inBootstrap() bool {
+	return c.creds.WebhookSecretKey == "" &&
+		normalizeMode(c.cfg.WebhookSignatureMode) != SignatureModeDisabled
+}
+
+// BootstrapDroppedForTest exposes the drop counter for unit tests. Not for
+// production callers — the counter is also surfaced via slog warnings.
+func (c *Channel) BootstrapDroppedForTest() int64 { return c.bootstrapDroppedCount.Load() }
 
 // New constructs the channel. InstanceLoader calls SetInstanceID after.
 func New(name string, cfg config.ZaloOAConfig, creds *ChannelCreds,
@@ -117,14 +137,18 @@ var _ channels.WebhookChannel = (*Channel)(nil)
 
 // WebhookHandler returns (path, handler) on the first caller across the
 // shared router; subsequent calls return ("", nil). Per-instance dispatch
-// is keyed off the ?instance=<uuid> query param.
+// uses the slug suffix of the path: /channels/zalo/webhook/<slug>.
 func (c *Channel) WebhookHandler() (string, http.Handler) {
 	return common.SharedRouter().MountRoute()
 }
 
+// ResolvedWebhookSlug returns the slug the channel registered with the shared
+// router (empty if not yet started or polling mode).
+func (c *Channel) ResolvedWebhookSlug() string { return c.resolvedSlug }
+
 // Start brings the channel up. Safety ticker always runs. Transport
-// "polling" (default) starts the poll loop; "webhook" registers with the
-// shared router and optionally fires a catch-up sweep.
+// "webhook" (default) registers with the shared router and optionally fires
+// a catch-up sweep; "polling" starts the listrecentchat poll loop.
 func (c *Channel) Start(_ context.Context) error {
 	c.SetRunning(true)
 	if c.creds.OAID == "" {
@@ -142,7 +166,7 @@ func (c *Channel) Start(_ context.Context) error {
 
 	transport := c.cfg.Transport
 	if transport == "" {
-		transport = "polling"
+		transport = "webhook"
 	}
 	switch transport {
 	case "webhook":
@@ -189,6 +213,13 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		return errors.New("zalo_oa: empty user_id")
 	}
 
+	// Zalo OA doesn't render markup — strip it so users don't see literal
+	// **, __, ---, etc. Mirrors zalo_bot/channel.go and zalo_personal/send.go.
+	msg.Content = common.StripMarkdown(msg.Content)
+	for i := range msg.Media {
+		msg.Media[i].Caption = common.StripMarkdown(msg.Media[i].Caption)
+	}
+
 	if len(msg.Media) == 0 {
 		_, err := c.SendText(ctx, msg.ChatID, msg.Content)
 		return err
@@ -226,7 +257,21 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		// /upload/file accepts PDF/DOC/DOCX up to 5MB.
 		const zaloFileCapBytes = 5 * 1024 * 1024
 		if !isZaloSupportedFileMIME(mt) {
-			return fmt.Errorf("zalo_oa: file MIME %q not supported (Zalo accepts PDF, DOC, DOCX only)", mt)
+			// Graceful degrade: Zalo OA can't carry xlsx/csv/etc. Drop the
+			// attachment, surface a heads-up note in the text, and let the
+			// trailing text deliver. Avoids the "Failed to deliver" banner.
+			slog.Warn("zalo_oa.send.unsupported_attachment_dropped",
+				"oa_id", c.creds.OAID, "mime", mt, "filename", filepath.Base(m.URL))
+			fallback := mergeTrailingText(m.Caption, msg.Content)
+			heads := fmt.Sprintf("(File %q (%s) cannot be delivered via Zalo OA — only PDF/DOC/DOCX are accepted. Content described above.)",
+				filepath.Base(m.URL), mt)
+			if fallback == "" {
+				fallback = heads
+			} else {
+				fallback = fallback + "\n\n" + heads
+			}
+			_, terr := c.SendText(ctx, msg.ChatID, fallback)
+			return terr
 		}
 		if len(data) > zaloFileCapBytes {
 			return fmt.Errorf("zalo_oa: file too large: %d bytes (Zalo cap is 5MB)", len(data))

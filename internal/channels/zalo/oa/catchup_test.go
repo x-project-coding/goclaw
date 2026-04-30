@@ -20,17 +20,17 @@ import (
 func newCatchUpChannel(t *testing.T, apiURL, oaID string) (*Channel, *bus.MessageBus, *atomic.Int32) {
 	t.Helper()
 	creds := &ChannelCreds{
-		AppID:        "app-1",
-		SecretKey:    "k",
-		OAID:         oaID,
-		AccessToken:  "AT",
-		RefreshToken: "RT",
-		ExpiresAt:    time.Now().Add(time.Hour),
+		AppID:            "app-1",
+		SecretKey:        "k",
+		OAID:             oaID,
+		AccessToken:      "AT",
+		RefreshToken:     "RT",
+		ExpiresAt:        time.Now().Add(time.Hour),
+		WebhookSecretKey: "s",
 	}
 	cfg := config.ZaloOAConfig{
-		Transport:          "webhook",
-		WebhookOASecretKey: "s",
-		CatchUpOnRestart:   true,
+		Transport:        "webhook",
+		CatchUpOnRestart: true,
 	}
 	mb := bus.New()
 	c, err := New("catchup_test", cfg, creds, &fakeStore{}, mb, nil)

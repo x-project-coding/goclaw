@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -172,6 +173,52 @@ func TestSendText_HappyPath(t *testing.T) {
 	}
 	if msg["text"] != "hello" {
 		t.Errorf("message.text = %v", msg["text"])
+	}
+}
+
+// Long messages must split into ≤2000-rune chunks (Zalo error -210 cap).
+// Verifies count, ordering, and that each chunk fits.
+func TestSendText_ChunksLongMessages(t *testing.T) {
+	t.Parallel()
+	api, captured, _ := newAPIServer(t, apiServerOpts{
+		messageReplies: []string{
+			`{"error":0,"data":{"message_id":"mid-1"}}`,
+			`{"error":0,"data":{"message_id":"mid-2"}}`,
+			`{"error":0,"data":{"message_id":"mid-3"}}`,
+			`{"error":0,"data":{"message_id":"mid-4"}}`,
+			`{"error":0,"data":{"message_id":"mid-5"}}`,
+		},
+	})
+	refresh, _ := newRefreshServer(t, "")
+	c := newSendChannel(t, api, refresh, &fakeStore{})
+
+	// Build a body well over the 2000-rune cap with paragraph breaks every
+	// ~500 runes so the chunker has natural cut points.
+	var bldr strings.Builder
+	for i := 0; i < 10; i++ {
+		bldr.WriteString(strings.Repeat("a", 499))
+		bldr.WriteString("\n\n")
+	}
+	long := bldr.String()
+	mid, err := c.SendText(context.Background(), "user-1", long)
+	if err != nil {
+		t.Fatalf("SendText: %v", err)
+	}
+	if len(*captured) < 2 {
+		t.Fatalf("captured %d requests, want ≥2 chunks", len(*captured))
+	}
+	wantLastMID := fmt.Sprintf("mid-%d", len(*captured))
+	if mid != wantLastMID {
+		t.Errorf("message_id = %q, want last chunk %q", mid, wantLastMID)
+	}
+	for i, r := range *captured {
+		var body map[string]any
+		_ = json.Unmarshal(r.body, &body)
+		msg, _ := body["message"].(map[string]any)
+		text, _ := msg["text"].(string)
+		if n := len([]rune(text)); n > 2000 {
+			t.Errorf("chunk %d has %d runes, exceeds 2000-cap", i+1, n)
+		}
 	}
 }
 
@@ -477,6 +524,86 @@ func TestChannelSend_MediaTooLarge(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "too large") && !strings.Contains(err.Error(), "exceeds") && !strings.Contains(err.Error(), "5MB") {
 		t.Errorf("err message = %v, want 'too large'/'exceeds'/'5MB'", err)
+	}
+}
+
+// Outbound markdown must be stripped before reaching Zalo — same safety
+// net as zalo_bot and zalo_personal. Users would otherwise see literal
+// **, __, ---, etc. since Zalo OA renders no markup.
+func TestChannelSend_StripsMarkdown(t *testing.T) {
+	t.Parallel()
+	api, captured, _ := newAPIServer(t, apiServerOpts{
+		messageReplies: []string{`{"error":0,"data":{"message_id":"mid-md"}}`},
+	})
+	refresh, _ := newRefreshServer(t, "")
+	c := newSendChannel(t, api, refresh, &fakeStore{})
+
+	err := c.Send(context.Background(), bus.OutboundMessage{
+		ChatID:  "u",
+		Content: "**Bold** and __italic__\n\n---\n\n# Header\n- bullet\n`code`",
+	})
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if len(*captured) != 1 {
+		t.Fatalf("captured %d, want 1", len(*captured))
+	}
+	var body map[string]any
+	_ = json.Unmarshal((*captured)[0].body, &body)
+	msg, _ := body["message"].(map[string]any)
+	text, _ := msg["text"].(string)
+	for _, banned := range []string{"**", "__", "---", "# Header", "`code`"} {
+		if strings.Contains(text, banned) {
+			t.Errorf("markdown not stripped: %q still contains %q", text, banned)
+		}
+	}
+	for _, want := range []string{"Bold", "italic", "Header", "bullet", "code"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("content lost during strip: missing %q in %q", want, text)
+		}
+	}
+}
+
+// Unsupported MIME (e.g. xlsx) on outbound: drop attachment, send the
+// trailing text + fallback note. No error to the dispatcher → no
+// "Failed to deliver" banner shown to the user.
+func TestChannelSend_UnsupportedMIMEFallsBackToText(t *testing.T) {
+	t.Parallel()
+	api, captured, _ := newAPIServer(t, apiServerOpts{
+		messageReplies: []string{`{"error":0,"data":{"message_id":"mid-fallback"}}`},
+	})
+	refresh, _ := newRefreshServer(t, "")
+	c := newSendChannel(t, api, refresh, &fakeStore{})
+
+	dir := t.TempDir()
+	p := filepath.Join(dir, "report.xlsx")
+	if err := os.WriteFile(p, []byte("PK\x03\x04xlsx"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	err := c.Send(context.Background(), bus.OutboundMessage{
+		ChatID:  "u",
+		Content: "Here is the summary.",
+		Media: []bus.MediaAttachment{{
+			URL:         p,
+			ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("xlsx attachment should fall back to text, got err: %v", err)
+	}
+	if len(*captured) != 1 {
+		t.Fatalf("captured %d requests, want exactly 1 (trailing text only)", len(*captured))
+	}
+	var body map[string]any
+	_ = json.Unmarshal((*captured)[0].body, &body)
+	msg, _ := body["message"].(map[string]any)
+	text, _ := msg["text"].(string)
+	if !strings.Contains(text, "Here is the summary.") {
+		t.Errorf("trailing content dropped: %q", text)
+	}
+	if !strings.Contains(text, "report.xlsx") || !strings.Contains(text, "cannot be delivered") {
+		t.Errorf("fallback note missing filename/explanation: %q", text)
 	}
 }
 

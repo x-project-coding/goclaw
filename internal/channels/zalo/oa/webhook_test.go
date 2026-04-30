@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,13 +25,13 @@ import (
 func newWebhookChannel(t *testing.T, secret, mode string, replaySecs int) (*Channel, *bus.MessageBus) {
 	t.Helper()
 	creds := &ChannelCreds{
-		AppID:     "app-1",
-		SecretKey: "oauth-key", // distinct from webhook secret (S7)
-		OAID:      "oa-1",
+		AppID:            "app-1",
+		SecretKey:        "oauth-key", // distinct from webhook secret (S7)
+		OAID:             "oa-1",
+		WebhookSecretKey: secret,
 	}
 	cfg := config.ZaloOAConfig{
 		Transport:                  "webhook",
-		WebhookOASecretKey:         secret,
 		WebhookSignatureMode:       mode,
 		WebhookReplayWindowSeconds: replaySecs,
 	}
@@ -268,17 +269,106 @@ func TestHandleWebhookEvent_FiltersSelfEcho(t *testing.T) {
 	}
 }
 
-func TestHandleWebhookEvent_AttachmentSkippedV1(t *testing.T) {
+// stubDownloader swaps downloadOAMediaFn to write a fixture file and
+// return its path, bypassing SSRF + network so tests can run hermetically.
+func stubDownloader(t *testing.T, ext string, body []byte) {
+	t.Helper()
+	prev := downloadOAMediaFn
+	downloadOAMediaFn = func(_ context.Context, _ string) (string, error) {
+		f, err := os.CreateTemp(t.TempDir(), "oa_test_*"+ext)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		if _, werr := f.Write(body); werr != nil {
+			return "", werr
+		}
+		return f.Name(), nil
+	}
+	t.Cleanup(func() { downloadOAMediaFn = prev })
+}
+
+// Image / gif / sticker / file events now download the attachment URL and
+// dispatch it as media (replaces the old log-and-skip behavior).
+func TestHandleWebhookEvent_DispatchesImage(t *testing.T) {
+	stubDownloader(t, ".jpg", []byte("\xff\xd8\xff\xe0fake-jpeg"))
+	ch, mb := newWebhookChannel(t, "secret", "strict", 0)
+	payload := `{"event_name":"user_send_image","sender":{"id":"alice"},"message":{"message_id":"m_img","attachments":[{"type":"image","payload":{"url":"https://cdn.zalo.example/photo.jpg"}}]}}`
+	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
+		t.Fatalf("HandleWebhookEvent: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	got, ok := mb.ConsumeInbound(ctx)
+	if !ok {
+		t.Fatal("image event was not dispatched")
+	}
+	if len(got.Media) != 1 {
+		t.Fatalf("Media len = %d, want 1", len(got.Media))
+	}
+	if !strings.Contains(got.Content, "<media:image") {
+		t.Errorf("Content missing <media:image tag: %q", got.Content)
+	}
+}
+
+// File event: dispatches with detected MIME, NOT forced to image.
+func TestHandleWebhookEvent_DispatchesFile(t *testing.T) {
+	stubDownloader(t, ".xlsx", []byte("PK\x03\x04xlsx-bytes"))
+	ch, mb := newWebhookChannel(t, "secret", "strict", 0)
+	payload := `{"event_name":"user_send_file","sender":{"id":"alice"},"message":{"message_id":"m_file","text":"please summarize","attachments":[{"type":"file","payload":{"url":"https://cdn.zalo.example/report.xlsx","name":"report.xlsx"}}]}}`
+	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
+		t.Fatalf("HandleWebhookEvent: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	got, ok := mb.ConsumeInbound(ctx)
+	if !ok {
+		t.Fatal("file event was not dispatched")
+	}
+	if !strings.Contains(got.Content, "please summarize") {
+		t.Errorf("user caption dropped: %q", got.Content)
+	}
+	if !strings.Contains(got.Content, "<media:document") {
+		t.Errorf("xlsx should classify as document, got: %q", got.Content)
+	}
+}
+
+// Link event: no download, dispatched as text-only with title + URL.
+func TestHandleWebhookEvent_DispatchesLink(t *testing.T) {
 	t.Parallel()
 	ch, mb := newWebhookChannel(t, "secret", "strict", 0)
-	payload := `{"event_name":"user_send_image","sender":{"id":"alice"},"message":{"message_id":"m9"}}`
+	payload := `{"event_name":"user_send_link","sender":{"id":"alice"},"message":{"message_id":"m_link","text":"check this","attachments":[{"type":"link","payload":{"url":"https://example.com","title":"Example","description":"a sample"}}]}}`
+	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
+		t.Fatalf("HandleWebhookEvent: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	got, ok := mb.ConsumeInbound(ctx)
+	if !ok {
+		t.Fatal("link event was not dispatched")
+	}
+	if len(got.Media) != 0 {
+		t.Errorf("link should not download media, got %d files", len(got.Media))
+	}
+	for _, want := range []string{"check this", "Example", "https://example.com", "a sample"} {
+		if !strings.Contains(got.Content, want) {
+			t.Errorf("link content missing %q: %q", want, got.Content)
+		}
+	}
+}
+
+// Attachment event with empty URL: dropped, no panic, no dispatch.
+func TestHandleWebhookEvent_AttachmentMissingURL(t *testing.T) {
+	t.Parallel()
+	ch, mb := newWebhookChannel(t, "secret", "strict", 0)
+	payload := `{"event_name":"user_send_image","sender":{"id":"alice"},"message":{"message_id":"m_bad","attachments":[]}}`
 	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
 		t.Fatalf("HandleWebhookEvent: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	if _, ok := mb.ConsumeInbound(ctx); ok {
-		t.Error("attachment should be log-and-skip in v1")
+		t.Error("missing-URL attachment should not dispatch")
 	}
 }
 
@@ -288,6 +378,23 @@ func TestHandleWebhookEvent_UnknownEventNoError(t *testing.T) {
 	payload := `{"event_name":"some_future_thing","sender":{"id":"alice"}}`
 	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
 		t.Errorf("unknown event should not error: %v", err)
+	}
+}
+
+// Real Zalo webhook sends `timestamp` as a STRING ("1714476720000"), not
+// a number. Decode must accept both shapes — int64 typing on the struct
+// breaks production traffic with "cannot unmarshal string into ... int64".
+func TestHandleWebhookEvent_AcceptsStringTimestamp(t *testing.T) {
+	t.Parallel()
+	ch, mb := newWebhookChannel(t, "secret", "strict", 0)
+	payload := `{"event_name":"user_send_text","timestamp":"1714476720000","sender":{"id":"alice"},"message":{"message_id":"m_str","text":"hi"}}`
+	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
+		t.Fatalf("string-timestamp payload should decode, got: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, ok := mb.ConsumeInbound(ctx); !ok {
+		t.Fatal("string-timestamp payload was not dispatched")
 	}
 }
 
@@ -316,17 +423,18 @@ func TestMessageIDExtractor(t *testing.T) {
 	}
 }
 
-// Start with transport=webhook + missing secret → MarkFailed (not crash).
-func TestStart_WebhookMissingSecretMarksFailed(t *testing.T) {
+// transport=webhook + signature_mode=strict + no secret → MarkDegraded
+// (bootstrap), slug routed, drop counter starts at 0. Replaces the old
+// MarksFailed test — backend behavior change is intentional.
+func TestStart_WebhookMissingSecretEntersBootstrap(t *testing.T) {
 	t.Parallel()
 	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1"}
 	cfg := config.ZaloOAConfig{
 		Transport:            "webhook",
 		WebhookSignatureMode: "strict",
-		// no WebhookOASecretKey
 	}
 	mb := bus.New()
-	c, err := New("start_test", cfg, creds, &fakeStore{}, mb, nil)
+	c, err := New("bootstrap_test", cfg, creds, &fakeStore{}, mb, nil)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -336,20 +444,189 @@ func TestStart_WebhookMissingSecretMarksFailed(t *testing.T) {
 	if err := c.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
+	defer c.Stop(context.Background())
+
 	snap := c.HealthSnapshot()
-	if !strings.Contains(strings.ToLower(string(snap.State)), "failed") {
-		t.Errorf("State = %v, want failed", snap.State)
+	if string(snap.State) != "degraded" {
+		t.Errorf("State = %v, want degraded", snap.State)
 	}
-	_ = c.Stop(context.Background())
+	if !strings.Contains(strings.ToLower(snap.Summary), "awaiting webhook secret") {
+		t.Errorf("Summary = %q, want contains 'awaiting webhook secret'", snap.Summary)
+	}
+	if c.ResolvedWebhookSlug() == "" {
+		t.Error("slug not registered in bootstrap")
+	}
+	if got := c.BootstrapDroppedForTest(); got != 0 {
+		t.Errorf("drop counter = %d, want 0", got)
+	}
+}
+
+// Bootstrap: HTTP POST to slug → 200, drop counter increments, no bus event.
+func TestWebhookBootstrap_AcksAndDrops(t *testing.T) {
+	t.Parallel()
+	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1"}
+	cfg := config.ZaloOAConfig{Transport: "webhook", WebhookSignatureMode: "strict"}
+	mb := bus.New()
+	c, err := New("bootstrap_drop", cfg, creds, &fakeStore{}, mb, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.SetInstanceID(uuid.New())
+	router := common.NewRouter()
+	c.webhookRouter = router
+
+	if err := c.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer c.Stop(context.Background())
+
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	slug := c.ResolvedWebhookSlug()
+	body := []byte(`{"event_name":"user_send_text","sender":{"id":"alice"},"message":{"message_id":"m_boot","text":"hi"}}`)
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+common.WebhookPathPrefix+slug, bytes.NewReader(body))
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("router post: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (bootstrap acks even unsigned ping)", resp.StatusCode)
+	}
+
+	// Drop should run on the dispatch goroutine — give it a moment.
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if c.BootstrapDroppedForTest() == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := c.BootstrapDroppedForTest(); got != 1 {
+		t.Errorf("drop counter = %d, want 1", got)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, ok := mb.ConsumeInbound(ctx); ok {
+		t.Error("bootstrap MUST NOT publish events to bus")
+	}
+}
+
+// After secret arrives + restart, verifier becomes strict: unsigned 401,
+// signed 200 + dispatch. Mirrors the prod reload flow (Stop old, Start new
+// instance via factory).
+func TestWebhookBootstrap_TransitionsToStrictAfterSecret(t *testing.T) {
+	t.Parallel()
+	router := common.NewRouter()
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Stage 1: bootstrap channel.
+	credsBoot := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1"}
+	cfg := config.ZaloOAConfig{
+		Transport:            "webhook",
+		WebhookSignatureMode: "strict",
+		WebhookPath:          "fixedslug",
+	}
+	mb := bus.New()
+	cBoot, err := New("transition_test", cfg, credsBoot, &fakeStore{}, mb, nil)
+	if err != nil {
+		t.Fatalf("New bootstrap: %v", err)
+	}
+	cBoot.SetInstanceID(uuid.New())
+	cBoot.webhookRouter = router
+	if err := cBoot.Start(context.Background()); err != nil {
+		t.Fatalf("Start bootstrap: %v", err)
+	}
+	if string(cBoot.HealthSnapshot().State) != "degraded" {
+		t.Fatalf("expected degraded, got %v", cBoot.HealthSnapshot().State)
+	}
+	_ = cBoot.Stop(context.Background())
+
+	// Stage 2: fresh channel with secret, same slug.
+	credsStrict := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1", WebhookSecretKey: "real-secret"}
+	cStrict, err := New("transition_test", cfg, credsStrict, &fakeStore{}, mb, nil)
+	if err != nil {
+		t.Fatalf("New strict: %v", err)
+	}
+	cStrict.SetInstanceID(uuid.New())
+	cStrict.webhookRouter = router
+	if err := cStrict.Start(context.Background()); err != nil {
+		t.Fatalf("Start strict: %v", err)
+	}
+	defer cStrict.Stop(context.Background())
+	if string(cStrict.HealthSnapshot().State) != "healthy" {
+		t.Errorf("expected healthy after secret, got %v", cStrict.HealthSnapshot().State)
+	}
+
+	url := srv.URL + common.WebhookPathPrefix + "fixedslug"
+
+	// Unsigned POST → 401.
+	unsigned := []byte(`{"event_name":"user_send_text","sender":{"id":"alice"},"message":{"message_id":"m_u","text":"hi"}}`)
+	reqU, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(unsigned))
+	respU, err := srv.Client().Do(reqU)
+	if err != nil {
+		t.Fatalf("unsigned post: %v", err)
+	}
+	if respU.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unsigned status = %d, want 401", respU.StatusCode)
+	}
+
+	// Signed POST → 200 + dispatch.
+	hdr, body := signedPayload(t, "app-1", "real-secret", nowMs(),
+		`"event_name":"user_send_text","sender":{"id":"alice"},"message":{"message_id":"m_s","text":"hi-strict"}`)
+	reqS, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	reqS.Header = hdr
+	respS, err := srv.Client().Do(reqS)
+	if err != nil {
+		t.Fatalf("signed post: %v", err)
+	}
+	if respS.StatusCode != http.StatusOK {
+		t.Fatalf("signed status = %d, want 200", respS.StatusCode)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	if _, ok := mb.ConsumeInbound(ctx); !ok {
+		t.Error("strict mode did not dispatch signed event")
+	}
+}
+
+// signature_mode=disabled + no secret → still goes Healthy (unchanged
+// behavior). Bootstrap only triggers when mode != disabled.
+func TestWebhookBootstrap_DisabledModeUnaffected(t *testing.T) {
+	t.Parallel()
+	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1"}
+	cfg := config.ZaloOAConfig{
+		Transport:            "webhook",
+		WebhookSignatureMode: "disabled",
+	}
+	mb := bus.New()
+	c, err := New("disabled_test", cfg, creds, &fakeStore{}, mb, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.SetInstanceID(uuid.New())
+	c.webhookRouter = common.NewRouter()
+	if err := c.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer c.Stop(context.Background())
+	if string(c.HealthSnapshot().State) != "healthy" {
+		t.Errorf("State = %v, want healthy (disabled mode skips bootstrap gate)", c.HealthSnapshot().State)
+	}
 }
 
 // Start with transport=webhook + secret → registers with router; Stop unregisters.
 func TestStart_WebhookRegistersAndStopUnregisters(t *testing.T) {
 	t.Parallel()
-	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1"}
+	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1", WebhookSecretKey: "secret"}
 	cfg := config.ZaloOAConfig{
-		Transport:          "webhook",
-		WebhookOASecretKey: "secret",
+		Transport: "webhook",
 	}
 	mb := bus.New()
 	c, err := New("start_test", cfg, creds, &fakeStore{}, mb, nil)
@@ -369,11 +646,17 @@ func TestStart_WebhookRegistersAndStopUnregisters(t *testing.T) {
 	}
 	// Confirm registered: dispatch a request through the router and assert
 	// the channel's HandleWebhookEvent runs.
-	srv := httptest.NewServer(router)
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
+	slug := c.ResolvedWebhookSlug()
+	if slug == "" {
+		t.Fatal("ResolvedWebhookSlug empty after Start")
+	}
 	hdr, body := signedPayload(t, "app-1", "secret", nowMs(),
 		`"event_name":"user_send_text","sender":{"id":"alice"},"message":{"message_id":"m1","text":"hi"}`)
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"?instance="+id.String(), bytes.NewReader(body))
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+common.WebhookPathPrefix+slug, bytes.NewReader(body))
 	req.Header = hdr
 	resp, err := srv.Client().Do(req)
 	if err != nil {
@@ -390,7 +673,7 @@ func TestStart_WebhookRegistersAndStopUnregisters(t *testing.T) {
 
 	// Stop unregisters → next request must 404.
 	_ = c.Stop(context.Background())
-	req2, _ := http.NewRequest(http.MethodPost, srv.URL+"?instance="+id.String(), bytes.NewReader(body))
+	req2, _ := http.NewRequest(http.MethodPost, srv.URL+common.WebhookPathPrefix+slug, bytes.NewReader(body))
 	req2.Header = hdr
 	resp2, err := srv.Client().Do(req2)
 	if err != nil {
@@ -401,11 +684,11 @@ func TestStart_WebhookRegistersAndStopUnregisters(t *testing.T) {
 	}
 }
 
-// Start polling (default) leaves the webhook router untouched.
+// Start polling leaves the webhook router untouched.
 func TestStart_PollingTransportIgnoresRouter(t *testing.T) {
 	t.Parallel()
 	creds := &ChannelCreds{AppID: "app-1", SecretKey: "k", OAID: "oa-1", AccessToken: "AT", RefreshToken: "RT", ExpiresAt: time.Now().Add(time.Hour)}
-	cfg := config.ZaloOAConfig{} // Transport empty → defaults to polling
+	cfg := config.ZaloOAConfig{Transport: "polling"}
 	mb := bus.New()
 	c, err := New("start_test", cfg, creds, &fakeStore{}, mb, nil)
 	if err != nil {
@@ -424,7 +707,7 @@ func TestStart_PollingTransportIgnoresRouter(t *testing.T) {
 	}
 }
 
-// S7: SignatureVerifier() must be wired to cfg.WebhookOASecretKey, NOT
+// S7: SignatureVerifier() must be wired to creds.WebhookSecretKey, NOT
 // creds.SecretKey (the OAuth refresh credential). Verifying against the
 // OAuth secret would silently reject every legit Zalo webhook delivery.
 func TestSignatureVerifier_UsesWebhookSecretNotOAuthSecret(t *testing.T) {
@@ -433,7 +716,7 @@ func TestSignatureVerifier_UsesWebhookSecretNotOAuthSecret(t *testing.T) {
 	ts := nowMs()
 	hdr, body := signedPayload(t, "app-1", "WEBHOOK-SECRET", ts, `"event_name":"user_send_text"`)
 	if err := ch.SignatureVerifier().Verify(hdr, body); err != nil {
-		t.Errorf("verifier rejected webhook-secret payload: %v (S7: must wire WebhookOASecretKey, not creds.SecretKey)", err)
+		t.Errorf("verifier rejected webhook-secret payload: %v (S7: must wire creds.WebhookSecretKey, not creds.SecretKey)", err)
 	}
 	// Sanity: the OAuth secret should NOT verify.
 	hdr2, body2 := signedPayload(t, "app-1", "oauth-key", ts, `"event_name":"user_send_text"`)

@@ -10,12 +10,14 @@ import (
 )
 
 // oaInboundEvent maps a Zalo OA webhook event. Image/file/sticker
-// variants are accepted but ignored (text-only).
+// variants are accepted but ignored (text-only). Top-level "timestamp"
+// is intentionally omitted — Zalo sends it as a string in real traffic
+// (json.Number is fine, but we don't use it here; signature verifier
+// reads it independently via extractTimestamp).
 type oaInboundEvent struct {
 	EventName string `json:"event_name"`
 	AppID     string `json:"app_id"`
 	OAID      string `json:"oa_id"`
-	Timestamp int64  `json:"timestamp"`
 	Sender    struct {
 		ID          string `json:"id"`
 		DisplayName string `json:"display_name,omitempty"`
@@ -24,9 +26,10 @@ type oaInboundEvent struct {
 		ID string `json:"id"`
 	} `json:"recipient"`
 	Message struct {
-		MessageID string `json:"message_id,omitempty"`
-		MsgID     string `json:"msg_id,omitempty"` // alternate field in some OA payloads
-		Text      string `json:"text,omitempty"`
+		MessageID   string         `json:"message_id,omitempty"`
+		MsgID       string         `json:"msg_id,omitempty"` // alternate field in some OA payloads
+		Text        string         `json:"text,omitempty"`
+		Attachments []oaAttachment `json:"attachments,omitempty"`
 	} `json:"message"`
 }
 
@@ -39,7 +42,18 @@ func (e *oaInboundEvent) messageID() string {
 
 // HandleWebhookEvent routes a verified+deduped event onto the message bus.
 // Drops self-echoes (Sender.ID == OAID) so we don't reply to our own sends.
+// In bootstrap mode (no webhook secret yet) drops every event without
+// decoding so Zalo's URL-verification ping and any pre-secret traffic are
+// acked but not dispatched.
 func (c *Channel) HandleWebhookEvent(_ context.Context, raw json.RawMessage) error {
+	if c.inBootstrap() {
+		n := c.bootstrapDroppedCount.Add(1)
+		slog.Warn("zalo_oa.webhook.bootstrap_drop",
+			"instance_id", c.instanceID,
+			"drop_count", n,
+			"hint", "paste OA Secret Key in Credentials tab to enable processing")
+		return nil
+	}
 	var e oaInboundEvent
 	if err := json.Unmarshal(raw, &e); err != nil {
 		return fmt.Errorf("zalo_oa.webhook: decode event: %w", err)
@@ -54,9 +68,17 @@ func (c *Channel) HandleWebhookEvent(_ context.Context, raw json.RawMessage) err
 	case "user_send_text":
 		c.dispatchWebhookText(&e)
 		return nil
-	case "user_send_image", "user_send_file", "user_send_sticker", "user_send_gif":
-		slog.Info("zalo_oa.webhook.attachment_received_v1_text_only",
-			"event", e.EventName, "message_id", e.messageID())
+	case "user_send_image", "user_send_gif", "user_send_sticker":
+		// Image / gif / sticker → always classify as image so the agent
+		// treats them visually, regardless of CDN MIME quirks.
+		c.dispatchWebhookMedia(&e, true)
+		return nil
+	case "user_send_file":
+		// File: classify by detected MIME (xlsx → document, mp4 → video, …).
+		c.dispatchWebhookMedia(&e, false)
+		return nil
+	case "user_send_link":
+		c.dispatchWebhookLink(&e)
 		return nil
 	case "user_follow", "user_unfollow":
 		slog.Info("zalo_oa.webhook.follow_event", "event", e.EventName, "user_id", e.Sender.ID)
@@ -82,11 +104,16 @@ func (c *Channel) dispatchWebhookText(e *oaInboundEvent) {
 }
 
 // SignatureVerifier returns a verifier bound to this channel's webhook
-// secret + signature mode.
+// secret + signature mode. In bootstrap mode the verifier accepts any
+// payload so Zalo's URL-save verification ping returns 200 — events are
+// dropped downstream by HandleWebhookEvent.
 func (c *Channel) SignatureVerifier() common.SignatureVerifier {
+	if c.inBootstrap() {
+		return newOASignatureVerifier(c.creds.AppID, "", SignatureModeDisabled, 0)
+	}
 	return newOASignatureVerifier(
 		c.creds.AppID,
-		c.cfg.WebhookOASecretKey,
+		c.creds.WebhookSecretKey,
 		c.cfg.WebhookSignatureMode,
 		clampReplayWindowSeconds(c.cfg.WebhookReplayWindowSeconds),
 	)

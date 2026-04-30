@@ -85,7 +85,7 @@ func (c *Channel) pollOnce(ctx context.Context) error {
 				"oa_id", c.creds.OAID,
 				"max_pages", maxPages,
 				"page_size", pageSize,
-				"hint", "raise poll_count or shorten poll_interval_seconds if this is steady-state")
+				"hint", "raise poll_burndown_max_pages, shorten poll_interval_seconds, or switch to webhook transport")
 		}
 	}
 	return nil
@@ -170,10 +170,11 @@ const (
 	rateLimitBackoff    = 30 * time.Second
 	cursorFlushInterval = 60 * time.Second
 
-	defaultPollCount            = 50
-	pollCountFloor              = 10
-	pollCountCeil               = 200
-	defaultPollBurndownMaxPages = 5
+	// Zalo /v2.0/oa/listrecentchat caps `count` at 10 (server returns -210 above).
+	defaultPollCount            = 10
+	pollCountFloor              = 1
+	pollCountCeil               = 10
+	defaultPollBurndownMaxPages = 10
 	pollBurndownMaxPagesCeil    = 20
 )
 

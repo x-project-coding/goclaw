@@ -16,20 +16,21 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 )
 
-// TestPollCountFromCfg covers the [10, 200] clamp + zero/negative default.
+// TestPollCountFromCfg covers the [1, 10] clamp + zero/negative default.
+// Zalo's listrecentchat hard-caps count at 10 (error -210 above).
 func TestPollCountFromCfg(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		in, want int
 	}{
-		{-1, 50},  // negative → default
-		{0, 50},   // zero → default
-		{5, 10},   // below floor → floor
-		{10, 10},  // floor
-		{50, 50},  // identity
-		{200, 200}, // ceiling
-		{201, 200}, // above ceiling → ceiling
-		{999, 200},
+		{-1, 10}, // negative → default
+		{0, 10},  // zero → default
+		{1, 1},   // floor
+		{5, 5},   // identity
+		{10, 10}, // ceiling
+		{11, 10}, // above ceiling → ceiling (Zalo cap)
+		{50, 10},
+		{999, 10},
 	}
 	for _, tc := range cases {
 		got := pollCountFromCfg(tc.in)
@@ -45,10 +46,11 @@ func TestPollBurndownMaxPagesFromCfg(t *testing.T) {
 	cases := []struct {
 		in, want int
 	}{
-		{-1, 5},  // negative → default
-		{0, 5},   // zero → default
+		{-1, 10}, // negative → default
+		{0, 10},  // zero → default
 		{1, 1},   // floor (disable burn-down)
-		{5, 5},   // identity (default)
+		{5, 5},   // identity
+		{10, 10}, // identity (default)
 		{20, 20}, // ceiling
 		{21, 20}, // above ceiling → ceiling
 		{999, 20},
@@ -211,15 +213,15 @@ func int64Str(n int64) string {
 	return string(buf[i:])
 }
 
-// TestPollOnce_BurnDown_PartialPageStops: page 0 returns 50 (full), page 1 returns 30 (partial).
-// Expect 2 calls, 80 unique messages dispatched.
+// TestPollOnce_BurnDown_PartialPageStops: page 0 returns 10 (full), page 1 returns 6 (partial).
+// Expect 2 calls, 16 unique messages dispatched.
 func TestPollOnce_BurnDown_PartialPageStops(t *testing.T) {
 	t.Parallel()
 	bs := newBurnDownServer(t, []string{
-		genFullPage("p0", 1000, 50),
-		genFullPage("p1", 2000, 30),
+		genFullPage("p0", 1000, 10),
+		genFullPage("p1", 2000, 6),
 	})
-	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 50, PollBurndownMaxPages: 5})
+	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 10, PollBurndownMaxPages: 5})
 
 	if err := c.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
@@ -230,30 +232,30 @@ func TestPollOnce_BurnDown_PartialPageStops(t *testing.T) {
 	}
 	bs.mu.Lock()
 	if len(bs.calls) >= 2 {
-		if bs.calls[0].offset != "0" || bs.calls[0].count != "50" {
-			t.Errorf("call[0] = (offset=%s,count=%s), want (0,50)", bs.calls[0].offset, bs.calls[0].count)
+		if bs.calls[0].offset != "0" || bs.calls[0].count != "10" {
+			t.Errorf("call[0] = (offset=%s,count=%s), want (0,10)", bs.calls[0].offset, bs.calls[0].count)
 		}
-		if bs.calls[1].offset != "50" || bs.calls[1].count != "50" {
-			t.Errorf("call[1] = (offset=%s,count=%s), want (50,50)", bs.calls[1].offset, bs.calls[1].count)
+		if bs.calls[1].offset != "10" || bs.calls[1].count != "10" {
+			t.Errorf("call[1] = (offset=%s,count=%s), want (10,10)", bs.calls[1].offset, bs.calls[1].count)
 		}
 	}
 	bs.mu.Unlock()
 
 	got := drainInbound(t, msgBus, 100)
-	if len(got) != 80 {
-		t.Errorf("inbound count = %d, want 80", len(got))
+	if len(got) != 16 {
+		t.Errorf("inbound count = %d, want 16", len(got))
 	}
 }
 
-// TestPollOnce_BurnDown_EmptyPageStops: page 0 returns 50 (full), page 1 returns 0 (empty).
-// Expect 2 calls, 50 unique messages dispatched.
+// TestPollOnce_BurnDown_EmptyPageStops: page 0 returns 10 (full), page 1 returns 0 (empty).
+// Expect 2 calls, 10 unique messages dispatched.
 func TestPollOnce_BurnDown_EmptyPageStops(t *testing.T) {
 	t.Parallel()
 	bs := newBurnDownServer(t, []string{
-		genFullPage("p0", 1000, 50),
+		genFullPage("p0", 1000, 10),
 		`{"error":0,"data":[]}`,
 	})
-	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 50, PollBurndownMaxPages: 5})
+	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 10, PollBurndownMaxPages: 5})
 
 	if err := c.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
@@ -262,8 +264,8 @@ func TestPollOnce_BurnDown_EmptyPageStops(t *testing.T) {
 		t.Errorf("listrecentchat calls = %d, want 2", got)
 	}
 	got := drainInbound(t, msgBus, 100)
-	if len(got) != 50 {
-		t.Errorf("inbound count = %d, want 50", len(got))
+	if len(got) != 10 {
+		t.Errorf("inbound count = %d, want 10", len(got))
 	}
 }
 
@@ -271,16 +273,16 @@ func TestPollOnce_BurnDown_EmptyPageStops(t *testing.T) {
 // burn-down stops at max_pages with a warn log.
 func TestPollOnce_BurnDown_MaxPagesCapsAndWarns(t *testing.T) {
 	t.Parallel()
-	// Five full pages (50 each) then an empty one we should never reach.
+	// Five full pages (10 each) then an empty one we should never reach.
 	bs := newBurnDownServer(t, []string{
-		genFullPage("p0", 1000, 50),
-		genFullPage("p1", 2000, 50),
-		genFullPage("p2", 3000, 50),
-		genFullPage("p3", 4000, 50),
-		genFullPage("p4", 5000, 50),
+		genFullPage("p0", 1000, 10),
+		genFullPage("p1", 2000, 10),
+		genFullPage("p2", 3000, 10),
+		genFullPage("p3", 4000, 10),
+		genFullPage("p4", 5000, 10),
 		`{"error":0,"data":[]}`, // should NOT be hit
 	})
-	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 50, PollBurndownMaxPages: 5})
+	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 10, PollBurndownMaxPages: 5})
 
 	if err := c.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
@@ -288,9 +290,9 @@ func TestPollOnce_BurnDown_MaxPagesCapsAndWarns(t *testing.T) {
 	if got := bs.hits.Load(); got != 5 {
 		t.Errorf("listrecentchat calls = %d, want 5 (capped by max_pages)", got)
 	}
-	got := drainInbound(t, msgBus, 300)
-	if len(got) != 250 {
-		t.Errorf("inbound count = %d, want 250", len(got))
+	got := drainInbound(t, msgBus, 100)
+	if len(got) != 50 {
+		t.Errorf("inbound count = %d, want 50", len(got))
 	}
 }
 
@@ -299,10 +301,10 @@ func TestPollOnce_BurnDown_MaxPagesCapsAndWarns(t *testing.T) {
 func TestPollOnce_BurnDown_MaxPagesOne_DisablesBurnDown(t *testing.T) {
 	t.Parallel()
 	bs := newBurnDownServer(t, []string{
-		genFullPage("p0", 1000, 50),
-		genFullPage("p1", 2000, 50), // never reached
+		genFullPage("p0", 1000, 10),
+		genFullPage("p1", 2000, 10), // never reached
 	})
-	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 50, PollBurndownMaxPages: 1})
+	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 10, PollBurndownMaxPages: 1})
 
 	if err := c.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
@@ -311,17 +313,17 @@ func TestPollOnce_BurnDown_MaxPagesOne_DisablesBurnDown(t *testing.T) {
 		t.Errorf("listrecentchat calls = %d, want 1 (max_pages=1 disables burn-down)", got)
 	}
 	got := drainInbound(t, msgBus, 100)
-	if len(got) != 50 {
-		t.Errorf("inbound count = %d, want 50", len(got))
+	if len(got) != 10 {
+		t.Errorf("inbound count = %d, want 10", len(got))
 	}
 }
 
 // TestPollOnce_BurnDown_DefaultsApplyWhenZero: PollCount=0, PollBurndownMaxPages=0
-// → default 50 / 5 applied.
+// → default count=10 applied (matches Zalo's API hard cap).
 func TestPollOnce_BurnDown_DefaultsApplyWhenZero(t *testing.T) {
 	t.Parallel()
 	bs := newBurnDownServer(t, []string{
-		genFullPage("p0", 1000, 50),
+		genFullPage("p0", 1000, 10),
 		`{"error":0,"data":[]}`,
 	})
 	c, _ := newBurnDownChannel(t, bs, config.ZaloOAConfig{}) // both unset
@@ -330,8 +332,8 @@ func TestPollOnce_BurnDown_DefaultsApplyWhenZero(t *testing.T) {
 		t.Fatalf("pollOnce: %v", err)
 	}
 	bs.mu.Lock()
-	if len(bs.calls) > 0 && bs.calls[0].count != "50" {
-		t.Errorf("first call count = %s, want 50 (default)", bs.calls[0].count)
+	if len(bs.calls) > 0 && bs.calls[0].count != "10" {
+		t.Errorf("first call count = %s, want 10 (default)", bs.calls[0].count)
 	}
 	bs.mu.Unlock()
 }
@@ -341,24 +343,21 @@ func TestPollOnce_BurnDown_DefaultsApplyWhenZero(t *testing.T) {
 // drop the overlap so each unique message dispatches exactly once.
 func TestPollOnce_BurnDown_NoDoubleDispatchAcrossPages(t *testing.T) {
 	t.Parallel()
-	// Page 0: 50 messages, time 1000..1049 from u1
-	// Page 1: 30 NEW messages (time 1050..1079) — but Zalo's pagination model
-	// could overlap. To simulate, page 1 starts with some old times that the
-	// cursor should reject.
-	page0 := genSingleUserPage("p0", "u1", 1000, 50)
-	// page 1 has 10 overlapping (1040..1049) + 20 fresh (1050..1069) = 30 entries
-	page1 := genSingleUserPage("overlap", "u1", 1040, 30)
+	// Page 0: 10 messages from u1, time 1000..1009 (full → burndown continues)
+	// Page 1: 6 messages — 4 overlapping (1006..1009) + 2 fresh (1010..1011)
+	page0 := genSingleUserPage("p0", "u1", 1000, 10)
+	page1 := genSingleUserPage("overlap", "u1", 1006, 6)
 	bs := newBurnDownServer(t, []string{page0, page1})
-	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 50, PollBurndownMaxPages: 5})
+	c, msgBus := newBurnDownChannel(t, bs, config.ZaloOAConfig{PollCount: 10, PollBurndownMaxPages: 5})
 
 	if err := c.pollOnce(context.Background()); err != nil {
 		t.Fatalf("pollOnce: %v", err)
 	}
-	got := drainInbound(t, msgBus, 200)
-	// 50 unique from page 0, then page 1 brings 20 NEW (times 1050..1069);
-	// the 10 overlapping (1040..1049) are dropped by the cursor.
-	if len(got) != 70 {
-		t.Errorf("inbound count = %d, want 70 (50 unique + 20 fresh; 10 overlap deduped)", len(got))
+	got := drainInbound(t, msgBus, 100)
+	// 10 unique from page 0, then page 1 brings 2 NEW (times 1010..1011);
+	// the 4 overlapping (1006..1009) are dropped by the cursor.
+	if len(got) != 12 {
+		t.Errorf("inbound count = %d, want 12 (10 unique + 2 fresh; 4 overlap deduped)", len(got))
 	}
 }
 

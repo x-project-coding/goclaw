@@ -25,6 +25,11 @@ type ChannelCreds struct {
 	// otherwise Zalo returns error_code=-14003 "Invalid redirect uri".
 	RedirectURI string `json:"redirect_uri,omitempty"`
 
+	// WebhookSecretKey is the signing secret from the Zalo dev console
+	// (OA → Webhook). Distinct from SecretKey (OAuth v4). Used to verify
+	// X-ZEvent-Signature headers when Transport=webhook.
+	WebhookSecretKey string `json:"webhook_secret_key,omitempty"`
+
 	AccessToken   string    `json:"access_token,omitempty"`
 	RefreshToken  string    `json:"refresh_token,omitempty"`
 	ExpiresAt     time.Time `json:"expires_at,omitempty"`

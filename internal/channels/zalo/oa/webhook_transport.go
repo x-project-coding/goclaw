@@ -6,25 +6,51 @@ import (
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/common"
 )
+
+// resolveSlug picks the operator-supplied path or falls back to a name-derived
+// slug so wizard-created channels work without an explicit webhook_path.
+func resolveSlug(cfgPath, name string) string {
+	if cfgPath != "" {
+		return cfgPath
+	}
+	return common.DeriveSlugFromName(name)
+}
 
 // startWebhookTransport registers with the shared router and optionally
 // fires the catch-up sweep. Returns nil on misconfig (channel is marked
-// Failed) so instance_loader doesn't crash.
+// Failed) so instance_loader doesn't crash. When the channel is webhook
+// + signature-enforcing but has no secret yet, registers the slug and
+// enters bootstrap mode (Degraded health, acks ping, drops events) so
+// the operator can finish the Zalo console flow.
 func (c *Channel) startWebhookTransport() error {
-	mode := normalizeMode(c.cfg.WebhookSignatureMode)
-	if c.cfg.WebhookOASecretKey == "" && mode != SignatureModeDisabled {
-		c.MarkFailed("webhook secret missing",
-			"transport=webhook with signature_mode=strict|log_only requires webhook_oa_secret_key",
+	slug := resolveSlug(c.cfg.WebhookPath, c.Name())
+	if err := c.webhookRouter.RegisterInstance(c.instanceID, c, c.TenantID(), slug); err != nil {
+		c.MarkFailed("webhook slug invalid",
+			err.Error(),
 			channels.ChannelFailureKindConfig, false)
 		return nil
 	}
-	c.webhookRouter.RegisterInstance(c.instanceID, c, c.TenantID())
+	c.resolvedSlug = slug
+
+	if c.inBootstrap() {
+		c.MarkDegraded(
+			"awaiting webhook secret",
+			"Zalo OA Secret Key not yet pasted. Webhook acks URL-verification ping with HTTP 200 but drops events. Paste Khóa bí mật OA in Credentials tab to enable signature verification.",
+			channels.ChannelFailureKindConfig,
+			true,
+		)
+		slog.Info("zalo_oa.webhook.bootstrap_active",
+			"instance_id", c.instanceID, "oa_id", c.creds.OAID, "slug", slug)
+		return nil
+	}
+
+	mode := normalizeMode(c.cfg.WebhookSignatureMode)
 	slog.Info("zalo_oa.webhook.registered",
-		"instance_id", c.instanceID, "oa_id", c.creds.OAID, "signature_mode", mode)
+		"instance_id", c.instanceID, "oa_id", c.creds.OAID, "signature_mode", mode, "slug", slug)
 
 	if c.cfg.CatchUpOnRestart {
-		// Goroutine + WaitGroup so Start returns immediately and Stop drains.
 		c.catchUpWG.Add(1)
 		go c.runCatchUpSweepGoroutine()
 	}
