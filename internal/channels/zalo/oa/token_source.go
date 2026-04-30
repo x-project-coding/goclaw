@@ -15,6 +15,11 @@ import (
 // refreshMargin: refresh when the access token expires within this window.
 const refreshMargin = 5 * time.Minute
 
+// refreshHTTPTimeout bounds the HTTP roundtrip while ts.mu is held so a
+// misconfigured caller ctx can't wedge concurrent send/poll/reaction
+// callers. Shorter than the 15s defaultClientTimeout.
+const refreshHTTPTimeout = 12 * time.Second
+
 // tokenSource lazily refreshes the access token. ts.mu is the innermost
 // lock and is held across the HTTP refresh by design: Zalo refresh tokens
 // are single-use, so the in-critical-section roundtrip is the single-flight
@@ -63,7 +68,9 @@ func (ts *tokenSource) doRefresh(ctx context.Context) error {
 		return ErrNotAuthorized
 	}
 
-	tok, rawErr := ts.client.RefreshToken(ctx, ts.creds.AppID, ts.creds.SecretKey, ts.creds.RefreshToken)
+	refreshCtx, cancel := context.WithTimeout(ctx, refreshHTTPTimeout)
+	defer cancel()
+	tok, rawErr := ts.client.RefreshToken(refreshCtx, ts.creds.AppID, ts.creds.SecretKey, ts.creds.RefreshToken)
 	if rawErr != nil {
 		err := classifyRefreshError(rawErr)
 		if errors.Is(err, ErrAuthExpired) {
