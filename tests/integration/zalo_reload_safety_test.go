@@ -29,15 +29,17 @@ import (
 // MountRoute call must return ("", nil).
 func TestZaloWebhook_MountRouteIdempotentAcrossReload(t *testing.T) {
 	router := common.NewRouter()
-	srv := httptest.NewServer(router)
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	msgBus := bus.New()
 
 	// First MountRoute — must claim the path.
 	path1, h1 := router.MountRoute()
-	if path1 != common.WebhookPath || h1 != router {
-		t.Fatalf("first MountRoute = (%q, %v), want (%q, router)", path1, h1, common.WebhookPath)
+	if path1 != common.WebhookPathPrefix || h1 != router {
+		t.Fatalf("first MountRoute = (%q, %v), want (%q, router)", path1, h1, common.WebhookPathPrefix)
 	}
 
 	// Register an OA instance, send a signed event, drain inbound — proves
@@ -48,10 +50,10 @@ func TestZaloWebhook_MountRouteIdempotentAcrossReload(t *testing.T) {
 	creds := &oa.ChannelCreds{
 		AppID: "oa-app", SecretKey: "oa-sk", OAID: "oa-mt",
 		AccessToken: "AT", RefreshToken: "RT", ExpiresAt: time.Now().Add(time.Hour),
+		WebhookSecretKey: secret,
 	}
 	cfg := config.ZaloOAConfig{
 		Transport:                  "webhook",
-		WebhookOASecretKey:         secret,
 		WebhookSignatureMode:       "strict",
 		WebhookReplayWindowSeconds: 300,
 	}
@@ -61,10 +63,13 @@ func TestZaloWebhook_MountRouteIdempotentAcrossReload(t *testing.T) {
 	}
 	ch.SetInstanceID(instID)
 	ch.SetTenantID(tenantID)
-	router.RegisterInstance(instID, ch, tenantID)
+	const slug = "oa-reload"
+	if err := router.RegisterInstance(instID, ch, tenantID, slug); err != nil {
+		t.Fatalf("RegisterInstance: %v", err)
+	}
 
 	body, sig := buildSignedOAEvent(t, "oa-app", "oa-mt", "user-r1", "before-reload", secret)
-	resp, err := postWebhook(t, srv.URL, instID, http.Header{
+	resp, err := postWebhook(t, srv.URL, slug, http.Header{
 		"X-Zevent-Signature": []string{sig},
 		"Content-Type":       []string{"application/json"},
 	}, body)
@@ -96,12 +101,14 @@ func TestZaloWebhook_MountRouteIdempotentAcrossReload(t *testing.T) {
 	}
 	ch2.SetInstanceID(instID)
 	ch2.SetTenantID(tenantID)
-	router.RegisterInstance(instID, ch2, tenantID)
+	if err := router.RegisterInstance(instID, ch2, tenantID, slug); err != nil {
+		t.Fatalf("RegisterInstance (post-reload): %v", err)
+	}
 	t.Cleanup(func() { router.UnregisterInstance(instID) })
 
 	// Dispatch through the same route still works post-reload.
 	body2, sig2 := buildSignedOAEvent(t, "oa-app", "oa-mt", "user-r2", "after-reload", secret)
-	resp, err = postWebhook(t, srv.URL, instID, http.Header{
+	resp, err = postWebhook(t, srv.URL, slug, http.Header{
 		"X-Zevent-Signature": []string{sig2},
 		"Content-Type":       []string{"application/json"},
 	}, body2)

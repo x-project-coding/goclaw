@@ -79,7 +79,9 @@ func drainOneInbound(t *testing.T, msgBus *bus.MessageBus, budget time.Duration)
 //   3. POSTing OA's payload to Bot's instance ID (cross-route attempt) is rejected by the Bot's signature verifier — no inbound published
 func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 	router := common.NewRouter()
-	srv := httptest.NewServer(router)
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	msgBus := bus.New()
@@ -91,10 +93,10 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 	oaCreds := &oa.ChannelCreds{
 		AppID: "oa-app", SecretKey: "oa-sk", OAID: "oa-mt",
 		AccessToken: "AT", RefreshToken: "RT", ExpiresAt: time.Now().Add(time.Hour),
+		WebhookSecretKey: oaSecret,
 	}
 	oaCfg := config.ZaloOAConfig{
 		Transport:                  "webhook",
-		WebhookOASecretKey:         oaSecret,
 		WebhookSignatureMode:       "strict",
 		WebhookReplayWindowSeconds: 300,
 	}
@@ -104,7 +106,10 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 	}
 	oaCh.SetInstanceID(oaInstID)
 	oaCh.SetTenantID(oaTenantID)
-	router.RegisterInstance(oaInstID, oaCh, oaTenantID)
+	const oaSlug = "oa-int"
+	if err := router.RegisterInstance(oaInstID, oaCh, oaTenantID, oaSlug); err != nil {
+		t.Fatalf("RegisterInstance OA: %v", err)
+	}
 	t.Cleanup(func() { router.UnregisterInstance(oaInstID) })
 
 	// ── Bot channel ──
@@ -125,12 +130,15 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 	// Bot self-echo filter compares against c.botID populated by getMe at
 	// Start(). We bypass Start() in this test, so botID stays "" — no echo
 	// filter trips for our test sender IDs.
-	router.RegisterInstance(botInstID, botCh, botTenantID)
+	const botSlug = "bot-int"
+	if err := router.RegisterInstance(botInstID, botCh, botTenantID, botSlug); err != nil {
+		t.Fatalf("RegisterInstance Bot: %v", err)
+	}
 	t.Cleanup(func() { router.UnregisterInstance(botInstID) })
 
 	// 1. OA delivery
 	body, sig := buildSignedOAEvent(t, "oa-app", "oa-mt", "user-1", "hello-from-oa", oaSecret)
-	resp, err := postWebhook(t, srv.URL, oaInstID, http.Header{
+	resp, err := postWebhook(t, srv.URL, oaSlug, http.Header{
 		"X-Zevent-Signature": []string{sig},
 		"Content-Type":       []string{"application/json"},
 	}, body)
@@ -156,7 +164,7 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 
 	// 2. Bot delivery (uses X-Bot-Api-Secret-Token header, no body sig)
 	botBody := []byte(`{"event_name":"message.text.received","message":{"message_id":"bot-mid-1","from":{"id":"user-bot","display_name":"Bot User"},"chat":{"id":"user-bot"},"text":"hello-from-bot"}}`)
-	resp, err = postWebhook(t, srv.URL, botInstID, http.Header{
+	resp, err = postWebhook(t, srv.URL, botSlug, http.Header{
 		"X-Bot-Api-Secret-Token": []string{botSecret},
 		"Content-Type":           []string{"application/json"},
 	}, botBody)
@@ -174,11 +182,11 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 		t.Errorf("Bot Content = %q, want hello-from-bot", msg.Content)
 	}
 
-	// 3. Cross-route attempt: send OA payload to Bot instance ID. Bot's
+	// 3. Cross-route attempt: send OA payload to Bot instance slug. Bot's
 	// verifier requires X-Bot-Api-Secret-Token, which OA payloads don't
 	// carry — should reject with 401 and not publish.
 	body2, sig2 := buildSignedOAEvent(t, "oa-app", "oa-mt", "user-attacker", "should-not-route", oaSecret)
-	resp, err = postWebhook(t, srv.URL, botInstID, http.Header{
+	resp, err = postWebhook(t, srv.URL, botSlug, http.Header{
 		"X-Zevent-Signature": []string{sig2},
 		"Content-Type":       []string{"application/json"},
 	}, body2)
@@ -197,7 +205,9 @@ func TestZaloWebhookRouter_MultiInstanceRouting(t *testing.T) {
 // signature returns 401 and never reaches HandleWebhookEvent.
 func TestZaloWebhookRouter_SignatureMismatch_NoInbound(t *testing.T) {
 	router := common.NewRouter()
-	srv := httptest.NewServer(router)
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	msgBus := bus.New()
@@ -206,9 +216,10 @@ func TestZaloWebhookRouter_SignatureMismatch_NoInbound(t *testing.T) {
 	creds := &oa.ChannelCreds{
 		AppID: "oa-app", SecretKey: "oa-sk", OAID: "oa-mt",
 		AccessToken: "AT", RefreshToken: "RT", ExpiresAt: time.Now().Add(time.Hour),
+		WebhookSecretKey: "right-secret",
 	}
 	cfg := config.ZaloOAConfig{
-		Transport: "webhook", WebhookOASecretKey: "right-secret",
+		Transport:           "webhook",
 		WebhookSignatureMode: "strict", WebhookReplayWindowSeconds: 300,
 	}
 	ch, err := oa.New("oa-mismatch", cfg, creds, &oaIntegrationStubStore{}, msgBus, nil)
@@ -217,12 +228,15 @@ func TestZaloWebhookRouter_SignatureMismatch_NoInbound(t *testing.T) {
 	}
 	ch.SetInstanceID(instID)
 	ch.SetTenantID(tenantID)
-	router.RegisterInstance(instID, ch, tenantID)
+	const slug = "oa-mismatch"
+	if err := router.RegisterInstance(instID, ch, tenantID, slug); err != nil {
+		t.Fatalf("RegisterInstance: %v", err)
+	}
 	t.Cleanup(func() { router.UnregisterInstance(instID) })
 
 	// Sign with the WRONG secret.
 	body, sig := buildSignedOAEvent(t, "oa-app", "oa-mt", "user-x", "no-route", "wrong-secret")
-	resp, err := postWebhook(t, srv.URL, instID, http.Header{
+	resp, err := postWebhook(t, srv.URL, slug, http.Header{
 		"X-Zevent-Signature": []string{sig},
 		"Content-Type":       []string{"application/json"},
 	}, body)
@@ -237,14 +251,16 @@ func TestZaloWebhookRouter_SignatureMismatch_NoInbound(t *testing.T) {
 	}
 }
 
-// TestZaloWebhookRouter_UnknownInstance_404 confirms ?instance=<unregistered>
+// TestZaloWebhookRouter_UnknownSlug_404 confirms an unregistered slug
 // returns 404 cleanly.
-func TestZaloWebhookRouter_UnknownInstance_404(t *testing.T) {
+func TestZaloWebhookRouter_UnknownSlug_404(t *testing.T) {
 	router := common.NewRouter()
-	srv := httptest.NewServer(router)
+	mux := http.NewServeMux()
+	mux.Handle(common.WebhookPathPrefix, router)
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	resp, err := postWebhook(t, srv.URL, uuid.New(), http.Header{
+	resp, err := postWebhook(t, srv.URL, "ghost-slug", http.Header{
 		"Content-Type": []string{"application/json"},
 	}, []byte(`{}`))
 	if err != nil {
@@ -281,9 +297,9 @@ func (oaIntegrationStubStore) Update(_ context.Context, _ uuid.UUID, _ map[strin
 	return nil
 }
 
-func postWebhook(t *testing.T, baseURL string, instanceID uuid.UUID, headers http.Header, body []byte) (*http.Response, error) {
+func postWebhook(t *testing.T, baseURL string, slug string, headers http.Header, body []byte) (*http.Response, error) {
 	t.Helper()
-	u := fmt.Sprintf("%s/?instance=%s", baseURL, instanceID)
+	u := fmt.Sprintf("%s%s%s", baseURL, common.WebhookPathPrefix, slug)
 	req, err := http.NewRequest(http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
