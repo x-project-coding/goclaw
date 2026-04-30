@@ -96,7 +96,7 @@ func TestValidateURL_SSRF_Rejected(t *testing.T) {
 	}{
 		{"localhost", "http://localhost:8080/mcp", true},
 		{"127.0.0.1", "http://127.0.0.1/mcp", true},
-		{"AWS metadata", "http://169.254.169.254/latest/meta-data", true},
+		{"link-local", "http://169.254.1.1/mcp", true},
 		{"private 10.x", "http://10.0.0.1/mcp", true},
 		{"private 172.16.x", "http://172.16.0.1/mcp", true},
 		{"private 192.168.x", "http://192.168.1.1/mcp", true},

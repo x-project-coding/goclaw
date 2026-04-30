@@ -23,9 +23,9 @@ func TestValidate_RejectsLoopbackIPv6(t *testing.T) {
 }
 
 func TestValidate_RejectsLinkLocal(t *testing.T) {
-	_, _, err := Validate("http://169.254.169.254/latest/meta-data")
+	_, _, err := Validate("http://169.254.1.1/")
 	if err == nil {
-		t.Fatal("expected error for cloud-metadata link-local address, got nil")
+		t.Fatal("expected error for link-local address, got nil")
 	}
 }
 

@@ -43,7 +43,7 @@ func init() {
 		// Loopback
 		"127.0.0.0/8",
 		"::1/128",
-		// Link-local (includes cloud-metadata 169.254.169.254)
+		// Link-local (includes cloud-metadata service)
 		"169.254.0.0/16",
 		"fe80::/10",
 		// Private (RFC 1918 + RFC 4193)
