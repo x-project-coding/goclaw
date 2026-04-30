@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"log/slog"
@@ -14,19 +15,16 @@ import (
 )
 
 // Zalo OA /v2.0/oa/upload/image rejects payloads over 1MB (error -210).
-// Strategy: scale longest side down, loop JPEG quality 85→35 at each size.
 
 var (
 	jpegQualityLadder = []int{85, 75, 65, 55, 45, 35}
 	maxSideLadder     = []int{1600, 1200, 900, 600}
 )
 
-// maxDecodePixels caps W*H to bound the RGBA buffer image.Decode allocates,
-// preventing a small payload with huge dimensions from pinning GB of memory.
+// Bounds the RGBA buffer image.Decode allocates so a small payload with
+// huge dimensions can't pin GB of memory.
 const maxDecodePixels = 25_000_000
 
-// compressForZaloImage shrinks oversized images under maxBytes. Transparent
-// inputs route to PNG re-encode (JPEG would flatten alpha to black).
 func compressForZaloImage(data []byte, originalMIME string, maxBytes int) ([]byte, string, error) {
 	if len(data) <= maxBytes {
 		return data, originalMIME, nil
@@ -41,73 +39,89 @@ func compressForZaloImage(data []byte, originalMIME string, maxBytes int) ([]byt
 			cfg.Width, cfg.Height, maxDecodePixels)
 	}
 
-	img, _, err := image.Decode(bytes.NewReader(data))
+	// AutoOrientation applies EXIF rotation so phone photos arrive upright
+	// after we strip EXIF on re-encode.
+	img, err := imaging.Decode(bytes.NewReader(data), imaging.AutoOrientation(true))
 	if err != nil {
 		return nil, "", fmt.Errorf("zalo_oa: decode image for compression: %w", err)
 	}
-	bounds := img.Bounds()
-	origW, origH := bounds.Dx(), bounds.Dy()
 
-	if hasTransparency(img) {
-		out, mt, err := compressTransparent(img, originalMIME, maxBytes)
-		if err == nil {
+	if hasTransparency(img, originalMIME) {
+		if out, ok := encodePNGLadder(img, maxBytes); ok {
 			slog.Info("zalo_oa.image.compressed",
 				"orig_bytes", len(data), "orig_mime", originalMIME,
-				"new_bytes", len(out), "out_mime", mt, "transparent", true)
-			return out, mt, nil
+				"new_bytes", len(out), "out_mime", "image/png", "transparent", true)
+			return out, "image/png", nil
 		}
-		return nil, "", fmt.Errorf("zalo_oa: transparent image cannot fit under %d bytes (%dx%d original %d bytes): %w",
-			maxBytes, origW, origH, len(data), err)
+		// PNG can't fit — flatten onto white so the message still ships.
+		img = flattenOnWhite(img)
 	}
 
-	for _, side := range maxSideLadder {
-		scaled := img
-		if origW > side || origH > side {
-			scaled = imaging.Fit(img, side, side, imaging.Lanczos)
-		}
-		for _, q := range jpegQualityLadder {
-			var buf bytes.Buffer
-			if err := jpeg.Encode(&buf, scaled, &jpeg.Options{Quality: q}); err != nil {
-				return nil, "", fmt.Errorf("zalo_oa: jpeg encode (side=%d q=%d): %w", side, q, err)
-			}
-			if buf.Len() <= maxBytes {
-				slog.Info("zalo_oa.image.compressed",
-					"orig_bytes", len(data), "orig_mime", originalMIME,
-					"new_bytes", buf.Len(), "side", side, "quality", q)
-				return buf.Bytes(), "image/jpeg", nil
-			}
-		}
+	out, side, q, err := encodeJPEGLadder(img, maxBytes)
+	if err != nil {
+		return nil, "", err
 	}
+	if out != nil {
+		slog.Info("zalo_oa.image.compressed",
+			"orig_bytes", len(data), "orig_mime", originalMIME,
+			"new_bytes", len(out), "out_mime", "image/jpeg",
+			"side", side, "quality", q)
+		return out, "image/jpeg", nil
+	}
+	b := img.Bounds()
 	return nil, "", fmt.Errorf("zalo_oa: image cannot fit under %d bytes (%dx%d original %d bytes)",
-		maxBytes, origW, origH, len(data))
+		maxBytes, b.Dx(), b.Dy(), len(data))
 }
 
-// hasTransparency reports whether any pixel is non-opaque. Samples four
-// corners + a stride; corners catch the far-edge case strides can miss.
-func hasTransparency(img image.Image) bool {
+func hasTransparency(img image.Image, originalMIME string) bool {
+	if originalMIME == "image/jpeg" {
+		return false
+	}
+	switch im := img.(type) {
+	case *image.RGBA:
+		for i := 3; i < len(im.Pix); i += 4 {
+			if im.Pix[i] != 0xff {
+				return true
+			}
+		}
+		return false
+	case *image.NRGBA:
+		for i := 3; i < len(im.Pix); i += 4 {
+			if im.Pix[i] != 0xff {
+				return true
+			}
+		}
+		return false
+	case *image.RGBA64:
+		// 16-bit alpha at byte offsets 6..7 of each 8-byte pixel.
+		for i := 6; i+1 < len(im.Pix); i += 8 {
+			if im.Pix[i] != 0xff || im.Pix[i+1] != 0xff {
+				return true
+			}
+		}
+		return false
+	case *image.NRGBA64:
+		for i := 6; i+1 < len(im.Pix); i += 8 {
+			if im.Pix[i] != 0xff || im.Pix[i+1] != 0xff {
+				return true
+			}
+		}
+		return false
+	case *image.Paletted:
+		for _, c := range im.Palette {
+			if _, _, _, a := c.RGBA(); a < 0xffff {
+				return true
+			}
+		}
+		return false
+	}
 	switch img.ColorModel() {
-	case color.RGBAModel, color.NRGBAModel, color.RGBA64Model, color.NRGBA64Model, color.AlphaModel, color.Alpha16Model:
-	default:
+	case color.YCbCrModel, color.GrayModel, color.Gray16Model, color.CMYKModel:
 		return false
 	}
 	b := img.Bounds()
-	corners := [4][2]int{
-		{b.Min.X, b.Min.Y},
-		{b.Max.X - 1, b.Min.Y},
-		{b.Min.X, b.Max.Y - 1},
-		{b.Max.X - 1, b.Max.Y - 1},
-	}
-	for _, p := range corners {
-		if _, _, _, a := img.At(p[0], p[1]).RGBA(); a < 0xffff {
-			return true
-		}
-	}
-	step := 1
-	if w := b.Dx(); w > 64 {
-		step = w / 64
-	}
-	for y := b.Min.Y; y < b.Max.Y; y += step {
-		for x := b.Min.X; x < b.Max.X; x += step {
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
 			if _, _, _, a := img.At(x, y).RGBA(); a < 0xffff {
 				return true
 			}
@@ -116,9 +130,9 @@ func hasTransparency(img image.Image) bool {
 	return false
 }
 
-// compressTransparent shrinks the longest side until the PNG fits under
-// maxBytes (PNG has no quality knob; only dimensions).
-func compressTransparent(img image.Image, _ string, maxBytes int) ([]byte, string, error) {
+// PNG has no quality knob, so only dimensions can shrink the output.
+// Returns ok=false when the smallest tried side still overflows.
+func encodePNGLadder(img image.Image, maxBytes int) ([]byte, bool) {
 	bounds := img.Bounds()
 	origW, origH := bounds.Dx(), bounds.Dy()
 	enc := png.Encoder{CompressionLevel: png.BestCompression}
@@ -129,11 +143,42 @@ func compressTransparent(img image.Image, _ string, maxBytes int) ([]byte, strin
 		}
 		var buf bytes.Buffer
 		if err := enc.Encode(&buf, scaled); err != nil {
-			return nil, "", fmt.Errorf("png encode (side=%d): %w", side, err)
+			continue
 		}
 		if buf.Len() <= maxBytes {
-			return buf.Bytes(), "image/png", nil
+			return buf.Bytes(), true
 		}
 	}
-	return nil, "", fmt.Errorf("png too large at smallest tried side")
+	return nil, false
+}
+
+// Returns nil bytes with nil error when the ladder is exhausted without
+// fitting — so callers can distinguish "didn't fit" from "encode broke".
+func encodeJPEGLadder(img image.Image, maxBytes int) ([]byte, int, int, error) {
+	bounds := img.Bounds()
+	origW, origH := bounds.Dx(), bounds.Dy()
+	for _, side := range maxSideLadder {
+		scaled := img
+		if origW > side || origH > side {
+			scaled = imaging.Fit(img, side, side, imaging.Lanczos)
+		}
+		for _, q := range jpegQualityLadder {
+			var buf bytes.Buffer
+			if err := jpeg.Encode(&buf, scaled, &jpeg.Options{Quality: q}); err != nil {
+				return nil, 0, 0, fmt.Errorf("zalo_oa: jpeg encode (side=%d q=%d): %w", side, q, err)
+			}
+			if buf.Len() <= maxBytes {
+				return buf.Bytes(), side, q, nil
+			}
+		}
+	}
+	return nil, 0, 0, nil
+}
+
+func flattenOnWhite(img image.Image) *image.RGBA {
+	b := img.Bounds()
+	out := image.NewRGBA(b)
+	draw.Draw(out, b, &image.Uniform{C: color.White}, image.Point{}, draw.Src)
+	draw.Draw(out, b, img, b.Min, draw.Over)
+	return out
 }
