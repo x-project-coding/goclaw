@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -48,7 +49,12 @@ func (m *ZaloWebhookMethods) handleWebhookURL(ctx context.Context, client *gatew
 	}
 
 	inst, err := m.store.Get(ctx, instID)
-	if err != nil || inst.TenantID != client.TenantID() {
+	if err != nil {
+		slog.Warn("zalo.webhook_url.lookup_failed", "instance_id", instID, "tenant_id", client.TenantID(), "error", err)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgInstanceNotFound)))
+		return
+	}
+	if inst.TenantID != client.TenantID() {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgInstanceNotFound)))
 		return
 	}
