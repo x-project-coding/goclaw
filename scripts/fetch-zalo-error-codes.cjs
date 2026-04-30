@@ -3,9 +3,10 @@
 //
 // Run on demand when Zalo updates the page. Not wired into CI/build.
 //
-// Usage: node scripts/fetch-zalo-error-codes.cjs
+// Requires: pnpm dlx playwright install chromium  (or `npx playwright install`)
+// Usage:    node scripts/fetch-zalo-error-codes.cjs
 
-const { chromium } = require('/Users/vanducng/.nvm/versions/node/v22.21.1/lib/node_modules/@playwright/test/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
