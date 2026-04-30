@@ -288,7 +288,9 @@
     },
     "generate": {
       "button": "生成",
-      "toast": "已生成密钥。请立即复制 Webhook Secret 并粘贴到 bot.zapps.me → setWebhook → secret_token。"
+      "toast": "已生成密钥。请立即复制 Webhook Secret 并粘贴到 bot.zapps.me → setWebhook → secret_token。",
+      "show": "显示密钥",
+      "hide": "隐藏密钥"
     }
   },
   "fieldOptions": {

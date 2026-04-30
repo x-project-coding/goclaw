@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,44 +100,8 @@ function FieldRenderer({
 
   switch (field.type) {
     case "text":
-    case "password": {
-      const showGenerate = field.type === "password" && field.generatable;
-      const handleGenerate = () => {
-        onChange(generateSecret());
-        toast.info(t("fieldConfig.generate.toast"));
-      };
-      return (
-        <div className="grid gap-1.5">
-          <Label htmlFor={id}>
-            {label}{labelSuffix}{editHint}
-          </Label>
-          <div className={showGenerate ? "flex gap-2" : undefined}>
-            <Input
-              id={id}
-              type={field.type}
-              value={(value as string) ?? ""}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={field.placeholder}
-              aria-live={showGenerate ? "polite" : undefined}
-            />
-            {showGenerate && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleGenerate}
-                aria-label={t("fieldConfig.generate.button")}
-                className="shrink-0"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span className="ml-1.5">{t("fieldConfig.generate.button")}</span>
-              </Button>
-            )}
-          </div>
-          {help && <p className="text-xs text-muted-foreground">{help}</p>}
-        </div>
-      );
-    }
+    case "password":
+      return <PasswordOrTextField field={field} value={value} onChange={onChange} id={id} label={label} labelSuffix={labelSuffix} editHint={editHint} help={help} />;
 
     case "number":
       return (
@@ -320,4 +285,80 @@ function FieldRenderer({
     default:
       return null;
   }
+}
+
+function PasswordOrTextField({
+  field,
+  value,
+  onChange,
+  id,
+  label,
+  labelSuffix,
+  editHint,
+  help,
+}: {
+  field: FieldDef;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  id: string;
+  label: string;
+  labelSuffix: string;
+  editHint: string;
+  help: string;
+}) {
+  const { t } = useTranslation("channels");
+  const [revealed, setRevealed] = useState(false);
+  const showGenerate = field.type === "password" && field.generatable;
+  const inputType = field.type === "password" && !revealed ? "password" : "text";
+
+  const handleGenerate = () => {
+    onChange(generateSecret());
+    setRevealed(true);
+    toast.info(t("fieldConfig.generate.toast"));
+  };
+
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>
+        {label}{labelSuffix}{editHint}
+      </Label>
+      <div className={showGenerate ? "flex gap-2" : undefined}>
+        <Input
+          id={id}
+          type={inputType}
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          aria-live={showGenerate ? "polite" : undefined}
+        />
+        {showGenerate && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRevealed((v) => !v)}
+              aria-label={revealed ? t("fieldConfig.generate.hide") : t("fieldConfig.generate.show")}
+              aria-pressed={revealed}
+              className="shrink-0"
+            >
+              {revealed ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleGenerate}
+              aria-label={t("fieldConfig.generate.button")}
+              className="shrink-0"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span className="ml-1.5">{t("fieldConfig.generate.button")}</span>
+            </Button>
+          </>
+        )}
+      </div>
+      {help && <p className="text-xs text-muted-foreground">{help}</p>}
+    </div>
+  );
 }

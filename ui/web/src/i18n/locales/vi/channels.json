@@ -288,7 +288,9 @@
     },
     "generate": {
       "button": "Tạo",
-      "toast": "Đã tạo secret. Hãy sao chép Webhook Secret ngay và dán vào bot.zapps.me → setWebhook → secret_token."
+      "toast": "Đã tạo secret. Hãy sao chép Webhook Secret ngay và dán vào bot.zapps.me → setWebhook → secret_token.",
+      "show": "Hiện secret",
+      "hide": "Ẩn secret"
     }
   },
   "fieldOptions": {

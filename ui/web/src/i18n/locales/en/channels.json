@@ -391,7 +391,9 @@
     },
     "generate": {
       "button": "Generate",
-      "toast": "Secret generated. Copy this Webhook Secret now and paste it into bot.zapps.me → setWebhook → secret_token."
+      "toast": "Secret generated. Copy this Webhook Secret now and paste it into bot.zapps.me → setWebhook → secret_token.",
+      "show": "Show secret",
+      "hide": "Hide secret"
     }
   },
   "fieldOptions": {
