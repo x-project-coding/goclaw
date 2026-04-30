@@ -148,8 +148,7 @@ type ZaloConfig struct {
 	Token         string              `json:"token"`
 	AllowFrom     FlexibleStringSlice `json:"allow_from"`
 	DMPolicy      string              `json:"dm_policy,omitempty"` // "pairing" (default), "allowlist", "open", "disabled"
-	Transport     string              `json:"transport,omitempty"` // "polling" (default) | "webhook"
-	WebhookURL    string              `json:"webhook_url,omitempty"`
+	Transport     string              `json:"transport,omitempty"`    // "polling" (default) | "webhook"
 	WebhookPath   string              `json:"webhook_path,omitempty"` // per-instance routing slug appended to /channels/zalo/webhook/
 	WebhookSecret string              `json:"webhook_secret,omitempty"`
 	MediaMaxMB    int                 `json:"media_max_mb,omitempty"` // default 5

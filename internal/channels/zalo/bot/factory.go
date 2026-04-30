@@ -18,7 +18,6 @@ type zaloCreds struct {
 type zaloInstanceConfig struct {
 	DMPolicy    string   `json:"dm_policy,omitempty"`
 	Transport   string   `json:"transport,omitempty"`
-	WebhookURL  string   `json:"webhook_url,omitempty"`
 	WebhookPath string   `json:"webhook_path,omitempty"`
 	MediaMaxMB  int      `json:"media_max_mb,omitempty"`
 	AllowFrom   []string `json:"allow_from,omitempty"`
@@ -53,7 +52,6 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		AllowFrom:     ic.AllowFrom,
 		DMPolicy:      ic.DMPolicy,
 		Transport:     ic.Transport,
-		WebhookURL:    ic.WebhookURL,
 		WebhookPath:   ic.WebhookPath,
 		WebhookSecret: c.WebhookSecret,
 		MediaMaxMB:    ic.MediaMaxMB,
