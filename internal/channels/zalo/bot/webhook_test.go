@@ -114,7 +114,7 @@ func TestHandleWebhookEvent_BadJSONReturnsError(t *testing.T) {
 	}
 }
 
-func TestStart_WebhookRequiresSecret(t *testing.T) {
+func TestStart_WebhookWithoutSecret_EntersBootstrap(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"ok":true,"result":{"id":"bot-xyz","display_name":"TestBot"}}`))
 	}))
@@ -123,8 +123,9 @@ func TestStart_WebhookRequiresSecret(t *testing.T) {
 
 	mb := bus.New()
 	ch, err := New(config.ZaloConfig{
-		Token:     "tok",
-		Transport: "webhook",
+		Token:       "tok",
+		Transport:   "webhook",
+		WebhookPath: "bot-bootstrap",
 		// no WebhookSecret
 	}, mb, nil)
 	if err != nil {
@@ -133,14 +134,41 @@ func TestStart_WebhookRequiresSecret(t *testing.T) {
 	ch.webhookRouter = common.NewRouter()
 	ch.instanceID = uuid.New()
 
-	err = ch.Start(context.Background())
-	if err == nil {
-		t.Fatal("Start without webhook_secret should fail")
+	if err := ch.Start(context.Background()); err != nil {
+		t.Fatalf("Start without webhook_secret should not return error in bootstrap; got %v", err)
 	}
-	if !strings.Contains(err.Error(), "webhook_secret") {
-		t.Errorf("err = %v, want webhook_secret rejection", err)
+	if !ch.inBootstrap() {
+		t.Error("channel should report inBootstrap()=true when secret missing")
 	}
-	if ch.IsRunning() {
-		t.Error("channel should not remain running after Start failure")
+	if ch.ResolvedWebhookSlug() == "" {
+		t.Error("slug should be registered even in bootstrap so setWebhook ping succeeds")
+	}
+}
+
+func TestBootstrap_VerifierAcceptsAnything_HandlerDrops(t *testing.T) {
+	ch, mb := newWebhookTestChannel(t, "")
+	if !ch.inBootstrap() {
+		t.Fatalf("setup expected inBootstrap()=true with empty secret")
+	}
+
+	if err := ch.SignatureVerifier().Verify(http.Header{}, nil); err != nil {
+		t.Errorf("bootstrap verifier should accept missing header; got %v", err)
+	}
+	if err := ch.SignatureVerifier().Verify(http.Header{"X-Bot-Api-Secret-Token": []string{"anything"}}, nil); err != nil {
+		t.Errorf("bootstrap verifier should accept arbitrary token; got %v", err)
+	}
+
+	payload := `{"event_name":"message.text.received","message":{"message_id":"m1","text":"hi","from":{"id":"alice"},"chat":{"id":"alice"}}}`
+	if err := ch.HandleWebhookEvent(context.Background(), json.RawMessage(payload)); err != nil {
+		t.Fatalf("HandleWebhookEvent in bootstrap: %v", err)
+	}
+	if got := ch.BootstrapDroppedForTest(); got != 1 {
+		t.Errorf("dropped count = %d, want 1", got)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, ok := mb.ConsumeInbound(ctx); ok {
+		t.Error("bootstrap event should not be dispatched to the bus")
 	}
 }

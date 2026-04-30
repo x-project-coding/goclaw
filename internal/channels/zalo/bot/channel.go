@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,8 @@ type Channel struct {
 	webhookRouter *common.Router
 	resolvedSlug  string
 
+	bootstrapDroppedCount atomic.Int64
+
 	stopOnce sync.Once
 
 	// legacyPhotoSentinelWarn fires once if a caller still emits the
@@ -55,6 +58,14 @@ type Channel struct {
 }
 
 func (c *Channel) SetInstanceID(id uuid.UUID) { c.instanceID = id }
+
+// inBootstrap: webhook with no secret yet — slug registered so Zalo's
+// setWebhook ping returns 200, but events drop until secret is pasted.
+func (c *Channel) inBootstrap() bool {
+	return c.transport == "webhook" && c.webhookSecret == ""
+}
+
+func (c *Channel) BootstrapDroppedForTest() int64 { return c.bootstrapDroppedCount.Load() }
 
 var _ channels.WebhookChannel = (*Channel)(nil)
 
@@ -130,27 +141,49 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	switch c.transport {
 	case "webhook":
-		if c.webhookSecret == "" {
-			c.SetRunning(false)
-			return fmt.Errorf("zalo_bot: transport=webhook requires webhook_secret")
-		}
 		slug := c.webhookPath
 		if slug == "" {
 			slug = common.DeriveSlugFromName(c.Name())
 		}
 		if err := c.webhookRouter.RegisterInstance(c.instanceID, c, c.TenantID(), slug); err != nil {
-			c.MarkFailed("webhook register failed", err.Error(), channels.ChannelFailureKindConfig, false)
+			c.MarkFailed(
+				"webhook slug invalid",
+				err.Error(),
+				channels.ChannelFailureKindConfig,
+				false,
+			)
 			c.SetRunning(false)
 			return nil
 		}
 		c.resolvedSlug = slug
+
+		if c.inBootstrap() {
+			c.MarkDegraded(
+				"awaiting webhook secret",
+				"Bot Webhook Secret not yet set. Webhook acks Zalo's setWebhook verification ping (HTTP 200) but drops events. Paste the same secret you registered with setWebhook in Credentials → Webhook Secret to enable X-Bot-Api-Secret-Token verification.",
+				channels.ChannelFailureKindConfig,
+				true,
+			)
+			slog.Info("zalo_bot.webhook.bootstrap_active",
+				"instance_id", c.instanceID, "bot_id", c.botID, "slug", slug)
+			return nil
+		}
+
 		slog.Info("zalo_bot.webhook.registered",
 			"instance_id", c.instanceID, "bot_id", c.botID, "slug", slug)
+		c.MarkHealthy("webhook")
 	case "polling":
 		go c.pollLoop(ctx)
+		c.MarkHealthy("polling")
 	default:
+		c.MarkFailed(
+			"unknown transport",
+			fmt.Sprintf("zalo_bot: unknown transport %q (expected webhook or polling)", c.transport),
+			channels.ChannelFailureKindConfig,
+			false,
+		)
 		c.SetRunning(false)
-		return fmt.Errorf("zalo_bot: unknown transport %q", c.transport)
+		return nil
 	}
 	return nil
 }

@@ -15,6 +15,15 @@ import (
 // HandleWebhookEvent runs a webhook-pushed update through the same
 // processUpdate path used by polling. Shape matches getUpdates.
 func (c *Channel) HandleWebhookEvent(_ context.Context, raw json.RawMessage) error {
+	if c.inBootstrap() {
+		n := c.bootstrapDroppedCount.Add(1)
+		slog.Warn("zalo_bot.webhook.bootstrap_drop",
+			"instance_id", c.instanceID,
+			"drop_count", n,
+			"hint", "paste Webhook Secret in Credentials tab to enable processing")
+		return nil
+	}
+
 	var u zaloUpdate
 	if err := json.Unmarshal(raw, &u); err != nil {
 		return fmt.Errorf("zalo_bot.webhook: decode update: %w", err)
@@ -32,8 +41,12 @@ func (c *Channel) HandleWebhookEvent(_ context.Context, raw json.RawMessage) err
 }
 
 // SignatureVerifier returns a header-token verifier bound to the
-// channel's webhook_secret.
+// channel's webhook_secret. Bootstrap returns a no-op so the setWebhook
+// URL-save ping gets 200; events are dropped in HandleWebhookEvent.
 func (c *Channel) SignatureVerifier() common.SignatureVerifier {
+	if c.inBootstrap() {
+		return bootstrapVerifier{}
+	}
 	return botSignatureVerifier{secret: c.webhookSecret}
 }
 
@@ -67,6 +80,10 @@ func (v botSignatureVerifier) Verify(h http.Header, _ []byte) error {
 	}
 	return nil
 }
+
+type bootstrapVerifier struct{}
+
+func (bootstrapVerifier) Verify(http.Header, []byte) error { return nil }
 
 type botMessageIDExtractor struct{}
 

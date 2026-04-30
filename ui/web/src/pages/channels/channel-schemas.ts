@@ -67,7 +67,7 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
   ],
   zalo_bot: [
     { key: "token", label: "OA Access Token", type: "password", required: true },
-    { key: "webhook_secret", label: "Webhook Secret", type: "password", help: "Required when transport=webhook. Sent as X-Bot-Api-Secret-Token by Zalo." },
+    { key: "webhook_secret", label: "Webhook Secret", type: "password", showWhen: { key: "transport", value: "webhook" }, help: "Operator-chosen secret you also pass to setWebhook(secret_token). Zalo echoes it back as X-Bot-Api-Secret-Token on every POST. Channel runs in bootstrap mode (acks Zalo's setWebhook verification ping with HTTP 200, drops events) until this is set, so you can save the URL on bot.zapps.me first and paste the secret after." },
   ],
   zalo_oa: [
     { key: "app_id", label: "App ID", type: "text", required: true, placeholder: "1234567890", help: "From the Zalo OA developer console" },
