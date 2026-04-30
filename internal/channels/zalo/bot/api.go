@@ -54,7 +54,7 @@ func (c *Channel) callAPIWith(ctx context.Context, client *http.Client, method s
 	}
 
 	if !apiResp.OK {
-		return nil, fmt.Errorf("zalo API error %d: %s", apiResp.ErrorCode, apiResp.Description)
+		return nil, formatAPIError(apiResp.ErrorCode, apiResp.Description)
 	}
 
 	return apiResp.Result, nil

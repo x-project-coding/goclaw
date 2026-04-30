@@ -235,6 +235,19 @@ func init() {
 		MsgZaloWebhookWrongChannelType: "channels.instances.zalo.webhook_url only applies to zalo_bot or zalo_oa instances",
 		MsgZaloWebhookPathHint:         "Prepend your gateway's externally-reachable URL (e.g. https://gw.example.com) to the path, then register the full URL in the Zalo developer console.",
 
+		// Zalo OA runtime error catalog. Args: (code int, raw_message string)
+		MsgZaloOAErrAuth:              "Zalo rejected the access token after a refresh retry (code %d: %s); re-authorize the OA",
+		MsgZaloOAErrRefreshExpired:    "Zalo refresh token has expired (code %d: %s); operator must re-consent in the OA console",
+		MsgZaloOAErrPayload:           "Zalo rejected the request payload (code %d: %s); verify message shape and required fields",
+		MsgZaloOAErrSize:              "Zalo upload exceeds the size cap (code %d: %s); image 1MB / file 5MB / gif 5MB",
+		MsgZaloOAErrPermission:        "Zalo requires additional permission for this call (code %d: %s); grant the missing scope to the OA app",
+		MsgZaloOAErrInteractionWindow: "Recipient is outside Zalo's messaging window (code %d: %s); wait for the user to message first or use a paid template",
+		MsgZaloOAErrUserNotVisible:    "Target user is not visible to this OA (code %d: %s)",
+		MsgZaloOAErrAppDisabled:       "Zalo app is disabled or banned (code %d: %s); contact Zalo support",
+		MsgZaloOAErrRate:              "Zalo quota exhausted (code %d: %s); wait for the quota window to reset",
+		MsgZaloOAErrServer:            "Zalo returned a temporary server error (code %d: %s); retry later",
+		MsgZaloOAErrRedirectURI:       "Zalo rejected the OAuth redirect_uri (code %d: %s); update the redirect URI in the Zalo console to match the channel config",
+
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
 	})

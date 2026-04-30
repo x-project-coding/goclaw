@@ -20,6 +20,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/common"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -373,8 +374,14 @@ func (c *Channel) markAuthFailedIfNeeded(err error) {
 		return
 	}
 	if errors.Is(err, ErrAuthExpired) {
+		var apiErr *APIError
+		var code int
+		var msg string
+		if errors.As(err, &apiErr) {
+			code, msg = apiErr.Code, apiErr.Message
+		}
 		c.MarkFailed("Re-auth required",
-			"Zalo refresh token expired or invalid; operator must re-paste consent code",
+			i18n.T(i18n.DefaultLocale, i18n.MsgZaloOAErrRefreshExpired, code, msg),
 			channels.ChannelFailureKindAuth,
 			false,
 		)
@@ -383,7 +390,7 @@ func (c *Channel) markAuthFailedIfNeeded(err error) {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) && apiErr.isAuth() {
 		c.MarkFailed("Re-auth required",
-			fmt.Sprintf("Zalo API rejected access_token after refresh retry (code %d: %s)", apiErr.Code, apiErr.Message),
+			i18n.T(i18n.DefaultLocale, i18n.MsgZaloOAErrAuth, apiErr.Code, apiErr.Message),
 			channels.ChannelFailureKindAuth,
 			false,
 		)

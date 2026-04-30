@@ -74,7 +74,19 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
+	if hint := Classify(e.Code).LLMHint; hint != "" {
+		return fmt.Sprintf("zalo api error %d: %s — %s", e.Code, e.Message, hint)
+	}
 	return fmt.Sprintf("zalo api error %d: %s", e.Code, e.Message)
+}
+
+// Info returns the catalog classification for this error. Unknown codes
+// return CodeInfo{Family: FamilyUnknown}.
+func (e *APIError) Info() CodeInfo {
+	if e == nil {
+		return CodeInfo{}
+	}
+	return Classify(e.Code)
 }
 
 // isAuth reports whether the error is an invalid/expired access_token at

@@ -235,6 +235,19 @@ func init() {
 		MsgZaloWebhookWrongChannelType: "channels.instances.zalo.webhook_url 仅适用于 zalo_bot 或 zalo_oa 类型的实例",
 		MsgZaloWebhookPathHint:         "在路径前加上网关的公网 URL(例如 https://gw.example.com),然后将完整 URL 注册到 Zalo 开发者控制台。",
 
+		// Zalo OA 运行时错误目录。参数:(代码 int, 原始消息 string)
+		MsgZaloOAErrAuth:              "Zalo 在刷新令牌后仍拒绝 access token(代码 %d:%s);需重新授权该公众号",
+		MsgZaloOAErrRefreshExpired:    "Zalo refresh token 已过期(代码 %d:%s);运营人员必须在 OA 控制台重新授权",
+		MsgZaloOAErrPayload:           "Zalo 拒绝该请求载荷(代码 %d:%s);请检查消息结构与必填字段",
+		MsgZaloOAErrSize:              "Zalo 上传文件超出大小上限(代码 %d:%s);图片 1MB / 文件 5MB / GIF 5MB",
+		MsgZaloOAErrPermission:        "Zalo 此操作需要额外权限(代码 %d:%s);请为 OA 应用授予所缺少的范围",
+		MsgZaloOAErrInteractionWindow: "接收方处于 Zalo 消息窗口之外(代码 %d:%s);请等待用户先发起会话或使用付费模板",
+		MsgZaloOAErrUserNotVisible:    "目标用户对该 OA 不可见(代码 %d:%s)",
+		MsgZaloOAErrAppDisabled:       "Zalo 应用已被禁用或封禁(代码 %d:%s);请联系 Zalo 支持",
+		MsgZaloOAErrRate:              "Zalo 配额已耗尽(代码 %d:%s);请等待配额窗口重置",
+		MsgZaloOAErrServer:            "Zalo 返回临时服务器错误(代码 %d:%s);请稍后重试",
+		MsgZaloOAErrRedirectURI:       "Zalo 拒绝 OAuth redirect_uri(代码 %d:%s);请在 Zalo 控制台更新 redirect URI 以匹配渠道配置",
+
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
 	})

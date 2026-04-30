@@ -235,6 +235,19 @@ func init() {
 		MsgZaloWebhookWrongChannelType: "channels.instances.zalo.webhook_url chỉ áp dụng cho instance zalo_bot hoặc zalo_oa",
 		MsgZaloWebhookPathHint:         "Thêm URL công khai của gateway (ví dụ https://gw.example.com) vào trước đường dẫn, rồi đăng ký URL đầy đủ trong Zalo developer console.",
 
+		// Catalog lỗi runtime của Zalo OA. Tham số: (mã int, thông điệp gốc)
+		MsgZaloOAErrAuth:              "Zalo từ chối access token sau khi đã làm mới (mã %d: %s); cần ủy quyền lại OA",
+		MsgZaloOAErrRefreshExpired:    "Refresh token Zalo đã hết hạn (mã %d: %s); người vận hành phải cấp lại quyền trong OA console",
+		MsgZaloOAErrPayload:           "Zalo từ chối nội dung yêu cầu (mã %d: %s); kiểm tra cấu trúc tin nhắn và các trường bắt buộc",
+		MsgZaloOAErrSize:              "Tệp tải lên Zalo vượt giới hạn (mã %d: %s); ảnh 1MB / tệp 5MB / gif 5MB",
+		MsgZaloOAErrPermission:        "Zalo yêu cầu quyền bổ sung cho thao tác này (mã %d: %s); cấp quyền còn thiếu cho ứng dụng OA",
+		MsgZaloOAErrInteractionWindow: "Người nhận đang ngoài cửa sổ tương tác của Zalo (mã %d: %s); chờ người dùng nhắn trước hoặc dùng tin mẫu trả phí",
+		MsgZaloOAErrUserNotVisible:    "OA không thấy được người dùng đích (mã %d: %s)",
+		MsgZaloOAErrAppDisabled:       "Ứng dụng Zalo đã bị vô hiệu hoặc bị cấm (mã %d: %s); liên hệ hỗ trợ Zalo",
+		MsgZaloOAErrRate:              "Quota Zalo đã hết (mã %d: %s); chờ cửa sổ quota làm mới",
+		MsgZaloOAErrServer:            "Zalo trả về lỗi server tạm thời (mã %d: %s); thử lại sau",
+		MsgZaloOAErrRedirectURI:       "Zalo từ chối OAuth redirect_uri (mã %d: %s); cập nhật redirect URI trong Zalo console khớp với cấu hình kênh",
+
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Đã forward sang %s theo yêu cầu: %q",
 	})
