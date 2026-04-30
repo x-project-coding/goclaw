@@ -527,7 +527,7 @@ func processNormalMessage(
 
 // buildOutboundReplyMeta clones routing metadata and stamps reply_to_message_id
 // on group inbounds (always) and DM inbounds for channels that opt into the
-// DMQuoteChannel capability. Extracted for unit-testability.
+// DMQuoteChannel capability.
 func buildOutboundReplyMeta(in map[string]string, channelName string, isGroup bool, mgr *channels.Manager) map[string]string {
 	out := channels.CopyFinalRoutingMeta(in)
 	mid := in["message_id"]
