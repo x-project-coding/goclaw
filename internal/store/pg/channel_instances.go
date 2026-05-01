@@ -278,9 +278,18 @@ func stripNilValues(in map[string]any) map[string]any {
 }
 
 // loadExistingCreds reads and decrypts the current credentials for merging.
+// Surfaces decrypt/unmarshal errors instead of returning an empty map —
+// otherwise a transient read failure during a partial update would wipe
+// every other credential field on the merge.
 func (s *PGChannelInstanceStore) loadExistingCreds(ctx context.Context, id uuid.UUID) (map[string]any, error) {
+	tid := store.TenantIDFromContext(ctx)
+	if tid == uuid.Nil {
+		return nil, fmt.Errorf("tenant_id required to load credentials")
+	}
 	var raw []byte
-	err := s.db.QueryRowContext(ctx, "SELECT credentials FROM channel_instances WHERE id = $1", id).Scan(&raw)
+	err := s.db.QueryRowContext(ctx,
+		"SELECT credentials FROM channel_instances WHERE id = $1 AND tenant_id = $2", id, tid,
+	).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) || len(raw) == 0 {
 		return make(map[string]any), nil
 	}
@@ -288,13 +297,16 @@ func (s *PGChannelInstanceStore) loadExistingCreds(ctx context.Context, id uuid.
 		return nil, err
 	}
 	if s.encKey != "" {
-		if dec, err := crypto.Decrypt(string(raw), s.encKey); err == nil {
+		dec, decErr := crypto.Decrypt(string(raw), s.encKey)
+		if decErr == nil {
 			raw = []byte(dec)
+		} else if !json.Valid(raw) {
+			return nil, fmt.Errorf("decrypt existing credentials: %w", decErr)
 		}
 	}
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return make(map[string]any), nil
+		return nil, fmt.Errorf("unmarshal existing credentials: %w", err)
 	}
 	return m, nil
 }

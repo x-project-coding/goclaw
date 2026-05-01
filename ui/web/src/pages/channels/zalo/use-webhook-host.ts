@@ -20,12 +20,26 @@ export function useWebhookHost(): [string, (next: string) => void] {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (host && host !== defaultHost()) {
-      window.localStorage.setItem(STORAGE_KEY, host);
-    } else {
+    const trimmed = host.trim();
+    if (!trimmed || trimmed === defaultHost()) {
       window.localStorage.removeItem(STORAGE_KEY);
+      return;
     }
+    if (!isValidHttpURL(trimmed)) {
+      // Don't persist garbage — onChange fires on every keystroke.
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEY, trimmed);
   }, [host]);
 
   return [host, setHost];
+}
+
+function isValidHttpURL(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

@@ -664,9 +664,12 @@ the channel's catch-up WaitGroup.
   `poll_count` + `poll_burndown_max_pages` (see "OA polling-window
   resilience" above)
 - **Webhook**: `X-ZEvent-Signature: hex(SHA256(appID + body + timestamp + secret))`.
-  Signature behavior driven by `webhook_signature_mode`: `strict` (default,
-  reject mismatch), `log_only` (warn-and-allow — useful for first-deploy
-  spec verification), `disabled` (accept unsigned, only for diagnostics).
+  Signature behavior driven by `webhook_signature_mode`: `strict` (reject
+  mismatch), `log_only` (warn-and-allow — useful for first-deploy spec
+  verification), `disabled` (default — accept unsigned). The default keeps
+  onboarding frictionless before the OA Secret Key is pasted into Credentials;
+  **operators handling production traffic must flip to `strict`** once the
+  secret is configured, otherwise inbound webhooks are not authenticated.
   Replay window via `webhook_replay_window_seconds` (default 300, clamp
   [60, 3600])
 - **Self-echo filter**: webhook handler drops events where `sender.id == oa_id` (A8)

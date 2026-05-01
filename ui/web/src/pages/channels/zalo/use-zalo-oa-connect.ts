@@ -196,6 +196,8 @@ export function useZaloOAConnect(
   const setCodeWithReset = (c: string) => {
     setCode(c);
     if (clientError) setClientError(null);
+    // Drop stale server-side exchange error while user types the next code.
+    if (exchange.error) exchange.reset();
   };
 
   return {

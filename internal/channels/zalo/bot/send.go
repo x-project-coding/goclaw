@@ -45,7 +45,8 @@ func (c *Channel) sendChunkedText(chatID, text string) error {
 }
 
 // downloadMedia fetches a photo from Zalo's CDN to a local temp file.
-// CDN URLs are auth-restricted and expire.
+// Callers MUST run tools.CheckSSRF on the URL first — PhotoURL originates
+// in Zalo's getUpdates JSON, which is untrusted.
 func (c *Channel) downloadMedia(url string) (string, error) {
 	resp, err := c.client.Get(url)
 	if err != nil {

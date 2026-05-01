@@ -120,7 +120,11 @@ func (c *Channel) processMessages(msgs []message) {
 			continue
 		}
 		if m.Time == 0 && m.MessageID == "" {
-			// No dedup signal — drop rather than risk re-dispatch on every poll.
+			// No dedup signal — warn so a future Zalo field rename surfaces
+			// instead of silently swallowing every inbound message.
+			slog.Warn("zalo_oa.poll.dropped_no_dedup_signal",
+				"from_id", m.FromID,
+				"type", m.Type)
 			continue
 		}
 		// Prefer (from_id, time) cursor; fall back to message_id LRU when

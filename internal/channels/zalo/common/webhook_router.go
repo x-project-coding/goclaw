@@ -17,6 +17,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/safego"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // Router dispatches webhook POSTs to registered Zalo channel instances by
@@ -123,6 +124,9 @@ func (r *Router) RegisterInstance(id uuid.UUID, h WebhookHandler, tenantID uuid.
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	if tenantID != uuid.Nil {
+		ctx = store.WithTenantID(ctx, tenantID)
+	}
 	inst := &registeredInstance{
 		handler:  h,
 		tenantID: tenantID,

@@ -50,6 +50,7 @@ type zaloReactionController struct {
 	lastStatus    string
 	terminal      bool
 	debounceTimer *time.Timer
+	tombstoneOnce sync.Once
 }
 
 func newZaloReactionController(ch *Channel, userID, sourceMessageID string) *zaloReactionController {
@@ -152,17 +153,21 @@ func (c *Channel) OnReactionEvent(ctx context.Context, chatID, messageID, status
 	rc.SetStatus(ctx, status)
 
 	if status == "done" || status == "error" {
-		c.reactionWG.Add(1)
-		go func() {
-			defer c.reactionWG.Done()
-			t := time.NewTimer(reactionTombstoneTTL)
-			defer t.Stop()
-			select {
-			case <-t.C:
-				c.reactions.CompareAndDelete(key, rc)
-			case <-c.stopCh:
-			}
-		}()
+		// One tombstone per controller — duplicate terminal events used to
+		// each spawn a fresh 60s goroutine.
+		rc.tombstoneOnce.Do(func() {
+			c.reactionWG.Add(1)
+			go func() {
+				defer c.reactionWG.Done()
+				t := time.NewTimer(reactionTombstoneTTL)
+				defer t.Stop()
+				select {
+				case <-t.C:
+					c.reactions.CompareAndDelete(key, rc)
+				case <-c.stopCh:
+				}
+			}()
+		})
 	}
 	return nil
 }

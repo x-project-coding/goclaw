@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -278,20 +279,36 @@ func stripNilValues(in map[string]any) map[string]any {
 	return out
 }
 
+// loadExistingCreds reads and decrypts the current credentials for merging.
+// Surfaces decrypt/unmarshal errors instead of returning an empty map —
+// otherwise a transient read failure during a partial update would wipe
+// every other credential field on the merge.
 func (s *SQLiteChannelInstanceStore) loadExistingCreds(ctx context.Context, id uuid.UUID) (map[string]any, error) {
+	tid := store.TenantIDFromContext(ctx)
+	if tid == uuid.Nil {
+		return nil, fmt.Errorf("tenant_id required to load credentials")
+	}
 	var raw []byte
-	err := s.db.QueryRowContext(ctx, "SELECT credentials FROM channel_instances WHERE id = ?", id).Scan(&raw)
-	if err != nil || len(raw) == 0 {
+	err := s.db.QueryRowContext(ctx,
+		"SELECT credentials FROM channel_instances WHERE id = ? AND tenant_id = ?", id, tid,
+	).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) || len(raw) == 0 {
 		return make(map[string]any), nil
 	}
+	if err != nil {
+		return nil, err
+	}
 	if s.encKey != "" {
-		if dec, err := crypto.Decrypt(string(raw), s.encKey); err == nil {
+		dec, decErr := crypto.Decrypt(string(raw), s.encKey)
+		if decErr == nil {
 			raw = []byte(dec)
+		} else if !json.Valid(raw) {
+			return nil, fmt.Errorf("decrypt existing credentials: %w", decErr)
 		}
 	}
 	var m map[string]any
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return make(map[string]any), nil
+		return nil, fmt.Errorf("unmarshal existing credentials: %w", err)
 	}
 	return m, nil
 }

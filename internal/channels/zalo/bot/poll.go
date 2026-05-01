@@ -8,6 +8,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/common"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 const (
@@ -145,13 +146,18 @@ func (c *Channel) handleImageMessage(msg *zaloMessage) {
 	}
 
 	if photoURL != "" {
-		localPath, err := c.downloadMedia(photoURL)
-		if err != nil {
-			slog.Warn("zalo photo download failed, passing URL as fallback",
+		if err := tools.CheckSSRF(photoURL); err != nil {
+			slog.Warn("zalo photo blocked by SSRF guard",
 				"photo_url", photoURL, "error", err)
-			media = []string{photoURL}
 		} else {
-			media = []string{localPath}
+			localPath, err := c.downloadMedia(photoURL)
+			if err != nil {
+				slog.Warn("zalo photo download failed, passing URL as fallback",
+					"photo_url", photoURL, "error", err)
+				media = []string{photoURL}
+			} else {
+				media = []string{localPath}
+			}
 		}
 	}
 
