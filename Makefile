@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null 
 LDFLAGS  = -s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=$(VERSION)
 BINARY   = goclaw
 
-.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing
+.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing e2e-pg-up e2e-pg-down test-e2e
 
 # Build backend only (API-only, no embedded web UI)
 build:
@@ -120,6 +120,18 @@ test-hooks-tracing:
 
 # Full hook test suite (unit + integration)
 test-hooks: test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing
+
+# ── v4 E2E targets (TDD foundation, EPIC-04 phase 01) ──
+# Real PG18+pgvector on port 5435, real LLM via env.e2e-tests/.env.
+e2e-pg-up:
+	@bash scripts/e2e-pg-up.sh
+
+e2e-pg-down:
+	@bash scripts/e2e-pg-down.sh
+
+# Build tag //go:build e2e — see tests/e2e/README.md
+test-e2e: e2e-pg-up
+	go test -tags e2e -v -timeout 30m ./tests/e2e/...
 
 vet:
 	go vet ./...
