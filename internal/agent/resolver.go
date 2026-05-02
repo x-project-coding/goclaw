@@ -104,17 +104,10 @@ type ResolverDeps struct {
 	// V3 evolution metrics store
 	EvolutionMetricsStore store.EvolutionMetricsStore
 
-	// Contact store for user identity resolution (channel contacts → tenant users)
+	// Contact store for user identity resolution (channel contacts).
 	ContactStore store.ContactStore
 
-	// Tenant store for workspace path resolution
-	TenantStore store.TenantStore
-
-	// Per-tenant tool/skill config overrides
-	BuiltinToolTenantCfgs store.BuiltinToolTenantConfigStore
-	SkillTenantCfgs       store.SkillTenantConfigStore
-
-	// System config store for tenant-scoped settings (allowed_paths, etc.)
+	// System config store for global settings (allowed_paths, etc.)
 	SystemConfigs store.SystemConfigStore
 
 	// Global workspace root (GOCLAW_WORKSPACE)
@@ -260,24 +253,12 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			sandboxCfgOverride = &resolved
 		}
 
-		// Resolve tenant slug once for workspace + dataDir scoping.
-		var tenantSlug string
-		if ag.TenantID != store.MasterTenantID && ag.TenantID != uuid.Nil {
-			tenantSlug = resolveTenantSlug(deps.TenantStore, ag.TenantID)
-		}
-
 		// Expand ~ in workspace path and ensure directory exists.
-		// For non-master tenants, prefix workspace with tenant slug directory.
 		workspace := ag.Workspace
 		if workspace != "" {
 			workspace = config.ExpandHome(workspace)
 			if !filepath.IsAbs(workspace) {
 				workspace, _ = filepath.Abs(workspace)
-			}
-		}
-		if tenantSlug != "" {
-			if deps.Workspace != "" {
-				workspace = config.TenantWorkspace(deps.Workspace, ag.TenantID, tenantSlug)
 			}
 		}
 		// Fallback to global workspace if per-agent workspace is empty
@@ -366,43 +347,23 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		}
 
 		// Load per-tenant tool exclusions (disabled tools for this agent's tenant)
-		// AND per-tenant tool settings overlay (tier 2 in the 4-tier cascade).
+		// Per-tenant tool settings overlay removed in v4 (single-tenant model).
+		// Cascade now: agent-level tools_config → builtin defaults.
 		var (
 			disabledTools      map[string]bool
 			tenantToolSettings tools.BuiltinToolSettings
 		)
-		if deps.BuiltinToolTenantCfgs != nil && ag.TenantID != uuid.Nil {
-			if disabled, err := deps.BuiltinToolTenantCfgs.ListDisabled(ctx, ag.TenantID); err == nil && len(disabled) > 0 {
-				disabledTools = make(map[string]bool, len(disabled))
-				for _, name := range disabled {
-					disabledTools[name] = true
-				}
-				slog.Debug("tenant tool exclusions", "agent", agentKey, "tenant", ag.TenantID, "disabled", len(disabled))
-			}
-			if settings, err := deps.BuiltinToolTenantCfgs.ListAllSettings(ctx, ag.TenantID); err != nil {
-				// Log but don't fail agent creation — fall back to global/hardcoded defaults.
-				slog.Warn("failed to load tenant tool settings", "agent", agentKey, "tenant", ag.TenantID, "error", err)
-			} else if len(settings) > 0 {
-				tenantToolSettings = make(tools.BuiltinToolSettings, len(settings))
-				for name, raw := range settings {
-					tenantToolSettings[name] = []byte(raw)
-				}
-				slog.Debug("tenant tool settings loaded", "agent", agentKey, "tenant", ag.TenantID, "tools", len(tenantToolSettings))
-			}
-		}
 
-		// Load tenant-specific allowed paths (from system_configs['allowed_paths']).
+		// Load global allowed_paths (from system_configs).
 		// These extend filesystem tool access beyond the agent's workspace.
 		var tenantAllowedPaths []string
-		if deps.SystemConfigs != nil && ag.TenantID != uuid.Nil {
-			tenantCtx := store.WithTenantID(ctx, ag.TenantID)
-			if raw, err := deps.SystemConfigs.Get(tenantCtx, "allowed_paths"); err == nil && raw != "" {
+		if deps.SystemConfigs != nil {
+			if raw, err := deps.SystemConfigs.Get(ctx, "allowed_paths"); err == nil && raw != "" {
 				if json.Unmarshal([]byte(raw), &tenantAllowedPaths) == nil && len(tenantAllowedPaths) > 0 {
-					// Expand home directory in paths
 					for i, p := range tenantAllowedPaths {
 						tenantAllowedPaths[i] = config.ExpandHome(p)
 					}
-					slog.Debug("tenant allowed paths loaded", "agent", agentKey, "tenant", ag.TenantID, "paths", len(tenantAllowedPaths))
+					slog.Debug("allowed paths loaded", "agent", agentKey, "paths", len(tenantAllowedPaths))
 				}
 			}
 		}
@@ -423,11 +384,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			}
 		}
 
-		// Resolve tenant-scoped DataDir for team workspace resolution.
 		dataDir := deps.DataDir
-		if tenantSlug != "" {
-			dataDir = config.TenantDataDir(deps.DataDir, ag.TenantID, tenantSlug)
-		}
 
 		// v3 feature flags (from other_config JSONB).
 		// NOTE: flags are immutable per-Loop — changes via admin API take effect on next session only.
@@ -588,19 +545,6 @@ func (r *Router) InvalidateTenant(tenantID uuid.UUID) {
 		}
 	}
 	slog.Debug("invalidated tenant agent cache", "tenant", tenantID, "count", deleted)
-}
-
-// resolveTenantSlug looks up the tenant slug for workspace path resolution.
-// Returns the tenant ID string as fallback if lookup fails.
-func resolveTenantSlug(ts store.TenantStore, tenantID uuid.UUID) string {
-	if ts == nil {
-		return tenantID.String()
-	}
-	tenant, err := ts.GetTenant(context.Background(), tenantID)
-	if err != nil || tenant == nil {
-		return tenantID.String()
-	}
-	return tenant.Slug
 }
 
 func derefInt(p *int) int {

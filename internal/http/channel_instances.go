@@ -23,14 +23,13 @@ type ChannelInstancesHandler struct {
 	agentStore      store.AgentStore
 	configPermStore store.ConfigPermissionStore
 	contactStore    store.ContactStore
-	tenantStore     store.TenantStore
 	msgBus          *bus.MessageBus
 	memberResolver  channels.MemberResolver // optional — enriches file_writer metadata on addwriter
 }
 
 // NewChannelInstancesHandler creates a handler for channel instance management endpoints.
-func NewChannelInstancesHandler(s store.ChannelInstanceStore, agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, contactStore store.ContactStore, tenantStore store.TenantStore, msgBus *bus.MessageBus) *ChannelInstancesHandler {
-	return &ChannelInstancesHandler{store: s, agentStore: agentStore, configPermStore: configPermStore, contactStore: contactStore, tenantStore: tenantStore, msgBus: msgBus}
+func NewChannelInstancesHandler(s store.ChannelInstanceStore, agentStore store.AgentStore, configPermStore store.ConfigPermissionStore, contactStore store.ContactStore, msgBus *bus.MessageBus) *ChannelInstancesHandler {
+	return &ChannelInstancesHandler{store: s, agentStore: agentStore, configPermStore: configPermStore, contactStore: contactStore, msgBus: msgBus}
 }
 
 // SetMemberResolver wires a channel member resolver so addwriter can auto-fill
@@ -52,15 +51,9 @@ func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
 	if h.contactStore != nil {
 		mux.HandleFunc("GET /v1/contacts", h.auth(h.handleListContacts))
 		mux.HandleFunc("GET /v1/contacts/resolve", h.auth(h.handleResolveContacts))
-		mux.HandleFunc("POST /v1/contacts/merge", h.adminAuth(h.handleMergeContacts))
-		mux.HandleFunc("POST /v1/contacts/unmerge", h.adminAuth(h.handleUnmergeContacts))
-		mux.HandleFunc("GET /v1/contacts/merged/{tenantUserId}", h.auth(h.handleListMergedContacts))
-	}
-	if h.tenantStore != nil {
-		mux.HandleFunc("GET /v1/tenant-users", h.auth(h.handleListTenantUsers))
 	}
 
-	// Unified user search (contacts + tenant_users)
+	// Unified user search (contacts only in v4)
 	if h.contactStore != nil {
 		mux.HandleFunc("GET /v1/users/search", h.auth(h.handleSearchUsers))
 	}

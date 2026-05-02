@@ -472,11 +472,6 @@ func (s *Server) SetAPIKeysHandler(h *httpapi.APIKeysHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
-// SetTenantsHandler sets the tenant management handler.
-func (s *Server) SetTenantsHandler(h *httpapi.TenantsHandler) {
-	s.handlers = append(s.handlers, h)
-}
-
 // SetAPIKeyStore sets the API key store for token-based auth lookup.
 func (s *Server) SetAPIKeyStore(st store.APIKeyStore) { s.apiKeyStore = st }
 
@@ -558,11 +553,6 @@ func (s *Server) SetRestoreHandler(h *httpapi.RestoreHandler) { s.handlers = app
 
 // SetBackupS3Handler sets the S3 backup integration handler.
 func (s *Server) SetBackupS3Handler(h *httpapi.BackupS3Handler) { s.handlers = append(s.handlers, h) }
-
-// SetTenantBackupHandler sets the tenant-scoped backup/restore handler.
-func (s *Server) SetTenantBackupHandler(h *httpapi.TenantBackupHandler) {
-	s.handlers = append(s.handlers, h)
-}
 
 // SetDocsHandler sets the OpenAPI spec + Swagger UI handler.
 func (s *Server) SetDocsHandler(h *httpapi.DocsHandler) { s.handlers = append(s.handlers, h) }

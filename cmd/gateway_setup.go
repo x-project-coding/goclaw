@@ -426,10 +426,14 @@ func setupMemoryEmbeddings(
 	}
 }
 
-// seedSystemConfigs ensures system_configs has all expected keys for all tenants.
+// seedSystemConfigs ensures system_configs has all expected keys.
 // Inserts missing keys from config.json without overwriting existing values.
-func seedSystemConfigs(sc store.SystemConfigStore, ts store.TenantStore, cfg *config.Config) {
-	syncSystemConfigs(sc, ts, cfg, true) // onlyMissing=true
+// v4 single-tenant: writes only the master scope (uuid.Nil tenant_id).
+func seedSystemConfigs(sc store.SystemConfigStore, cfg *config.Config) {
+	if sc == nil || cfg == nil {
+		return
+	}
+	seedConfigForContext(context.Background(), sc, cfg, true)
 }
 
 // loadBootstrapFiles loads bootstrap files for the default agent's system prompt from DB.

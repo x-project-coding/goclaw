@@ -182,7 +182,7 @@ func runGateway() {
 		slog.Warn("sessions.dm_scope config is deprecated and ignored — fixed to per-channel-peer", "configured", cfg.Sessions.DmScope)
 	}
 
-	seedSystemConfigs(pgStores.SystemConfigs, pgStores.Tenants, cfg)
+	seedSystemConfigs(pgStores.SystemConfigs, cfg)
 	// Read back system_configs from DB and overlay onto in-memory config.
 	if pgStores.SystemConfigs != nil {
 		if sysConfigs, err := pgStores.SystemConfigs.List(
@@ -382,14 +382,9 @@ func runGateway() {
 	// S3 backup integration — admin + owner only.
 	server.SetBackupS3Handler(httpapi.NewBackupS3Handler(cfg, cfg.Database.PostgresDSN, Version, pgStores.ConfigSecrets, permPE.IsOwner))
 
-	// Tenant-scoped backup/restore — owner or tenant admin.
-	if pgStores.Tenants != nil {
-		server.SetTenantBackupHandler(httpapi.NewTenantBackupHandler(pgStores.DB, cfg, pgStores.Tenants, Version, permPE.IsOwner))
-	}
-
 	// Register all RPC methods
 	server.SetLogTee(logTee)
-	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr)
+	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, audioMgr)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
@@ -551,24 +546,16 @@ func runGateway() {
 		methods.NewAPIKeysMethods(pgStores.APIKeys).Register(server.Router())
 	}
 
-	// Tenant management RPC + HTTP
-	if pgStores.Tenants != nil {
-		methods.NewTenantsMethods(pgStores.Tenants, msgBus, workspace).Register(server.Router())
-		server.SetTenantsHandler(httpapi.NewTenantsHandler(pgStores.Tenants, msgBus, workspace))
-		server.Router().SetTenantStore(pgStores.Tenants)
-		// Permission cache for tenant membership checks. Store on deps so
-		// lifecycle shutdown can call Close() to stop the sweep goroutines.
-		permCache := cache.NewPermissionCache()
-		deps.permCache = permCache
-		msgBus.Subscribe("permission-cache", func(e bus.Event) {
-			if p, ok := e.Payload.(bus.CacheInvalidatePayload); ok {
-				permCache.HandleInvalidation(p)
-			}
-		})
-		server.Router().SetPermissionCache(permCache)
-		httpapi.InitTenantStore(pgStores.Tenants, msgBus)
-		httpapi.InitOwnerIDs(cfg.Gateway.OwnerIDs)
-	}
+	// Permission cache (no tenant gating in v4 — kept for future role caching).
+	permCache := cache.NewPermissionCache()
+	deps.permCache = permCache
+	msgBus.Subscribe("permission-cache", func(e bus.Event) {
+		if p, ok := e.Payload.(bus.CacheInvalidatePayload); ok {
+			permCache.HandleInvalidation(p)
+		}
+	})
+	server.Router().SetPermissionCache(permCache)
+	httpapi.InitOwnerIDs(cfg.Gateway.OwnerIDs)
 
 	// Wire lifecycle: config-reload subscribers, consumer, task recovery, shutdown, server start.
 	deps.runLifecycle(ctx, cancel, lifecycleDeps{

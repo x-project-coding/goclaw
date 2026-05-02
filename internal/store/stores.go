@@ -29,9 +29,6 @@ type Stores struct {
 	APIKeys             APIKeyStore
 	Heartbeats        HeartbeatStore
 	ConfigPermissions      ConfigPermissionStore
-	Tenants                TenantStore
-	BuiltinToolTenantCfgs  BuiltinToolTenantConfigStore
-	SkillTenantCfgs        SkillTenantConfigStore
 	SystemConfigs          SystemConfigStore
 	SubagentTasks          SubagentTaskStore
 	Vault                  VaultStore

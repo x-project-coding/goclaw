@@ -21,13 +21,12 @@ type VoicesHandler struct {
 	cache       *audio.VoiceCache
 	provider    audio.VoiceListProvider // nil when resolved at request time from stores
 	secretStore store.ConfigSecretsStore
-	tenantStore store.TenantStore
 }
 
 // NewVoicesHandler creates a handler that resolves the provider at request time
 // from config_secrets. Use NewVoicesHandlerWithProvider for tests.
-func NewVoicesHandler(cache *audio.VoiceCache, secretStore store.ConfigSecretsStore, tenantStore store.TenantStore) *VoicesHandler {
-	return &VoicesHandler{cache: cache, secretStore: secretStore, tenantStore: tenantStore}
+func NewVoicesHandler(cache *audio.VoiceCache, secretStore store.ConfigSecretsStore) *VoicesHandler {
+	return &VoicesHandler{cache: cache, secretStore: secretStore}
 }
 
 // NewVoicesHandlerWithProvider creates a handler with a pre-built provider.

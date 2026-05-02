@@ -54,7 +54,7 @@ func (s *stubSkillStore) Dirs() []string  { return nil }
 
 func buildSkillMethods(t *testing.T, skills []store.SkillInfo) *SkillsMethods {
 	t.Helper()
-	return NewSkillsMethods(newStubSkillStore(skills), nil)
+	return NewSkillsMethods(newStubSkillStore(skills))
 }
 
 func skillReqFrame(t *testing.T, method string, params map[string]any) *protocol.RequestFrame {

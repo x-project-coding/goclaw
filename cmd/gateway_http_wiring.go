@@ -173,9 +173,6 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 		if d.pgStores.Agents != nil {
 			evoOpts = append(evoOpts, httpapi.WithAgentStore(d.pgStores.Agents))
 		}
-		if d.pgStores.BuiltinToolTenantCfgs != nil {
-			evoOpts = append(evoOpts, httpapi.WithToolTenantCfgs(d.pgStores.BuiltinToolTenantCfgs))
-		}
 		d.server.SetEvolutionHandler(httpapi.NewEvolutionHandler(d.pgStores.EvolutionMetrics, d.pgStores.EvolutionSuggestions, evoOpts...))
 	}
 
@@ -235,11 +232,7 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 		if d.pgStores != nil && d.pgStores.ConfigSecrets != nil {
 			secretStore = d.pgStores.ConfigSecrets
 		}
-		var tenantStore store.TenantStore
-		if d.pgStores != nil && d.pgStores.Tenants != nil {
-			tenantStore = d.pgStores.Tenants
-		}
-		voicesH := httpapi.NewVoicesHandler(voiceCache, secretStore, tenantStore)
+		voicesH := httpapi.NewVoicesHandler(voiceCache, secretStore)
 		d.server.SetVoicesHandler(voicesH)
 		// Wire WS method — provider nil means each request resolves key via secretStore at HTTP layer.
 		// For WS, use same cache. Provider is resolved via secretStore at WS level in a future phase.

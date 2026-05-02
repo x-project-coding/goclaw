@@ -40,54 +40,6 @@ func (r *providerRow) toLLMProviderData() store.LLMProviderData {
 	}
 }
 
-// tenantRow is a scan struct for tenants rows.
-type tenantRow struct {
-	ID        uuid.UUID       `json:"id" db:"id"`
-	Name      string          `json:"name" db:"name"`
-	Slug      string          `json:"slug" db:"slug"`
-	Status    string          `json:"status" db:"status"`
-	Settings  json.RawMessage `json:"settings" db:"settings"`
-	CreatedAt sqliteTime      `json:"created_at" db:"created_at"`
-	UpdatedAt sqliteTime      `json:"updated_at" db:"updated_at"`
-}
-
-func (r *tenantRow) toTenantData() store.TenantData {
-	return store.TenantData{
-		ID:        r.ID,
-		Name:      r.Name,
-		Slug:      r.Slug,
-		Status:    r.Status,
-		Settings:  r.Settings,
-		CreatedAt: r.CreatedAt.Time,
-		UpdatedAt: r.UpdatedAt.Time,
-	}
-}
-
-// tenantUserRow is a scan struct for tenant_users rows.
-type tenantUserRow struct {
-	ID          uuid.UUID       `json:"id" db:"id"`
-	TenantID    uuid.UUID       `json:"tenant_id" db:"tenant_id"`
-	UserID      string          `json:"user_id" db:"user_id"`
-	DisplayName *string         `json:"display_name" db:"display_name"`
-	Role        string          `json:"role" db:"role"`
-	Metadata    json.RawMessage `json:"metadata" db:"metadata"`
-	CreatedAt   sqliteTime      `json:"created_at" db:"created_at"`
-	UpdatedAt   sqliteTime      `json:"updated_at" db:"updated_at"`
-}
-
-func (r *tenantUserRow) toTenantUserData() store.TenantUserData {
-	return store.TenantUserData{
-		ID:          r.ID,
-		TenantID:    r.TenantID,
-		UserID:      r.UserID,
-		DisplayName: r.DisplayName,
-		Role:        r.Role,
-		Metadata:    r.Metadata,
-		CreatedAt:   r.CreatedAt.Time,
-		UpdatedAt:   r.UpdatedAt.Time,
-	}
-}
-
 // mcpServerRow is a scan struct for mcp_servers rows.
 // Pointer fields handle nullable columns that sqlx maps to empty string otherwise.
 type mcpServerRow struct {

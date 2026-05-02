@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -30,20 +29,18 @@ var (
 
 // SkillsHandler handles skill management HTTP endpoints.
 type SkillsHandler struct {
-	skills         store.SkillManageStore
-	baseDir        string // filesystem base for skill content (skills-store/) — master tenant
-	dataDir        string // parent data dir for tenant-scoped skill paths
-	bundledDir     string // original bundled skills dir (fallback for broken managed copies)
-	msgBus         *bus.MessageBus
-	tenantCfgStore store.SkillTenantConfigStore
-	tenantStore    store.TenantStore
-	db             *sql.DB // for export/import direct queries
-	uploadLocks    sync.Map // per-slug mutex; bounded by validated slug set, entries are tiny (*sync.Mutex)
+	skills      store.SkillManageStore
+	baseDir     string // filesystem base for skill content (skills-store/) — master scope
+	dataDir     string // parent data dir for scoped skill paths
+	bundledDir  string // original bundled skills dir (fallback for broken managed copies)
+	msgBus      *bus.MessageBus
+	db          *sql.DB  // for export/import direct queries
+	uploadLocks sync.Map // per-slug mutex; bounded by validated slug set, entries are tiny (*sync.Mutex)
 }
 
 // NewSkillsHandler creates a handler for skill management endpoints.
-func NewSkillsHandler(skills store.SkillManageStore, baseDir, dataDir, bundledDir string, msgBus *bus.MessageBus, tenantCfgStore store.SkillTenantConfigStore, tenantStore store.TenantStore) *SkillsHandler {
-	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, msgBus: msgBus, tenantCfgStore: tenantCfgStore, tenantStore: tenantStore}
+func NewSkillsHandler(skills store.SkillManageStore, baseDir, dataDir, bundledDir string, msgBus *bus.MessageBus) *SkillsHandler {
+	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, msgBus: msgBus}
 }
 
 // tenantSkillsDir returns the skills-store directory scoped to the requesting tenant.
@@ -103,9 +100,6 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/skills/install-dep", h.adminMiddleware(h.handleInstallDep))
 	mux.HandleFunc("GET /v1/skills/runtimes", h.adminMiddleware(h.handleRuntimes))
 	mux.HandleFunc("POST /v1/skills/{id}/toggle", h.adminMiddleware(h.handleToggle))
-	// Per-tenant overrides (admin+)
-	mux.HandleFunc("PUT /v1/skills/{id}/tenant-config", h.adminMiddleware(h.handleSetTenantConfig))
-	mux.HandleFunc("DELETE /v1/skills/{id}/tenant-config", h.adminMiddleware(h.handleDeleteTenantConfig))
 	// Export / Import (admin+)
 	mux.HandleFunc("GET /v1/skills/export/preview", h.adminMiddleware(h.handleSkillsExportPreview))
 	mux.HandleFunc("GET /v1/skills/export", h.adminMiddleware(h.handleSkillsExport))
@@ -143,33 +137,6 @@ func (h *SkillsHandler) requireMasterTenant(w http.ResponseWriter, r *http.Reque
 
 func (h *SkillsHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	skillList := h.skills.ListSkills(r.Context())
-
-	// Merge per-tenant overrides into response when tenant-scoped
-	tid := store.TenantIDFromContext(r.Context())
-	if tid != uuid.Nil && h.tenantCfgStore != nil {
-		overrides, err := h.tenantCfgStore.ListAll(r.Context(), tid)
-		if err != nil {
-			slog.Warn("skill tenant config list failed", "tenant", tid, "error", err)
-		}
-		if err == nil && len(overrides) > 0 {
-			type skillWithTenant struct {
-				store.SkillInfo
-				TenantEnabled *bool `json:"tenant_enabled"`
-			}
-			enriched := make([]skillWithTenant, len(skillList))
-			for i, sk := range skillList {
-				enriched[i] = skillWithTenant{SkillInfo: sk}
-				if skID, err := uuid.Parse(sk.ID); err == nil {
-					if enabled, ok := overrides[skID]; ok {
-						enriched[i].TenantEnabled = &enabled
-					}
-				}
-			}
-			writeJSON(w, http.StatusOK, map[string]any{"skills": enriched})
-			return
-		}
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{"skills": skillList})
 }
 
@@ -576,82 +543,3 @@ func (h *SkillsHandler) handleToggle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": body.Enabled, "status": newStatus})
 }
 
-// handleSetTenantConfig sets a per-tenant override for a skill.
-func (h *SkillsHandler) handleSetTenantConfig(w http.ResponseWriter, r *http.Request) {
-	if h.tenantCfgStore == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "tenant config not available"})
-		return
-	}
-	if !requireTenantAdmin(w, r, h.tenantStore) {
-		return
-	}
-	locale := store.LocaleFromContext(r.Context())
-	tid := store.TenantIDFromContext(r.Context())
-	if tid == uuid.Nil {
-		// Defense-in-depth: owner-role bypass in requireTenantAdmin could
-		// otherwise reach here without a tenant scope. Reject explicitly so
-		// a nil tid never flows into the cache invalidate emit as a global
-		// wipe of every tenant's agent cache.
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant context required"})
-		return
-	}
-
-	idStr := r.PathValue("id")
-	skillID, err := uuid.Parse(idStr)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
-		return
-	}
-
-	var body struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidJSON)})
-		return
-	}
-
-	if err := h.tenantCfgStore.Set(r.Context(), tid, skillID, body.Enabled); err != nil {
-		slog.Warn("set tenant skill config failed", "skill", idStr, "tenant", tid, "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, "skill tenant config")})
-		return
-	}
-
-	emitAudit(h.msgBus, r, "skill.tenant_config.set", "skill", idStr)
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, tid)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
-}
-
-// handleDeleteTenantConfig removes a per-tenant override for a skill (reverts to default).
-func (h *SkillsHandler) handleDeleteTenantConfig(w http.ResponseWriter, r *http.Request) {
-	if h.tenantCfgStore == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "tenant config not available"})
-		return
-	}
-	if !requireTenantAdmin(w, r, h.tenantStore) {
-		return
-	}
-	locale := store.LocaleFromContext(r.Context())
-	tid := store.TenantIDFromContext(r.Context())
-	if tid == uuid.Nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant context required"})
-		return
-	}
-
-	idStr := r.PathValue("id")
-	skillID, err := uuid.Parse(idStr)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
-		return
-	}
-
-	if err := h.tenantCfgStore.Delete(r.Context(), tid, skillID); err != nil {
-		slog.Warn("delete tenant skill config failed", "skill", idStr, "tenant", tid, "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, "skill tenant config")})
-		return
-	}
-
-	emitAudit(h.msgBus, r, "skill.tenant_config.deleted", "skill", idStr)
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, tid)
-	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}

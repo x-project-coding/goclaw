@@ -32,7 +32,7 @@ func TestVoicesHandler_Unauthenticated(t *testing.T) {
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
 	cache := audio.NewVoiceCache(time.Hour, 100)
-	h := httpapi.NewVoicesHandler(cache, nil, nil)
+	h := httpapi.NewVoicesHandler(cache, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -134,7 +134,7 @@ func TestVoicesHandler_RefreshUnauthenticated(t *testing.T) {
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
 	cache := audio.NewVoiceCache(time.Hour, 100)
-	h := httpapi.NewVoicesHandler(cache, nil, nil)
+	h := httpapi.NewVoicesHandler(cache, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

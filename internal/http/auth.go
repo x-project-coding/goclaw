@@ -15,7 +15,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
-	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // extractBearerToken extracts a bearer token from the Authorization header.
@@ -81,7 +80,6 @@ func extractAgentID(r *http.Request, model string) string {
 var pkgGatewayToken string
 var pkgAPIKeyCache *apiKeyCache
 var pkgPairingStore store.PairingStore
-var pkgTenantCache *tenantCache
 var pkgOwnerIDs []string
 
 // InitGatewayToken sets the gateway bearer token for HTTP auth.
@@ -127,19 +125,6 @@ func isHTTPOwnerID(userID string, ownerIDs []string) bool {
 	return slices.Contains(ownerIDs, userID)
 }
 
-// InitTenantStore sets the tenant cache for HTTP auth with TTL and pubsub invalidation.
-// Tenant scoping is used by owner/system-key callers and for membership validation.
-func InitTenantStore(ts store.TenantStore, mb *bus.MessageBus) {
-	pkgTenantCache = newTenantCache(ts, 5*time.Minute)
-	if mb != nil {
-		mb.Subscribe("http-tenant-cache", func(e bus.Event) {
-			if p, ok := e.Payload.(bus.CacheInvalidatePayload); ok && p.Kind == bus.CacheKindTenants {
-				pkgTenantCache.invalidateAll()
-			}
-		})
-	}
-}
-
 // ResolveAPIKey checks if the bearer token is a valid API key using the shared cache.
 // Returns the key data and derived role, or nil if not found/expired/revoked.
 func ResolveAPIKey(ctx context.Context, token string) (*store.APIKeyData, permissions.Role) {
@@ -178,53 +163,21 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		if isOwner {
 			role = permissions.RoleOwner
 		}
-		res := authResult{Role: role, Authenticated: true}
-		tenantVal := r.Header.Get("X-GoClaw-Tenant-Id")
-		if isOwner {
-			res.TenantID = resolveScopedTenant(r.Context(), tenantVal)
-		} else {
-			tenantID, allowed := resolveTenantHint(r.Context(), tenantVal, userID)
-			if !allowed {
-				return authResult{}
-			}
-			res.TenantID = tenantID
-		}
-		if res.TenantID == uuid.Nil {
-			res.TenantID = store.MasterTenantID
-		}
-		res.TenantSlug = resolveTenantSlug(r.Context(), res.TenantID)
+		res := authResult{Role: role, Authenticated: true, TenantID: store.MasterTenantID}
 		return res
 	}
 	// API key → role from scopes
 	if keyData, role := ResolveAPIKey(r.Context(), bearer); role != "" {
-		res := authResult{Role: role, Authenticated: true, KeyData: keyData}
-		if keyData.TenantID == uuid.Nil {
-			// System-level API keys keep their scope-derived role. They may
-			// optionally scope a request to a tenant, but they do not become owner.
-			res.TenantID = resolveScopedTenant(r.Context(), r.Header.Get("X-GoClaw-Tenant-Id"))
-			if res.TenantID == uuid.Nil {
-				res.TenantID = store.MasterTenantID
-			}
-			res.TenantSlug = resolveTenantSlug(r.Context(), res.TenantID)
-		} else {
-			res.TenantID = keyData.TenantID
-			res.TenantSlug = resolveTenantSlug(r.Context(), keyData.TenantID)
-		}
-		return res
+		return authResult{Role: role, Authenticated: true, KeyData: keyData, TenantID: store.MasterTenantID}
 	}
 	// Browser pairing → operator (via X-GoClaw-Sender-Id header)
 	if senderID := r.Header.Get("X-GoClaw-Sender-Id"); senderID != "" && pkgPairingStore != nil {
 		paired, err := pkgPairingStore.IsPaired(r.Context(), senderID, "browser")
 		if err == nil && paired {
-			tenantID, allowed := resolveTenantHint(r.Context(), r.Header.Get("X-GoClaw-Tenant-Id"), extractUserID(r))
-			if !allowed {
-				return authResult{}
-			}
 			return authResult{
 				Role:          permissions.RoleOperator,
 				Authenticated: true,
-				TenantID:      tenantID,
-				TenantSlug:    resolveTenantSlug(r.Context(), tenantID),
+				TenantID:      store.MasterTenantID,
 			}
 		}
 		if err != nil {
@@ -238,66 +191,6 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		return authResult{Role: permissions.RoleAdmin, Authenticated: true, TenantID: store.MasterTenantID}
 	}
 	return authResult{}
-}
-
-func resolveScopedTenant(ctx context.Context, tenantVal string) uuid.UUID {
-	if tenantVal == "" || pkgTenantCache == nil {
-		return uuid.Nil
-	}
-	if tid, err := uuid.Parse(tenantVal); err == nil {
-		if t, err := pkgTenantCache.GetTenant(ctx, tid); err == nil && t != nil {
-			return t.ID
-		}
-	} else if t, err := pkgTenantCache.GetTenantBySlug(ctx, tenantVal); err == nil && t != nil {
-		return t.ID
-	}
-	slog.Debug("security.http_tenant_scope_unresolved", "tenant", tenantVal)
-	return uuid.Nil
-}
-
-func resolveTenantSlug(ctx context.Context, tenantID uuid.UUID) string {
-	if tenantID == uuid.Nil || pkgTenantCache == nil {
-		return ""
-	}
-	if tenant, err := pkgTenantCache.GetTenant(ctx, tenantID); err == nil && tenant != nil {
-		return tenant.Slug
-	}
-	return ""
-}
-
-func resolveTenantHint(ctx context.Context, hint, userID string) (uuid.UUID, bool) {
-	if hint == "" || pkgTenantCache == nil {
-		return store.MasterTenantID, true
-	}
-	tid := resolveScopedTenant(ctx, hint)
-	if tid == uuid.Nil {
-		return store.MasterTenantID, true
-	}
-	if userID == "" {
-		slog.Warn("security.http_tenant_hint_denied_anonymous", "hint", hint, "tenant_id", tid)
-		return uuid.Nil, false
-	}
-	role, err := pkgTenantCache.store.GetUserRole(ctx, tid, userID)
-	if err != nil {
-		slog.Warn("security.http_tenant_access_revoked",
-			"hint", hint,
-			"user", userID,
-			"tenant_id", tid,
-			"error", err,
-			"code", protocol.ErrTenantAccessRevoked,
-		)
-		return uuid.Nil, false
-	}
-	if role == "" {
-		slog.Warn("security.http_tenant_no_membership",
-			"hint", hint,
-			"user", userID,
-			"tenant_id", tid,
-			"code", protocol.ErrTenantAccessRevoked,
-		)
-		return uuid.Nil, false
-	}
-	return tid, true
 }
 
 // httpMinRole returns the minimum role required for an HTTP endpoint based on HTTP method.

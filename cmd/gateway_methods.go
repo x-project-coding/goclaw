@@ -14,7 +14,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
-func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, tenantStore store.TenantStore, skillTenantCfgStore store.SkillTenantConfigStore, audioMgr *audio.Manager) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
+func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore store.SessionStore, cronStore store.CronStore, pairingStore store.PairingStore, cfg *config.Config, cfgPath, workspace, dataDir string, msgBus *bus.MessageBus, execApprovalMgr *tools.ExecApprovalManager, agentStore store.AgentStore, skillStore store.SkillStore, configSecretsStore store.ConfigSecretsStore, teamStore store.TeamStore, contextFileInterceptor *tools.ContextFileInterceptor, logTee *gateway.LogTee, heartbeatStore store.HeartbeatStore, configPermStore store.ConfigPermissionStore, sysConfigStore store.SystemConfigStore, audioMgr *audio.Manager) (*methods.PairingMethods, *methods.HeartbeatMethods, *methods.ChatMethods, *methods.ConfigPermissionsMethods) {
 	router := server.Router()
 
 	// Phase 1: Core methods
@@ -26,19 +26,16 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 	configMethods := methods.NewConfigMethods(cfg, cfgPath, configSecretsStore, msgBus)
 	if sysConfigStore != nil {
 		configMethods.SetSystemConfigSync(func(ctx context.Context, c *config.Config) {
-			// Only sync config for the current tenant (from request context)
 			seedConfigForContext(ctx, sysConfigStore, c, false) // onlyMissing=false → upsert
-			// Trigger readback via bus event with fresh context (request ctx may be canceled)
 			if msgBus != nil {
-				freshCtx := store.WithTenantID(context.Background(), store.TenantIDFromContext(ctx))
-				msgBus.Broadcast(bus.Event{Name: bus.TopicSystemConfigChanged, Payload: freshCtx})
+				msgBus.Broadcast(bus.Event{Name: bus.TopicSystemConfigChanged, Payload: context.Background()})
 			}
 		})
 	}
 	configMethods.Register(router)
 
 	// Phase 2: Skills (uses SkillStore interface — PG or File)
-	methods.NewSkillsMethods(skillStore, skillTenantCfgStore).Register(router)
+	methods.NewSkillsMethods(skillStore).Register(router)
 
 	// Phase 2: Cron (store created externally, shared with gateway)
 	methods.NewCronMethods(cronStore, msgBus, cfg).Register(router)
