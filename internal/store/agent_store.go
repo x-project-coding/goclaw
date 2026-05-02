@@ -43,11 +43,23 @@ const (
 // AgentData represents an agent in the database.
 type AgentData struct {
 	BaseModel
-	TenantID            uuid.UUID `json:"tenant_id" db:"tenant_id"`
-	AgentKey            string    `json:"agent_key" db:"agent_key"`
-	DisplayName         string    `json:"display_name,omitempty" db:"display_name"`
-	Frontmatter         string    `json:"frontmatter,omitempty" db:"frontmatter"` // short expertise summary (NOT other_config.description which is the summoning prompt)
-	OwnerID             string    `json:"owner_id" db:"owner_id"`
+
+	// TenantID is a transitional in-memory field; the v4 schema has no tenant_id
+	// column. The value is always uuid.Nil after L1 (PR-05B-1a). Existing readers
+	// (resolver, heartbeat, http handlers, provider routing) compile but receive
+	// the zero value; their tenant-aware code paths become no-ops. Field + callers
+	// removed together in L2 (PR-05B-1b) when TenantStore is torn down.
+	TenantID uuid.UUID `json:"-" db:"-"`
+
+	AgentKey    string `json:"agent_key" db:"agent_key"`
+	DisplayName string `json:"display_name,omitempty" db:"display_name"`
+	Frontmatter string `json:"frontmatter,omitempty" db:"frontmatter"` // short expertise summary (NOT other_config.description which is the summoning prompt)
+
+	// OwnerID (legacy v3 string identifier) is preserved for compatibility while
+	// channels migrate to user UUIDs. New code MUST set OwnerUserID instead — the
+	// owner_user_id FK to users(id) is what scopes agent visibility in v4.
+	OwnerID             string     `json:"owner_id" db:"owner_id"`
+	OwnerUserID         *uuid.UUID `json:"owner_user_id,omitempty" db:"owner_user_id"`
 	Provider            string    `json:"provider" db:"provider"`
 	Model               string    `json:"model" db:"model"`
 	ContextWindow       int       `json:"context_window" db:"context_window"`
