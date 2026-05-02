@@ -37,7 +37,6 @@ func (s *SQLiteKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *st
 	}
 	now := time.Now().UTC()
 	id := uuid.Must(uuid.NewV7()).String()
-	tid := tenantIDForInsert(ctx).String()
 
 	sc, scArgs := kgUserClauseFor(ctx, entity.UserID)
 	_ = sc // used only for reads; upsert conflict key uses explicit columns
@@ -46,8 +45,8 @@ func (s *SQLiteKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *st
 	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO kg_entities
 			(id, agent_id, user_id, external_id, name, entity_type, description,
-			 properties, source_id, confidence, tenant_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 properties, source_id, confidence, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(agent_id, user_id, external_id) DO UPDATE SET
 			name        = excluded.name,
 			entity_type = excluded.entity_type,
@@ -55,12 +54,11 @@ func (s *SQLiteKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *st
 			properties  = excluded.properties,
 			source_id   = excluded.source_id,
 			confidence  = excluded.confidence,
-			tenant_id   = excluded.tenant_id,
 			updated_at  = excluded.updated_at
 		RETURNING id`,
 		id, entity.AgentID, entity.UserID, entity.ExternalID,
 		entity.Name, entity.EntityType, entity.Description,
-		string(props), entity.SourceID, entity.Confidence, tid, now, now,
+		string(props), entity.SourceID, entity.Confidence, now, now,
 	).Scan(&actualID)
 	if err != nil {
 		return err
@@ -305,7 +303,6 @@ func (s *SQLiteKnowledgeGraphStore) SupersedeEntity(ctx context.Context, old *st
 
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339Nano)
-	tid := tenantIDForInsert(ctx).String()
 
 	sc, scArgs, _ := scopeClause(ctx)
 
@@ -325,11 +322,11 @@ func (s *SQLiteKnowledgeGraphStore) SupersedeEntity(ctx context.Context, old *st
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO kg_entities
 			(id, agent_id, user_id, external_id, name, entity_type, description,
-			 properties, source_id, confidence, tenant_id, created_at, updated_at, valid_from)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 properties, source_id, confidence, created_at, updated_at, valid_from)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		newID, replacement.AgentID, replacement.UserID, replacement.ExternalID,
 		replacement.Name, replacement.EntityType, replacement.Description,
-		string(props), replacement.SourceID, replacement.Confidence, tid,
+		string(props), replacement.SourceID, replacement.Confidence,
 		nowStr, nowStr, nowStr,
 	); err != nil {
 		return fmt.Errorf("supersede insert new: %w", err)

@@ -33,7 +33,6 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	tid := tenantIDForInsert(ctx).String()
 
 	// Upsert entities; build external_id → DB ID lookup for resolving relation endpoints.
 	extIDtoDBID := make(map[string]string, len(entities))
@@ -52,8 +51,8 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO kg_entities
 				(id, agent_id, user_id, external_id, name, entity_type, description,
-				 properties, source_id, confidence, tenant_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				 properties, source_id, confidence, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(agent_id, user_id, external_id) DO UPDATE SET
 				name        = excluded.name,
 				entity_type = excluded.entity_type,
@@ -61,11 +60,10 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 				properties  = excluded.properties,
 				source_id   = excluded.source_id,
 				confidence  = excluded.confidence,
-				tenant_id   = excluded.tenant_id,
 				updated_at  = excluded.updated_at
 			RETURNING id`,
 			newID, agentID, userID, e.ExternalID, e.Name, e.EntityType,
-			e.Description, string(props), e.SourceID, e.Confidence, tid, now, now,
+			e.Description, string(props), e.SourceID, e.Confidence, now, now,
 		).Scan(&actualID); err != nil {
 			return nil, fmt.Errorf("ingest entity %q: %w", e.ExternalID, err)
 		}
@@ -85,7 +83,7 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 		origSrc, origTgt := r.SourceEntityID, r.TargetEntityID
 		r.SourceEntityID = srcID
 		r.TargetEntityID = tgtID
-		if err := upsertRelationTx(ctx, tx, agentID, userID, r, tid, now); err != nil {
+		if err := upsertRelationTx(ctx, tx, agentID, userID, r, now); err != nil {
 			return nil, fmt.Errorf("ingest relation %s->%s: %w", origSrc, origTgt, err)
 		}
 	}
@@ -306,7 +304,7 @@ func (s *SQLiteKnowledgeGraphStore) ListDedupCandidates(ctx context.Context, age
 		args = append(args, userArgs...)
 	}
 	if sc != "" {
-		where += strings.ReplaceAll(sc, " tenant_id", " c.tenant_id")
+		where += sc
 		args = append(args, scArgs...)
 	}
 	args = append(args, limit)
@@ -491,14 +489,13 @@ func (s *SQLiteKnowledgeGraphStore) insertDedupCandidate(ctx context.Context, ag
 		entityAID, entityBID = entityBID, entityAID
 	}
 	id := uuid.Must(uuid.NewV7()).String()
-	tid := tenantIDForInsert(ctx).String()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO kg_dedup_candidates
-			(id, tenant_id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			(id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(entity_a_id, entity_b_id) DO NOTHING`,
-		id, tid, agentID, userID, entityAID, entityBID, similarity, now,
+		id, agentID, userID, entityAID, entityBID, similarity, now,
 	)
 	return err
 }

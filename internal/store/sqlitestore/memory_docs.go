@@ -47,7 +47,6 @@ func (s *SQLiteMemoryStore) PutDocument(ctx context.Context, agentID, userID, pa
 	hash := memory.ContentHash(content)
 	id := uuid.Must(uuid.NewV7()).String()
 	now := time.Now().UTC()
-	tid := tenantIDForInsert(ctx).String()
 
 	var uid *string
 	if userID != "" {
@@ -55,12 +54,12 @@ func (s *SQLiteMemoryStore) PutDocument(ctx context.Context, agentID, userID, pa
 	}
 
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, tenant_id, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (agent_id, COALESCE(user_id, ''), path)
 		 DO UPDATE SET content = excluded.content, hash = excluded.hash,
-		               tenant_id = excluded.tenant_id, updated_at = excluded.updated_at`,
-		id, agentID, uid, path, content, hash, tid, now,
+		               updated_at = excluded.updated_at`,
+		id, agentID, uid, path, content, hash, now,
 	)
 	return err
 }
@@ -189,7 +188,6 @@ func (s *SQLiteMemoryStore) IndexDocument(ctx context.Context, agentID, userID, 
 		return nil
 	}
 
-	tid := tenantIDForInsert(ctx).String()
 	var uid *string
 	if userID != "" {
 		uid = &userID
@@ -201,10 +199,10 @@ func (s *SQLiteMemoryStore) IndexDocument(ctx context.Context, agentID, userID, 
 		now := time.Now().UTC()
 
 		if _, err := s.db.ExecContext(ctx,
-			`INSERT INTO memory_chunks (id, agent_id, document_id, user_id, path, start_line, end_line, hash, text, tenant_id, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO memory_chunks (id, agent_id, document_id, user_id, path, start_line, end_line, hash, text, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT DO NOTHING`,
-			chunkID, agentID, docID, uid, path, tc.StartLine, tc.EndLine, hash, tc.Text, tid, now,
+			chunkID, agentID, docID, uid, path, tc.StartLine, tc.EndLine, hash, tc.Text, now,
 		); err != nil {
 			slog.Warn("memory: insert chunk failed", "path", path, "error", err)
 		}
@@ -225,23 +223,8 @@ func (s *SQLiteMemoryStore) IndexAll(ctx context.Context, agentID, userID string
 
 // ListAllDocumentsGlobal returns all documents across all agents (admin overview).
 func (s *SQLiteMemoryStore) ListAllDocumentsGlobal(ctx context.Context) ([]store.DocumentInfo, error) {
-	var q string
-	var args []any
-
-	if !store.IsCrossTenant(ctx) {
-		tid, err := requireTenantID(ctx)
-		if err != nil {
-			return nil, err
-		}
-		q = `SELECT agent_id, path, hash, user_id, updated_at
-			 FROM memory_documents WHERE tenant_id = ? ORDER BY updated_at DESC`
-		args = []any{tid.String()}
-	} else {
-		q = `SELECT agent_id, path, hash, user_id, updated_at
-			 FROM memory_documents ORDER BY updated_at DESC`
-	}
-
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT agent_id, path, hash, user_id, updated_at FROM memory_documents ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}

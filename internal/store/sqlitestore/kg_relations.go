@@ -20,20 +20,18 @@ func (s *SQLiteKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation
 	}
 	id := uuid.Must(uuid.NewV7()).String()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	tid := tenantIDForInsert(ctx).String()
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO kg_relations
 			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id,
-			 confidence, properties, tenant_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 confidence, properties, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = excluded.confidence,
-			properties  = excluded.properties,
-			tenant_id   = excluded.tenant_id`,
+			properties  = excluded.properties`,
 		id, relation.AgentID, relation.UserID,
 		relation.SourceEntityID, relation.RelationType, relation.TargetEntityID,
-		relation.Confidence, string(props), tid, now,
+		relation.Confidence, string(props), now,
 	)
 	return err
 }
@@ -109,21 +107,20 @@ func (s *SQLiteKnowledgeGraphStore) ListAllRelations(ctx context.Context, agentI
 
 // upsertRelationTx upserts a relation within an existing transaction.
 // Used by IngestExtraction to avoid nesting transactions.
-func upsertRelationTx(ctx context.Context, tx *sql.Tx, agentID, userID string, r *store.Relation, tid string, now string) error {
+func upsertRelationTx(ctx context.Context, tx *sql.Tx, agentID, userID string, r *store.Relation, now string) error {
 	props, _ := json.Marshal(r.Properties)
 	id := uuid.Must(uuid.NewV7()).String()
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO kg_relations
 			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id,
-			 confidence, properties, tenant_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 confidence, properties, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = excluded.confidence,
-			properties  = excluded.properties,
-			tenant_id   = excluded.tenant_id`,
+			properties  = excluded.properties`,
 		id, agentID, userID,
 		r.SourceEntityID, r.RelationType, r.TargetEntityID,
-		r.Confidence, string(props), tid, now,
+		r.Confidence, string(props), now,
 	)
 	return err
 }

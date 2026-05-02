@@ -16,22 +16,18 @@ func (s *SQLiteTracingStore) CreateSpan(ctx context.Context, span *store.SpanDat
 	if span.ID == uuid.Nil {
 		span.ID = store.GenNewID()
 	}
-	tenantID := span.TenantID
-	if tenantID == uuid.Nil {
-		tenantID = store.MasterTenantID
-	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO spans (id, trace_id, parent_span_id, agent_id, span_type, name,
 		 start_time, end_time, duration_ms, status, error, level,
 		 model, provider, input_tokens, output_tokens, finish_reason,
 		 model_params, tool_name, tool_call_id, input_preview, output_preview,
-		 metadata, team_id, created_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 metadata, team_id, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		span.ID, span.TraceID, span.ParentSpanID, span.AgentID, span.SpanType, nilStr(span.Name),
 		span.StartTime, nilTime(span.EndTime), nilInt(span.DurationMS), span.Status, nilStr(span.Error), span.Level,
 		nilStr(span.Model), nilStr(span.Provider), nilInt(span.InputTokens), nilInt(span.OutputTokens), nilStr(span.FinishReason),
 		jsonOrNull(span.ModelParams), nilStr(span.ToolName), nilStr(span.ToolCallID), nilStr(span.InputPreview), nilStr(span.OutputPreview),
-		jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt, tenantID,
+		jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt,
 	)
 	return err
 }
@@ -113,7 +109,7 @@ func (s *SQLiteTracingStore) GetTraceSpans(ctx context.Context, traceID uuid.UUI
 }
 
 // sqliteSpanCols is the number of columns in the spans INSERT.
-const sqliteSpanCols = 26
+const sqliteSpanCols = 25
 
 // sqliteSpanBatchSize limits rows per batch: 999 / 26 ≈ 38.
 const sqliteSpanBatchSize = 38
@@ -145,17 +141,13 @@ func (s *SQLiteTracingStore) batchInsertSpans(ctx context.Context, spans []store
 			span.ID = store.GenNewID()
 			spans[i].ID = span.ID
 		}
-		tenantID := span.TenantID
-		if tenantID == uuid.Nil {
-			tenantID = store.MasterTenantID
-		}
 		valueGroups[i] = placeholderRow
 		args = append(args,
 			span.ID, span.TraceID, span.ParentSpanID, span.AgentID, span.SpanType, nilStr(span.Name),
 			span.StartTime, nilTime(span.EndTime), nilInt(span.DurationMS), span.Status, nilStr(span.Error), span.Level,
 			nilStr(span.Model), nilStr(span.Provider), nilInt(span.InputTokens), nilInt(span.OutputTokens), nilStr(span.FinishReason),
 			jsonOrNull(span.ModelParams), nilStr(span.ToolName), nilStr(span.ToolCallID), nilStr(span.InputPreview), nilStr(span.OutputPreview),
-			jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt, tenantID,
+			jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt,
 		)
 	}
 
@@ -163,7 +155,7 @@ func (s *SQLiteTracingStore) batchInsertSpans(ctx context.Context, spans []store
 		 start_time, end_time, duration_ms, status, error, level,
 		 model, provider, input_tokens, output_tokens, finish_reason,
 		 model_params, tool_name, tool_call_id, input_preview, output_preview,
-		 metadata, team_id, created_at, tenant_id)
+		 metadata, team_id, created_at)
 		 VALUES ` + strings.Join(valueGroups, ", ")
 
 	_, err := s.db.ExecContext(ctx, q, args...)

@@ -24,17 +24,16 @@ func (s *SQLiteEpisodicStore) Search(ctx context.Context, query string, agentID,
 		maxResults = 10
 	}
 
-	tenantID := tenantIDForInsert(ctx)
 	pattern := "%" + escapeLike(query) + "%"
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, l0_abstract, key_topics, created_at, session_key
 		FROM episodic_summaries
-		WHERE agent_id = ? AND user_id = ? AND tenant_id = ?
+		WHERE agent_id = ? AND user_id = ?
 		  AND (summary LIKE ? ESCAPE '\' OR key_topics LIKE ? ESCAPE '\')
 		ORDER BY created_at DESC
 		LIMIT ?`,
-		agentID, userID, tenantID.String(), pattern, pattern, maxResults*3)
+		agentID, userID, pattern, pattern, maxResults*3)
 	if err != nil {
 		return nil, err
 	}
