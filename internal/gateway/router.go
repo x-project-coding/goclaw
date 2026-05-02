@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nextlevelbuilder/goclaw/internal/cache"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -23,9 +22,8 @@ type MethodHandler func(ctx context.Context, client *Client, req *protocol.Reque
 
 // MethodRouter maps method names to handlers.
 type MethodRouter struct {
-	handlers  map[string]MethodHandler
-	server    *Server
-	permCache *cache.PermissionCache // reserved for future role caching
+	handlers map[string]MethodHandler
+	server   *Server
 }
 
 func NewMethodRouter(server *Server) *MethodRouter {
@@ -36,9 +34,6 @@ func NewMethodRouter(server *Server) *MethodRouter {
 	r.registerDefaults()
 	return r
 }
-
-// SetPermissionCache sets the permission cache for membership checks.
-func (r *MethodRouter) SetPermissionCache(pc *cache.PermissionCache) { r.permCache = pc }
 
 // Register adds a method handler.
 func (r *MethodRouter) Register(method string, handler MethodHandler) {

@@ -15,7 +15,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bgalert"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/cache"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/consolidation"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
@@ -546,15 +545,6 @@ func runGateway() {
 		methods.NewAPIKeysMethods(pgStores.APIKeys).Register(server.Router())
 	}
 
-	// Permission cache (no tenant gating in v4 — kept for future role caching).
-	permCache := cache.NewPermissionCache()
-	deps.permCache = permCache
-	msgBus.Subscribe("permission-cache", func(e bus.Event) {
-		if p, ok := e.Payload.(bus.CacheInvalidatePayload); ok {
-			permCache.HandleInvalidation(p)
-		}
-	})
-	server.Router().SetPermissionCache(permCache)
 	httpapi.InitOwnerIDs(cfg.Gateway.OwnerIDs)
 
 	// Wire lifecycle: config-reload subscribers, consumer, task recovery, shutdown, server start.
