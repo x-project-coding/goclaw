@@ -28,17 +28,13 @@ type SQLiteSessionStore struct {
 }
 
 func NewSQLiteSessionStore(db *sql.DB) *SQLiteSessionStore {
-	// No migrateLegacyWSKeys — SQLite has no regexp_replace.
 	return &SQLiteSessionStore{db: db, cache: make(map[string]*store.SessionData)}
 }
 
-// sessionCacheKey prefixes session key with tenant UUID to prevent cross-tenant cache collisions.
-func sessionCacheKey(ctx context.Context, key string) string {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	return tid.String() + ":" + key
+// sessionCacheKey returns the raw session key — v4 schema enforces global
+// uniqueness on session_key, so no tenant/owner prefix is needed.
+func sessionCacheKey(_ context.Context, key string) string {
+	return key
 }
 
 func (s *SQLiteSessionStore) GetOrCreate(ctx context.Context, key string) *store.SessionData {
@@ -75,9 +71,9 @@ func (s *SQLiteSessionStore) GetOrCreate(ctx context.Context, key string) *store
 
 	msgsJSON, _ := json.Marshal([]providers.Message{})
 	s.db.ExecContext(ctx,
-		`INSERT INTO sessions (id, session_key, messages, created_at, updated_at, team_id, tenant_id)
-		 VALUES (?,?,?,?,?,?,?) ON CONFLICT (tenant_id, session_key) DO NOTHING`,
-		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now, teamID, tenantIDForInsert(ctx),
+		`INSERT INTO agent_sessions (id, session_key, messages, created_at, updated_at, team_id)
+		 VALUES (?,?,?,?,?,?) ON CONFLICT (session_key) DO NOTHING`,
+		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now, teamID,
 	)
 
 	return data
@@ -259,9 +255,9 @@ func (s *SQLiteSessionStore) getOrInit(ctx context.Context, key string) *store.S
 
 	msgsJSON, _ := json.Marshal([]providers.Message{})
 	s.db.ExecContext(ctx,
-		`INSERT INTO sessions (id, session_key, messages, created_at, updated_at, tenant_id)
-		 VALUES (?,?,?,?,?,?) ON CONFLICT (tenant_id, session_key) DO NOTHING`,
-		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now, tenantIDForInsert(ctx),
+		`INSERT INTO agent_sessions (id, session_key, messages, created_at, updated_at)
+		 VALUES (?,?,?,?,?) ON CONFLICT (session_key) DO NOTHING`,
+		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now,
 	)
 	return data
 }
@@ -277,14 +273,13 @@ func (s *SQLiteSessionStore) loadFromDB(ctx context.Context, key string) *store.
 	createdAt, updatedAt := scanTimePair()
 	var metaJSON *[]byte
 
-	tid := tenantIDForInsert(ctx)
 	err := s.db.QueryRowContext(ctx,
 		`SELECT session_key, messages, summary, model, provider, channel,
 		 input_tokens, output_tokens, compaction_count,
 		 memory_flush_compaction_count, memory_flush_at,
 		 label, spawned_by, spawn_depth, agent_id, user_id,
 		 COALESCE(metadata, '{}'), created_at, updated_at, team_id
-		 FROM sessions WHERE session_key = ? AND tenant_id = ?`, key, tid,
+		 FROM agent_sessions WHERE session_key = ?`, key,
 	).Scan(&sessionKey, &msgsJSON, &summary, &model, &provider, &channel,
 		&inputTokens, &outputTokens, &compactionCount,
 		&memoryFlushCompactionCount, &memoryFlushAt,

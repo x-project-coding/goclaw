@@ -21,7 +21,7 @@ func TestSessionListPagedRich_MetadataTokensPreferredOverHeuristic(t *testing.T)
 	}
 
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 
 	const sessionKey = "agent:test-agent:direct:user-meta-test"
 	const wantTokens = 50000
@@ -63,7 +63,7 @@ func TestSessionLoadFromDB_RestoresLastPromptTokens(t *testing.T) {
 	}
 
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 
 	const sessionKey = "agent:test-agent:direct:user-reload-test"
 	const wantTokens = 50000
@@ -107,7 +107,7 @@ func TestSessionListPagedRich_FallsBackToHeuristicWhenNoMetadataTokens(t *testin
 	}
 
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 
 	const sessionKey = "agent:test-agent:direct:user-heuristic-test"
 
@@ -140,16 +140,16 @@ func TestSessionListPagedRich_ZeroTokensDoesNotWriteMetadata(t *testing.T) {
 	}
 
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 
 	const sessionKey = "agent:test-agent:direct:user-zero-tokens-test"
 	sessionID := uuid.New().String()
 
 	// Insert session via raw SQL with custom metadata to verify it isn't overwritten.
-	_, err := db.Exec(`INSERT INTO sessions
-		(id, session_key, messages, metadata, tenant_id, created_at, updated_at)
-		VALUES (?, ?, '[]', '{"custom_key":"custom_value"}', ?, datetime('now'), datetime('now'))`,
-		sessionID, sessionKey, store.MasterTenantID.String())
+	_, err := db.Exec(`INSERT INTO agent_sessions
+		(id, session_key, messages, metadata, created_at, updated_at)
+		VALUES (?, ?, '[]', '{"custom_key":"custom_value"}', datetime('now'), datetime('now'))`,
+		sessionID, sessionKey)
 	if err != nil {
 		t.Fatalf("INSERT session: %v", err)
 	}

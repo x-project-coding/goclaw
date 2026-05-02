@@ -63,22 +63,21 @@ func TestSessionListPagedRich_EstimatedTokensHeuristic_UTF8(t *testing.T) {
 		t.Fatalf("EnsureSchema: %v", err)
 	}
 
-	tenantID := store.MasterTenantID.String()
 	sessionID := uuid.New().String()
 	sessionKey := "agent:test-agent:direct:user1"
 
 	// Insert session directly — bypasses cache so length() operates on stored bytes.
-	_, err = db.Exec(`INSERT INTO sessions
-		(id, session_key, messages, tenant_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
-		sessionID, sessionKey, string(msgsJSON), tenantID)
+	_, err = db.Exec(`INSERT INTO agent_sessions
+		(id, session_key, messages, created_at, updated_at)
+		VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
+		sessionID, sessionKey, string(msgsJSON))
 	if err != nil {
 		t.Fatalf("INSERT session: %v", err)
 	}
 
 	// Call ListPagedRich via the store (mirrors production code path).
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 	result := sessionStore.ListPagedRich(ctx, store.SessionListOpts{Limit: 10})
 
 	if result.Total != 1 {

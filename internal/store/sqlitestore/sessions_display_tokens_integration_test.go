@@ -44,7 +44,7 @@ func TestSessionDisplayTokens_Integration_SQLite(t *testing.T) {
 	}
 
 	sessionStore := NewSQLiteSessionStore(db)
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 
 	const sessionKey = "agent:test-vn:direct:user-display-integration"
 	const wantTokens = 187000
