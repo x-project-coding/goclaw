@@ -105,87 +105,73 @@ func TestBuildMapUpdate_NoAutoUpdatedAt_UnknownTable(t *testing.T) {
 	}
 }
 
-func TestBuildMapUpdateWhereTenant_PG(t *testing.T) {
+func TestBuildMapUpdateWhereTenant_PG_DropsTenant(t *testing.T) {
 	id := uuid.New()
 	tid := uuid.New()
 	q, args, err := BuildMapUpdateWhereTenant(testDialectPG{}, "agents", map[string]any{"name": "x"}, id, tid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(q, "tenant_id") {
-		t.Error("missing tenant_id in WHERE clause")
+	if strings.Contains(q, "tenant_id") {
+		t.Errorf("v4: tenant_id should be dropped, got: %s", q)
 	}
-	// name + updated_at + id + tenantID = 4 args
-	if len(args) != 4 {
-		t.Errorf("expected 4 args, got %d", len(args))
+	// name + updated_at + id = 3 args (tenantID dropped)
+	if len(args) != 3 {
+		t.Errorf("expected 3 args, got %d", len(args))
 	}
-	// Last two args should be id and tenantID
-	if args[len(args)-2] != id || args[len(args)-1] != tid {
-		t.Error("last two args should be id and tenantID")
+	if args[len(args)-1] != id {
+		t.Error("last arg should be id")
 	}
 }
 
-func TestBuildScopeClause_PG(t *testing.T) {
-	tid := uuid.New()
-	scope := QueryScope{TenantID: tid}
+func TestBuildScopeClause_PG_NoTenant(t *testing.T) {
+	scope := QueryScope{TenantID: uuid.New()}
 	clause, args, next := BuildScopeClause(testDialectPG{}, scope, 3)
-	if clause != " AND tenant_id = $3" {
-		t.Errorf("clause = %q, want \" AND tenant_id = $3\"", clause)
+	if clause != "" {
+		t.Errorf("v4: expected empty clause, got %q", clause)
 	}
-	if len(args) != 1 || args[0] != tid {
-		t.Errorf("args = %v, want [%s]", args, tid)
+	if len(args) != 0 {
+		t.Errorf("v4: expected no args, got %v", args)
 	}
-	if next != 4 {
-		t.Errorf("next = %d, want 4", next)
+	if next != 3 {
+		t.Errorf("next should be unchanged, got %d", next)
 	}
 }
 
 func TestBuildScopeClause_PG_WithProject(t *testing.T) {
-	tid := uuid.New()
 	pid := uuid.New()
-	scope := QueryScope{TenantID: tid, ProjectID: &pid}
+	scope := QueryScope{ProjectID: &pid}
 	clause, args, next := BuildScopeClause(testDialectPG{}, scope, 1)
-	if !strings.Contains(clause, "tenant_id = $1") || !strings.Contains(clause, "project_id = $2") {
-		t.Errorf("clause = %q, want tenant + project", clause)
-	}
-	if len(args) != 2 {
-		t.Errorf("args len = %d, want 2", len(args))
-	}
-	if next != 3 {
-		t.Errorf("next = %d, want 3", next)
-	}
-}
-
-func TestBuildScopeClause_SQLite(t *testing.T) {
-	tid := uuid.New()
-	scope := QueryScope{TenantID: tid}
-	clause, args, next := BuildScopeClause(testDialectSQLite{}, scope, 1)
-	if clause != " AND tenant_id = ?" {
-		t.Errorf("clause = %q, want \" AND tenant_id = ?\"", clause)
+	if clause != " AND project_id = $1" {
+		t.Errorf("clause = %q, want project_id only", clause)
 	}
 	if len(args) != 1 {
 		t.Errorf("args len = %d, want 1", len(args))
 	}
-	// SQLite ignores startParam for placeholders, but next should still advance
 	if next != 2 {
 		t.Errorf("next = %d, want 2", next)
 	}
 }
 
-func TestBuildScopeClauseAlias_PG(t *testing.T) {
-	tid := uuid.New()
-	scope := QueryScope{TenantID: tid}
-	clause, args, next := BuildScopeClauseAlias(testDialectPG{}, scope, 2, "a")
-	if clause != " AND a.tenant_id = $2" {
-		t.Errorf("clause = %q, want \" AND a.tenant_id = $2\"", clause)
-	}
-	if len(args) != 1 || next != 3 {
-		t.Errorf("args=%v next=%d", args, next)
+func TestBuildScopeClause_SQLite_NoTenant(t *testing.T) {
+	scope := QueryScope{TenantID: uuid.New()}
+	clause, args, next := BuildScopeClause(testDialectSQLite{}, scope, 1)
+	if clause != "" || len(args) != 0 || next != 1 {
+		t.Errorf("v4: empty expected, got clause=%q args=%v next=%d", clause, args, next)
 	}
 }
 
-func TestBuildScopeClauseAlias_InvalidAlias(t *testing.T) {
+func TestBuildScopeClauseAlias_PG_NoTenant(t *testing.T) {
 	scope := QueryScope{TenantID: uuid.New()}
+	clause, args, next := BuildScopeClauseAlias(testDialectPG{}, scope, 2, "a")
+	if clause != "" || len(args) != 0 || next != 2 {
+		t.Errorf("v4: empty expected, got clause=%q args=%v next=%d", clause, args, next)
+	}
+}
+
+func TestBuildScopeClauseAlias_InvalidAlias_WithProject(t *testing.T) {
+	pid := uuid.New()
+	scope := QueryScope{ProjectID: &pid}
 	clause, _, _ := BuildScopeClauseAlias(testDialectPG{}, scope, 1, "a; DROP")
 	if clause != "" {
 		t.Error("invalid alias should return empty clause")
@@ -206,7 +192,7 @@ func TestBuildMapUpdateWhereTenant_InvalidTable(t *testing.T) {
 	}
 }
 
-func TestBuildMapUpdateWhereTenant_SQLite(t *testing.T) {
+func TestBuildMapUpdateWhereTenant_SQLite_DropsTenant(t *testing.T) {
 	id := uuid.New()
 	tid := uuid.New()
 	q, args, err := BuildMapUpdateWhereTenant(testDialectSQLite{}, "agents", map[string]any{"name": "y"}, id, tid)
@@ -216,28 +202,26 @@ func TestBuildMapUpdateWhereTenant_SQLite(t *testing.T) {
 	if strings.Contains(q, "$") {
 		t.Errorf("SQLite query should use ?, got: %s", q)
 	}
-	if !strings.Contains(q, "tenant_id = ?") {
-		t.Errorf("missing tenant_id in WHERE: %s", q)
+	if strings.Contains(q, "tenant_id") {
+		t.Errorf("v4: tenant_id should be dropped, got: %s", q)
 	}
-	// name + updated_at + id + tenantID = 4
-	if len(args) != 4 {
-		t.Errorf("expected 4 args, got %d", len(args))
+	if len(args) != 3 {
+		t.Errorf("expected 3 args, got %d", len(args))
 	}
 }
 
 func TestBuildScopeClauseAlias_PG_WithProject(t *testing.T) {
-	tid := uuid.New()
 	pid := uuid.New()
-	scope := QueryScope{TenantID: tid, ProjectID: &pid}
+	scope := QueryScope{ProjectID: &pid}
 	clause, args, next := BuildScopeClauseAlias(testDialectPG{}, scope, 5, "t")
-	if !strings.Contains(clause, "t.tenant_id = $5") || !strings.Contains(clause, "t.project_id = $6") {
+	if clause != " AND t.project_id = $5" {
 		t.Errorf("clause = %q", clause)
 	}
-	if len(args) != 2 {
-		t.Errorf("args len = %d, want 2", len(args))
+	if len(args) != 1 {
+		t.Errorf("args len = %d, want 1", len(args))
 	}
-	if next != 7 {
-		t.Errorf("next = %d, want 7", next)
+	if next != 6 {
+		t.Errorf("next = %d, want 6", next)
 	}
 }
 
