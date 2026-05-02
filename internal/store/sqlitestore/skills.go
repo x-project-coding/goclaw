@@ -57,13 +57,9 @@ func (s *SQLiteSkillStore) Dirs() []string { return []string{s.baseDir} }
 
 func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	currentVer := s.version.Load()
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
 
 	s.mu.RLock()
-	if entry := s.listCache[tid]; entry != nil && entry.ver == currentVer && time.Since(entry.time) < s.ttl {
+	if entry := s.listCache[uuid.Nil]; entry != nil && entry.ver == currentVer && time.Since(entry.time) < s.ttl {
 		result := entry.skills
 		s.mu.RUnlock()
 		return result
@@ -72,8 +68,8 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, name, slug, description, visibility, tags, version, is_system, status, enabled, deps, frontmatter, file_path
-		 FROM skills WHERE (status IN ('active', 'archived') OR is_system = 1) AND (is_system = 1 OR tenant_id = ?)
-		 ORDER BY name`, tid)
+		 FROM skills WHERE (status IN ('active', 'archived') OR is_system = 1)
+		 ORDER BY name`)
 	if err != nil {
 		return nil
 	}
@@ -109,21 +105,17 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	}
 
 	s.mu.Lock()
-	s.listCache[tid] = &skillListCacheEntry{skills: result, ver: currentVer, time: time.Now()}
+	s.listCache[uuid.Nil] = &skillListCacheEntry{skills: result, ver: currentVer, time: time.Now()}
 	s.mu.Unlock()
 
 	return result
 }
 
 func (s *SQLiteSkillStore) ListAllSkills(ctx context.Context) []store.SkillInfo {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
-		 FROM skills WHERE enabled = 1 AND status != 'deleted' AND (is_system = 1 OR tenant_id = ?)
-		 ORDER BY name`, tid)
+		 FROM skills WHERE enabled = 1 AND status != 'deleted'
+		 ORDER BY name`)
 	if err != nil {
 		return nil
 	}

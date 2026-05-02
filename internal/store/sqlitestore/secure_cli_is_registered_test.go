@@ -9,12 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // testEncKey is a 32-byte AES key used for SQLite secure-cli tests.
-// Its actual value is irrelevant for IsRegisteredBinary (metadata-only query).
 const testEncKey = "test-key-32-bytes-aaaaaaaaaaaaaaa"
 
 func newTestSQLiteSecureCLI(t *testing.T) (*SQLiteSecureCLIStore, *sql.DB) {
@@ -30,28 +27,14 @@ func newTestSQLiteSecureCLI(t *testing.T) (*SQLiteSecureCLIStore, *sql.DB) {
 	return NewSQLiteSecureCLIStore(db, testEncKey), db
 }
 
-// seedTenant inserts a tenant row and returns its ID.
-func seedTenant(t *testing.T, db *sql.DB, slug string) uuid.UUID {
-	t.Helper()
-	id := uuid.New()
-	_, err := db.Exec(
-		`INSERT INTO tenants (id, name, slug, status) VALUES (?, ?, ?, 'active')`,
-		id, "Tenant-"+slug, slug,
-	)
-	if err != nil {
-		t.Fatalf("seed tenant %s: %v", slug, err)
-	}
-	return id
-}
-
 // seedBinary inserts a secure_cli_binaries row with the given fields.
-func seedBinary(t *testing.T, db *sql.DB, tenantID uuid.UUID, name string, enabled, isGlobal bool) {
+func seedBinary(t *testing.T, db *sql.DB, name string, enabled, isGlobal bool) {
 	t.Helper()
 	_, err := db.Exec(
 		`INSERT INTO secure_cli_binaries
-		  (id, binary_name, encrypted_env, is_global, enabled, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		uuid.New(), name, []byte("{}"), isGlobal, enabled, tenantID,
+		  (id, binary_name, encrypted_env, is_global, enabled)
+		 VALUES (?, ?, ?, ?, ?)`,
+		uuid.New(), name, []byte("{}"), isGlobal, enabled,
 	)
 	if err != nil {
 		t.Fatalf("seed binary %s: %v", name, err)
@@ -60,11 +43,9 @@ func seedBinary(t *testing.T, db *sql.DB, tenantID uuid.UUID, name string, enabl
 
 func TestSQLite_IsRegisteredBinary_ReturnsTrueForEnabledNonGlobal(t *testing.T) {
 	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-true")
-	seedBinary(t, db, tid, "gh", true, false)
+	seedBinary(t, db, "gh", true, false)
 
-	ctx := store.WithTenantID(context.Background(), tid)
-	got, err := s.IsRegisteredBinary(ctx, "gh")
+	got, err := s.IsRegisteredBinary(context.Background(), "gh")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -73,15 +54,13 @@ func TestSQLite_IsRegisteredBinary_ReturnsTrueForEnabledNonGlobal(t *testing.T) 
 	}
 }
 
-// Red Team F2 regression guard: is_global=true must NOT be reported as
-// gate-needing — those binaries are open to all agents without a grant.
+// is_global=true must NOT be reported as gate-needing — those binaries are
+// open to all agents without a grant.
 func TestSQLite_IsRegisteredBinary_FalseForGlobalBinary(t *testing.T) {
 	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-global")
-	seedBinary(t, db, tid, "ls", true, true)
+	seedBinary(t, db, "ls", true, true)
 
-	ctx := store.WithTenantID(context.Background(), tid)
-	got, err := s.IsRegisteredBinary(ctx, "ls")
+	got, err := s.IsRegisteredBinary(context.Background(), "ls")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -92,11 +71,9 @@ func TestSQLite_IsRegisteredBinary_FalseForGlobalBinary(t *testing.T) {
 
 func TestSQLite_IsRegisteredBinary_FalseForDisabled(t *testing.T) {
 	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-disabled")
-	seedBinary(t, db, tid, "gh", false, false)
+	seedBinary(t, db, "gh", false, false)
 
-	ctx := store.WithTenantID(context.Background(), tid)
-	got, err := s.IsRegisteredBinary(ctx, "gh")
+	got, err := s.IsRegisteredBinary(context.Background(), "gh")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -105,27 +82,9 @@ func TestSQLite_IsRegisteredBinary_FalseForDisabled(t *testing.T) {
 	}
 }
 
-func TestSQLite_IsRegisteredBinary_FalseForWrongTenant(t *testing.T) {
-	s, db := newTestSQLiteSecureCLI(t)
-	tidA := seedTenant(t, db, "t-a")
-	tidB := seedTenant(t, db, "t-b")
-	seedBinary(t, db, tidA, "gh", true, false)
-
-	ctx := store.WithTenantID(context.Background(), tidB)
-	got, err := s.IsRegisteredBinary(ctx, "gh")
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if got {
-		t.Fatalf("expected false across tenants")
-	}
-}
-
 func TestSQLite_IsRegisteredBinary_FalseForUnknownName(t *testing.T) {
-	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-unk")
-	ctx := store.WithTenantID(context.Background(), tid)
-	got, err := s.IsRegisteredBinary(ctx, "nonexistent")
+	s, _ := newTestSQLiteSecureCLI(t)
+	got, err := s.IsRegisteredBinary(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -134,25 +93,9 @@ func TestSQLite_IsRegisteredBinary_FalseForUnknownName(t *testing.T) {
 	}
 }
 
-func TestSQLite_IsRegisteredBinary_RespectsCrossTenant(t *testing.T) {
-	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-xtenant")
-	seedBinary(t, db, tid, "gh", true, false)
-
-	ctx := store.WithCrossTenant(context.Background())
-	got, err := s.IsRegisteredBinary(ctx, "gh")
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if !got {
-		t.Fatalf("expected true under cross-tenant ctx")
-	}
-}
-
 func TestSQLite_IsRegisteredBinary_EmptyNameReturnsFalse(t *testing.T) {
 	s, _ := newTestSQLiteSecureCLI(t)
-	ctx := store.WithCrossTenant(context.Background())
-	got, err := s.IsRegisteredBinary(ctx, "")
+	got, err := s.IsRegisteredBinary(context.Background(), "")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -161,26 +104,24 @@ func TestSQLite_IsRegisteredBinary_EmptyNameReturnsFalse(t *testing.T) {
 	}
 }
 
-func TestSQLite_IsRegisteredBinary_NilTenantNotCrossTenant(t *testing.T) {
+func TestSQLite_IsRegisteredBinary_NilContextReturnsFalse(t *testing.T) {
 	s, _ := newTestSQLiteSecureCLI(t)
 	got, err := s.IsRegisteredBinary(context.Background(), "gh")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
 	if got {
-		t.Fatalf("expected false when tenant unset and not cross-tenant")
+		t.Fatalf("expected false when no binary exists")
 	}
 }
 
-// Red Team F8: case-insensitive match — macOS/APFS resolves GH → gh.
+// Case-insensitive match — macOS/APFS resolves GH → gh.
 func TestSQLite_IsRegisteredBinary_CaseInsensitive(t *testing.T) {
 	s, db := newTestSQLiteSecureCLI(t)
-	tid := seedTenant(t, db, "t-case")
-	seedBinary(t, db, tid, "gh", true, false)
+	seedBinary(t, db, "gh", true, false)
 
-	ctx := store.WithTenantID(context.Background(), tid)
 	for _, q := range []string{"gh", "GH", "Gh", "  gh  "} {
-		got, err := s.IsRegisteredBinary(ctx, q)
+		got, err := s.IsRegisteredBinary(context.Background(), q)
 		if err != nil {
 			t.Fatalf("unexpected err for %q: %v", q, err)
 		}

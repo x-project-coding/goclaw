@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // SqliteHookStore implements hooks.HookStore backed by SQLite.
@@ -63,11 +62,6 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 		return uuid.Nil, fmt.Errorf("marshal metadata: %w", err)
 	}
 
-	tid := cfg.TenantID
-	if tid == uuid.Nil {
-		tid = tenantIDForInsert(ctx)
-	}
-
 	var createdBy, matcher, ifExpr, name *string
 	if cfg.CreatedBy != nil {
 		s := cfg.CreatedBy.String()
@@ -85,12 +79,12 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO hooks
-		  (id, tenant_id, scope, event, handler_type,
+		  (id, scope, event, handler_type,
 		   config, matcher, if_expr, timeout_ms, on_timeout,
 		   priority, enabled, version, source, metadata, name, created_by,
 		   created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)`,
-		id.String(), tid.String(),
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)`,
+		id.String(),
 		string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
 		string(cfgJSON), matcher, ifExpr,
 		cfg.TimeoutMS, string(cfg.OnTimeout),
@@ -120,22 +114,12 @@ func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uui
 
 func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookConfig, error) {
 	q := `
-		SELECT id, tenant_id, scope, event, handler_type,
+		SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM hooks WHERE id = ?`
 	args := []any{id.String()}
-
-	// Tenant-scope guard: non-master callers only see own + global rows.
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND (tenant_id = ? OR tenant_id = ?)"
-		args = append(args, tid.String(), store.MasterTenantID.String())
-	}
 
 	row := s.db.QueryRowContext(ctx, q, args...)
 	cfg, err := scanHookSQLiteRow(row)
@@ -154,23 +138,11 @@ func (s *SqliteHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.Hoo
 // ─── List ────────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]hooks.HookConfig, error) {
-	q := `SELECT id, tenant_id, scope, event, handler_type,
+	q := `SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at FROM hooks WHERE 1=1`
 	var args []any
-
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND (tenant_id = ? OR tenant_id = ?)"
-		args = append(args, tid.String(), store.MasterTenantID.String())
-	} else if filter.TenantID != nil {
-		q += " AND tenant_id = ?"
-		args = append(args, filter.TenantID.String())
-	}
 
 	if filter.AgentID != nil {
 		q += " AND id IN (SELECT hook_id FROM hook_agents WHERE agent_id = ?)"
@@ -286,15 +258,6 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 	q := fmt.Sprintf("UPDATE hooks SET %s WHERE id = ?",
 		strings.Join(setClauses, ", "))
 
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND tenant_id = ?"
-		args = append(args, tid.String())
-	}
-
 	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("update hook: %w", err)
@@ -324,15 +287,6 @@ func (s *SqliteHookStore) Delete(ctx context.Context, id uuid.UUID) error {
 	q := "DELETE FROM hooks WHERE id = ?"
 	args := []any{id.String()}
 
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND tenant_id = ?"
-		args = append(args, tid.String())
-	}
-
 	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("delete hook: %w", err)
@@ -347,7 +301,6 @@ func (s *SqliteHookStore) Delete(ctx context.Context, id uuid.UUID) error {
 // ─── ResolveForEvent ─────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event) ([]hooks.HookConfig, error) {
-	tenantID := event.TenantID
 	agentID := event.AgentID
 	hookEvent := event.HookEvent
 
@@ -356,21 +309,20 @@ func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(MAX(version),0) FROM hooks
 		 WHERE enabled = 1 AND event = ?
-		   AND (tenant_id = ? OR tenant_id = ?)
 		   AND (
-		     scope IN ('global', 'tenant')
+		     scope IN ('global', 'user')
 		     OR (scope = 'agent' AND EXISTS (
 		       SELECT 1 FROM hook_agents aha
 		       WHERE aha.hook_id = hooks.id AND aha.agent_id = ?
 		     ))
 		   )`,
-		string(hookEvent), tenantID.String(), store.MasterTenantID.String(), agentID.String(),
+		string(hookEvent), agentID.String(),
 	).Scan(&maxVersion)
 	if err != nil {
 		return nil, fmt.Errorf("resolve version check: %w", err)
 	}
 
-	key := sqliteHookResolveKey(tenantID, agentID, hookEvent)
+	key := agentID.String() + "|" + string(hookEvent)
 	s.cacheMu.Lock()
 	entry, ok := s.cache[key]
 	s.cacheMu.Unlock()
@@ -380,22 +332,21 @@ func (s *SqliteHookStore) ResolveForEvent(ctx context.Context, event hooks.Event
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, tenant_id, scope, event, handler_type,
+		SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM hooks
 		WHERE enabled = 1 AND event = ?
-		  AND (tenant_id = ? OR tenant_id = ?)
 		  AND (
-		    scope IN ('global', 'tenant')
+		    scope IN ('global', 'user')
 		    OR (scope = 'agent' AND EXISTS (
 		      SELECT 1 FROM hook_agents aha
 		      WHERE aha.hook_id = hooks.id AND aha.agent_id = ?
 		    ))
 		  )
 		ORDER BY priority DESC, created_at ASC`,
-		string(hookEvent), tenantID.String(), store.MasterTenantID.String(), agentID.String(),
+		string(hookEvent), agentID.String(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("resolve hooks: %w", err)
@@ -547,10 +498,6 @@ func (s *SqliteHookStore) invalidateCache() {
 	s.cacheMu.Unlock()
 }
 
-func sqliteHookResolveKey(tenantID, agentID uuid.UUID, event hooks.HookEvent) string {
-	return tenantID.String() + "|" + agentID.String() + "|" + string(event)
-}
-
 // ─── scan helper ─────────────────────────────────────────────────────────────
 
 type sqliteRowScanner interface {
@@ -559,19 +506,19 @@ type sqliteRowScanner interface {
 
 func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 	var (
-		cfg                    hooks.HookConfig
-		idStr, tenantStr       string
-		createdByStr           sql.NullString
-		scope, event           string
+		cfg                   hooks.HookConfig
+		idStr                 string
+		createdByStr          sql.NullString
+		scope, event          string
 		handlerType, onTimeout string
-		source                 string
-		matcher, ifExpr, name  sql.NullString
-		cfgStr, metaStr        string
-		enabledInt             int
-		createdAt, updatedAt   sqliteTime
+		source                string
+		matcher, ifExpr, name sql.NullString
+		cfgStr, metaStr       string
+		enabledInt            int
+		createdAt, updatedAt  sqliteTime
 	)
 	err := row.Scan(
-		&idStr, &tenantStr,
+		&idStr,
 		&scope, &event, &handlerType,
 		&cfgStr, &matcher, &ifExpr,
 		&cfg.TimeoutMS, &onTimeout,
@@ -585,9 +532,6 @@ func scanHookSQLiteRow(row sqliteRowScanner) (*hooks.HookConfig, error) {
 
 	if parsed, err := uuid.Parse(idStr); err == nil {
 		cfg.ID = parsed
-	}
-	if parsed, err := uuid.Parse(tenantStr); err == nil {
-		cfg.TenantID = parsed
 	}
 	if createdByStr.Valid {
 		if parsed, err := uuid.Parse(createdByStr.String); err == nil {

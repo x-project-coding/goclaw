@@ -17,17 +17,9 @@ func (s *SQLiteSkillStore) LoadSkill(ctx context.Context, name string) (string, 
 	var slug string
 	var version int
 	var filePath *string
-	q := "SELECT slug, version, file_path FROM skills WHERE slug = ? AND status = 'active'"
-	args := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = 1 OR tenant_id = ?)"
-		args = append(args, tid)
-	}
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&slug, &version, &filePath); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT slug, version, file_path FROM skills WHERE slug = ? AND status = 'active'", name,
+	).Scan(&slug, &version, &filePath); err != nil {
 		return "", false
 	}
 	info := buildSkillInfo("", "", slug, nil, version, s.baseDir, filePath)
@@ -91,17 +83,10 @@ func (s *SQLiteSkillStore) GetSkill(ctx context.Context, name string) (*store.Sk
 	var version int
 	var isSystem bool
 	var filePath *string
-	q := "SELECT id, name, slug, description, visibility, tags, version, is_system, file_path FROM skills WHERE slug = ? AND status = 'active'"
-	args := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = 1 OR tenant_id = ?)"
-		args = append(args, tid)
-	}
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&id, &skillName, &slug, &desc, &visibility, &tagsJSON, &version, &isSystem, &filePath); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT id, name, slug, description, visibility, tags, version, is_system, file_path FROM skills WHERE slug = ? AND status = 'active'",
+		name,
+	).Scan(&id, &skillName, &slug, &desc, &visibility, &tagsJSON, &version, &isSystem, &filePath); err != nil {
 		return nil, false
 	}
 	info := buildSkillInfo(id.String(), skillName, slug, desc, version, s.baseDir, filePath)
@@ -145,18 +130,10 @@ func (s *SQLiteSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (stor
 	var version int
 	var isSystem, enabled bool
 	var filePath *string
-	q := `SELECT name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
-		 FROM skills WHERE id = ?`
-	args := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = 1 OR tenant_id = ?)"
-		args = append(args, tid)
-	}
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&name, &slug, &desc, &visibility, &tagsJSON,
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
+		 FROM skills WHERE id = ?`, id,
+	).Scan(&name, &slug, &desc, &visibility, &tagsJSON,
 		&version, &isSystem, &status, &enabled, &depsRaw, &filePath); err != nil {
 		return store.SkillInfo{}, false
 	}
@@ -171,36 +148,20 @@ func (s *SQLiteSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (stor
 }
 
 func (s *SQLiteSkillStore) GetSkillOwnerID(ctx context.Context, id uuid.UUID) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE id = ?"
-	args := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = 1 OR tenant_id = ?)"
-		args = append(args, tid)
-	}
 	var ownerID string
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&ownerID); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT owner_id FROM skills WHERE id = ?", id,
+	).Scan(&ownerID); err != nil {
 		return "", false
 	}
 	return ownerID, true
 }
 
 func (s *SQLiteSkillStore) GetSkillOwnerIDBySlug(ctx context.Context, slug string) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE slug = ? AND status = 'active'"
-	args := []any{slug}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = 1 OR tenant_id = ?)"
-		args = append(args, tid)
-	}
 	var ownerID string
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&ownerID); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT owner_id FROM skills WHERE slug = ? AND status = 'active'", slug,
+	).Scan(&ownerID); err != nil {
 		return "", false
 	}
 	return ownerID, true
@@ -248,10 +209,10 @@ func (s *SQLiteSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillC
 	now := time.Now().UTC()
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status,
-		 is_system, frontmatter, file_path, file_size, file_hash, tenant_id, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, 'system', 'public', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+		 is_system, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 'system', 'public', ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
 		id, p.Name, p.Slug, p.Description, p.Version, p.Status,
-		fmJSON, p.FilePath, p.FileSize, p.FileHash, store.MasterTenantID, now, now,
+		fmJSON, p.FilePath, p.FileSize, p.FileHash, now, now,
 	)
 	if err != nil {
 		return uuid.Nil, false, "", fmt.Errorf("insert system skill: %w", err)

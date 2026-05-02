@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
 
 // ─── test setup ──────────────────────────────────────────────────────────────
 
@@ -32,42 +32,25 @@ func newHookTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// seedHookTenantAgent inserts a minimal tenant + agent for FK satisfaction.
-func seedHookTenantAgent(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) {
+// seedHookAgent inserts a minimal agent for FK satisfaction.
+func seedHookAgent(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
-	tenantID = uuid.Must(uuid.NewV7())
-	agentID = uuid.Must(uuid.NewV7())
-
+	agentID := uuid.Must(uuid.NewV7())
 	_, err := db.Exec(
-		`INSERT INTO tenants (id, name, slug, status) VALUES (?,?,?,'active')`,
-		tenantID.String(), "hook-test-"+tenantID.String()[:8], "ht"+tenantID.String()[:8])
-	if err != nil {
-		t.Fatalf("seed tenant: %v", err)
-	}
-	_, err = db.Exec(
-		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?,?,?,'predefined','active','test','test-model','owner')`,
-		agentID.String(), tenantID.String(), "ha-"+agentID.String()[:8])
+		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
+		 VALUES (?,'ha-'||substr(?,1,8),'predefined','active','test','test-model','owner')`,
+		agentID.String(), agentID.String())
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
-	return tenantID, agentID
+	return agentID
 }
 
-func sqliteTenantCtx(tenantID uuid.UUID) context.Context {
-	return store.WithTenantID(context.Background(), tenantID)
-}
-
-func sqliteMasterCtx() context.Context {
-	return store.WithTenantID(context.Background(), store.MasterTenantID)
-}
-
-func sqliteMinimalHook(tenantID uuid.UUID, event hooks.HookEvent) hooks.HookConfig {
+func sqliteMinimalHook(event hooks.HookEvent) hooks.HookConfig {
 	return hooks.HookConfig{
-		TenantID:    tenantID,
 		Event:       event,
 		HandlerType: hooks.HandlerCommand,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeGlobal,
 		Config:      map[string]any{"cmd": "echo ok"},
 		Metadata:    map[string]any{},
 		TimeoutMS:   5000,
@@ -82,12 +65,11 @@ func sqliteMinimalHook(tenantID uuid.UUID, event hooks.HookEvent) hooks.HookConf
 
 func TestSQLiteHookStore_CRUD(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, _ := seedHookTenantAgent(t, db)
 	s := NewSQLiteHookStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	ctx := context.Background()
 
 	// Create
-	cfg := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	cfg := sqliteMinimalHook(hooks.EventPreToolUse)
 	id, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -106,9 +88,6 @@ func TestSQLiteHookStore_CRUD(t *testing.T) {
 	}
 	if got.Event != hooks.EventPreToolUse {
 		t.Errorf("event mismatch: got %q want %q", got.Event, hooks.EventPreToolUse)
-	}
-	if got.TenantID != tenantID {
-		t.Errorf("tenant_id mismatch: got %s want %s", got.TenantID, tenantID)
 	}
 	if got.Version != 1 {
 		t.Errorf("initial version should be 1, got %d", got.Version)
@@ -159,106 +138,36 @@ func TestSQLiteHookStore_CRUD(t *testing.T) {
 	}
 }
 
-// ─── Tenant isolation ─────────────────────────────────────────────────────────
-
-func TestSQLiteHookStore_TenantIsolation(t *testing.T) {
-	db := newHookTestDB(t)
-	tenantA, _ := seedHookTenantAgent(t, db)
-	tenantB, _ := seedHookTenantAgent(t, db)
-	s := NewSQLiteHookStore(db)
-
-	ctxA := sqliteTenantCtx(tenantA)
-	ctxB := sqliteTenantCtx(tenantB)
-
-	// Create hook for tenant A.
-	idA, err := s.Create(ctxA, sqliteMinimalHook(tenantA, hooks.EventStop))
-	if err != nil {
-		t.Fatalf("Create A: %v", err)
-	}
-
-	got, err := s.GetByID(ctxB, idA)
-	if err != nil {
-		t.Fatalf("GetByID B: %v", err)
-	}
-	if got != nil {
-		t.Errorf("tenant B saw tenant A hook %s in GetByID", idA)
-	}
-
-	gotMaster, err := s.GetByID(sqliteMasterCtx(), idA)
-	if err != nil {
-		t.Fatalf("GetByID master: %v", err)
-	}
-	if gotMaster == nil {
-		t.Fatal("master scope should see tenant A hook in GetByID")
-	}
-
-	// List from tenant B must not include tenant A's hook.
-	listB, err := s.List(ctxB, hooks.ListFilter{})
-	if err != nil {
-		t.Fatalf("List B: %v", err)
-	}
-	for _, h := range listB {
-		if h.ID == idA {
-			t.Errorf("tenant B saw tenant A hook %s", idA)
-		}
-	}
-
-	// List from tenant A must include their own hook.
-	listA, err := s.List(ctxA, hooks.ListFilter{})
-	if err != nil {
-		t.Fatalf("List A: %v", err)
-	}
-	found := false
-	for _, h := range listA {
-		if h.ID == idA {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("tenant A did not see their own hook in List")
-	}
-
-	// Tenant B cannot delete tenant A's hook.
-	if err := s.Delete(ctxB, idA); err == nil {
-		t.Error("tenant B should not be able to delete tenant A's hook")
-	}
-
-	// Cleanup.
-	_ = s.Delete(ctxA, idA)
-}
-
 // ─── Partial unique indexes ───────────────────────────────────────────────────
 
-// H9 (Phase 03): Create honors caller-supplied cfg.ID so the builtin seeder's
+// Create honors caller-supplied cfg.ID so the builtin seeder's
 // idempotent UUIDv5 keys survive restarts and tests get deterministic IDs.
 func TestSQLiteHookStore_CreateHonorsFixedID(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, _ := seedHookTenantAgent(t, db)
 	s := NewSQLiteHookStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	ctx := context.Background()
 
 	fixed := uuid.MustParse("11111111-2222-3333-4444-555555555555")
-	cfg := sqliteMinimalHook(tenantID, hooks.EventUserPromptSubmit)
+	cfg := sqliteMinimalHook(hooks.EventUserPromptSubmit)
 	cfg.ID = fixed
-	cfg.Scope = hooks.ScopeTenant
 
 	got, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), got) })
+	t.Cleanup(func() { s.Delete(ctx, got) })
 	if got != fixed {
-		t.Fatalf("Create returned id=%s, want %s (H9: caller id must be honored)", got, fixed)
+		t.Fatalf("Create returned id=%s, want %s (caller id must be honored)", got, fixed)
 	}
 
 	// A nil cfg.ID still auto-generates.
-	cfg2 := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	cfg2 := sqliteMinimalHook(hooks.EventPreToolUse)
 	cfg2.ID = uuid.Nil
 	auto, err := s.Create(ctx, cfg2)
 	if err != nil {
 		t.Fatalf("Create auto: %v", err)
 	}
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), auto) })
+	t.Cleanup(func() { s.Delete(ctx, auto) })
 	if auto == uuid.Nil {
 		t.Fatal("Create returned nil id for cfg.ID=uuid.Nil path")
 	}
@@ -268,14 +177,14 @@ func TestSQLiteHookStore_CreateHonorsFixedID(t *testing.T) {
 
 func TestSQLiteHookStore_ResolveForEvent(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, agentID := seedHookTenantAgent(t, db)
+	agentID := seedHookAgent(t, db)
 	s := NewSQLiteHookStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	ctx := context.Background()
 
 	// Insert two enabled hooks at different priorities.
-	lo := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	lo := sqliteMinimalHook(hooks.EventPreToolUse)
 	lo.Priority = 0
-	hi := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	hi := sqliteMinimalHook(hooks.EventPreToolUse)
 	hi.Priority = 20
 	// Make hi a different handler_type to avoid unique index conflict.
 	hi.HandlerType = hooks.HandlerHTTP
@@ -283,12 +192,11 @@ func TestSQLiteHookStore_ResolveForEvent(t *testing.T) {
 	idLo, _ := s.Create(ctx, lo)
 	idHi, _ := s.Create(ctx, hi)
 	t.Cleanup(func() {
-		s.Delete(sqliteMasterCtx(), idLo)
-		s.Delete(sqliteMasterCtx(), idHi)
+		s.Delete(ctx, idLo)
+		s.Delete(ctx, idHi)
 	})
 
 	event := hooks.Event{
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventPreToolUse,
 	}
@@ -306,11 +214,11 @@ func TestSQLiteHookStore_ResolveForEvent(t *testing.T) {
 	}
 
 	// Disabled hook must not appear.
-	dis := sqliteMinimalHook(tenantID, hooks.EventPreToolUse)
+	dis := sqliteMinimalHook(hooks.EventPreToolUse)
 	dis.Enabled = false
 	dis.HandlerType = hooks.HandlerPrompt // third distinct handler_type
 	idDis, _ := s.Create(ctx, dis)
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), idDis) })
+	t.Cleanup(func() { s.Delete(ctx, idDis) })
 
 	resolved2, _ := s.ResolveForEvent(ctx, event)
 	for _, h := range resolved2 {
@@ -324,12 +232,11 @@ func TestSQLiteHookStore_ResolveForEvent(t *testing.T) {
 
 func TestSQLiteHookStore_WriteExecution(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, _ := seedHookTenantAgent(t, db)
 	s := NewSQLiteHookStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	ctx := context.Background()
 
 	// Create a parent hook for FK.
-	hookID, err := s.Create(ctx, sqliteMinimalHook(tenantID, hooks.EventStop))
+	hookID, err := s.Create(ctx, sqliteMinimalHook(hooks.EventStop))
 	if err != nil {
 		t.Fatalf("Create hook: %v", err)
 	}
@@ -375,12 +282,11 @@ func TestSQLiteHookStore_WriteExecution(t *testing.T) {
 
 func TestSQLiteHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, agentID := seedHookTenantAgent(t, db)
+	agentID := seedHookAgent(t, db)
 	s := NewSQLiteHookStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	ctx := context.Background()
 
 	event := hooks.Event{
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventSessionStart,
 	}
@@ -393,11 +299,11 @@ func TestSQLiteHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	beforeCount := len(before)
 
 	// Create a new hook — must invalidate cache.
-	id, err := s.Create(ctx, sqliteMinimalHook(tenantID, hooks.EventSessionStart))
+	id, err := s.Create(ctx, sqliteMinimalHook(hooks.EventSessionStart))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), id) })
+	t.Cleanup(func() { s.Delete(ctx, id) })
 
 	after, err := s.ResolveForEvent(ctx, event)
 	if err != nil {
@@ -408,16 +314,16 @@ func TestSQLiteHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	}
 }
 
-// ─── Global-scope hooks visible to all tenants ────────────────────────────────
+// ─── Global-scope hooks visible ──────────────────────────────────────────────
 
-func TestSQLiteHookStore_GlobalScopeVisibleToTenant(t *testing.T) {
+func TestSQLiteHookStore_GlobalScopeVisible(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, agentID := seedHookTenantAgent(t, db)
+	agentID := seedHookAgent(t, db)
 	s := NewSQLiteHookStore(db)
+	ctx := context.Background()
 
-	// Create a global hook under MasterTenantID.
+	// Create a global hook.
 	globalCfg := hooks.HookConfig{
-		TenantID:    store.MasterTenantID,
 		Event:       hooks.EventPostToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Scope:       hooks.ScopeGlobal,
@@ -429,19 +335,18 @@ func TestSQLiteHookStore_GlobalScopeVisibleToTenant(t *testing.T) {
 		Enabled:     true,
 		Priority:    5,
 	}
-	globalID, err := s.Create(sqliteMasterCtx(), globalCfg)
+	globalID, err := s.Create(ctx, globalCfg)
 	if err != nil {
 		t.Fatalf("Create global hook: %v", err)
 	}
-	t.Cleanup(func() { s.Delete(sqliteMasterCtx(), globalID) })
+	t.Cleanup(func() { s.Delete(ctx, globalID) })
 
-	// ResolveForEvent from tenant scope must include the global hook.
+	// ResolveForEvent must include the global hook.
 	event := hooks.Event{
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventPostToolUse,
 	}
-	resolved, err := s.ResolveForEvent(sqliteTenantCtx(tenantID), event)
+	resolved, err := s.ResolveForEvent(ctx, event)
 	if err != nil {
 		t.Fatalf("ResolveForEvent: %v", err)
 	}
@@ -452,22 +357,20 @@ func TestSQLiteHookStore_GlobalScopeVisibleToTenant(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("global hook not visible in ResolveForEvent from tenant scope")
+		t.Error("global hook not visible in ResolveForEvent")
 	}
 }
 
-// TestSQLiteHookStore_BuiltinReadOnly mirrors the PG test: user-facing writes
-// on source='builtin' rows may only toggle enabled; WithSeedBypass unlocks.
+// TestSQLiteHookStore_BuiltinReadOnly: user-facing writes on source='builtin'
+// rows may only toggle enabled; WithSeedBypass unlocks.
 func TestSQLiteHookStore_BuiltinReadOnly(t *testing.T) {
 	db := newHookTestDB(t)
-	tenantID, _ := seedHookTenantAgent(t, db)
 	s := NewSQLiteHookStore(db)
 
-	seedCtx := hooks.WithSeedBypass(store.WithRole(sqliteMasterCtx(), store.RoleOwner))
+	seedCtx := hooks.WithSeedBypass(context.Background())
 
 	cfg := hooks.HookConfig{
 		ID:          uuid.MustParse("11111111-2222-3333-4444-555555555555"),
-		TenantID:    hooks.SentinelTenantID,
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeGlobal,
@@ -484,13 +387,13 @@ func TestSQLiteHookStore_BuiltinReadOnly(t *testing.T) {
 	}
 	t.Cleanup(func() { s.Delete(seedCtx, id) })
 
-	userCtx := sqliteTenantCtx(tenantID)
+	userCtx := context.Background()
 
 	if err := s.Update(userCtx, id, map[string]any{"matcher": "evil"}); !errors.Is(err, hooks.ErrBuiltinReadOnly) {
 		t.Fatalf("Update(matcher) err=%v, want ErrBuiltinReadOnly", err)
 	}
 
-	if err := s.Update(sqliteMasterCtx(), id, map[string]any{"enabled": false}); err != nil {
+	if err := s.Update(userCtx, id, map[string]any{"enabled": false}); err != nil {
 		t.Fatalf("Update(enabled) should succeed: %v", err)
 	}
 

@@ -28,8 +28,9 @@ func NewSQLiteHookBudget(db *sql.DB) *SqliteHookBudget {
 }
 
 // DeductAtomic implements budget.Dialect. See PG equivalent for semantics.
+// In v4 single-tenant mode the userID parameter is treated as the per-user key.
 func (b *SqliteHookBudget) DeductAtomic(
-	ctx context.Context, tenantID uuid.UUID, cost int64, month time.Time, defaultBudget int64,
+	ctx context.Context, userID uuid.UUID, cost int64, month time.Time, defaultBudget int64,
 ) (int64, int64, error) {
 	monthStr := month.Format("2006-01-02")
 
@@ -39,7 +40,7 @@ func (b *SqliteHookBudget) DeductAtomic(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	remaining, total, ok, err := b.tryDeductTx(ctx, tx, tenantID, cost, monthStr)
+	remaining, total, ok, err := b.tryDeductTx(ctx, tx, userID, cost, monthStr)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -50,11 +51,11 @@ func (b *SqliteHookBudget) DeductAtomic(
 		return remaining, total, nil
 	}
 
-	if err := b.seedIfStaleTx(ctx, tx, tenantID, monthStr, defaultBudget); err != nil {
+	if err := b.seedIfStaleTx(ctx, tx, userID, monthStr, defaultBudget); err != nil {
 		return 0, 0, err
 	}
 
-	remaining, total, ok, err = b.tryDeductTx(ctx, tx, tenantID, cost, monthStr)
+	remaining, total, ok, err = b.tryDeductTx(ctx, tx, userID, cost, monthStr)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -69,17 +70,17 @@ func (b *SqliteHookBudget) DeductAtomic(
 }
 
 func (b *SqliteHookBudget) tryDeductTx(
-	ctx context.Context, tx *sql.Tx, tenantID uuid.UUID, cost int64, monthStr string,
+	ctx context.Context, tx *sql.Tx, userID uuid.UUID, cost int64, monthStr string,
 ) (int64, int64, bool, error) {
 	nowStr := time.Now().UTC().Format(time.RFC3339Nano)
 	res, err := tx.ExecContext(ctx, `
-		UPDATE tenant_hook_budget
+		UPDATE user_hook_budget
 		SET remaining = remaining - ?,
 		    updated_at = ?
-		WHERE tenant_id = ?
+		WHERE user_id = ?
 		  AND month_start = ?
 		  AND remaining >= ?`,
-		cost, nowStr, tenantID.String(), monthStr, cost,
+		cost, nowStr, userID.String(), monthStr, cost,
 	)
 	if err != nil {
 		return 0, 0, false, fmt.Errorf("budget deduct: %w", err)
@@ -92,9 +93,9 @@ func (b *SqliteHookBudget) tryDeductTx(
 	var remaining, total int64
 	err = tx.QueryRowContext(ctx, `
 		SELECT remaining, budget_total
-		FROM tenant_hook_budget
-		WHERE tenant_id = ? AND month_start = ?`,
-		tenantID.String(), monthStr,
+		FROM user_hook_budget
+		WHERE user_id = ? AND month_start = ?`,
+		userID.String(), monthStr,
 	).Scan(&remaining, &total)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -106,20 +107,20 @@ func (b *SqliteHookBudget) tryDeductTx(
 }
 
 func (b *SqliteHookBudget) seedIfStaleTx(
-	ctx context.Context, tx *sql.Tx, tenantID uuid.UUID, monthStr string, defaultBudget int64,
+	ctx context.Context, tx *sql.Tx, userID uuid.UUID, monthStr string, defaultBudget int64,
 ) error {
 	nowStr := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := tx.ExecContext(ctx, `
-		INSERT INTO tenant_hook_budget
-		  (tenant_id, month_start, budget_total, remaining, metadata, updated_at)
+		INSERT INTO user_hook_budget
+		  (user_id, month_start, budget_total, remaining, metadata, updated_at)
 		VALUES (?, ?, ?, ?, '{}', ?)
-		ON CONFLICT(tenant_id) DO UPDATE
+		ON CONFLICT(user_id) DO UPDATE
 		SET month_start = excluded.month_start,
 		    budget_total = excluded.budget_total,
 		    remaining = excluded.remaining,
 		    updated_at = ?
-		WHERE tenant_hook_budget.month_start < excluded.month_start`,
-		tenantID.String(), monthStr, defaultBudget, defaultBudget, nowStr, nowStr,
+		WHERE user_hook_budget.month_start < excluded.month_start`,
+		userID.String(), monthStr, defaultBudget, defaultBudget, nowStr, nowStr,
 	)
 	if err != nil {
 		return fmt.Errorf("budget seed: %w", err)
