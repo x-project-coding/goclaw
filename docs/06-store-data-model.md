@@ -13,7 +13,7 @@ flowchart TD
     CHOOSE -->|Standard<br/>(PostgreSQL)| PG["PostgreSQL Backend"]
     CHOOSE -->|Lite<br/>(-tags sqliteonly)| SQLite["SQLite Backend"]
 
-    PG --> PG_STORES["PGSessionStore<br/>PGMemoryStore<br/>PGCronStore<br/>PGPairingStore<br/>PGSkillStore<br/>PGAgentStore<br/>PGProviderStore<br/>PGTracingStore<br/>PGMCPServerStore<br/>PGCustomToolStore<br/>PGChannelInstanceStore<br/>PGConfigSecretsStore<br/>PGTeamStore<br/>PGBuiltinToolStore<br/>PGPendingMessageStore<br/>PGKnowledgeGraphStore<br/>PGContactStore<br/>PGActivityStore<br/>PGSnapshotStore<br/>PGSecureCLIStore<br/>PGAPIKeyStore"]
+    PG --> PG_STORES["PGSessionStore<br/>PGMemoryStore<br/>PGCronStore<br/>PGPairingStore<br/>PGSkillStore<br/>PGAgentStore<br/>PGProviderStore<br/>PGTracingStore<br/>PGMCPServerStore<br/>PGCustomToolStore<br/>PGChannelInstanceStore<br/>PGConfigSecretsStore<br/>PGTeamStore<br/>PGBuiltinToolStore<br/>PGPendingMessageStore<br/>PGKnowledgeGraphStore<br/>PGContactStore<br/>PGActivityStore<br/>PGSnapshotStore<br/>PGSecureCLIStore<br/>PGAPIKeyStore<br/>PGUsersStore<br/>PGUserSessionsStore<br/>PGSkillVersionsStore<br/>PGCuratorRunsStore<br/>PGUserHookBudgetStore"]
     
     SQLite --> SQLITE_STORES["SQLiteActivityStore<br/>SQLiteEpisodicStore<br/>SQLiteEvolutionMetrics<br/>SQLiteEvolutionSuggestions<br/>SQLiteKnowledgeGraph<br/>SQLiteVaultStore<br/>SQLiteAgentLinks<br/>SQLiteSubagentTasks<br/>SQLiteSecureCLIStore"]
 ```
@@ -48,6 +48,11 @@ The `Stores` struct is the top-level container holding all PostgreSQL-backed sto
 | SecureCLIStore | `PGSecureCLIStore` | CLI binary configs with encrypted credential injection |
 | APIKeyStore | `PGAPIKeyStore` | Gateway API keys, scopes, expiration, revocation |
 | HookStore | `PGHookStore` | Lifecycle hook definitions (event, handler type, matcher, config), execution audit log |
+| UsersStore | `PGUsersStore` | User identity and profile metadata (v4 Phase 05) |
+| UserSessionsStore | `PGUserSessionsStore` | Per-user session lifecycle tracking (v4 Phase 05) |
+| SkillVersionsStore | `PGSkillVersionsStore` | Skill version history and evolution (v4 Phase 05) |
+| CuratorRunsStore | `PGCuratorRunsStore` | Curator task execution logs and results (v4 Phase 05) |
+| UserHookBudgetStore | `PGUserHookBudgetStore` | User hook execution budget and rate limiting (v4 Phase 05) |
 
 ### SQLite Parity (Lite Edition)
 
@@ -557,6 +562,9 @@ flowchart TD
 | `000003_agent_teams` | `agent_teams`, `agent_team_members`, `team_tasks`, `team_messages` + `team_id` on agent_links |
 | `000004_teams_v2` | FTS on `team_tasks` (tsv column) + `delegation_history` table |
 | `000005_phase4` | Additional team and delegation features |
+| `000001_initial` (v4 line) | v4 greenfield rebuild — supersedes the 000001…000005 v3 chain. Includes `users`, `user_sessions`, `skill_versions`, `curator_runs`, `user_hook_budget` and drops multi-tenant tables. |
+
+**v4 user-scoped stores:** 5 stores introduced (`UsersStore`, `UserSessionsStore`, `SkillVersionsStore`, `CuratorRunsStore`, `UserHookBudgetStore`) backed by the new tables above. Canonical `store.ErrNotFound` sentinel for not-found rows. All IDs use `uuid.NewV7()`. Tables intentionally have NO `tenant_id` column — multi-tenant primitives are being removed in v4. `skill_versions` has no `archived_at` column; archival is a higher-layer concern.
 
 ### Required PostgreSQL Extensions
 
@@ -611,6 +619,10 @@ Nullable columns are handled via Go pointers: `*string`, `*int`, `*time.Time`, `
 ### Dynamic Updates
 
 `execMapUpdate()` builds UPDATE statements dynamically from a `map[string]any` of column-value pairs. This avoids writing a separate UPDATE query for every combination of updatable fields.
+
+### Error Handling
+
+**v4 unified sentinel:** New store interfaces (UsersStore, UserSessionsStore, SkillVersionsStore, CuratorRunsStore, UserHookBudgetStore) return `store.ErrNotFound` for missing rows. Callers use `errors.Is(err, store.ErrNotFound)` — never `==`. Existing v3 stores return raw `sql.ErrNoRows` or custom errors; Phase 05 PR-05B will reconcile all to `store.ErrNotFound`.
 
 ### Upsert Pattern
 

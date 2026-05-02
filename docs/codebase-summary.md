@@ -142,7 +142,7 @@ Native `image_generation` support in the Codex provider (`POST /codex/responses`
 
 ## Key Conventions
 
-- **Store layer:** Interface-based; PG (`store/pg/`) + SQLite (`store/sqlitestore/`). Raw SQL, `$1/$2` params.
+- **Store layer:** Interface-based; PG (`store/pg/`) + SQLite (`store/sqlitestore/`). Raw SQL, `$1/$2` params. **v4 Phase 05 adds 5 new stores:** UsersStore, UserSessionsStore, SkillVersionsStore, CuratorRunsStore, UserHookBudgetStore. All use `uuid.NewV7()` for ID generation. New sentinel: `store.ErrNotFound` for unified "row not found" semantics (reconciliation of existing v3 raw `sql.ErrNoRows` in Phase 05 PR-05B).
 - **Session token display:** v3 compaction now uses dynamic max_tokens (`in/25` clamped `[1024,8192]`); session token display reads from `sessions.metadata.last_prompt_tokens` and `last_message_count`. Tool schemas counted via `TokenCounter.CountToolSchemas()` and included in ContextStage overhead.
 - **Context propagation:** `store.WithLocale`, `store.WithUserID`, `store.WithTenantID`, etc.
 - **Security logs:** `slog.Warn("security.*")` for all security events.
