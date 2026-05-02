@@ -53,6 +53,12 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	if err != nil {
 		return fmt.Errorf("episodic: invalid agent_id %q: %w", event.AgentID, err)
 	}
+	// UserID parsed at entry to fail fast — v4 schema treats user_id as UUID and
+	// downstream store calls (ExistsBySourceID, Create) would otherwise leak
+	// non-UUID strings into PG with confusing type errors.
+	if _, err := uuid.Parse(event.UserID); err != nil {
+		return fmt.Errorf("episodic: invalid user_id %q: %w", event.UserID, err)
+	}
 
 	// Build source_id for idempotency
 	sourceID := fmt.Sprintf("%s:%d", payload.SessionKey, payload.CompactionCount)

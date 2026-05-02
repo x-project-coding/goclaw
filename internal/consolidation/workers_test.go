@@ -310,7 +310,7 @@ func TestEpisodicWorkerHandle_WithSummary(t *testing.T) {
 		Type:     eventbus.EventSessionCompleted,
 		TenantID: providers.MasterTenantID.String(),
 		AgentID:  uuid.New().String(),
-		UserID:   "test-user",
+		UserID:   uuid.New().String(),
 		Payload: &eventbus.SessionCompletedPayload{
 			SessionKey:     "session-123",
 			CompactionCount: 1,
@@ -365,7 +365,7 @@ func TestEpisodicWorkerHandle_DuplicateSourceID(t *testing.T) {
 		Type:     eventbus.EventSessionCompleted,
 		TenantID: uuid.New().String(),
 		AgentID:  uuid.New().String(),
-		UserID:   "test-user",
+		UserID:   uuid.New().String(),
 		Payload: &eventbus.SessionCompletedPayload{
 			SessionKey:      "session-123",
 			CompactionCount: 1,
@@ -414,6 +414,39 @@ func TestEpisodicWorkerHandle_NonUUIDAgentID(t *testing.T) {
 	}
 	if len(mockStore.created) != 0 {
 		t.Errorf("Expected no episodic created on bad agent_id, got %d", len(mockStore.created))
+	}
+}
+
+// TestEpisodicWorkerHandle_NonUUIDUserID mirrors the agent_id/tenant_id guard
+// for user_id. v4 schema treats user_id as UUID; non-UUID strings reaching the
+// store would surface as confusing PG type errors instead of a clear handler
+// error. The worker rejects bad UserID at entry — store is never touched.
+func TestEpisodicWorkerHandle_NonUUIDUserID(t *testing.T) {
+	mockStore := &mockEpisodicStore{}
+	worker := &episodicWorker{store: mockStore}
+
+	ctx := context.Background()
+	event := eventbus.DomainEvent{
+		Type:     eventbus.EventSessionCompleted,
+		TenantID: uuid.New().String(),
+		AgentID:  uuid.New().String(),
+		UserID:   "alice@example.com", // email, not UUID
+		Payload: &eventbus.SessionCompletedPayload{
+			SessionKey:      "session-123",
+			CompactionCount: 0,
+			Summary:         "Summary",
+		},
+	}
+
+	err := worker.Handle(ctx, event)
+	if err == nil {
+		t.Fatal("Expected error for non-UUID user_id, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid user_id") {
+		t.Errorf("Expected 'invalid user_id' error, got: %v", err)
+	}
+	if len(mockStore.created) != 0 {
+		t.Errorf("Expected no episodic created on bad user_id, got %d", len(mockStore.created))
 	}
 }
 
