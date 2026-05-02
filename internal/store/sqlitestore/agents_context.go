@@ -47,10 +47,10 @@ func (s *SQLiteAgentStore) GetAgentContextFiles(ctx context.Context, agentID uui
 
 func (s *SQLiteAgentStore) SetAgentContextFile(ctx context.Context, agentID uuid.UUID, fileName, content string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_context_files (id, agent_id, file_name, content, updated_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		`INSERT INTO agent_context_files (id, agent_id, file_name, content, updated_at)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT (agent_id, file_name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
-		store.GenNewID(), agentID, fileName, content, time.Now(), tenantIDForInsert(ctx),
+		store.GenNewID(), agentID, fileName, content, time.Now(),
 	)
 	return err
 }
@@ -117,10 +117,10 @@ func (s *SQLiteAgentStore) GetUserContextFiles(ctx context.Context, agentID uuid
 
 func (s *SQLiteAgentStore) SetUserContextFile(ctx context.Context, agentID uuid.UUID, userID, fileName, content string) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (agent_id, user_id, file_name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`,
-		store.GenNewID(), agentID, userID, fileName, content, time.Now(), tenantIDForInsert(ctx),
+		store.GenNewID(), agentID, userID, fileName, content, time.Now(),
 	)
 	return err
 }
@@ -197,8 +197,8 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 
 	// 1. user_context_files
 	migrate(
-		fmt.Sprintf(`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at, tenant_id)
-			SELECT %s, agent_id, ?, file_name, content, updated_at, tenant_id
+		fmt.Sprintf(`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at)
+			SELECT %s, agent_id, ?, file_name, content, updated_at
 			FROM user_context_files WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id, file_name) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_context_files WHERE user_id IN (%s)%s`, inClause, tClause),
@@ -206,8 +206,8 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 
 	// 2. user_agent_overrides
 	migrate(
-		fmt.Sprintf(`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model, settings, created_at, updated_at, tenant_id)
-			SELECT %s, agent_id, ?, provider, model, settings, created_at, updated_at, tenant_id
+		fmt.Sprintf(`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model, settings, created_at, updated_at)
+			SELECT %s, agent_id, ?, provider, model, settings, created_at, updated_at
 			FROM user_agent_overrides WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_agent_overrides WHERE user_id IN (%s)%s`, inClause, tClause),
@@ -215,8 +215,8 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 
 	// 3. user_agent_profiles
 	migrate(
-		fmt.Sprintf(`INSERT INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at, metadata, tenant_id)
-			SELECT agent_id, ?, workspace, first_seen_at, last_seen_at, metadata, tenant_id
+		fmt.Sprintf(`INSERT INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at, metadata)
+			SELECT agent_id, ?, workspace, first_seen_at, last_seen_at, metadata
 			FROM user_agent_profiles WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, user_id) DO NOTHING`, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM user_agent_profiles WHERE user_id IN (%s)%s`, inClause, tClause),
@@ -224,8 +224,8 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 
 	// 4. memory_documents
 	migrate(
-		fmt.Sprintf(`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at, created_at, tenant_id)
-			SELECT %s, agent_id, ?, path, content, hash, updated_at, created_at, tenant_id
+		fmt.Sprintf(`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at, created_at)
+			SELECT %s, agent_id, ?, path, content, hash, updated_at, created_at
 			FROM memory_documents WHERE user_id IN (%s)%s
 			ON CONFLICT (agent_id, COALESCE(user_id,''), path) DO NOTHING`, uuid, inClause, tClause),
 		fmt.Sprintf(`DELETE FROM memory_documents WHERE user_id IN (%s)%s`, inClause, tClause),
@@ -250,14 +250,13 @@ func (s *SQLiteAgentStore) GetOrCreateUserProfile(ctx context.Context, agentID u
 		effectiveWs = filepath.Join(effectiveWs, channel)
 	}
 
-	tid := tenantIDForInsert(ctx)
 	now := time.Now()
 
 	// Try insert (ignored on conflict). Use changes() to detect if row was actually inserted.
 	res, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at, tenant_id)
-		 VALUES (?, ?, NULLIF(?, ''), ?, ?, ?)`,
-		agentID, userID, effectiveWs, now, now, tid,
+		`INSERT OR IGNORE INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at)
+		 VALUES (?, ?, NULLIF(?, ''), ?, ?)`,
+		agentID, userID, effectiveWs, now, now,
 	)
 	if err != nil {
 		return false, effectiveWs, err
@@ -297,9 +296,9 @@ func (s *SQLiteAgentStore) GetOrCreateUserProfile(ctx context.Context, agentID u
 func (s *SQLiteAgentStore) EnsureUserProfile(ctx context.Context, agentID uuid.UUID, userID string) error {
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO user_agent_profiles (agent_id, user_id, first_seen_at, last_seen_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?)`,
-		agentID, userID, now, now, tenantIDForInsert(ctx),
+		`INSERT OR IGNORE INTO user_agent_profiles (agent_id, user_id, first_seen_at, last_seen_at)
+		 VALUES (?, ?, ?, ?)`,
+		agentID, userID, now, now,
 	)
 	return err
 }
@@ -311,22 +310,8 @@ func (s *SQLiteAgentStore) ListUserInstances(ctx context.Context, agentID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	subTenantFilter := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid != uuid.Nil {
-			subTenantFilter = " AND tenant_id = ?"
-			// tArgs already has tid; reuse it by appending another copy below.
-		}
-	}
-	// Build args: subquery agent_id [+ optional tenant_id], main WHERE agent_id, scope args.
-	var queryArgs []any
-	queryArgs = append(queryArgs, agentID) // subquery: agent_id = ?
-	if subTenantFilter != "" {
-		queryArgs = append(queryArgs, tArgs[0]) // subquery: tenant_id = ?
-	}
-	queryArgs = append(queryArgs, agentID) // main WHERE: p.agent_id = ?
-	queryArgs = append(queryArgs, tArgs...) // scope clause args
+	queryArgs := []any{agentID, agentID}
+	queryArgs = append(queryArgs, tArgs...)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT p.user_id,
 		       strftime('%Y-%m-%dT%H:%M:%SZ', p.first_seen_at) AS first_seen_at,
@@ -337,7 +322,7 @@ func (s *SQLiteAgentStore) ListUserInstances(ctx context.Context, agentID uuid.U
 		LEFT JOIN (
 		    SELECT user_id, COUNT(*) AS cnt
 		    FROM user_context_files
-		    WHERE agent_id = ?`+subTenantFilter+`
+		    WHERE agent_id = ?
 		    GROUP BY user_id
 		) fc ON fc.user_id = p.user_id
 		WHERE p.agent_id = ?`+tClause+`
@@ -403,10 +388,10 @@ func (s *SQLiteAgentStore) GetUserOverride(ctx context.Context, agentID uuid.UUI
 
 func (s *SQLiteAgentStore) SetUserOverride(ctx context.Context, override *store.UserAgentOverrideData) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT (agent_id, user_id) DO UPDATE SET provider = excluded.provider, model = excluded.model`,
-		store.GenNewID(), override.AgentID, override.UserID, override.Provider, override.Model, tenantIDForInsert(ctx),
+		store.GenNewID(), override.AgentID, override.UserID, override.Provider, override.Model,
 	)
 	return err
 }

@@ -3,11 +3,14 @@
 package sqlitestore
 
 import (
+	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
+
+	storelib "github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // Regression test for PR #897 — fresh SQLite DBs crash on agent setting save
@@ -15,9 +18,10 @@ import (
 // self_evolve, skill_evolve, is_default). Update() must coerce nil to the
 // column's default value ({}, false) to satisfy NOT NULL constraints.
 func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
-	db, tenantID, agentID := newAgentUpdateTestFixture(t)
+	db, _, agentID := newAgentUpdateTestFixture(t)
 	store := NewSQLiteAgentStore(db)
-	ctx := sqliteTenantCtx(tenantID)
+	// Use admin role so agentOwnerFilter returns empty clause (no owner_user_id check).
+	ctx := storelib.WithRole(context.Background(), "admin")
 
 	// Simulate UI sending null for every NOT NULL column that can be toggled off.
 	updates := map[string]any{
@@ -106,7 +110,7 @@ func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
 }
 
 // newAgentUpdateTestFixture opens a fresh SQLite DB with schema loaded and
-// inserts a minimal tenant + agent for Update() tests.
+// inserts a minimal agent for Update() tests.
 func newAgentUpdateTestFixture(t *testing.T) (*sql.DB, uuid.UUID, uuid.UUID) {
 	t.Helper()
 	db, err := OpenDB(filepath.Join(t.TempDir(), "agent_update_test.db"))
@@ -119,18 +123,12 @@ func newAgentUpdateTestFixture(t *testing.T) (*sql.DB, uuid.UUID, uuid.UUID) {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	tenantID := uuid.Must(uuid.NewV7())
 	agentID := uuid.Must(uuid.NewV7())
 	if _, err := db.Exec(
-		`INSERT INTO tenants (id, name, slug, status) VALUES (?,?,?,'active')`,
-		tenantID.String(), "agent-upd-"+tenantID.String()[:8], "au"+tenantID.String()[:8]); err != nil {
-		t.Fatalf("seed tenant: %v", err)
-	}
-	if _, err := db.Exec(
-		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?,?,?,'predefined','active','test','test-model','owner')`,
-		agentID.String(), tenantID.String(), "au-"+agentID.String()[:8]); err != nil {
+		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
+		 VALUES (?,'au-'||substr(?,1,8),'predefined','active','test','test-model','owner')`,
+		agentID.String(), agentID.String()); err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
-	return db, tenantID, agentID
+	return db, uuid.Nil, agentID
 }
