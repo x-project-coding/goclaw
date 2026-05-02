@@ -223,6 +223,88 @@ Apply before finalizing any multi-phase plan. Trust-but-verify between scout →
 
 **Red-team practice:** After planner completes, run `code-reviewer`/`brainstormer` in audit mode: "spot-check 15+ claims vs live codebase". Past catches: fabricated `crypto.Keyring`/`tracing.StartSpan` (agent-hooks plan); inverted TS-port semantics + wrong struct scope + misread early-return gate (context-pruning plan). See `plans/*/reports/audit-*.md` for concrete examples.
 
+## [IMPORTANT] Verified Decisions Are Sticky — Audit Does Not Auto-Reverse
+
+When a solution has been verified by reading actual source, running tests, or empirical experiment, lock it into the report/plan with a source note (e.g., `verified by reading {file:line}` or `verified by test {name}`).
+
+### Protocol when audit/red-team raises a counter-argument
+
+1. **Check verification trail:** is the decision marked as verified? (Note in report/plan, or code-read earlier in conversation.)
+2. **Audit must not auto-reverse:** a counter-argument alone is insufficient. Only revise when:
+   - Audit finds a **new** issue the verification missed (state the issue + why the prior check missed it)
+   - Or context changed since verification (codebase moved, business decision changed)
+3. **Clean stale notes:** after verifying, prune outdated risk rows / unresolved questions from reports so future agents do not misread them as open conflicts.
+4. **Surface contradictions on verified decisions to user as:** "audit says X, but Y is verified by {source} — does the audit bring new data to justify a reverse?" Do not silently flip the decision and re-ask the user.
+
+**Why:** decision drift wastes cycles (AI reverses → user re-confirms → AI agrees). Audit value is highest when finding new issues, not re-litigating settled ones. Verification source (`code:line`) is the source of truth, not audit reasoning alone.
+
+### Examples
+- ❌ Brainstorm verified pattern X via grep. Audit raises "maybe pattern Y" → present as "conflict, please confirm". Should be: "already verified, audit brought no new data."
+- ✅ Audit discovers FE consumes `error.code` as string slug (not scouted earlier) → genuine new anomaly → surface to user.
+
+## [IMPORTANT] Guard User Decisions Against Audit/YAGNI Drift
+
+When applying audit feedback (code-reviewer, brainstorm audit, red-team, delta audit, etc.) or YAGNI principles to revise designs/reports/plans:
+
+**NEVER silently reverse decisions the user has already confirmed.**
+
+### Mandatory protocol before any cut/change
+
+1. **Trace before cutting:** Before applying an audit recommendation that removes/changes a field, column, threshold, or architectural choice — trace back the conversation to check if the user explicitly chose that value/design.
+
+2. **Categorize each change:**
+   - ✅ **Safe to apply:** cuts of items you (Claude) proposed but user never explicitly confirmed (e.g., research-driven additions, defensive extras).
+   - ⚠️ **Must confirm first:** anything touching a user's explicit answer — thresholds, scope, library choice, schema shape, phase content, feature inclusion/exclusion.
+   - 🚫 **Never auto-reverse:** business decisions (pricing, timing, team size, scope boundaries, compliance stance, locked Q-* answers).
+
+3. **Surface reversals before executing:** If audit recommends reversing a user decision, present the conflict to user with: (a) user's original decision verbatim, (b) audit's reasoning, (c) trade-off, (d) explicit ask "giữ nguyên / đổi theo audit / hybrid?". Do NOT apply.
+
+4. **Document drift in reports:** When cutting something user proposed/confirmed, annotate with reason + user-confirmation trail (e.g., "CUT per audit FX — user did not explicitly choose this field, em added from research"). Preserves traceability.
+
+5. **Auditor bias awareness:** Audit/red-team agents lean heavily toward YAGNI/minimalism + maximum-paranoia security. This is valuable input but not authoritative over product/business decisions. Audit findings are **input to user**, not orders to Claude.
+
+### Red flags to catch automatically
+- Changing a numeric threshold user picked (TTL, memory cost, retry count, rate limit, confidence)
+- Removing a column/field user explicitly mentioned
+- Swapping library/framework user endorsed
+- Moving scope across phases user agreed on
+- Cutting a feature user confirmed "cần" or "có"
+- Reverting a locked decision (Q-1, Q-A, X-locks, etc.)
+
+### Carve-out: correctness fixes always apply
+Findings that fix **security holes, race conditions, data integrity bugs, or wire-format incompatibilities** apply regardless of user-decision overlap — but document the overlap in the change note. The carve-out is narrow: it does not extend to "could be more secure" or "could be tighter".
+
+**Rule of thumb:** If unsure whether a cut reverses user intent, ask. Cost of 1 clarifying question ≪ cost of silent regression that surfaces at demo.
+
+## [IMPORTANT] Validate Audit Findings Against Real Threat Model
+
+Before applying a code-reviewer/audit/red-team finding that flags something as "too narrow", "too loose", "not comprehensive", or "risky", trace the finding against the **actual runtime behavior and what the code protects** — not against abstract categories.
+
+A theoretical gap is only a real gap if the code's real usage pattern produces the failure mode.
+
+### Protocol
+1. **Identify what the code actually stores/protects.** E.g. "cache stores resolved permission decisions, not schema-derived data."
+2. **Walk each scenario the reviewer flagged** through that lens. Does scenario X actually produce the bad outcome (stale decision / wrong result / security hole)? Often the answer is "theoretically yes, practically no."
+3. **Separate real risks from abstract ones.** Apply fixes for real risks; document non-risks with a short rationale; surface borderline cases to the user instead of auto-accepting.
+4. **Look for the failure mode the reviewer missed.** Often the more realistic bug sits one step away from what the review flagged (e.g. typo in a static list that makes the fingerprint query return zero rows — more likely than any of the "DDL width" cases the reviewer listed).
+
+## [IMPORTANT] Code Comments & Artifact Naming — No Plan References
+
+Code comments and file names (including SQL migration files) **must not reference plan artifacts**: phase numbers, finding codes (F1, F3, F13, Y1, CU2, …), audit labels (audit A4), red-team session labels, brainstorm section numbers (§5.4), or the plan's internal taxonomy.
+
+Rationale: plan headers change, get renumbered, or disappear between iterations; once a plan is archived those references become noise that future readers cannot resolve. The *reason* for the code (invariant, constraint, race, trade-off) must be stable and self-contained.
+
+### Rules
+- **Explain the why, not the origin.** Write "advisory lock serializes concurrent merge so only one TX wins" — not "per F10 merge-atomic fix".
+- **Migration file names** use the domain slug only: `000003_user_sessions_family_id.up.sql`, not `000003_phase_06_F4_family.up.sql`.
+- **Test names** describe the scenario: `TestRefreshTokenTheftDetection`, not `TestRefreshToken_F4`.
+- **Commit messages** likewise — describe the change, not the finding code.
+- Plan references belong in the plan's own Markdown files (`plans/…/phase-XX-*.md`) and PR descriptions, not in code.
+
+### Allowed references in code
+- Function/symbol names in the same codebase (e.g., "see ValidateAgentID").
+- Stable external identifiers: RFC numbers (RFC 6749 §10.4), PostgreSQL SQLSTATE codes, CVE IDs, linked issue numbers when the issue is durable.
+
 ## Post-Implementation Checklist
 
 After implementing or modifying Go code, run these checks:
