@@ -163,7 +163,7 @@ func scopeClause(ctx context.Context, startParam int) (clause string, args []any
 	if err != nil {
 		return "", nil, startParam, err
 	}
-	bScope := base.QueryScope{TenantID: scope.TenantID, ProjectID: scope.ProjectID}
+	bScope := base.QueryScope{ProjectID: scope.ProjectID}
 	clause, args, nextParam = base.BuildScopeClause(pgDialect, bScope, startParam)
 	return clause, args, nextParam, nil
 }
@@ -175,7 +175,7 @@ func scopeClauseAlias(ctx context.Context, startParam int, alias string) (clause
 	if err != nil {
 		return "", nil, startParam, err
 	}
-	bScope := base.QueryScope{TenantID: scope.TenantID, ProjectID: scope.ProjectID}
+	bScope := base.QueryScope{ProjectID: scope.ProjectID}
 	clause, args, nextParam = base.BuildScopeClauseAlias(pgDialect, bScope, startParam, alias)
 	return clause, args, nextParam, nil
 }

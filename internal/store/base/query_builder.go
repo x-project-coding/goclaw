@@ -23,7 +23,6 @@ type Dialect interface {
 // QueryScope mirrors store.QueryScope without importing store/.
 // Callers extract scope from context and convert to this struct.
 type QueryScope struct {
-	TenantID  uuid.UUID
 	ProjectID *uuid.UUID
 }
 

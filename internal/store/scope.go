@@ -7,11 +7,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// QueryScope represents the per-query isolation scope. v4 is single-tenant
-// so only ProjectID retains effect; TenantID field kept transitionally for
-// caller compat and is ignored by clause builders.
+// QueryScope represents the per-query isolation scope. v4 is single-tenant;
+// only ProjectID is used by clause builders.
 type QueryScope struct {
-	TenantID  uuid.UUID  // deprecated: ignored in v4; field retained for caller compat
 	ProjectID *uuid.UUID // nil = no project filter
 }
 

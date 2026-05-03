@@ -125,7 +125,7 @@ func TestBuildMapUpdateWhereTenant_PG_DropsTenant(t *testing.T) {
 }
 
 func TestBuildScopeClause_PG_NoTenant(t *testing.T) {
-	scope := QueryScope{TenantID: uuid.New()}
+	scope := QueryScope{}
 	clause, args, next := BuildScopeClause(testDialectPG{}, scope, 3)
 	if clause != "" {
 		t.Errorf("v4: expected empty clause, got %q", clause)
@@ -154,7 +154,7 @@ func TestBuildScopeClause_PG_WithProject(t *testing.T) {
 }
 
 func TestBuildScopeClause_SQLite_NoTenant(t *testing.T) {
-	scope := QueryScope{TenantID: uuid.New()}
+	scope := QueryScope{}
 	clause, args, next := BuildScopeClause(testDialectSQLite{}, scope, 1)
 	if clause != "" || len(args) != 0 || next != 1 {
 		t.Errorf("v4: empty expected, got clause=%q args=%v next=%d", clause, args, next)
@@ -162,7 +162,7 @@ func TestBuildScopeClause_SQLite_NoTenant(t *testing.T) {
 }
 
 func TestBuildScopeClauseAlias_PG_NoTenant(t *testing.T) {
-	scope := QueryScope{TenantID: uuid.New()}
+	scope := QueryScope{}
 	clause, args, next := BuildScopeClauseAlias(testDialectPG{}, scope, 2, "a")
 	if clause != "" || len(args) != 0 || next != 2 {
 		t.Errorf("v4: empty expected, got clause=%q args=%v next=%d", clause, args, next)

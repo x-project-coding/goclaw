@@ -35,12 +35,6 @@ const (
 	ShellDenyGroupsKey contextKey = "goclaw_shell_deny_groups"
 	// AgentKeyKey is the context key for the agent key/name (string identifier, e.g. "default").
 	AgentKeyKey contextKey = "goclaw_agent_key"
-	// TenantIDKey is the context key for the tenant UUID.
-	TenantIDKey contextKey = "goclaw_tenant_id"
-	// CrossTenantKey indicates the caller has cross-tenant access (owner/system admin).
-	CrossTenantKey contextKey = "goclaw_cross_tenant"
-	// TenantSlugKey stores the tenant's URL-safe slug for filesystem paths.
-	TenantSlugKey contextKey = "goclaw_tenant_slug"
 	// RoleKey is the context key for the caller's permission role (e.g. "admin", "operator", "viewer").
 	RoleKey contextKey = "goclaw_role"
 	// CredentialUserIDKey holds the resolved tenant user identity for credential lookups.
@@ -336,76 +330,59 @@ func LocaleFromContext(ctx context.Context) string {
 	return "en"
 }
 
-// WithTenantID returns a new context with the given tenant UUID.
-func WithTenantID(ctx context.Context, id uuid.UUID) context.Context {
-	return context.WithValue(ctx, TenantIDKey, id)
+// WithTenantID is a no-op in v4 single-tenant. Returns ctx unchanged.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
+func WithTenantID(ctx context.Context, _ uuid.UUID) context.Context {
+	return ctx
 }
 
-// TenantIDFromContext extracts the tenant UUID from context.
-// Returns uuid.Nil if not set (fail-closed — callers must check).
-func TenantIDFromContext(ctx context.Context) uuid.UUID {
-	if v, ok := ctx.Value(TenantIDKey).(uuid.UUID); ok && v != uuid.Nil {
-		return v
-	}
-	if rc := RunContextFromCtx(ctx); rc != nil {
-		return rc.TenantID
-	}
-	return uuid.Nil
+// TenantIDFromContext always returns MasterTenantID in v4 single-tenant.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
+func TenantIDFromContext(_ context.Context) uuid.UUID {
+	return MasterTenantID
 }
 
-// WithCrossTenant returns a context flagged for cross-tenant access.
-// Deprecated: Only used by skills store (is_system dual-visibility pattern).
-// All other callers must use explicit tenant context or unscoped store methods.
+// WithCrossTenant is a no-op in v4 single-tenant. Returns ctx unchanged.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
 func WithCrossTenant(ctx context.Context) context.Context {
-	return context.WithValue(ctx, CrossTenantKey, true)
+	return ctx
 }
 
-// IsCrossTenant returns true if the caller has cross-tenant access.
-// Deprecated: Only used by skills store and inline pg/*.go tenant checks.
-// Permission guards should use IsOwnerRole(). SQL queries use tenantClauseN() (no bypass).
-func IsCrossTenant(ctx context.Context) bool {
-	v, _ := ctx.Value(CrossTenantKey).(bool)
-	return v
+// IsCrossTenant always returns false in v4 single-tenant.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
+func IsCrossTenant(_ context.Context) bool {
+	return false
 }
 
 // IsOwnerRole returns true if the caller has the "owner" role.
-// Replaces IsCrossTenant for permission guards.
 func IsOwnerRole(ctx context.Context) bool {
 	return RoleFromContext(ctx) == string(RoleOwner)
 }
 
+// IsAdminRole returns true if the caller has the "admin" role.
+func IsAdminRole(ctx context.Context) bool {
+	return RoleFromContext(ctx) == "admin"
+}
+
 // IsMasterScope reports whether ctx should be treated as master-scope:
-//
-//	(a) system owner role (IsOwnerRole bypass-all), or
-//	(b) tenant id is unset (uuid.Nil — legacy / system callers), or
-//	(c) tenant id equals MasterTenantID.
-//
-// Used by both WS config.* methods and HTTP admin routes that write to
-// global (non-tenant-scoped) tables or execute server-wide side effects
-// (shell, filesystem). Centralises the Phase 1 / Phase 0b hotfix rule
-// so every layer shares one predicate — no drift.
+// owner or admin role. v4 single-tenant: no tenant-ID check needed.
 func IsMasterScope(ctx context.Context) bool {
-	if IsOwnerRole(ctx) {
-		return true
-	}
-	tid := TenantIDFromContext(ctx)
-	return tid == uuid.Nil || tid == MasterTenantID
+	return IsOwnerRole(ctx) || IsAdminRole(ctx)
 }
 
 // RoleOwner is the owner role constant for context checks.
 // Must match permissions.RoleOwner.
 const RoleOwner = "owner"
 
-// WithTenantSlug returns a new context with the given tenant slug.
-func WithTenantSlug(ctx context.Context, slug string) context.Context {
-	return context.WithValue(ctx, TenantSlugKey, slug)
+// WithTenantSlug is a no-op in v4 single-tenant. Returns ctx unchanged.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
+func WithTenantSlug(ctx context.Context, _ string) context.Context {
+	return ctx
 }
 
-// TenantSlugFromContext extracts the tenant slug from context. Returns "" if not set.
-func TenantSlugFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(TenantSlugKey).(string); ok {
-		return v
-	}
+// TenantSlugFromContext always returns "" in v4 single-tenant.
+// Kept for caller compat; Phase 13 removes all call sites and this stub.
+func TenantSlugFromContext(_ context.Context) string {
 	return ""
 }
 
