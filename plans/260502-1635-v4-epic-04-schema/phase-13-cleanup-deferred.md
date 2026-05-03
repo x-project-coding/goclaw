@@ -301,3 +301,53 @@ Phase 13 sweep targets (REAL file count = 81 non-test, per Finding 15):
 ## Next Steps
 
 - Phase 14 — full validation suite + RBAC matrix.
+
+## Session Handoff — 2026-05-03 21:08 (in-progress)
+
+### Done in triage commits (824d420b)
+
+- ✅ `internal/http/tenant_scope_hotfix_test.go` DELETED (was on this phase's DELETE list — 4 failing tests gone).
+- ✅ `internal/http/storage_test.go` — dropped `TestIsHiddenPathOnlyAffectsMaster` (5th failing test).
+- ✅ `internal/http` test suite is now GREEN.
+
+### Remaining work (live counts on commit 824d420b)
+
+- **63 non-test Go files** still reference `MasterTenantID` (`grep -rln 'MasterTenantID' --include='*.go' | grep -v _test.go | wc -l`)
+- **~40 baseline test failures** across 4 packages (NOT regressions — pre-existed on dev-v4):
+
+  | Package | Failures | Notes |
+  |---|---|---|
+  | `internal/gateway/methods/` | 6 | `TestWSRevoke_TenantAdmin_*`, `TestRequireMasterScope_*`, `TestIsMasterScopeContext_*` — likely whole-test-deletes |
+  | `internal/hooks/` | 1 | `TestEmitHookSpan_PropagatesTenantAndTrace` — needs refactor (drop tenant claim) |
+  | `internal/tasks/` | 4 | `TestNotifyLeaders_NilTeam_NoPanic`, `TestNotifyLeaders_MultiTenantCacheIsolation`, `TestProcessFollowups_MultiTenantTenantCtx`, `TestValidateChannelTenant` — mix of refactor + delete |
+  | `internal/tools/` | ~30 | bulk: `TestVaultRead_*`, `TestVaultReadOutlinks_*`, `TestResolveWorkspace_Tenant*` — vault scope tests need v4 refactor (personal/team/shared still relevant; tenant dimension stripped). workspace tests likely whole-delete |
+
+### Quick-start for next session
+
+```bash
+# 1. Confirm baseline grep count
+grep -rln 'MasterTenantID' --include='*.go' | grep -v _test.go | wc -l   # expect 63
+
+# 2. Confirm failing test set
+go test ./internal/gateway/methods/ ./internal/hooks/ ./internal/tasks/ ./internal/tools/ 2>&1 | grep '^--- FAIL' | wc -l
+
+# 3. Suggested batches (parallelizable):
+#    Batch A: cmd/ + internal/agent/ + internal/pipeline/ (loop hot path) — careful, agent loop
+#    Batch B: internal/tools/ (vault*, subagent*, memory, message, shell, delegate)
+#    Batch C: internal/http/ (audit, agents_import_helpers, vault_handlers, tenant_auth_helpers, etc.)
+#    Batch D: internal/{tracing, oauth, upgrade, bgalert} + pkg/browser/
+#    Batch E: tests/integration/abort_test_helpers.go + test refactor sweep
+```
+
+### Recommended next-session approach
+
+- Spawn `fullstack-developer` subagent per batch (A→E sequentially or A+B in parallel, then C+D in parallel).
+- Each batch: drop `MasterTenantID` branches, run `go build` + `go vet` after batch, `go test ./<batch-pkg>/...`.
+- For test failures: triage as DELETE (whole-test-tenant-only) vs REFACTOR (v4 single-user analog still valid).
+- After all batches: write 2 missing ADRs (`sessions-divergence`, `activity-logs-retention`).
+- Final: `grep -rn 'MasterTenantID' --include='*.go'` returns 0 non-test, all tests green, commit with full file enumeration per Finding 15.
+
+### Already-resolved blockers (no action needed)
+
+- ✅ Phase 12 entry-gate constraint REMOVED — Phase 12 was deferred to EPIC-05-desktop, so Phase 13 can proceed once Phases 9, 10, 11 are merged (all done).
+- ✅ ADR `vault-custom-scope-reserved.md` and `vault-no-encryption-defer.md` already exist in `docs/adr/`.
