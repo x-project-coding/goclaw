@@ -16,26 +16,17 @@ import (
 )
 
 func (s *SQLiteMemoryStore) GetDocument(ctx context.Context, agentID, userID, path string) (string, error) {
-	aid := agentID
 	var content string
 	var err error
 
 	if userID == "" {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return "", tcErr
-		}
 		err = s.db.QueryRowContext(ctx,
-			"SELECT content FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL"+tc,
-			append([]any{aid, path}, tcArgs...)...).Scan(&content)
+			"SELECT content FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL",
+			agentID, path).Scan(&content)
 	} else {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return "", tcErr
-		}
 		err = s.db.QueryRowContext(ctx,
-			"SELECT content FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?"+tc,
-			append([]any{aid, path, userID}, tcArgs...)...).Scan(&content)
+			"SELECT content FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?",
+			agentID, path, userID).Scan(&content)
 	}
 	if err != nil {
 		return "", err
@@ -69,21 +60,13 @@ func (s *SQLiteMemoryStore) DeleteDocument(ctx context.Context, agentID, userID,
 	var err error
 
 	if userID == "" {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return tcErr
-		}
 		res, err = s.db.ExecContext(ctx,
-			"DELETE FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL"+tc,
-			append([]any{agentID, path}, tcArgs...)...)
+			"DELETE FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL",
+			agentID, path)
 	} else {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return tcErr
-		}
 		res, err = s.db.ExecContext(ctx,
-			"DELETE FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?"+tc,
-			append([]any{agentID, path, userID}, tcArgs...)...)
+			"DELETE FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?",
+			agentID, path, userID)
 	}
 	if err != nil {
 		return err
@@ -100,21 +83,13 @@ func (s *SQLiteMemoryStore) ListDocuments(ctx context.Context, agentID, userID s
 	var err error
 
 	if userID == "" {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return nil, tcErr
-		}
 		rows, err = s.db.QueryContext(ctx,
-			"SELECT path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = ? AND user_id IS NULL"+tc,
-			append([]any{agentID}, tcArgs...)...)
+			"SELECT path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = ? AND user_id IS NULL",
+			agentID)
 	} else {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return nil, tcErr
-		}
 		rows, err = s.db.QueryContext(ctx,
-			"SELECT path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = ? AND (user_id IS NULL OR user_id = ?)"+tc,
-			append([]any{agentID, userID}, tcArgs...)...)
+			"SELECT path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = ? AND (user_id IS NULL OR user_id = ?)",
+			agentID, userID)
 	}
 	if err != nil {
 		return nil, err
@@ -147,21 +122,13 @@ func (s *SQLiteMemoryStore) IndexDocument(ctx context.Context, agentID, userID, 
 	// Get document ID
 	var docID string
 	if userID == "" {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return tcErr
-		}
 		err = s.db.QueryRowContext(ctx,
-			"SELECT id FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL"+tc,
-			append([]any{agentID, path}, tcArgs...)...).Scan(&docID)
+			"SELECT id FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id IS NULL",
+			agentID, path).Scan(&docID)
 	} else {
-		tc, tcArgs, tcErr := scopeClause(ctx)
-		if tcErr != nil {
-			return tcErr
-		}
 		err = s.db.QueryRowContext(ctx,
-			"SELECT id FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?"+tc,
-			append([]any{agentID, path, userID}, tcArgs...)...).Scan(&docID)
+			"SELECT id FROM memory_documents WHERE agent_id = ? AND path = ? AND user_id = ?",
+			agentID, path, userID).Scan(&docID)
 	}
 	if err != nil {
 		return err
@@ -250,15 +217,11 @@ func (s *SQLiteMemoryStore) ListAllDocumentsGlobal(ctx context.Context) ([]store
 
 // ListAllDocuments returns all documents for an agent across all users.
 func (s *SQLiteMemoryStore) ListAllDocuments(ctx context.Context, agentID string) ([]store.DocumentInfo, error) {
-	tc, tcArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT agent_id, path, hash, user_id, updated_at
-		 FROM memory_documents WHERE agent_id = ?`+tc+`
+		 FROM memory_documents WHERE agent_id = ?
 		 ORDER BY updated_at DESC`,
-		append([]any{agentID}, tcArgs...)...)
+		agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -289,29 +252,21 @@ func (s *SQLiteMemoryStore) GetDocumentDetail(ctx context.Context, agentID, user
 	var args []any
 
 	if userID == "" {
-		tc, tcArgs, err := scopeClauseAlias(ctx, "d")
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT d.path, d.content, d.hash, d.user_id, d.created_at, d.updated_at,
 				COUNT(c.id) AS chunk_count
 			 FROM memory_documents d
 			 LEFT JOIN memory_chunks c ON c.document_id = d.id
-			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id IS NULL` + tc + `
+			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id IS NULL
 			 GROUP BY d.id`
-		args = append([]any{agentID, path}, tcArgs...)
+		args = []any{agentID, path}
 	} else {
-		tc, tcArgs, err := scopeClauseAlias(ctx, "d")
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT d.path, d.content, d.hash, d.user_id, d.created_at, d.updated_at,
 				COUNT(c.id) AS chunk_count
 			 FROM memory_documents d
 			 LEFT JOIN memory_chunks c ON c.document_id = d.id
-			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id = ?` + tc + `
+			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id = ?
 			 GROUP BY d.id`
-		args = append([]any{agentID, path, userID}, tcArgs...)
+		args = []any{agentID, path, userID}
 	}
 
 	var detail store.DocumentDetail
@@ -339,27 +294,19 @@ func (s *SQLiteMemoryStore) ListChunks(ctx context.Context, agentID, userID, pat
 	var args []any
 
 	if userID == "" {
-		tc, tcArgs, err := scopeClauseAlias(ctx, "d")
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT c.id, c.start_line, c.end_line, c.text
 			 FROM memory_chunks c
 			 JOIN memory_documents d ON c.document_id = d.id
-			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id IS NULL` + tc + `
+			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id IS NULL
 			 ORDER BY c.start_line`
-		args = append([]any{agentID, path}, tcArgs...)
+		args = []any{agentID, path}
 	} else {
-		tc, tcArgs, err := scopeClauseAlias(ctx, "d")
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT c.id, c.start_line, c.end_line, c.text
 			 FROM memory_chunks c
 			 JOIN memory_documents d ON c.document_id = d.id
-			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id = ?` + tc + `
+			 WHERE d.agent_id = ? AND d.path = ? AND d.user_id = ?
 			 ORDER BY c.start_line`
-		args = append([]any{agentID, path, userID}, tcArgs...)
+		args = []any{agentID, path, userID}
 	}
 
 	rows, err := s.db.QueryContext(ctx, q, args...)

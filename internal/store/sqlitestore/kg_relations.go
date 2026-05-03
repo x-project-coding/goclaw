@@ -38,11 +38,9 @@ func (s *SQLiteKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation
 
 func (s *SQLiteKnowledgeGraphStore) DeleteRelation(ctx context.Context, agentID, userID, relationID string) error {
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 	args := append([]any{relationID, agentID}, userArgs...)
-	args = append(args, scArgs...)
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM kg_relations WHERE id = ? AND agent_id = ?`+userClause+sc,
+		`DELETE FROM kg_relations WHERE id = ? AND agent_id = ?`+userClause,
 		args...,
 	)
 	return err
@@ -50,17 +48,15 @@ func (s *SQLiteKnowledgeGraphStore) DeleteRelation(ctx context.Context, agentID,
 
 func (s *SQLiteKnowledgeGraphStore) ListRelations(ctx context.Context, agentID, userID, entityID string) ([]store.Relation, error) {
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 
 	args := append([]any{agentID, entityID, entityID}, userArgs...)
-	args = append(args, scArgs...)
 
 	q := `SELECT id, agent_id, user_id, source_entity_id, relation_type, target_entity_id,
 		         confidence, properties, created_at
 		  FROM kg_relations
 		  WHERE agent_id = ? AND valid_until IS NULL
 		    AND (source_entity_id = ? OR target_entity_id = ?)` +
-		userClause + sc + `
+		userClause + `
 		  ORDER BY created_at DESC`
 
 	rows, err := s.db.QueryContext(ctx, q, args...)
@@ -77,17 +73,12 @@ func (s *SQLiteKnowledgeGraphStore) ListAllRelations(ctx context.Context, agentI
 	}
 
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 
 	where := "agent_id = ? AND valid_until IS NULL"
 	args := []any{agentID}
 	if userClause != "" {
 		where += userClause
 		args = append(args, userArgs...)
-	}
-	if sc != "" {
-		where += sc
-		args = append(args, scArgs...)
 	}
 	args = append(args, limit)
 

@@ -102,12 +102,10 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 // PruneByConfidence deletes entities with confidence below minConfidence.
 func (s *SQLiteKnowledgeGraphStore) PruneByConfidence(ctx context.Context, agentID, userID string, minConfidence float64) (int, error) {
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 	args := append([]any{agentID, minConfidence}, userArgs...)
-	args = append(args, scArgs...)
 
 	res, err := s.db.ExecContext(ctx,
-		`DELETE FROM kg_entities WHERE agent_id = ? AND confidence < ?`+userClause+sc,
+		`DELETE FROM kg_entities WHERE agent_id = ? AND confidence < ?`+userClause,
 		args...,
 	)
 	if err != nil {
@@ -131,16 +129,14 @@ func (s *SQLiteKnowledgeGraphStore) DedupAfterExtraction(ctx context.Context, ag
 	}
 
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 	poolArgs := append([]any{agentID}, userArgs...)
-	poolArgs = append(poolArgs, scArgs...)
 	poolArgs = append(poolArgs, kgDedupEntityCap+1)
 
 	poolRows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, user_id, external_id, name, entity_type, description,
 		        properties, source_id, confidence, created_at, updated_at
 		 FROM kg_entities
-		 WHERE agent_id = ? AND valid_until IS NULL`+userClause+sc+`
+		 WHERE agent_id = ? AND valid_until IS NULL`+userClause+`
 		 ORDER BY updated_at DESC LIMIT ?`,
 		poolArgs...,
 	)
@@ -218,13 +214,11 @@ func (s *SQLiteKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID,
 	}
 
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 	typeArgs := append([]any{agentID}, userArgs...)
-	typeArgs = append(typeArgs, scArgs...)
 
 	typeRows, err := s.db.QueryContext(ctx,
 		`SELECT DISTINCT entity_type FROM kg_entities
-		 WHERE agent_id = ? AND valid_until IS NULL`+userClause+sc,
+		 WHERE agent_id = ? AND valid_until IS NULL`+userClause,
 		typeArgs...,
 	)
 	if err != nil {
@@ -242,14 +236,13 @@ func (s *SQLiteKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID,
 	found := 0
 	for _, entityType := range entityTypes {
 		typeEntityArgs := append([]any{agentID, entityType}, userArgs...)
-		typeEntityArgs = append(typeEntityArgs, scArgs...)
 		typeEntityArgs = append(typeEntityArgs, kgDedupEntityCap+1)
 
 		eRows, err := s.db.QueryContext(ctx,
 			`SELECT id, agent_id, user_id, external_id, name, entity_type, description,
 			        properties, source_id, confidence, created_at, updated_at
 			 FROM kg_entities
-			 WHERE agent_id = ? AND entity_type = ? AND valid_until IS NULL`+userClause+sc+`
+			 WHERE agent_id = ? AND entity_type = ? AND valid_until IS NULL`+userClause+`
 			 ORDER BY updated_at DESC LIMIT ?`,
 			typeEntityArgs...,
 		)
@@ -295,17 +288,12 @@ func (s *SQLiteKnowledgeGraphStore) ListDedupCandidates(ctx context.Context, age
 	}
 
 	userClause, userArgs := kgUserClauseFor(ctx, userID)
-	sc, scArgs, _ := scopeClause(ctx)
 
 	where := "c.agent_id = ? AND c.status = 'pending'"
 	args := []any{agentID}
 	if userClause != "" {
 		where += strings.ReplaceAll(userClause, " user_id", " c.user_id")
 		args = append(args, userArgs...)
-	}
-	if sc != "" {
-		where += sc
-		args = append(args, scArgs...)
 	}
 	args = append(args, limit)
 

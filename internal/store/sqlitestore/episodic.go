@@ -247,8 +247,7 @@ func (s *SQLiteEpisodicStore) CountUnpromoted(ctx context.Context, agentID, user
 }
 
 // scanSQLiteEpisodic scans a single row into EpisodicSummary. Column order
-// matches the SELECT lists in Get / List / ListUnpromoted* (16 columns,
-// tenant_id dropped from schema in v4 single-tenant).
+// matches the SELECT lists in Get / List / ListUnpromoted* (16 columns).
 func scanSQLiteEpisodic(row *sql.Row) (*store.EpisodicSummary, error) {
 	var ep store.EpisodicSummary
 	var idStr, agentStr string
