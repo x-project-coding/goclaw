@@ -787,7 +787,7 @@ CREATE TABLE IF NOT EXISTS channel_contacts (
     thread_type      VARCHAR(20),
     metadata         JSONB        DEFAULT '{}',
     merge_audit      JSONB        NOT NULL DEFAULT '{}',
-    merged_id        TEXT,
+    merged_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
     first_seen_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_seen_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

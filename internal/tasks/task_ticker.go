@@ -296,7 +296,6 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 			AgentID:  lead.AgentKey,
 			UserID:   team.CreatedBy,
 			PeerKind: peerKind,
-			TenantID: scope.TenantID,
 			Content:  content,
 		}) {
 			slog.Warn("task_ticker: inbound buffer full, notification dropped",

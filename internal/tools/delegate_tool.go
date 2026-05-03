@@ -288,7 +288,6 @@ func (t *DelegateTool) announceToParent(req DelegateRequest, content string, med
 	if t.msgBus == nil || req.ChatID == "" {
 		return
 	}
-	tenantUUID, _ := uuid.Parse(req.TenantID)
 	meta := map[string]string{
 		"origin_channel":     req.Channel,
 		"origin_peer_kind":   req.PeerKind,
@@ -314,7 +313,6 @@ func (t *DelegateTool) announceToParent(req DelegateRequest, content string, med
 		Content:  content,
 		Media:    media,
 		UserID:   req.UserID,
-		TenantID: tenantUUID,
 		Metadata: meta,
 	})
 }

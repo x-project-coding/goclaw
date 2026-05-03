@@ -214,11 +214,16 @@ const (
 	MsgVoiceMessageFallback      = "channel.voice_message_fallback"    // "[Voice message]" — used when STT unavailable/disabled/timed-out
 
 	// --- Contact merge ---
-	MsgContactIDsRequired  = "error.contact_ids_required"  // "contact_ids is required"
-	MsgMergeTargetRequired = "error.merge_target_required" // "exactly one of tenant_user_id or create_user is required"
-	MsgTenantUserNotFound  = "error.tenant_user_not_found" // "tenant user not found"
-	MsgTenantMismatch      = "error.tenant_mismatch"       // "tenant user does not belong to this tenant"
-	MsgTenantScopeRequired = "error.tenant_scope_required" // "tenant scope is required for this operation"
+	MsgContactIDsRequired       = "error.contact_ids_required"          // "contact_ids is required"
+	MsgMergeTargetRequired      = "error.merge_target_required"         // "target_user_id is required"
+	MsgTenantUserNotFound       = "error.tenant_user_not_found"         // (v3 legacy — retained for backward refs)
+	MsgTenantMismatch           = "error.tenant_mismatch"               // (v3 legacy)
+	MsgTenantScopeRequired      = "error.tenant_scope_required"         // "tenant scope is required for this operation"
+	MsgMergeSourceAlreadyMerged = "error.merge_source_already_merged"   // "source contact already merged — user→user merge forbidden"
+	MsgMergeTargetAlreadyMerged = "error.merge_target_already_merged"   // "target user already merged into another — chained merges forbidden"
+	MsgMergeUserToUserForbidden = "error.merge_user_to_user_forbidden"  // "cannot merge between two authenticated users"
+	MsgMergeAtomicFailed        = "error.merge_atomic_failed"           // "merge transaction failed: %s"
+	MsgMergeTargetUserNotFound  = "error.merge_target_user_not_found"   // "target user not found: %s"
 
 	// --- Auth + Bootstrap (Phase 06) ---
 	MsgBootstrapRequired    = "error.bootstrap_required"     // "gateway not bootstrapped — POST /v1/bootstrap/init first"

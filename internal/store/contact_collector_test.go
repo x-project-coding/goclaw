@@ -67,12 +67,8 @@ func (m *mockContactStore) GetContactByID(_ context.Context, _ uuid.UUID) (*Chan
 func (m *mockContactStore) GetSenderIDsByContactIDs(_ context.Context, _ []uuid.UUID) ([]string, error) {
 	return nil, nil
 }
-func (m *mockContactStore) MergeContacts(_ context.Context, _ []uuid.UUID, _ uuid.UUID) error {
+func (m *mockContactStore) MergeUserAggregate(_ context.Context, _ MergeUserAggregateRequest) error {
 	return nil
-}
-func (m *mockContactStore) UnmergeContacts(_ context.Context, _ []uuid.UUID) error { return nil }
-func (m *mockContactStore) GetContactsByMergedID(_ context.Context, _ uuid.UUID) ([]ChannelContact, error) {
-	return nil, nil
 }
 
 func (m *mockContactStore) upsertCount() int {

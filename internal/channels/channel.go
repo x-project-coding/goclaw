@@ -620,7 +620,6 @@ func (c *BaseChannel) HandleMessage(senderID, chatID, content string, media []st
 		PeerKind: peerKind,
 		UserID:   userID,
 		Metadata: metadata,
-		TenantID: c.tenantID,
 		AgentID:  c.agentID,
 	}
 

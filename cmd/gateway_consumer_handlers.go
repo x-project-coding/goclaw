@@ -109,11 +109,10 @@ func handleSubagentAnnounce(
 	originSenderID := msg.Metadata[tools.MetaOriginSenderID]
 	originRole := msg.Metadata[tools.MetaOriginRole]
 
-	queueKey := fmt.Sprintf("%s:%s", msg.TenantID, sessionKey)
+	queueKey := sessionKey
 	routing := subagentAnnounceRouting{
 		QueueKey:         queueKey,
 		SessionKey:       sessionKey,
-		TenantID:         msg.TenantID,
 		OrigChannel:      origChannel,
 		OrigChannelType:  origChannelType,
 		OrigChatID:       msg.ChatID,

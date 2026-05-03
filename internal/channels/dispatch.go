@@ -97,7 +97,6 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 						ChatID:   msg.ChatID,
 						Content:  formatChannelSendError(err),
 						Metadata: sendErrorMeta(msg.Metadata),
-						TenantID: msg.TenantID,
 					}
 					if err2 := channel.Send(sendCtx, notifyMsg); err2 != nil {
 						slog.Warn("failed to send error notification",

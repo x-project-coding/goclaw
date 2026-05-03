@@ -16,7 +16,9 @@ type MediaFile struct {
 	Filename string `json:"filename,omitempty"`  // original user-provided filename, e.g. "Báo cáo Q4.pdf"; empty → UUID fallback in persistMedia
 }
 
-// InboundMessage represents a message received from a channel (Telegram, Discord, etc.)
+// InboundMessage represents a message received from a channel (Telegram, Discord, etc.).
+// v4: TenantID dropped — UserID is the only scope axis (resolved to UUID at channel
+// boundary via ContactStore.ResolveTenantUserID).
 type InboundMessage struct {
 	Channel      string            `json:"channel"`
 	SenderID     string            `json:"sender_id"`
@@ -25,24 +27,23 @@ type InboundMessage struct {
 	Media        []MediaFile       `json:"media,omitempty"`
 	SessionKey   string            `json:"session_key"`             // deprecated: gateway builds canonical key
 	PeerKind     string            `json:"peer_kind,omitempty"`     // "direct" or "group" (used for session key)
-	TenantID     uuid.UUID         `json:"tenant_id,omitempty"`     // tenant scope from channel instance
 	AgentID      string            `json:"agent_id,omitempty"`      // target agent (for multi-agent routing)
-	UserID       string            `json:"user_id,omitempty"`       // external user ID for per-user scoping (memory, bootstrap)
+	UserID       string            `json:"user_id,omitempty"`       // resolved user UUID string (post-merge) or sender_id (pre-merge)
 	HistoryLimit int               `json:"history_limit,omitempty"` // max turns to keep in context (0=unlimited, from channel config)
 	ToolAllow    []string          `json:"tool_allow,omitempty"`    // per-group tool allow list (nil = no restriction)
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 
 // OutboundMessage represents a message to be sent to a channel.
+// v4: TenantID dropped — TTS voice/config flows via AgentOtherConfig only.
 type OutboundMessage struct {
-	Channel         string            `json:"channel"`
-	ChatID          string            `json:"chat_id"`
-	Content         string            `json:"content"`
-	Media           []MediaAttachment `json:"media,omitempty"`              // optional media attachments
-	Metadata        map[string]string `json:"metadata,omitempty"`           // channel-specific metadata
-	TenantID        uuid.UUID         `json:"tenant_id,omitempty"`          // tenant scope for per-tenant TTS
-	AgentID         uuid.UUID         `json:"agent_id,omitempty"`           // agent scope for per-agent TTS voice override
-	AgentOtherConfig []byte           `json:"agent_other_config,omitempty"` // agent's other_config for TTS voice/model
+	Channel          string            `json:"channel"`
+	ChatID           string            `json:"chat_id"`
+	Content          string            `json:"content"`
+	Media            []MediaAttachment `json:"media,omitempty"`              // optional media attachments
+	Metadata         map[string]string `json:"metadata,omitempty"`           // channel-specific metadata
+	AgentID          uuid.UUID         `json:"agent_id,omitempty"`           // agent scope for per-agent TTS voice override
+	AgentOtherConfig []byte            `json:"agent_other_config,omitempty"` // agent's other_config for TTS voice/model
 }
 
 // MediaAttachment represents a media file to be sent with a message.

@@ -95,7 +95,6 @@ func (t *TeamTasksTool) handleBlockerComment(
 				Content:  escalationMsg,
 				UserID:   store.ActorIDFromContext(ctx), // audit actor (#915)
 				PeerKind: blockerPeerKind,
-				TenantID: store.MasterTenantID,
 				AgentID:  leadAg.AgentKey,
 			}) {
 				slog.Warn("blocker: escalation dropped (bus unavailable or buffer full)",

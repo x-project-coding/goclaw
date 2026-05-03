@@ -142,6 +142,38 @@ func (s *SQLitePairingStore) RevokePairing(ctx context.Context, senderID, channe
 	return nil
 }
 
+// BindUser stamps user_id on an existing paired_devices row. Rejects if the
+// device is already bound to a different user (ErrPairingBoundToDifferentUser).
+// See PG impl for v4 binding semantics — channel manager calls this on first
+// authenticated message resolution.
+func (s *SQLitePairingStore) BindUser(ctx context.Context, senderID, channel string, userID uuid.UUID) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE paired_devices SET user_id = ?
+		   WHERE sender_id = ? AND channel = ?
+		     AND (user_id IS NULL OR user_id = ?)`,
+		userID, senderID, channel, userID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows > 0 {
+		return nil
+	}
+	var existing sql.NullString
+	err = s.db.QueryRowContext(ctx,
+		`SELECT user_id FROM paired_devices WHERE sender_id = ? AND channel = ?`,
+		senderID, channel,
+	).Scan(&existing)
+	if err != nil {
+		return nil // missing row — silent no-op
+	}
+	if existing.Valid && existing.String != "" && existing.String != userID.String() {
+		return store.ErrPairingBoundToDifferentUser
+	}
+	return nil
+}
+
 func (s *SQLitePairingStore) IsPaired(ctx context.Context, senderID, channel string) (bool, error) {
 	var count int64
 	err := s.db.QueryRowContext(ctx,

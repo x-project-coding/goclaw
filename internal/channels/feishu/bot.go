@@ -350,7 +350,6 @@ func (c *Channel) handleMessageEvent(ctx context.Context, event *MessageEvent) {
 		UserID:       userID,
 		AgentID:      targetAgentID,
 		HistoryLimit: c.HistoryLimit(),
-		TenantID:     c.TenantID(),
 		Metadata:     metadata,
 	})
 

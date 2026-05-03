@@ -105,7 +105,6 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 					ChatID:   rc.ChatID,
 					Content:  statusText,
 					Metadata: outMeta,
-					TenantID: rc.TenantID,
 				})
 			}
 		case protocol.ChatEventChunk:
@@ -238,10 +237,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			errStr := extractPayloadString(payload, "error")
 			if friendlyMsg := FormatAgentError(errStr); friendlyMsg != "" {
 				m.bus.PublishOutbound(bus.OutboundMessage{
-					Channel:  rc.ChannelName,
-					ChatID:   rc.ChatID,
-					Content:  friendlyMsg,
-					TenantID: rc.TenantID,
+					Channel: rc.ChannelName,
+					ChatID:  rc.ChatID,
+					Content: friendlyMsg,
 				})
 			}
 		case protocol.AgentEventRunCancelled:
@@ -297,7 +295,6 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			ChatID:   rc.ChatID,
 			Content:  content,
 			Metadata: outMeta,
-			TenantID: rc.TenantID,
 		})
 		return
 	}
@@ -308,10 +305,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		maxAttempts := extractPayloadString(payload, "maxAttempts")
 		retryMsg := fmt.Sprintf("Provider busy, retrying... (%s/%s)", attempt, maxAttempts)
 		m.bus.PublishOutbound(bus.OutboundMessage{
-			Channel:  rc.ChannelName,
-			ChatID:   rc.ChatID,
-			Content:  retryMsg,
-			TenantID: rc.TenantID,
+			Channel: rc.ChannelName,
+			ChatID:  rc.ChatID,
+			Content: retryMsg,
 			Metadata: map[string]string{
 				"placeholder_update": "true",
 			},

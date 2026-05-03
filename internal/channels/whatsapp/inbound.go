@@ -180,7 +180,6 @@ func (c *Channel) handleIncomingMessage(evt *events.Message) {
 		PeerKind: peerKind,
 		UserID:   userID,
 		AgentID:  c.AgentID(),
-		TenantID: c.TenantID(),
 		Metadata: metadata,
 	})
 

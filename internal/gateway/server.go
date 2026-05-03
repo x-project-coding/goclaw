@@ -417,6 +417,13 @@ func (s *Server) SetChannelInstancesHandler(h *httpapi.ChannelInstancesHandler) 
 	s.handlers = append(s.handlers, h)
 }
 
+// SetContactMergeHandler registers the v4 atomic merge-contact endpoint
+// (POST /v1/contacts/merge). This is the only sanctioned merge entry point —
+// see internal/store/pg/merge_aggregate.go for the underlying TX semantics.
+func (s *Server) SetContactMergeHandler(h *httpapi.ContactMergeHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetProvidersHandler sets the provider CRUD handler.
 func (s *Server) SetProvidersHandler(h *httpapi.ProvidersHandler) {
 	s.handlers = append(s.handlers, h)

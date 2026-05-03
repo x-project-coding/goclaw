@@ -96,7 +96,6 @@ func (sm *SubagentManager) runTask(ctx context.Context, task *SubagentTask, call
 				ChatID:   task.OriginChatID,
 				Content:  announceContent,
 				UserID:   task.OriginUserID,
-				TenantID: task.OriginTenantID,
 				Metadata: announceMeta,
 				Media:    task.Media,
 			})

@@ -428,7 +428,6 @@ func (m *TeamsMethods) dispatchTaskToAgent(ctx context.Context, task *store.Team
 		Content:  content,
 		UserID:   userID,
 		AgentID:  ag.AgentKey,
-		TenantID: store.MasterTenantID,
 		Metadata: meta,
 	})
 	slog.Info("teams.tasks.dispatch: sent task to agent",

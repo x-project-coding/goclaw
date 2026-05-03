@@ -655,7 +655,6 @@ func (c *Channel) handleMessage(ctx context.Context, update telego.Update) {
 		AgentID:      targetAgentID,
 		HistoryLimit: c.HistoryLimit(),
 		ToolAllow:    topicCfg.tools,
-		TenantID:     c.TenantID(),
 		Metadata:     metadata,
 	})
 

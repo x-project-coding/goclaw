@@ -768,7 +768,7 @@ CREATE TABLE IF NOT EXISTS channel_contacts (
     thread_type      VARCHAR(20),
     metadata         TEXT         DEFAULT '{}',
     merge_audit      TEXT         NOT NULL DEFAULT '{}',
-    merged_id        TEXT,
+    merged_id        TEXT         REFERENCES users(id) ON DELETE SET NULL,
     first_seen_at    TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     last_seen_at     TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

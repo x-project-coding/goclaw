@@ -122,7 +122,6 @@ func (t *SessionsSendTool) Execute(ctx context.Context, args map[string]any) *Re
 		ChatID:   sessionKey,
 		Content:  message,
 		PeerKind: "direct",
-		TenantID: store.MasterTenantID,
 		Metadata: sendMeta,
 	})
 

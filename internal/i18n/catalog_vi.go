@@ -192,11 +192,16 @@ func init() {
 
 		MsgInvalidRole: "vai trò không hợp lệ: giá trị cho phép là owner, admin, operator, member, viewer",
 
-		MsgContactIDsRequired:  "contact_ids là bắt buộc",
-		MsgMergeTargetRequired: "cần chính xác một trong tenant_user_id hoặc create_user",
-		MsgTenantUserNotFound:  "không tìm thấy tenant user",
-		MsgTenantMismatch:      "tenant user không thuộc tenant này",
-		MsgTenantScopeRequired: "cần xác định tenant để thực hiện thao tác này",
+		MsgContactIDsRequired:       "contact_ids là bắt buộc",
+		MsgMergeTargetRequired:      "target_user_id là bắt buộc",
+		MsgTenantUserNotFound:       "không tìm thấy tenant user",
+		MsgTenantMismatch:           "tenant user không thuộc tenant này",
+		MsgTenantScopeRequired:      "cần xác định tenant để thực hiện thao tác này",
+		MsgMergeSourceAlreadyMerged: "contact nguồn đã được merge — không cho phép merge user→user",
+		MsgMergeTargetAlreadyMerged: "user đích đã được merge vào user khác — không cho phép chained merge",
+		MsgMergeUserToUserForbidden: "không thể merge giữa hai người dùng đã xác thực",
+		MsgMergeAtomicFailed:        "giao dịch merge thất bại: %s",
+		MsgMergeTargetUserNotFound:  "không tìm thấy user đích: %s",
 
 		// TTS / Giọng đọc
 		MsgTtsUnknownModel:       "model tts không hỗ trợ: %s",

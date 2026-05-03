@@ -230,7 +230,6 @@ func (m *TeamToolManager) dispatchTaskToAgent(ctx context.Context, task *store.T
 		ChatID:   teamID.String(),
 		Content:  content.String(),
 		UserID:   originUserID,
-		TenantID: store.MasterTenantID,
 		AgentID:  ag.AgentKey,
 		Metadata: meta,
 	}) {

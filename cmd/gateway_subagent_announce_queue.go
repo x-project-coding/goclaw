@@ -73,7 +73,6 @@ func makeDelegateAnnounceCallback(
 			ChatID:   meta.OriginChatID,
 			Content:  content,
 			UserID:   meta.OriginUserID,
-			TenantID: meta.OriginTenantID,
 			Metadata: batchMeta,
 			Media:    batchMedia,
 		})

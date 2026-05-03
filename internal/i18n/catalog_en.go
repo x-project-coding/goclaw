@@ -192,11 +192,16 @@ func init() {
 
 		MsgInvalidRole: "invalid role: allowed values are owner, admin, operator, member, viewer",
 
-		MsgContactIDsRequired:  "contact_ids is required",
-		MsgMergeTargetRequired: "exactly one of tenant_user_id or create_user is required",
-		MsgTenantUserNotFound:  "tenant user not found",
-		MsgTenantMismatch:      "tenant user does not belong to this tenant",
-		MsgTenantScopeRequired: "tenant scope is required for this operation",
+		MsgContactIDsRequired:       "contact_ids is required",
+		MsgMergeTargetRequired:      "target_user_id is required",
+		MsgTenantUserNotFound:       "tenant user not found",
+		MsgTenantMismatch:           "tenant user does not belong to this tenant",
+		MsgTenantScopeRequired:      "tenant scope is required for this operation",
+		MsgMergeSourceAlreadyMerged: "source contact already merged — user→user merge forbidden",
+		MsgMergeTargetAlreadyMerged: "target user already merged into another — chained merges forbidden",
+		MsgMergeUserToUserForbidden: "cannot merge between two authenticated users",
+		MsgMergeAtomicFailed:        "merge transaction failed: %s",
+		MsgMergeTargetUserNotFound:  "target user not found: %s",
 
 		// TTS / Voices
 		MsgTtsUnknownModel:       "unknown tts model: %s",

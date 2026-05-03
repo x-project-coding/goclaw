@@ -192,11 +192,16 @@ func init() {
 
 		MsgInvalidRole: "无效角色：允许的值为 owner、admin、operator、member、viewer",
 
-		MsgContactIDsRequired:  "contact_ids 为必填项",
-		MsgMergeTargetRequired: "必须提供 tenant_user_id 或 create_user 其中之一",
-		MsgTenantUserNotFound:  "未找到租户用户",
-		MsgTenantMismatch:      "租户用户不属于此租户",
-		MsgTenantScopeRequired: "此操作需要指定租户范围",
+		MsgContactIDsRequired:       "contact_ids 为必填项",
+		MsgMergeTargetRequired:      "target_user_id 为必填项",
+		MsgTenantUserNotFound:       "未找到租户用户",
+		MsgTenantMismatch:           "租户用户不属于此租户",
+		MsgTenantScopeRequired:      "此操作需要指定租户范围",
+		MsgMergeSourceAlreadyMerged: "源联系人已合并 — 禁止 user→user 合并",
+		MsgMergeTargetAlreadyMerged: "目标用户已合并到其他用户 — 禁止链式合并",
+		MsgMergeUserToUserForbidden: "不能在两个已认证用户之间合并",
+		MsgMergeAtomicFailed:        "合并事务失败：%s",
+		MsgMergeTargetUserNotFound:  "未找到目标用户：%s",
 
 		// TTS / 声音
 		MsgTtsUnknownModel:       "未知的 tts 模型：%s",
