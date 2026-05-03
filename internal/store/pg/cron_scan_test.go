@@ -73,35 +73,33 @@ func (m *mockRowScanner) Scan(dest ...any) error {
 // validCronRow returns mock scanner values for a valid cron job row.
 func validCronRow(payloadJSON []byte) []any {
 	id := uuid.New()
-	tenantID := uuid.New()
 	now := time.Now()
 	expr := "*/5 * * * *"
 	tz := "UTC"
 	return []any{
-		id,                  // id
-		tenantID,            // tenant_id
-		(*uuid.UUID)(nil),   // agent_id
-		(*string)(nil),      // user_id
-		"test-job",          // name
-		true,                // enabled
-		"cron",              // schedule_kind
-		&expr,               // cron_expression
-		(*time.Time)(nil),   // run_at
-		&tz,                 // timezone
-		(*int64)(nil),       // interval_ms
-		payloadJSON,         // payload
-		false,               // delete_after_run
-		false,               // stateless
-		false,               // deliver
-		"",                  // deliver_channel
-		"",                  // deliver_to
-		false,               // wake_heartbeat
-		(*time.Time)(nil),   // next_run_at
-		(*time.Time)(nil),   // last_run_at
-		(*string)(nil),      // last_status
-		(*string)(nil),      // last_error
-		now,                 // created_at
-		now,                 // updated_at
+		id,                // id
+		(*uuid.UUID)(nil), // agent_id
+		(*string)(nil),    // user_id
+		"test-job",        // name
+		true,              // enabled
+		"cron",            // schedule_kind
+		&expr,             // cron_expression
+		(*time.Time)(nil), // run_at
+		&tz,               // timezone
+		(*int64)(nil),     // interval_ms
+		payloadJSON,       // payload
+		false,             // delete_after_run
+		false,             // stateless
+		false,             // deliver
+		"",                // deliver_channel
+		"",                // deliver_to
+		false,             // wake_heartbeat
+		(*time.Time)(nil), // next_run_at
+		(*time.Time)(nil), // last_run_at
+		(*string)(nil),    // last_status
+		(*string)(nil),    // last_error
+		now,               // created_at
+		now,               // updated_at
 	}
 }
 
