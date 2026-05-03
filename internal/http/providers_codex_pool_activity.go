@@ -83,7 +83,7 @@ func (h *ProvidersHandler) handleProviderCodexPoolActivity(w http.ResponseWriter
 	}
 	statsLimit := maxInt(limit, codexPoolRuntimeHealthSampleSize)
 
-	rawSpans, err := h.tracingStore.ListCodexPoolSpansByProviders(r.Context(), provider.TenantID, poolProviders, statsLimit)
+	rawSpans, err := h.tracingStore.ListCodexPoolSpansByProviders(r.Context(), poolProviders, statsLimit)
 	if err != nil {
 		slog.Error("providers.codex_pool_activity", "provider", provider.Name, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToList, "pool activity")})

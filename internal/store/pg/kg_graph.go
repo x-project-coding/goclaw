@@ -28,12 +28,10 @@ func (s *PGKGGraphStore) ListKGGraphNodes(ctx context.Context, agentID, userID s
 		limit = 10000
 	}
 
-	tid := store.TenantIDFromContext(ctx)
-
 	q := `SELECT id, name, entity_type, confidence
-		FROM kg_entities WHERE agent_id = $1 AND tenant_id = $2 AND valid_until IS NULL`
-	args := []any{aid, tid}
-	p := 3
+		FROM kg_entities WHERE agent_id = $1 AND valid_until IS NULL`
+	args := []any{aid}
+	p := 2
 
 	if !store.IsSharedKG(ctx) && userID != "" {
 		q += fmt.Sprintf(" AND user_id = $%d", p)
@@ -75,12 +73,10 @@ func (s *PGKGGraphStore) ListKGGraphEdges(ctx context.Context, agentID, userID s
 		limit = 30000
 	}
 
-	tid := store.TenantIDFromContext(ctx)
-
 	q := `SELECT id, source_entity_id, target_entity_id, relation_type
-		FROM kg_relations WHERE agent_id = $1 AND tenant_id = $2 AND valid_until IS NULL`
-	args := []any{aid, tid}
-	p := 3
+		FROM kg_relations WHERE agent_id = $1 AND valid_until IS NULL`
+	args := []any{aid}
+	p := 2
 
 	if !store.IsSharedKG(ctx) && userID != "" {
 		q += fmt.Sprintf(" AND user_id = $%d", p)

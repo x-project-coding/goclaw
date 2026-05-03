@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
-
-// tenantFromCtx extracts tenant_id from context, returns uuid.Nil if not set.
-func tenantFromCtx(ctx context.Context) uuid.UUID { return store.TenantIDFromContext(ctx) }
 
 // episodicScored holds a search result with its individual score.
 type episodicScored struct {
@@ -24,7 +20,7 @@ type episodicScored struct {
 }
 
 // ftsSearch performs full-text search on episodic summaries.
-// Uses the stored search_vector column (GIN-indexed, 'english' config from migration 040).
+// Uses the stored search_vector column (GIN-indexed, 'english' config).
 // When userID is empty, returns results across all users (admin view).
 func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID string, limit int) []episodicScored {
 	q := `SELECT id, session_key, l0_abstract,
@@ -40,9 +36,6 @@ func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID 
 		args = append(args, userID)
 		p++
 	}
-	q += fmt.Sprintf(" AND tenant_id = $%d", p)
-	args = append(args, tenantFromCtx(ctx))
-	p++
 	q += fmt.Sprintf(" ORDER BY score DESC LIMIT $%d", p)
 	args = append(args, limit)
 
@@ -73,9 +66,6 @@ func (s *PGEpisodicStore) vectorSearch(ctx context.Context, embedding []float32,
 		args = append(args, userID)
 		p++
 	}
-	q += fmt.Sprintf(" AND tenant_id = $%d", p)
-	args = append(args, tenantFromCtx(ctx))
-	p++
 	q += fmt.Sprintf(" ORDER BY embedding <=> $1 LIMIT $%d", p)
 	args = append(args, limit)
 
@@ -110,18 +100,21 @@ func mergeEpisodicScores(fts, vec []episodicScored, textWeight, vecWeight float6
 	return merged
 }
 
-// scanEpisodic scans a single row into EpisodicSummary. Column order matches
-// the SELECT list in PGEpisodicStore.Get (17 columns incl. recall signals).
+// scanEpisodic scans a single row into EpisodicSummary.
+// Column order matches the SELECT list in PGEpisodicStore.Get (16 columns).
 func scanEpisodic(row *sql.Row) (*store.EpisodicSummary, error) {
 	var ep store.EpisodicSummary
 	var topics pq.StringArray
-	err := row.Scan(&ep.ID, &ep.TenantID, &ep.AgentID, &ep.UserID, &ep.SessionKey,
+	var agentID, id string
+	err := row.Scan(&id, &agentID, &ep.UserID, &ep.SessionKey,
 		&ep.Summary, &topics, &ep.TurnCount, &ep.TokenCount,
 		&ep.L0Abstract, &ep.SourceID, &ep.SourceType, &ep.CreatedAt, &ep.ExpiresAt,
 		&ep.RecallCount, &ep.RecallScore, &ep.LastRecalledAt)
 	if err != nil {
 		return nil, err
 	}
+	_ = ep.ID.Scan(id)
+	_ = ep.AgentID.Scan(agentID)
 	ep.KeyTopics = []string(topics)
 	return &ep, nil
 }

@@ -161,11 +161,9 @@ func TestScoredChunkRow_ToScoredChunk(t *testing.T) {
 
 func TestEpisodicSummaryRow_ToEpisodicSummary(t *testing.T) {
 	created := time.Now()
-	tid := uuid.New()
 	agentID := uuid.New()
 	r := episodicSummaryRow{
 		ID:         uuid.New().String(),
-		TenantID:   tid.String(),
 		AgentID:    agentID.String(),
 		UserID:     "u1",
 		SessionKey: "sess-1",

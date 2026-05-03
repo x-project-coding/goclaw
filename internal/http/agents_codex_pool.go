@@ -220,7 +220,7 @@ func (h *AgentsHandler) handleCodexPoolActivity(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	rawSpans, err := h.tracingStore.ListCodexPoolSpans(r.Context(), agent.ID, agent.TenantID, poolProviders, statsLimit)
+	rawSpans, err := h.tracingStore.ListCodexPoolSpans(r.Context(), agent.ID, poolProviders, statsLimit)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

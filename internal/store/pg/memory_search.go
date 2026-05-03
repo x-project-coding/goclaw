@@ -87,48 +87,28 @@ func (s *PGMemoryStore) ftsSearch(ctx context.Context, query string, agentID any
 
 	if store.IsSharedMemory(ctx) {
 		// Shared: no user_id filter — search ALL chunks for agent
-		tc, tcArgs, _, err := scopeClause(ctx, 4)
-		if err != nil {
-			return nil, err
-		}
-		limitN := 4 + len(tcArgs)
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
 			FROM memory_chunks
-			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)%s
-			ORDER BY score DESC LIMIT $%d`, tc, limitN)
-		args = append([]any{query, agentID, query}, tcArgs...)
-		args = append(args, limit)
+			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
+			ORDER BY score DESC LIMIT $4`
+		args = []any{query, agentID, query, limit}
 	} else if userID != "" {
-		// fixed params: $1=query, $2=agentID, $3=query, $4=userID
-		tc, tcArgs, _, err := scopeClause(ctx, 5)
-		if err != nil {
-			return nil, err
-		}
-		limitN := 5 + len(tcArgs)
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
 			FROM memory_chunks
 			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
-			AND (user_id IS NULL OR user_id = $4)%s
-			ORDER BY score DESC LIMIT $%d`, tc, limitN)
-		args = append([]any{query, agentID, query, userID}, tcArgs...)
-		args = append(args, limit)
+			AND (user_id IS NULL OR user_id::text = $4)
+			ORDER BY score DESC LIMIT $5`
+		args = []any{query, agentID, query, userID, limit}
 	} else {
-		// fixed params: $1=query, $2=agentID, $3=query
-		tc, tcArgs, _, err := scopeClause(ctx, 4)
-		if err != nil {
-			return nil, err
-		}
-		limitN := 4 + len(tcArgs)
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
 			FROM memory_chunks
 			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
-			AND user_id IS NULL%s
-			ORDER BY score DESC LIMIT $%d`, tc, limitN)
-		args = append([]any{query, agentID, query}, tcArgs...)
-		args = append(args, limit)
+			AND user_id IS NULL
+			ORDER BY score DESC LIMIT $4`
+		args = []any{query, agentID, query, limit}
 	}
 
 	var rows []scoredChunkRow
@@ -150,51 +130,28 @@ func (s *PGMemoryStore) vectorSearch(ctx context.Context, embedding []float32, a
 
 	if store.IsSharedMemory(ctx) {
 		// Shared: no user_id filter — search ALL chunks for agent
-		tc, tcArgs, _, err := scopeClause(ctx, 3)
-		if err != nil {
-			return nil, err
-		}
-		orderN := 3 + len(tcArgs)
-		limitN := orderN + 1
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				1 - (embedding <=> $1::vector) AS score
 			FROM memory_chunks
-			WHERE agent_id = $2 AND embedding IS NOT NULL%s
-			ORDER BY embedding <=> $%d::vector LIMIT $%d`, tc, orderN, limitN)
-		args = append([]any{vecStr, agentID}, tcArgs...)
-		args = append(args, vecStr, limit)
+			WHERE agent_id = $2 AND embedding IS NOT NULL
+			ORDER BY embedding <=> $3::vector LIMIT $4`
+		args = []any{vecStr, agentID, vecStr, limit}
 	} else if userID != "" {
-		// fixed params: $1=vec, $2=agentID, $3=userID
-		tc, tcArgs, _, err := scopeClause(ctx, 4)
-		if err != nil {
-			return nil, err
-		}
-		orderN := 4 + len(tcArgs)
-		limitN := orderN + 1
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				1 - (embedding <=> $1::vector) AS score
 			FROM memory_chunks
 			WHERE agent_id = $2 AND embedding IS NOT NULL
-			AND (user_id IS NULL OR user_id = $3)%s
-			ORDER BY embedding <=> $%d::vector LIMIT $%d`, tc, orderN, limitN)
-		args = append([]any{vecStr, agentID, userID}, tcArgs...)
-		args = append(args, vecStr, limit)
+			AND (user_id IS NULL OR user_id::text = $3)
+			ORDER BY embedding <=> $4::vector LIMIT $5`
+		args = []any{vecStr, agentID, userID, vecStr, limit}
 	} else {
-		// fixed params: $1=vec, $2=agentID
-		tc, tcArgs, _, err := scopeClause(ctx, 3)
-		if err != nil {
-			return nil, err
-		}
-		orderN := 3 + len(tcArgs)
-		limitN := orderN + 1
-		q = fmt.Sprintf(`SELECT path, start_line, end_line, text, user_id,
+		q = `SELECT path, start_line, end_line, text, user_id,
 				1 - (embedding <=> $1::vector) AS score
 			FROM memory_chunks
 			WHERE agent_id = $2 AND embedding IS NOT NULL
-			AND user_id IS NULL%s
-			ORDER BY embedding <=> $%d::vector LIMIT $%d`, tc, orderN, limitN)
-		args = append([]any{vecStr, agentID}, tcArgs...)
-		args = append(args, vecStr, limit)
+			AND user_id IS NULL
+			ORDER BY embedding <=> $3::vector LIMIT $4`
+		args = []any{vecStr, agentID, vecStr, limit}
 	}
 
 	var rows []scoredChunkRow
