@@ -291,7 +291,7 @@ func (m *Manager) connectAndFilter(ctx context.Context, rs *resolvedServer) erro
 
 	if m.pool != nil && !rs.hasUserCreds {
 		// Pool mode: acquire shared connection, create per-agent BridgeTools
-		tid := store.TenantIDFromContext(ctx)
+		tid := store.MasterTenantID
 		if err := m.connectViaPool(ctx, tid, srv.Name, srv.Transport, srv.Command,
 			rs.args, rs.env, srv.URL, rs.headers, srv.ToolPrefix, srv.TimeoutSec, srv.ID); err != nil {
 			return err

@@ -111,7 +111,7 @@ func (m *mockTraceCollector) FinishTrace(ctx context.Context, traceID uuid.UUID,
 		Status        string
 		ErrMsg        string
 		OutputPreview string
-	}{traceID, store.TenantIDFromContext(ctx), status, errMsg, outputPreview})
+	}{traceID, store.MasterTenantID, status, errMsg, outputPreview})
 }
 
 // LastFinishTrace returns the most recent FinishTrace call, or nil if none.

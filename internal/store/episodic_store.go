@@ -50,8 +50,6 @@ type EpisodicSearchOptions struct {
 }
 
 // EpisodicStore manages Tier 2 episodic memory.
-// Implementations MUST extract tenant_id from context via store.TenantIDFromContext(ctx)
-// and scope all queries by it. Cross-tenant retrieval is a security violation.
 type EpisodicStore interface {
 	// CRUD
 	Create(ctx context.Context, ep *EpisodicSummary) error

@@ -344,7 +344,7 @@ func (h *AgentsHandler) doTeamImport(ctx context.Context, r *http.Request, teamA
 		}
 
 		dedupedKey := h.dedupAgentKey(ctx, agentKey)
-		tenantID := store.TenantIDFromContext(ctx)
+		tenantID := store.MasterTenantID
 		userID := store.UserIDFromContext(ctx)
 		ag := h.buildAgentFromArchive(agArc.agentConfig, dedupedKey, "", tenantID, userID)
 

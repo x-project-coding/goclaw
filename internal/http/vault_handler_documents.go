@@ -11,7 +11,7 @@ import (
 // handleListAllDocuments lists vault documents across all agents in tenant.
 // Optional query param agent_id to filter by specific agent.
 func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.URL.Query().Get("agent_id")
 	opts := h.parseListOpts(r)
 
@@ -44,7 +44,7 @@ func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Req
 
 // handleListDocuments lists vault documents for a specific agent.
 func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.PathValue("agentID")
 	opts := h.parseListOpts(r)
 
@@ -75,7 +75,7 @@ func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Reques
 
 // handleGetDocument returns a single vault document by ID, scoped to the agent.
 func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 
@@ -101,7 +101,7 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 // handleCreateDocument creates a new vault document.
 func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.PathValue("agentID")
 
 	var body struct {
@@ -177,7 +177,7 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 // handleUpdateDocument updates an existing vault document.
 func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 
@@ -240,7 +240,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 
 // handleDeleteDocument deletes a vault document by ID.
 func (h *VaultHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 

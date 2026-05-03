@@ -280,7 +280,7 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func canAutoInstallUploadedSkillDeps(ctx context.Context) bool {
-	return store.IsOwnerRole(ctx) || store.TenantIDFromContext(ctx) == store.MasterTenantID
+	return store.IsOwnerRole(ctx) || store.IsMasterScope(ctx)
 }
 
 func uploadDepErrors(result *skills.InstallResult, installErr error) []string {

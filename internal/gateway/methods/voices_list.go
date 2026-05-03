@@ -55,7 +55,7 @@ func (m *VoicesMethods) FetchVoices(ctx context.Context, tenantID uuid.UUID) ([]
 
 func (m *VoicesMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	locale := store.LocaleFromContext(ctx)
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 
 	voices, err := m.FetchVoices(ctx, tenantID)
 	if err != nil {
@@ -71,7 +71,7 @@ func (m *VoicesMethods) handleList(ctx context.Context, client *gateway.Client, 
 
 func (m *VoicesMethods) handleRefresh(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	locale := store.LocaleFromContext(ctx)
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 
 	m.cache.Invalidate(tenantID)
 

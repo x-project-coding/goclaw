@@ -327,7 +327,7 @@ func (t *ExecTool) Execute(ctx context.Context, args map[string]any) *Result {
 					"binary", c.binary,
 					"wrapper", c.wrapper,
 					"agent_id", store.AgentIDFromContext(ctx),
-					"tenant_id", store.TenantIDFromContext(ctx),
+					"tenant_id", store.MasterTenantID,
 					"command_prefix", truncateCmd(normalizedCommand, 80))
 				return ErrorResult(fmt.Sprintf(
 					"Binary %q requires a secure CLI grant. Ask admin to grant access to this agent.",

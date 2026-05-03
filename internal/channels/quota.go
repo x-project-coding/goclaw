@@ -299,7 +299,7 @@ func QueryTodaySummary(ctx context.Context, db *sql.DB, result *QuotaUsageResult
 // tenantWhereClause returns a SQL fragment " AND tenant_id = $N" with the tenant UUID arg,
 // or empty string if the caller has cross-tenant access. startIdx is the next $N placeholder.
 func tenantWhereClause(ctx context.Context, startIdx int) (string, []any, int) {
-	tid := store.TenantIDFromContext(ctx)
+	tid := store.MasterTenantID
 	if tid == uuid.Nil {
 		// Fail-closed: no tenant = filter to impossible value
 		return " AND tenant_id = '00000000-0000-0000-0000-000000000000'", nil, startIdx

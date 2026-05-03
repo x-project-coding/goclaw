@@ -452,7 +452,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.agents.Update(r.Context(), id, allowed); err != nil {
 		slog.Error("agents.update", "id", id, "user_id", userID,
-			"tenant_id", store.TenantIDFromContext(r.Context()), "error", err)
+			"tenant_id", store.MasterTenantID, "error", err)
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToUpdate, "agent", err.Error()))
 		return
 	}
@@ -470,7 +470,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	if newStatus, ok := allowed["status"].(string); ok && newStatus != ag.Status {
 		if h.msgBus != nil {
 			bus.BroadcastForTenant(h.msgBus, bus.EventAgentStatusChanged,
-				store.TenantIDFromContext(r.Context()),
+				store.MasterTenantID,
 				bus.AgentStatusChangedPayload{
 					AgentID:   id.String(),
 					OldStatus: ag.Status,

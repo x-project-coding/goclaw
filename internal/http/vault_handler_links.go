@@ -21,7 +21,7 @@ func (h *VaultHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 // doSearch is the shared search implementation for both per-agent and tenant-wide endpoints.
 func (h *VaultHandler) doSearch(w http.ResponseWriter, r *http.Request, agentID string) {
 	locale := extractLocale(r)
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 
 	var body struct {
 		Query      string   `json:"query"`
@@ -89,7 +89,7 @@ func (h *VaultHandler) doSearch(w http.ResponseWriter, r *http.Request, agentID 
 
 // handleGetLinks returns outgoing links and backlinks for a vault document.
 func (h *VaultHandler) handleGetLinks(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	_ = r.PathValue("agentID") // agent scoping done at document level
 	docID := r.PathValue("docID")
 
@@ -166,7 +166,7 @@ func (h *VaultHandler) handleGetLinks(w http.ResponseWriter, r *http.Request) {
 // handleCreateLink creates a link between two vault documents.
 func (h *VaultHandler) handleCreateLink(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 
 	var body struct {
 		FromDocID string `json:"from_doc_id"`
@@ -220,7 +220,7 @@ func (h *VaultHandler) handleCreateLink(w http.ResponseWriter, r *http.Request) 
 // handleBatchGetLinks returns all outlinks for a batch of doc IDs in one query.
 func (h *VaultHandler) handleBatchGetLinks(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 
 	var body struct {
 		DocIDs []string `json:"doc_ids"`
@@ -250,7 +250,7 @@ func (h *VaultHandler) handleBatchGetLinks(w http.ResponseWriter, r *http.Reques
 
 // handleDeleteLink deletes a vault link.
 func (h *VaultHandler) handleDeleteLink(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	linkID := r.PathValue("linkID")
 
 	if err := h.store.DeleteLink(r.Context(), tenantID.String(), linkID); err != nil {

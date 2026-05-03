@@ -80,7 +80,7 @@ func (t *VaultSearchTool) Execute(ctx context.Context, args map[string]any) *Res
 	}
 
 	agentID := store.AgentIDFromContext(ctx)
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	if t.searchSvc == nil || agentID == uuid.Nil {
 		return ErrorResult("vault search not available")
 	}

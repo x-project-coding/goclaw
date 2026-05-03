@@ -45,7 +45,7 @@ func (h *VoicesHandler) RegisterRoutes(mux *http.ServeMux) {
 // handleList serves GET /v1/voices — returns cached list or fetches live.
 func (h *VoicesHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	locale := store.LocaleFromContext(ctx)
 
 	if voices, ok := h.cache.Get(tenantID); ok {
@@ -79,7 +79,7 @@ func (h *VoicesHandler) handleList(w http.ResponseWriter, r *http.Request) {
 // refetch by invalidating the tenant's cache entry.
 func (h *VoicesHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	locale := store.LocaleFromContext(ctx)
 
 	h.cache.Invalidate(tenantID)

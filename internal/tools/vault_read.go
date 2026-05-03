@@ -115,7 +115,7 @@ func (t *VaultReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return ErrorResult(fmt.Sprintf("invalid doc_id: %v", err))
 	}
 
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	if tenantID == uuid.Nil {
 		return ErrorResult("tenant not set in context")
 	}

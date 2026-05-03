@@ -147,7 +147,7 @@ func (m *HookMethods) handleCreate(ctx context.Context, client *gateway.Client, 
 	}
 	// For tenant/agent scope, fill TenantID from ctx if not provided.
 	if cfg.Scope != hooks.ScopeGlobal && cfg.TenantID == uuid.Nil {
-		cfg.TenantID = store.TenantIDFromContext(ctx)
+		cfg.TenantID = store.MasterTenantID
 	}
 	if cfg.Scope == hooks.ScopeGlobal {
 		cfg.TenantID = hooks.SentinelTenantID
@@ -372,7 +372,7 @@ func (m *HookMethods) handleTest(ctx context.Context, client *gateway.Client, re
 		return
 	}
 	if cfg.Scope != hooks.ScopeGlobal && cfg.TenantID == uuid.Nil {
-		cfg.TenantID = store.TenantIDFromContext(ctx)
+		cfg.TenantID = store.MasterTenantID
 	}
 	if cfg.Scope == hooks.ScopeGlobal {
 		cfg.TenantID = hooks.SentinelTenantID

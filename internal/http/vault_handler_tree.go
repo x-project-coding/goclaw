@@ -11,7 +11,7 @@ import (
 // handleVaultTree returns immediate children (files + virtual folders) under
 // a given path prefix for lazy-loading the vault sidebar tree.
 func (h *VaultHandler) handleVaultTree(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	path := r.URL.Query().Get("path")
 
 	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") {

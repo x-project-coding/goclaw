@@ -107,7 +107,7 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		// else: uuid.Nil stays → system-level key
 	} else {
-		tenantID = store.TenantIDFromContext(r.Context())
+		tenantID = store.MasterTenantID
 	}
 
 	now := time.Now()
@@ -179,7 +179,7 @@ func (h *APIKeysHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	//   - Tenant admin in caller's tenant → may revoke only keys owned by that tenant (strict match)
 	//   - NULL-tenant (system) keys       → revocable only by system owners
 	if !store.IsOwnerRole(ctx) {
-		callerTID := store.TenantIDFromContext(ctx)
+		callerTID := store.MasterTenantID
 		if key.TenantID == uuid.Nil || key.TenantID != callerTID {
 			slog.Warn("security.api_key_revoke_forbidden",
 				"key_id", idStr,

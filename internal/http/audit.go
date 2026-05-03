@@ -29,7 +29,7 @@ func emitAudit(msgBus *bus.MessageBus, r *http.Request, action, entityType, enti
 			EntityType: entityType,
 			EntityID:   entityID,
 			IPAddress:  r.RemoteAddr,
-			TenantID:   store.TenantIDFromContext(r.Context()),
+			TenantID:   store.MasterTenantID,
 		},
 	})
 }

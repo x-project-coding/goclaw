@@ -139,13 +139,9 @@ func (r *Router) Get(ctx context.Context, agentID string) (Agent, error) {
 	return nil, fmt.Errorf("agent not found: %s", agentID)
 }
 
-// agentCacheKey builds a tenant-scoped cache key for the agent router.
-func agentCacheKey(ctx context.Context, agentID string) string {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return agentID
-	}
-	return tid.String() + ":" + agentID
+// agentCacheKey returns a cache key for the agent router.
+func agentCacheKey(_ context.Context, agentID string) string {
+	return agentID
 }
 
 // matchAgentCacheKey reports whether a cache key's final segment equals agentKey.
@@ -298,7 +294,7 @@ func (r *Router) RegisterRun(ctx context.Context, runID, sessionKey, agentID str
 		StartedAt:  time.Now(),
 		InjectCh:   injectCh,
 		Done:       make(chan struct{}),
-		TenantID:   store.TenantIDFromContext(ctx),
+		TenantID:   store.MasterTenantID,
 	})
 	r.sessionRuns.Store(sessionKey, runID)
 	return injectCh

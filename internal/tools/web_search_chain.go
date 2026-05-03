@@ -139,17 +139,15 @@ func (w *WebSearchChainOverride) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// resolveChain returns the ordered provider slice for the tenant in ctx.
+// resolveChain returns the ordered provider slice.
 // It checks the TTL cache first; on miss it calls buildChainFromStorage.
 func (t *WebSearchTool) resolveChain(ctx context.Context) []SearchProvider {
-	tid := store.TenantIDFromContext(ctx) // uuid.Nil OK → master fallback via secretsStore
-
-	if chain, ok := t.chainCache.Get(tid); ok {
+	if chain, ok := t.chainCache.Get(store.MasterTenantID); ok {
 		return chain
 	}
 
 	chain := BuildChainFromStorage(ctx, t.secrets)
-	t.chainCache.Set(tid, chain)
+	t.chainCache.Set(store.MasterTenantID, chain)
 	return chain
 }
 

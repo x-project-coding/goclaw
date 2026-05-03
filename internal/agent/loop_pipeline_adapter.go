@@ -275,7 +275,7 @@ func (l *Loop) makeAutoInjectCallback(req *RunRequest) func(ctx context.Context,
 		result, err := l.autoInjector.Inject(ctx, memory.InjectParams{
 			AgentID:       l.agentUUID.String(),
 			UserID:        store.MemoryUserID(ctx),
-			TenantID:      store.TenantIDFromContext(ctx).String(),
+			TenantID:      store.MasterTenantID.String(),
 			UserMessage:   userMessage,
 			RecentContext: recentContext,
 		})

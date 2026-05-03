@@ -409,9 +409,8 @@ func (m *AgentLinksMethods) invalidateLinkAgentsByID(ctx context.Context, source
 // --- helpers ---
 
 // resolveAgentUUID resolves an agent identifier (either UUID or agent_key) to
-// its canonical UUID via a DB lookup. Tenant-aware via
-// store.TenantIDFromContext(ctx) inside agentStore.GetByID/GetByKey. Prefer
-// resolveAgentUUIDCached in hot-path handlers to avoid the extra DB roundtrip.
+// its canonical UUID via a DB lookup. Prefer resolveAgentUUIDCached in
+// hot-path handlers to avoid the extra DB roundtrip.
 // See docs/agent-identity-conventions.md.
 func resolveAgentUUID(ctx context.Context, agentStore store.AgentStore, keyOrID string) (uuid.UUID, error) {
 	if id, err := uuid.Parse(keyOrID); err == nil {

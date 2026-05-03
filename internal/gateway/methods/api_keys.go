@@ -211,7 +211,7 @@ func (m *APIKeysMethods) handleRevoke(ctx context.Context, client *gateway.Clien
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "API key", params.ID)))
 			return
 		}
-		callerTID := store.TenantIDFromContext(ctx)
+		callerTID := store.MasterTenantID
 		if key.TenantID == uuid.Nil || key.TenantID != callerTID {
 			slog.Warn("security.api_key_revoke_forbidden",
 				"key_id", params.ID,

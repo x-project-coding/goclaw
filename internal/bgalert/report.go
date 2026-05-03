@@ -86,7 +86,7 @@ func ReportProviderError(ctx context.Context, deps AlertDeps, workerName string,
 		"worker", workerName, "reason", reason, "err", err)
 
 	if deps.MsgBus != nil {
-		tenantID := store.TenantIDFromContext(ctx)
+		tenantID := store.MasterTenantID
 		deps.MsgBus.Broadcast(bus.Event{
 			Name:     protocol.EventBackgroundError,
 			TenantID: tenantID,

@@ -141,11 +141,10 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 
 	chatID := ToolChatIDFromCtx(ctx)
 
-	// Compute team workspace via layered pipeline: tenant → team → user/chat.
+	// Compute team workspace via layered pipeline: team → user/chat.
 	shared := IsSharedWorkspace(team.Settings)
 	taskMeta := make(map[string]any)
 	teamWsDir := ResolveWorkspace(t.manager.DataDir(),
-		TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
 		TeamLayer(team.ID),
 		UserChatLayer(chatID, shared),
 	)

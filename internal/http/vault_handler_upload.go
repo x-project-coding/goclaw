@@ -28,7 +28,7 @@ var allowedUploadExts = map[string]bool{
 // Files are written to the tenant workspace in the appropriate subfolder based on agent/team selection,
 // then UpsertDocument + EventVaultDocUpserted triggers the existing enrichment pipeline.
 func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
+	tenantID := store.MasterTenantID
 	tenantIDStr := tenantID.String()
 
 	// 32 MB in-memory; remainder spills to disk.

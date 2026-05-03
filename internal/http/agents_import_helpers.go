@@ -181,13 +181,9 @@ func rawOrNil(raw json.RawMessage) json.RawMessage {
 	return raw
 }
 
-// importTenantID returns the tenant UUID from context, falling back to MasterTenantID.
-func importTenantID(ctx context.Context) uuid.UUID {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return store.MasterTenantID
-	}
-	return tid
+// importTenantID returns MasterTenantID (v4 single-tenant).
+func importTenantID(_ context.Context) uuid.UUID {
+	return store.MasterTenantID
 }
 
 // nullJSON returns nil if raw is empty (for JSONB nullable columns), otherwise returns raw.

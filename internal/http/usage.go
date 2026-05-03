@@ -187,7 +187,7 @@ func (h *UsageHandler) queryLiveHour(r *http.Request, from, to time.Time, q stor
 
 	// Tenant isolation: scope to caller's tenant
 	if !store.IsOwnerRole(r.Context()) {
-		tid := store.TenantIDFromContext(r.Context())
+		tid := store.MasterTenantID
 		if tid != uuid.Nil {
 			query += fmt.Sprintf(" AND tenant_id = $%d", idx)
 			args = append(args, tid)

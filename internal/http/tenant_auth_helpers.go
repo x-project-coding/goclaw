@@ -22,7 +22,7 @@ func requireMasterScope(w http.ResponseWriter, r *http.Request) bool {
 	slog.Warn("security.tenant_scope_violation",
 		"path", r.URL.Path,
 		"method", r.Method,
-		"tenant_id", store.TenantIDFromContext(ctx),
+		"tenant_id", store.MasterTenantID,
 		"user_id", store.UserIDFromContext(ctx),
 	)
 	locale := store.LocaleFromContext(ctx)

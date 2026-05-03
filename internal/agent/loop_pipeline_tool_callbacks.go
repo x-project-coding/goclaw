@@ -196,7 +196,6 @@ func (l *Loop) recordToolMetric(ctx context.Context, sessionKey, toolName string
 	if l.evolutionMetricsStore == nil {
 		return
 	}
-	tenantID := store.TenantIDFromContext(ctx)
 	go func() {
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -206,7 +205,7 @@ func (l *Loop) recordToolMetric(ctx context.Context, sessionKey, toolName string
 		})
 		if err := l.evolutionMetricsStore.RecordMetric(bgCtx, store.EvolutionMetric{
 			ID:         uuid.New(),
-			TenantID:   tenantID,
+			TenantID:   store.MasterTenantID,
 			AgentID:    l.agentUUID,
 			SessionKey: sessionKey,
 			MetricType: store.MetricTool,

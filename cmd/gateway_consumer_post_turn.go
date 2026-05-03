@@ -135,7 +135,7 @@ func resolveTeamTaskOutcome(
 		if err := deps.TeamStore.FailTask(ctx, meta.TaskID, meta.TeamID, outcome.Err.Error()); err != nil {
 			slog.Warn("auto-complete: FailTask error", "task_id", meta.TaskID, "error", err)
 		} else {
-			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskFailed, store.TenantIDFromContext(ctx), tools.BuildTaskEventPayload(
+			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskFailed, store.MasterTenantID, tools.BuildTaskEventPayload(
 				meta.TeamID.String(), meta.TaskID.String(),
 				store.TeamTaskStatusFailed,
 				"agent", toAgent,
@@ -170,7 +170,7 @@ func resolveTeamTaskOutcome(
 		if err := deps.TeamStore.FailTask(ctx, meta.TaskID, meta.TeamID, failMsg); err != nil {
 			slog.Warn("auto-fail: FailTask error (loop kill)", "task_id", meta.TaskID, "error", err)
 		} else {
-			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskFailed, store.TenantIDFromContext(ctx), tools.BuildTaskEventPayload(
+			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskFailed, store.MasterTenantID, tools.BuildTaskEventPayload(
 				meta.TeamID.String(), meta.TaskID.String(),
 				store.TeamTaskStatusFailed,
 				"system", "loop_detector",
@@ -205,7 +205,7 @@ func resolveTeamTaskOutcome(
 		if err := deps.TeamStore.CompleteTask(ctx, meta.TaskID, meta.TeamID, result); err != nil {
 			slog.Warn("auto-complete: CompleteTask error", "task_id", meta.TaskID, "error", err)
 		} else {
-			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskCompleted, store.TenantIDFromContext(ctx), tools.BuildTaskEventPayload(
+			bus.BroadcastForTenant(deps.MsgBus, protocol.EventTeamTaskCompleted, store.MasterTenantID, tools.BuildTaskEventPayload(
 				meta.TeamID.String(), meta.TaskID.String(),
 				store.TeamTaskStatusCompleted,
 				"agent", toAgent,

@@ -67,7 +67,7 @@ type ttsProviderConfigResponse struct {
 // handleGet returns TTS config for the current tenant.
 func (h *TTSConfigHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tid := store.TenantIDFromContext(ctx)
+	tid := store.MasterTenantID
 	if tid == uuid.Nil {
 		http.Error(w, `{"error":"tenant context required"}`, http.StatusBadRequest)
 		return
@@ -232,7 +232,7 @@ type ttsProviderSaveRequest struct {
 // handleSave saves TTS config for the current tenant.
 func (h *TTSConfigHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tid := store.TenantIDFromContext(ctx)
+	tid := store.MasterTenantID
 	if tid == uuid.Nil {
 		http.Error(w, `{"error":"tenant context required"}`, http.StatusBadRequest)
 		return

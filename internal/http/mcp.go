@@ -279,7 +279,7 @@ func (h *MCPHandler) handleUpdateServer(w http.ResponseWriter, r *http.Request) 
 		_, hasHeaders := updates["headers"]
 		_, hasEnv := updates["env"]
 		if hasKey || hasHeaders || hasEnv {
-			tid := store.TenantIDFromContext(r.Context())
+			tid := store.MasterTenantID
 			h.poolEvictor.Evict(tid, serverName)
 		}
 	}
@@ -323,7 +323,7 @@ func (h *MCPHandler) handleReconnectServer(w http.ResponseWriter, r *http.Reques
 	}
 
 	if h.poolEvictor != nil {
-		tid := store.TenantIDFromContext(r.Context())
+		tid := store.MasterTenantID
 		h.poolEvictor.Evict(tid, srv.Name)
 	}
 

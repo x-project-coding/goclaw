@@ -195,7 +195,7 @@ func (t *MemorySearchTool) recordEpisodicRecall(ctx context.Context, episodic []
 	if t.episodicStore == nil || len(episodic) == 0 {
 		return
 	}
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	if tenantID == uuid.Nil {
 		return
 	}
@@ -226,7 +226,7 @@ func (t *MemorySearchTool) recordRetrievalMetric(ctx context.Context, resultCoun
 	if t.metricsStore == nil {
 		return
 	}
-	tenantID := store.TenantIDFromContext(ctx)
+	tenantID := store.MasterTenantID
 	if tenantID == uuid.Nil {
 		return
 	}

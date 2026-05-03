@@ -36,12 +36,8 @@ func newFakeSecretsStore() *fakeSecretsStore {
 	return &fakeSecretsStore{data: make(map[uuid.UUID]map[string]string)}
 }
 
-func (f *fakeSecretsStore) Get(ctx context.Context, key string) (string, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	m, ok := f.data[tid]
+func (f *fakeSecretsStore) Get(_ context.Context, key string) (string, error) {
+	m, ok := f.data[store.MasterTenantID]
 	if !ok {
 		return "", sql.ErrNoRows
 	}
@@ -52,36 +48,24 @@ func (f *fakeSecretsStore) Get(ctx context.Context, key string) (string, error) 
 	return v, nil
 }
 
-func (f *fakeSecretsStore) Set(ctx context.Context, key, value string) error {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
+func (f *fakeSecretsStore) Set(_ context.Context, key, value string) error {
+	if _, ok := f.data[store.MasterTenantID]; !ok {
+		f.data[store.MasterTenantID] = make(map[string]string)
 	}
-	if _, ok := f.data[tid]; !ok {
-		f.data[tid] = make(map[string]string)
-	}
-	f.data[tid][key] = value
+	f.data[store.MasterTenantID][key] = value
 	return nil
 }
 
-func (f *fakeSecretsStore) Delete(ctx context.Context, key string) error {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	m, ok := f.data[tid]
+func (f *fakeSecretsStore) Delete(_ context.Context, key string) error {
+	m, ok := f.data[store.MasterTenantID]
 	if ok {
 		delete(m, key)
 	}
 	return nil
 }
 
-func (f *fakeSecretsStore) GetAll(ctx context.Context) (map[string]string, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	m, ok := f.data[tid]
+func (f *fakeSecretsStore) GetAll(_ context.Context) (map[string]string, error) {
+	m, ok := f.data[store.MasterTenantID]
 	if !ok {
 		return make(map[string]string), nil
 	}

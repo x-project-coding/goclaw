@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -236,9 +234,7 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		chatReq.Options[providers.OptPeerKind] = req.PeerKind
 		chatReq.Options[providers.OptLocalKey] = req.LocalKey
 		chatReq.Options[providers.OptWorkspace] = tools.ToolWorkspaceFromCtx(ctx)
-		if tid := store.TenantIDFromContext(ctx); tid != uuid.Nil {
-			chatReq.Options[providers.OptTenantID] = tid.String()
-		}
+		chatReq.Options[providers.OptTenantID] = store.MasterTenantID.String()
 
 		// Reasoning decision: resolve effort level for thinking models (o3, DeepSeek-R1, Kimi).
 		reasoningDecision := providers.ResolveReasoningDecision(

@@ -99,8 +99,8 @@ type SecureCLIStore interface {
 	// (is_global = false). Used by the shell exec gate to hard-deny
 	// execution of credentialed binaries when the calling agent has no
 	// grant. is_global = true binaries are open to all agents and MUST
-	// NOT be reported as gate-needing. Tenant-scoped unless IsCrossTenant(ctx).
-	// Returns (false, nil) when name is empty or tenant context is missing.
+	// NOT be reported as gate-needing.
+	// Returns (false, nil) when name is empty.
 	IsRegisteredBinary(ctx context.Context, binaryName string) (bool, error)
 
 	// --- Per-user credential management ---

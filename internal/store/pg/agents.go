@@ -157,8 +157,7 @@ func agentOwnerFilter(ctx context.Context, startIdx int) (clause string, args []
 	return fmt.Sprintf(" AND owner_user_id = $%d", startIdx), []any{uid}, nil
 }
 
-// isAgentAdminScope reports whether the caller's role bypasses owner_user_id
-// scoping. Replaces the old IsCrossTenant bypass once tenants are gone.
+// isAgentAdminScope reports whether the caller's role bypasses owner_user_id scoping.
 func isAgentAdminScope(ctx context.Context) bool {
 	switch store.RoleFromContext(ctx) {
 	case "owner", "root", "admin":

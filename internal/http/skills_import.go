@@ -59,7 +59,7 @@ func (h *SkillsHandler) handleSkillsImport(w http.ResponseWriter, r *http.Reques
 		// tenant's cached agents so they pick up the new skill set. If
 		// imported under master, tid is the master tenant UUID, which
 		// still yields a correct per-tenant router wipe.
-		h.emitCacheInvalidate(bus.CacheKindSkills, "", store.TenantIDFromContext(r.Context()))
+		h.emitCacheInvalidate(bus.CacheKindSkills, "", store.MasterTenantID)
 		sendSSE(w, flusher, "complete", summary)
 		return
 	}
@@ -70,7 +70,7 @@ func (h *SkillsHandler) handleSkillsImport(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgInternalError, err.Error())})
 		return
 	}
-	h.emitCacheInvalidate(bus.CacheKindSkills, "", store.TenantIDFromContext(r.Context()))
+	h.emitCacheInvalidate(bus.CacheKindSkills, "", store.MasterTenantID)
 	writeJSON(w, http.StatusCreated, summary)
 }
 

@@ -23,10 +23,8 @@ import (
 //   - trace id         (tracing.TraceIDFromContext)
 //   - parent span id   (tracing.ParentSpanIDFromContext, omitted when nil)
 //   - team id          (tracing.TraceTeamIDPtrFromContext)
-//   - tenant id        (store.TenantIDFromContext)
 //
-// No-op when ctx has no collector attached — safe in tests and for tenants
-// without tracing enabled.
+// No-op when ctx has no collector attached.
 func EmitHookSpan(
 	ctx context.Context,
 	event HookEvent,
@@ -66,7 +64,7 @@ func EmitHookSpan(
 		Error:      errMsg,
 		Metadata:   metadata,
 		TeamID:     tracing.TraceTeamIDPtrFromContext(ctx),
-		TenantID:   store.TenantIDFromContext(ctx),
+		TenantID:   store.MasterTenantID,
 		CreatedAt:  end,
 	}
 

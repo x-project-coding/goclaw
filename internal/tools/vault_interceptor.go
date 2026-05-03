@@ -64,7 +64,7 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := store.TenantIDFromContext(ctx).String()
+	tenantID := store.MasterTenantID.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	nilUUID := "00000000-0000-0000-0000-000000000000"
 	if tenantID == nilUUID || agentID == nilUUID {
@@ -144,7 +144,7 @@ func (v *VaultInterceptor) AfterWriteMedia(ctx context.Context, resolvedPath, su
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := store.TenantIDFromContext(ctx).String()
+	tenantID := store.MasterTenantID.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	nilUUID := "00000000-0000-0000-0000-000000000000"
 	if tenantID == nilUUID || agentID == nilUUID {
@@ -227,7 +227,7 @@ func (v *VaultInterceptor) BeforeRead(ctx context.Context, resolvedPath string) 
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := store.TenantIDFromContext(ctx).String()
+	tenantID := store.MasterTenantID.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	nilUUID := "00000000-0000-0000-0000-000000000000"
 	if tenantID == nilUUID || agentID == nilUUID {

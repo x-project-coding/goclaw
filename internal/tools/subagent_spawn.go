@@ -41,11 +41,10 @@ func (sm *SubagentManager) Spawn(
 		return "", fmt.Errorf("spawn depth limit reached (%d/%d)", depth, cfg.MaxSpawnDepth)
 	}
 
-	// Check concurrent limit (scoped per tenant for isolation).
-	tenantID := store.TenantIDFromContext(ctx)
+	// Check concurrent limit.
 	running := 0
 	for _, t := range sm.tasks {
-		if t.Status == TaskStatusRunning && t.OriginTenantID == tenantID {
+		if t.Status == TaskStatusRunning {
 			running++
 		}
 	}
@@ -87,7 +86,7 @@ func (sm *SubagentManager) Spawn(
 		OriginSenderID:    store.SenderIDFromContext(ctx),
 		OriginRole:        store.RoleFromContext(ctx),
 		OriginSessionKey:  ToolSessionKeyFromCtx(ctx),
-		OriginTenantID:    store.TenantIDFromContext(ctx),
+		OriginTenantID:    store.MasterTenantID,
 		OriginTraceID:     tracing.TraceIDFromContext(ctx),
 		OriginRootSpanID:  tracing.ParentSpanIDFromContext(ctx),
 		CreatedAt:         time.Now().UnixMilli(),
@@ -166,7 +165,7 @@ func (sm *SubagentManager) RunSync(
 		OriginSenderID:   store.SenderIDFromContext(ctx),
 		OriginRole:       store.RoleFromContext(ctx),
 		OriginSessionKey: ToolSessionKeyFromCtx(ctx),
-		OriginTenantID:   store.TenantIDFromContext(ctx),
+		OriginTenantID:   store.MasterTenantID,
 		OriginTraceID:    tracing.TraceIDFromContext(ctx),
 		OriginRootSpanID: tracing.ParentSpanIDFromContext(ctx),
 		CreatedAt:        time.Now().UnixMilli(),

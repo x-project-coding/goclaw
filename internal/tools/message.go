@@ -255,18 +255,14 @@ func (t *MessageTool) validateChannelTenant(ctx context.Context, channel, target
 	if !chExists {
 		return ErrorResult(fmt.Sprintf("channel %q not found", channel))
 	}
-	// Allow: legacy/config-based channels (zero tenant) or master tenant context (system ops).
+	// Allow: legacy/config-based channels (zero tenant).
 	if chTenant == uuid.Nil {
 		return nil
 	}
-	ctxTenant := store.TenantIDFromContext(ctx)
-	if ctxTenant == uuid.Nil {
-		return nil // master tenant / system context
-	}
-	if chTenant != ctxTenant {
+	if chTenant != store.MasterTenantID {
 		slog.Warn("security.cross_tenant_send_blocked",
 			"channel", channel, "target", target,
-			"ctx_tenant", ctxTenant, "ch_tenant", chTenant)
+			"ctx_tenant", store.MasterTenantID, "ch_tenant", chTenant)
 		return ErrorResult("channel not accessible from this tenant")
 	}
 	return nil

@@ -188,7 +188,7 @@ func (m *TeamToolManager) notifyLeaderCycleError(ctx context.Context, teamID uui
 		AgentID:  leadAgent.AgentKey,
 		UserID:   team.CreatedBy,
 		PeerKind: ToolPeerKindFromCtx(ctx),
-		TenantID: store.TenantIDFromContext(ctx),
+		TenantID: store.MasterTenantID,
 		Content:  content,
 	})
 }

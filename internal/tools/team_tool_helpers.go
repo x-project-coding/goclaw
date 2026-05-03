@@ -18,7 +18,7 @@ func (m *TeamToolManager) broadcastTeamEvent(ctx context.Context, name string, p
 	if m.msgBus == nil {
 		return
 	}
-	bus.BroadcastForTenant(m.msgBus, name, store.TenantIDFromContext(ctx), payload)
+	bus.BroadcastForTenant(m.msgBus, name, store.MasterTenantID, payload)
 }
 
 func reviewOutboundMessage(task *store.TeamTaskData, content string) bus.OutboundMessage {

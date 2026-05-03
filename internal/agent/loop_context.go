@@ -186,7 +186,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		// so the dispatched agent can still read peer-scoped files in the same team.
 		if teamUUID, err := uuid.Parse(req.TeamID); err == nil && l.dataDir != "" {
 			teamRoot := tools.ResolveWorkspace(l.dataDir,
-				tools.TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
 				tools.TeamLayer(teamUUID),
 			)
 			ctx = tools.WithToolTeamRoot(ctx, teamRoot)
@@ -216,9 +215,8 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 				wsChat = req.UserID
 			}
 			shared := tools.IsSharedWorkspace(team.Settings)
-			// Resolve team workspace via layered pipeline: tenant → team → user/chat.
+			// Resolve team workspace via layered pipeline: team → user/chat.
 			wsDir := tools.ResolveWorkspace(l.dataDir,
-				tools.TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
 				tools.TeamLayer(team.ID),
 				tools.UserChatLayer(wsChat, shared),
 			)
@@ -231,7 +229,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			// the same team. Writes still default to wsDir above; team root only
 			// widens the allowed-prefix set for path boundary checks.
 			teamRoot := tools.ResolveWorkspace(l.dataDir,
-				tools.TenantLayer(store.TenantIDFromContext(ctx), store.TenantSlugFromContext(ctx)),
 				tools.TeamLayer(team.ID),
 			)
 			ctx = tools.WithToolTeamRoot(ctx, teamRoot)
@@ -265,8 +262,8 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			AgentType:  l.agentType,
 			UserID:     req.UserID,
 			ChatID:     req.ChatID,
-			TenantID:   store.TenantIDFromContext(ctx).String(),
-			TenantSlug: store.TenantSlugFromContext(ctx),
+			TenantID:   store.MasterTenantID.String(),
+			TenantSlug: "",
 			PeerKind:   req.PeerKind,
 			TeamID:     teamIDPtr,
 			TeamConfig: teamWSConfig,

@@ -96,7 +96,7 @@ func (s *stubTeamStore) GetTeam(ctx context.Context, id uuid.UUID) (*store.TeamD
 	s.mu.Lock()
 	s.getTeamCalls = append(s.getTeamCalls, getTeamCall{
 		TeamID:   id,
-		TenantID: store.TenantIDFromContext(ctx),
+		TenantID: store.MasterTenantID,
 	})
 	s.mu.Unlock()
 	if s.getTeamFunc != nil {
