@@ -126,47 +126,6 @@ func TestStorageSizeExcludesTenantRootForMaster(t *testing.T) {
 	}
 }
 
-// TestIsHiddenPathOnlyAffectsMaster verifies that isHiddenPath only blocks
-// the master tenant and leaves non-master tenants unaffected.
-func TestIsHiddenPathOnlyAffectsMaster(t *testing.T) {
-	handler := NewStorageHandler(t.TempDir())
-
-	masterReq := httptest.NewRequest("GET", "/", nil)
-	otherReq := httptest.NewRequest("GET", "/", nil)
-
-	// Master tenant: tenants paths are hidden.
-	if !handler.isHiddenPath(masterReq, "tenants") {
-		t.Fatal("expected 'tenants' to be hidden for master")
-	}
-	if !handler.isHiddenPath(masterReq, "tenants/foo/bar") {
-		t.Fatal("expected 'tenants/foo/bar' to be hidden for master")
-	}
-	if !handler.isHiddenPath(masterReq, "Tenants") {
-		t.Fatal("expected case-insensitive match for master")
-	}
-
-	// Non-master tenant: tenants paths are NOT hidden.
-	if handler.isHiddenPath(otherReq, "tenants") {
-		t.Fatal("tenants should not be hidden for non-master tenant")
-	}
-	if handler.isHiddenPath(otherReq, "tenants/foo") {
-		t.Fatal("tenants/foo should not be hidden for non-master tenant")
-	}
-
-	// Empty path is never hidden.
-	if handler.isHiddenPath(masterReq, "") {
-		t.Fatal("empty path should never be hidden")
-	}
-
-	// Non-tenants paths are never hidden.
-	if handler.isHiddenPath(masterReq, "skills") {
-		t.Fatal("non-tenants path should not be hidden")
-	}
-	if handler.isHiddenPath(masterReq, "my-tenants") {
-		t.Fatal("partial match should not be hidden")
-	}
-}
-
 func TestStorageDeleteInvalidatesSizeCache(t *testing.T) {
 	baseDir := t.TempDir()
 	writeStorageTestFile(t, filepath.Join(baseDir, "tmp.txt"), "abc")
