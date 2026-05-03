@@ -6,7 +6,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
-	"github.com/nextlevelbuilder/goclaw/internal/sessions"
+	sessions "github.com/nextlevelbuilder/goclaw/internal/agentsessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 

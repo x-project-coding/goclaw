@@ -25,7 +25,7 @@
 //	agent:default:telegram:group:-100123456:topic:99
 //	agent:default:subagent:my-task
 //	agent:default:cron:reminder-job-id
-package sessions
+package agentsessions
 
 import (
 	"fmt"
