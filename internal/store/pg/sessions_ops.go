@@ -43,11 +43,10 @@ func (s *PGSessionStore) Reset(ctx context.Context, key string) {
 
 	// Session not in cache (e.g. after server restart). Clear directly in DB
 	// so the next GetOrCreate loads a clean session instead of stale history.
-	tid := tenantIDForInsert(ctx)
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE sessions SET messages = '[]', summary = '', updated_at = $1
-		 WHERE session_key = $2 AND tenant_id = $3`,
-		time.Now(), key, tid,
+		`UPDATE agent_sessions SET messages = '[]', summary = '', updated_at = $1
+		 WHERE session_key = $2`,
+		time.Now(), key,
 	); err != nil {
 		slog.Warn("sessions.reset_db_fallback_failed", "key", key, "error", err)
 	}
@@ -63,7 +62,6 @@ func (s *PGSessionStore) Delete(ctx context.Context, key string) error {
 		s.OnDelete(key)
 	}
 
-	tid := tenantIDForInsert(ctx)
-	_, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE session_key = $1 AND tenant_id = $2", key, tid)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM agent_sessions WHERE session_key = $1", key)
 	return err
 }
