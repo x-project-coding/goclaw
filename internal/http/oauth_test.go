@@ -195,7 +195,7 @@ func TestOAuthHandlerAuth(t *testing.T) {
 func TestOAuthHandlerSaveAndRegisterAppliesCodexPoolDefaults(t *testing.T) {
 	provStore := newMockProviderStore()
 	secretStore := newMockSecretsStore()
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewOAuthHandler(provStore, secretStore, providerReg, nil)
 
 	tenantID := uuid.New()
@@ -225,9 +225,9 @@ func TestOAuthHandlerSaveAndRegisterAppliesCodexPoolDefaults(t *testing.T) {
 		t.Fatalf("saveAndRegister: %v", err)
 	}
 
-	runtimeProvider, err := providerReg.GetForTenant(tenantID, oauth.DefaultProviderName)
+	runtimeProvider, err := providerReg.GetByName(oauth.DefaultProviderName)
 	if err != nil {
-		t.Fatalf("GetForTenant: %v", err)
+		t.Fatalf("GetByName: %v", err)
 	}
 	codex, ok := runtimeProvider.(*providers.CodexProvider)
 	if !ok {

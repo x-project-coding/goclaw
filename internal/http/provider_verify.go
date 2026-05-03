@@ -106,7 +106,7 @@ func (h *ProvidersHandler) handleVerifyProvider(w http.ResponseWriter, r *http.R
 
 	// Use provider's own TenantID (not request context) so cross-tenant admins
 	// can verify providers belonging to other tenants.
-	provider, err := h.providerReg.GetForTenant(p.TenantID, p.Name)
+	provider, err := h.providerReg.GetByName(p.Name)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"valid": false, "error": "provider not registered: " + p.Name})
 		return

@@ -283,9 +283,8 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 		var model string
 
 		// Try config-level provider/model first.
-		tctx := store.WithTenantID(ctx, inst.TenantID)
 		if l.pendingCompactCfg != nil && l.pendingCompactCfg.Provider != "" {
-			if cp, err := l.providerReg.Get(tctx, l.pendingCompactCfg.Provider); err == nil {
+			if cp, err := l.providerReg.GetByName(l.pendingCompactCfg.Provider); err == nil {
 				p = cp
 				model = l.pendingCompactCfg.Model
 				if model == "" {

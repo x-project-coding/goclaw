@@ -22,11 +22,10 @@ import (
 // ── Public surface ──────────────────────────────────────────────────────────
 
 // ProviderResolver returns a provider + resolved model name for a given
-// (tenantID, preferredModel). preferredModel is the UI/config-specified
-// model (e.g. "haiku"); resolver may expand aliases or fall back to the
-// tenant's default when the alias is unknown.
+// preferredModel. preferredModel is the UI/config-specified model (e.g. "haiku");
+// resolver may expand aliases or fall back to the default when the alias is unknown.
 type ProviderResolver interface {
-	ResolveForHook(ctx context.Context, tenantID uuid.UUID, preferredModel string) (providers.Provider, string, error)
+	ResolveForHook(ctx context.Context, preferredModel string) (providers.Provider, string, error)
 }
 
 // PromptHandler implements hooks.Handler via an LLM structured-output call.
@@ -146,7 +145,7 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 
 	// 4. Resolve provider
 	model := h.modelFor(cfg)
-	provider, resolvedModel, err := h.Resolver.ResolveForHook(ctx, ev.TenantID, model)
+	provider, resolvedModel, err := h.Resolver.ResolveForHook(ctx, model)
 	if err != nil || provider == nil {
 		return hooks.DecisionError, fmt.Errorf("hook: prompt handler: resolve provider: %w", err)
 	}

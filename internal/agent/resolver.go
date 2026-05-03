@@ -153,12 +153,12 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		// Resolve provider (tenant-aware: tries tenant-specific first, falls back to master)
 		provider, err := providerresolve.ResolveConfiguredProvider(deps.ProviderReg, ag)
 		if err != nil {
-			// Fallback to any available provider for this tenant
-			names := deps.ProviderReg.ListForTenant(ag.TenantID)
+			// Fallback to any available provider
+			names := deps.ProviderReg.List()
 			if len(names) == 0 {
 				return nil, fmt.Errorf("no providers configured for agent %s", agentKey)
 			}
-			provider, _ = deps.ProviderReg.GetForTenant(ag.TenantID, names[0])
+			provider, _ = deps.ProviderReg.GetByName(names[0])
 			slog.Warn("agent provider not found, using fallback",
 				"agent", agentKey, "wanted", ag.Provider, "using", names[0])
 			if rc := ag.ParseReasoningConfig(); rc.Effort != "" && rc.Effort != "off" {

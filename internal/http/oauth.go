@@ -366,11 +366,7 @@ func (h *OAuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.providerReg != nil {
-		tid := store.TenantIDFromContext(r.Context())
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		h.providerReg.UnregisterForTenant(tid, providerName)
+		h.providerReg.Unregister(providerName)
 	}
 
 	emitAudit(h.msgBus, r, "oauth.logout", "oauth", "openai")
@@ -387,11 +383,10 @@ func (h *OAuthHandler) saveAndRegister(ctx context.Context, providerName, displa
 
 	// Register CodexProvider in-memory for immediate use
 	if h.providerReg != nil {
-		tid := oauthTenantID(ctx)
 		providerAPIBase := apiBase
 		codex := providers.NewCodexProvider(providerName, ts, providerAPIBase, "")
 		if h.provStore != nil {
-			providerCtx := store.WithTenantID(ctx, tid)
+			providerCtx := ctx
 			if providerData, err := h.provStore.GetProviderByName(providerCtx, providerName); err == nil {
 				if providerData.APIBase != "" {
 					providerAPIBase = providerData.APIBase
@@ -402,7 +397,7 @@ func (h *OAuthHandler) saveAndRegister(ctx context.Context, providerName, displa
 				}
 			}
 		}
-		h.providerReg.RegisterForTenant(tid, codex)
+		h.providerReg.Register(codex)
 	}
 
 	return providerID, nil

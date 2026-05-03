@@ -26,8 +26,8 @@ type episodicWorker struct {
 }
 
 // resolveProvider delegates to shared background provider resolution.
-func (w *episodicWorker) resolveProvider(ctx context.Context, tenantID uuid.UUID) (providers.Provider, string) {
-	return providerresolve.ResolveBackgroundProvider(ctx, tenantID, w.registry, w.systemConfigs)
+func (w *episodicWorker) resolveProvider(ctx context.Context) (providers.Provider, string) {
+	return providerresolve.ResolveBackgroundProvider(ctx, w.registry, w.systemConfigs)
 }
 
 // Handle processes a session.completed event into an episodic summary.
@@ -74,7 +74,7 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	// Use compaction summary if available, else call LLM
 	summary := payload.Summary
 	if summary == "" {
-		provider, model := w.resolveProvider(ctx, tenantUUID)
+		provider, model := w.resolveProvider(ctx)
 		if provider != nil {
 			summary, err = w.summarizeSession(ctx, provider, model, payload)
 			if err != nil {
@@ -84,7 +84,7 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		}
 	}
 	if summary == "" {
-		provider, _ := w.resolveProvider(ctx, tenantUUID)
+		provider, _ := w.resolveProvider(ctx)
 		slog.Warn("episodic: no summary available, skipping", "session", payload.SessionKey,
 			"compaction_summary_empty", payload.Summary == "", "provider_nil", provider == nil)
 		return nil

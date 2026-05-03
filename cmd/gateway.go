@@ -117,7 +117,7 @@ func runGateway() {
 	modelReg.RegisterResolver("openai", &providers.OpenAIForwardCompat{})
 
 	// Create provider registry
-	providerRegistry := providers.NewRegistry(store.TenantIDFromContext)
+	providerRegistry := providers.NewRegistry()
 	registerProviders(providerRegistry, cfg, modelReg)
 
 	// Resolve workspace (must be absolute for system prompt + file tool path resolution)
@@ -572,7 +572,7 @@ func resolveBackgroundProvider(cfg *config.Config, reg *providers.Registry) (pro
 		if name == "" {
 			return nil, "", false
 		}
-		p, err := reg.GetForTenant(providers.MasterTenantID, name)
+		p, err := reg.GetByName(name)
 		if err != nil || p == nil {
 			return nil, "", false
 		}
@@ -591,7 +591,7 @@ func resolveBackgroundProvider(cfg *config.Config, reg *providers.Registry) (pro
 		return p, m
 	}
 	// 3. First registered provider (legacy fallback)
-	if names := reg.ListForTenant(providers.MasterTenantID); len(names) > 0 {
+	if names := reg.List(); len(names) > 0 {
 		if p, m, ok := try(names[0], ""); ok {
 			return p, m
 		}

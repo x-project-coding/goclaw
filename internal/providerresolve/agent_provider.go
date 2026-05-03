@@ -14,7 +14,7 @@ func ResolveConfiguredProvider(registry *providers.Registry, agent *store.AgentD
 		return nil, fmt.Errorf("provider registry unavailable")
 	}
 
-	baseProvider, baseErr := registry.GetForTenant(agent.TenantID, agent.Provider)
+	baseProvider, baseErr := registry.GetByName(agent.Provider)
 	if baseErr == nil {
 		if _, ok := baseProvider.(*providers.CodexProvider); !ok {
 			return baseProvider, nil
@@ -32,7 +32,6 @@ func ResolveConfiguredProvider(registry *providers.Registry, agent *store.AgentD
 	}
 	if routing := store.ResolveEffectiveChatGPTOAuthRouting(providerDefaults, agent.ParseChatGPTOAuthRouting()); routing != nil {
 		router := providers.NewChatGPTOAuthRouter(
-			agent.TenantID,
 			registry,
 			agent.Provider,
 			routing.Strategy,

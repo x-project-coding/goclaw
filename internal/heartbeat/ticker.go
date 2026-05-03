@@ -253,7 +253,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	var providerOverride providers.Provider
 	if hb.ProviderID != nil && t.providerStore != nil && t.providerReg != nil {
 		if provData, err := t.providerStore.GetProvider(ctx, *hb.ProviderID); err == nil {
-			if prov, err := t.providerReg.GetForTenant(ag.TenantID, provData.Name); err == nil {
+			if prov, err := t.providerReg.GetByName(provData.Name); err == nil {
 				providerOverride = prov
 				slog.Info("heartbeat.provider_override",
 					"agent", agentKey, "provider", provData.Name)

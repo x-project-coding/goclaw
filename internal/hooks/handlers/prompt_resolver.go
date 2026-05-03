@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -18,14 +16,14 @@ import (
 //  1. Explicit model alias → map to provider by convention (haiku/sonnet/opus → anthropic).
 //  2. System config `hooks.prompt.provider` / `hooks.prompt.model`.
 //  3. System config `background.provider` / `background.model`.
-//  4. First registered provider for the tenant.
+//  4. First registered provider.
 //
 // Keeping this adapter in `handlers` rather than the higher-level
 // `providerresolve` package avoids a new import cycle (providerresolve →
 // store → hooks would introduce a diamond).
 type RegistryResolver struct {
-	Registry   *providers.Registry
-	SysConfig  store.SystemConfigStore
+	Registry                *providers.Registry
+	SysConfig               store.SystemConfigStore
 	DefaultProviderForAlias func(alias string) string
 }
 
@@ -33,14 +31,14 @@ type RegistryResolver struct {
 // registry MUST be non-nil. sysConfig may be nil (fallback to step 4 only).
 func NewRegistryResolver(registry *providers.Registry, sysConfig store.SystemConfigStore) *RegistryResolver {
 	return &RegistryResolver{
-		Registry:               registry,
-		SysConfig:              sysConfig,
+		Registry:                registry,
+		SysConfig:               sysConfig,
 		DefaultProviderForAlias: defaultProviderForAlias,
 	}
 }
 
 // ResolveForHook implements ProviderResolver.
-func (r *RegistryResolver) ResolveForHook(ctx context.Context, tenantID uuid.UUID, preferredModel string) (providers.Provider, string, error) {
+func (r *RegistryResolver) ResolveForHook(ctx context.Context, preferredModel string) (providers.Provider, string, error) {
 	if r == nil || r.Registry == nil {
 		return nil, "", errors.New("hook resolver: nil registry")
 	}
@@ -48,29 +46,29 @@ func (r *RegistryResolver) ResolveForHook(ctx context.Context, tenantID uuid.UUI
 	// Step 1: explicit alias → provider name.
 	if preferredModel != "" {
 		if name := r.providerForAlias(preferredModel); name != "" {
-			if p, err := r.Registry.GetForTenant(tenantID, name); err == nil && p != nil {
+			if p, err := r.Registry.GetByName(name); err == nil && p != nil {
 				return p, preferredModel, nil
 			}
 		}
 	}
 
 	// Step 2: system config hooks.prompt.*
-	configs := r.loadConfigs(ctx, tenantID)
-	if p, m, ok := r.tryConfig(tenantID, configs["hooks.prompt.provider"], configs["hooks.prompt.model"], preferredModel); ok {
+	configs := r.loadConfigs(ctx)
+	if p, m, ok := r.tryConfig(configs["hooks.prompt.provider"], configs["hooks.prompt.model"], preferredModel); ok {
 		return p, m, nil
 	}
 
 	// Step 3: fall back to background.*
-	if p, m, ok := r.tryConfig(tenantID, configs["background.provider"], configs["background.model"], preferredModel); ok {
+	if p, m, ok := r.tryConfig(configs["background.provider"], configs["background.model"], preferredModel); ok {
 		return p, m, nil
 	}
 
-	// Step 4: first registered provider for the tenant.
-	names := r.Registry.ListForTenant(tenantID)
+	// Step 4: first registered provider.
+	names := r.Registry.List()
 	if len(names) == 0 {
-		return nil, "", errors.New("hook resolver: no providers registered for tenant")
+		return nil, "", errors.New("hook resolver: no providers registered")
 	}
-	p, err := r.Registry.GetForTenant(tenantID, names[0])
+	p, err := r.Registry.GetByName(names[0])
 	if err != nil || p == nil {
 		return nil, "", err
 	}
@@ -88,20 +86,19 @@ func (r *RegistryResolver) providerForAlias(alias string) string {
 	return r.DefaultProviderForAlias(alias)
 }
 
-func (r *RegistryResolver) loadConfigs(ctx context.Context, tenantID uuid.UUID) map[string]string {
+func (r *RegistryResolver) loadConfigs(ctx context.Context) map[string]string {
 	if r.SysConfig == nil {
 		return nil
 	}
-	tctx := store.WithTenantID(ctx, tenantID)
-	configs, _ := r.SysConfig.List(tctx)
+	configs, _ := r.SysConfig.List(ctx)
 	return configs
 }
 
-func (r *RegistryResolver) tryConfig(tenantID uuid.UUID, name, cfgModel, preferred string) (providers.Provider, string, bool) {
+func (r *RegistryResolver) tryConfig(name, cfgModel, preferred string) (providers.Provider, string, bool) {
 	if name == "" {
 		return nil, "", false
 	}
-	p, err := r.Registry.GetForTenant(tenantID, name)
+	p, err := r.Registry.GetByName(name)
 	if err != nil || p == nil {
 		return nil, "", false
 	}

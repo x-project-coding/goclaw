@@ -23,7 +23,7 @@ type fakeResolver struct {
 	resolveErr error
 }
 
-func (f *fakeResolver) ResolveForHook(_ context.Context, _ uuid.UUID, _ string) (providers.Provider, string, error) {
+func (f *fakeResolver) ResolveForHook(_ context.Context, _ string) (providers.Provider, string, error) {
 	f.calls.Add(1)
 	if f.resolveErr != nil {
 		return nil, "", f.resolveErr

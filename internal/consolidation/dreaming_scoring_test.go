@@ -43,7 +43,7 @@ func TestDreamingWorkerUsesScoredListing(t *testing.T) {
 
 	err := worker.Handle(context.Background(), eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-scored",
 		UserID:   "user-scored",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -98,7 +98,7 @@ func TestDreamingWorkerFiltersBelowThreshold(t *testing.T) {
 
 	err := worker.Handle(context.Background(), eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-filter",
 		UserID:   "user-filter",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -147,7 +147,7 @@ func TestDreamingWorkerFilterEmptyStampsDebounce(t *testing.T) {
 
 	ev := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-loop",
 		UserID:   "user-loop",
 		Payload:  &eventbus.EpisodicCreatedPayload{},

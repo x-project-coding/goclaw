@@ -33,7 +33,7 @@ func TestResolveMediaProviderChain_TenantOverrideWins(t *testing.T) {
 		"", "", // no per-agent override
 		[]string{"fallback"}, // hardcoded default priority
 		map[string]string{},
-		providers.NewRegistry(nil),
+		providers.NewRegistry(),
 	)
 
 	if len(chain) != 1 {
@@ -56,7 +56,7 @@ func TestResolveMediaProviderChain_PerAgentArgBeatsTenant(t *testing.T) {
 		"per_agent_provider", "per_agent_model", // per-agent arg wins
 		[]string{"fallback"},
 		map[string]string{},
-		providers.NewRegistry(nil),
+		providers.NewRegistry(),
 	)
 
 	if len(chain) != 1 {
@@ -79,7 +79,7 @@ func TestResolveMediaProviderChain_FallsBackToGlobalWhenNoTenant(t *testing.T) {
 		"", "",
 		[]string{"fallback"},
 		map[string]string{},
-		providers.NewRegistry(nil),
+		providers.NewRegistry(),
 	)
 
 	if len(chain) != 1 || chain[0].Provider != "global_provider" {
@@ -99,7 +99,7 @@ func TestResolveMediaProviderChain_TenantOnly(t *testing.T) {
 		"", "",
 		[]string{"fallback"},
 		map[string]string{},
-		providers.NewRegistry(nil),
+		providers.NewRegistry(),
 	)
 
 	if len(chain) != 1 || chain[0].Provider != "tenant_provider" {
@@ -120,7 +120,7 @@ func TestResolveMediaProviderChain_DifferentTools_Independent(t *testing.T) {
 		"", "",
 		[]string{}, // empty priority — nothing to build
 		map[string]string{},
-		providers.NewRegistry(nil),
+		providers.NewRegistry(),
 	)
 
 	// No per-agent, no matching tenant key, no global, no hardcoded → empty chain.

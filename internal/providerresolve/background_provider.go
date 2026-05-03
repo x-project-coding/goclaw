@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -14,7 +13,6 @@ import (
 // Used by vault enrichment, episodic summarization, dreaming consolidation.
 func ResolveBackgroundProvider(
 	ctx context.Context,
-	tenantID uuid.UUID,
 	registry *providers.Registry,
 	systemConfigs store.SystemConfigStore,
 ) (providers.Provider, string) {
@@ -22,17 +20,15 @@ func ResolveBackgroundProvider(
 		return nil, ""
 	}
 
-	// Load system configs for the tenant
+	// Load system configs
 	var configs map[string]string
 	if systemConfigs != nil {
-		tctx := store.WithTenantID(ctx, tenantID)
 		var err error
-		configs, err = systemConfigs.List(tctx)
+		configs, err = systemConfigs.List(ctx)
 		if err != nil {
-			slog.Warn("background: failed to load system_configs", "tenant", tenantID, "error", err)
+			slog.Warn("background: failed to load system_configs", "error", err)
 		} else {
 			slog.Debug("background: loaded system_configs",
-				"tenant", tenantID,
 				"background.provider", configs["background.provider"],
 				"agent.default_provider", configs["agent.default_provider"])
 		}
@@ -43,17 +39,15 @@ func ResolveBackgroundProvider(
 		if name == "" {
 			return nil, "", false
 		}
-		p, err := registry.GetForTenant(tenantID, name)
+		p, err := registry.GetByName(name)
 		if err != nil || p == nil {
-			slog.Debug("background: provider not found",
-				"source", source, "name", name, "tenant", tenantID, "error", err)
+			slog.Debug("background: provider not found", "source", source, "name", name, "error", err)
 			return nil, "", false
 		}
 		if model == "" {
 			model = p.DefaultModel()
 		}
-		slog.Debug("background: resolved provider",
-			"source", source, "name", name, "model", model, "tenant", tenantID)
+		slog.Debug("background: resolved provider", "source", source, "name", name, "model", model)
 		return p, model, true
 	}
 
@@ -66,18 +60,18 @@ func ResolveBackgroundProvider(
 		return p, m
 	}
 	// 3. First registered provider (fallback)
-	names := registry.ListForTenant(tenantID)
+	names := registry.List()
 	if len(names) == 0 {
-		slog.Warn("background: no providers available", "tenant", tenantID)
+		slog.Warn("background: no providers available")
 		return nil, ""
 	}
-	p, err := registry.GetForTenant(tenantID, names[0])
+	p, err := registry.GetByName(names[0])
 	if err != nil {
-		slog.Warn("background: fallback provider failed", "tenant", tenantID, "name", names[0], "error", err)
+		slog.Warn("background: fallback provider failed", "name", names[0], "error", err)
 		return nil, ""
 	}
 	slog.Warn("background: using fallback provider (no explicit config)",
-		"tenant", tenantID, "provider", names[0], "available", names,
+		"provider", names[0], "available", names,
 		"background.provider", configs["background.provider"],
 		"agent.default_provider", configs["agent.default_provider"])
 	return p, p.DefaultModel()

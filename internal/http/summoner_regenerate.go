@@ -170,14 +170,14 @@ func (s *AgentSummoner) resolveProvider(ctx context.Context, name string) (provi
 		return nil, fmt.Errorf("no provider registry")
 	}
 
-	provider, err := s.providerReg.Get(ctx, name)
+	provider, err := s.providerReg.GetByName(name)
 	if err != nil {
 		// Fallback to first available provider
-		names := s.providerReg.List(ctx)
+		names := s.providerReg.List()
 		if len(names) == 0 {
 			return nil, fmt.Errorf("no providers configured")
 		}
-		provider, err = s.providerReg.Get(ctx, names[0])
+		provider, err = s.providerReg.GetByName(names[0])
 		if err != nil {
 			return nil, err
 		}

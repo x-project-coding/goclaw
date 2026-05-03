@@ -69,7 +69,7 @@ func (h *ProvidersHandler) handleProviderCodexPoolActivity(w http.ResponseWriter
 	}
 
 	// Filter to registered Codex providers
-	poolProviders := registeredCodexPoolProviders(h.providerReg, provider.TenantID, poolCandidates)
+	poolProviders := registeredCodexPoolProviders(h.providerReg, poolCandidates)
 	if len(poolProviders) == 0 {
 		writeJSON(w, http.StatusOK, emptyProviderPoolActivityResponse())
 		return

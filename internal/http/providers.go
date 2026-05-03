@@ -190,7 +190,7 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 			mcpData.AgentMCPLookup = h.mcpLookup
 			cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfigData(mcpData))
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewClaudeCLIProvider(cliPath, cliOpts...))
+		h.providerReg.Register(providers.NewClaudeCLIProvider(cliPath, cliOpts...))
 		return
 	}
 	// Ollama doesn't need an API key — handle before the key guard (same as startup).
@@ -201,7 +201,7 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		if host == "" {
 			host = "http://localhost:11434/v1"
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host), "llama3.3"))
+		h.providerReg.Register(providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host), "llama3.3"))
 		return
 	}
 	if p.APIKey == "" {
@@ -215,7 +215,7 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		if oauthSettings := store.ParseChatGPTOAuthProviderSettings(p.Settings); oauthSettings != nil {
 			codex.WithRoutingDefaults(oauthSettings.CodexPool.Strategy, oauthSettings.CodexPool.ExtraProviderNames)
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, codex)
+		h.providerReg.Register(codex)
 	case store.ProviderAnthropicNative:
 		anthOpts := []providers.AnthropicOption{
 			providers.WithAnthropicName(p.Name),
@@ -224,27 +224,27 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 		if h.modelReg != nil {
 			anthOpts = append(anthOpts, providers.WithAnthropicRegistry(h.modelReg))
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewAnthropicProvider(p.APIKey, anthOpts...))
+		h.providerReg.Register(providers.NewAnthropicProvider(p.APIKey, anthOpts...))
 	case store.ProviderDashScope:
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewDashScopeProvider(p.Name, p.APIKey, apiBase, ""))
+		h.providerReg.Register(providers.NewDashScopeProvider(p.Name, p.APIKey, apiBase, ""))
 	case store.ProviderBailian:
 		base := apiBase
 		if base == "" {
 			base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
+		h.providerReg.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
 	case store.ProviderNovita:
 		base := apiBase
 		if base == "" {
 			base = store.NovitaDefaultAPIBase
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
+		h.providerReg.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
 	default:
 		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, apiBase, "")
 		if p.ProviderType == store.ProviderMiniMax {
 			prov.WithChatPath("/text/chatcompletion_v2")
 		}
-		h.providerReg.RegisterForTenant(p.TenantID, prov)
+		h.providerReg.Register(prov)
 	}
 }
 
@@ -551,10 +551,10 @@ func (h *ProvidersHandler) handleUpdateProvider(w http.ResponseWriter, r *http.R
 		if updated, err := h.store.GetProvider(r.Context(), id); err == nil {
 			// Unregister old name if renamed to prevent ghost entries
 			if oldName != "" && oldName != updated.Name {
-				h.providerReg.UnregisterForTenant(updated.TenantID, oldName)
+				h.providerReg.Unregister(oldName)
 			}
 			if !updated.Enabled {
-				h.providerReg.UnregisterForTenant(updated.TenantID, updated.Name)
+				h.providerReg.Unregister(updated.Name)
 			} else {
 				h.registerInMemory(updated)
 			}
@@ -583,10 +583,8 @@ func (h *ProvidersHandler) handleDeleteProvider(w http.ResponseWriter, r *http.R
 
 	// Read provider before deleting so we can unregister it
 	var providerName string
-	var providerTenantID uuid.UUID
 	if p, err := h.store.GetProvider(r.Context(), id); err == nil {
 		providerName = p.Name
-		providerTenantID = p.TenantID
 	}
 
 	if err := h.store.DeleteProvider(r.Context(), id); err != nil {
@@ -596,7 +594,7 @@ func (h *ProvidersHandler) handleDeleteProvider(w http.ResponseWriter, r *http.R
 	}
 
 	if h.providerReg != nil && providerName != "" {
-		h.providerReg.UnregisterForTenant(providerTenantID, providerName)
+		h.providerReg.Unregister(providerName)
 	}
 	if providerName != "" {
 		h.emitProviderCacheInvalidate(providerName)

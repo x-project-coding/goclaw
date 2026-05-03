@@ -21,7 +21,7 @@ import (
 )
 
 func TestProvidersHandlerRegisterInMemoryAppliesCodexPoolDefaults(t *testing.T) {
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewProvidersHandler(newMockProviderStore(), newMockSecretsStore(), providerReg, "")
 
 	provider := &store.LLMProviderData{
@@ -41,9 +41,9 @@ func TestProvidersHandlerRegisterInMemoryAppliesCodexPoolDefaults(t *testing.T) 
 
 	handler.registerInMemory(provider)
 
-	runtimeProvider, err := providerReg.GetForTenant(provider.TenantID, provider.Name)
+	runtimeProvider, err := providerReg.GetByName(provider.Name)
 	if err != nil {
-		t.Fatalf("GetForTenant() error = %v", err)
+		t.Fatalf("GetByName() error = %v", err)
 	}
 	codex, ok := runtimeProvider.(*providers.CodexProvider)
 	if !ok {
@@ -64,10 +64,10 @@ func TestProvidersHandlerRegisterInMemoryAppliesCodexPoolDefaults(t *testing.T) 
 // TestProvidersHandlerRegisterInMemoryUsesDBNameForAnthropic guards the onboarding verify flow:
 // when an Anthropic provider is created via HTTP with a custom name, the in-memory registry
 // must key the provider by that DB name — not the hardcoded "anthropic" default. Otherwise
-// handleVerifyProvider's GetForTenant(p.TenantID, p.Name) lookup fails with "provider not registered".
+// handleVerifyProvider's GetByName(p.Name) lookup fails with "provider not registered".
 // See commit 7fcf0327 for the matching fix on the startup path (cmd/gateway_providers.go).
 func TestProvidersHandlerRegisterInMemoryUsesDBNameForAnthropic(t *testing.T) {
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewProvidersHandler(newMockProviderStore(), newMockSecretsStore(), providerReg, "")
 
 	provider := &store.LLMProviderData{
@@ -81,17 +81,17 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForAnthropic(t *testing.T) {
 
 	handler.registerInMemory(provider)
 
-	got, err := providerReg.GetForTenant(provider.TenantID, provider.Name)
+	got, err := providerReg.GetByName(provider.Name)
 	if err != nil {
-		t.Fatalf("GetForTenant(%q) error = %v, want provider registered under DB name", provider.Name, err)
+		t.Fatalf("GetByName(%q) error = %v, want provider registered under DB name", provider.Name, err)
 	}
 	if got.Name() != provider.Name {
 		t.Fatalf("Name() = %q, want %q", got.Name(), provider.Name)
 	}
 
 	// Negative: the hardcoded default "anthropic" must NOT be registered when the user chose a different name.
-	if _, err := providerReg.GetForTenant(provider.TenantID, "anthropic"); err == nil {
-		t.Fatal("GetForTenant(\"anthropic\") succeeded, want not-found — provider should only live under its DB name")
+	if _, err := providerReg.GetByName("anthropic"); err == nil {
+		t.Fatal("GetByName(\"anthropic\") succeeded, want not-found — provider should only live under its DB name")
 	}
 }
 
@@ -101,7 +101,7 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForClaudeCLI(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skipping on Windows: shell-script fake binary not portable")
 	}
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewProvidersHandler(newMockProviderStore(), newMockSecretsStore(), providerReg, "")
 
 	// Create a fake executable so exec.LookPath succeeds — the binary-existence guard
@@ -120,17 +120,17 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForClaudeCLI(t *testing.T) {
 
 	handler.registerInMemory(provider)
 
-	got, err := providerReg.GetForTenant(provider.TenantID, provider.Name)
+	got, err := providerReg.GetByName(provider.Name)
 	if err != nil {
-		t.Fatalf("GetForTenant(%q) error = %v, want provider registered under DB name", provider.Name, err)
+		t.Fatalf("GetByName(%q) error = %v, want provider registered under DB name", provider.Name, err)
 	}
 	if got.Name() != provider.Name {
 		t.Fatalf("Name() = %q, want %q", got.Name(), provider.Name)
 	}
 
 	// Negative: the hardcoded default "claude-cli" must NOT be registered when the user chose a different name.
-	if _, err := providerReg.GetForTenant(provider.TenantID, "claude-cli"); err == nil {
-		t.Fatal("GetForTenant(\"claude-cli\") succeeded, want not-found — provider should only live under its DB name")
+	if _, err := providerReg.GetByName("claude-cli"); err == nil {
+		t.Fatal("GetByName(\"claude-cli\") succeeded, want not-found — provider should only live under its DB name")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForClaudeCLI(t *testing.T) {
 // registerInMemory must return without registering — otherwise verify would succeed on a provider that
 // cannot actually spawn the CLI.
 func TestProvidersHandlerRegisterInMemorySkipsClaudeCLIWhenBinaryMissing(t *testing.T) {
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewProvidersHandler(newMockProviderStore(), newMockSecretsStore(), providerReg, "")
 
 	// Absolute path to a file that cannot exist — exec.LookPath must fail.
@@ -156,8 +156,8 @@ func TestProvidersHandlerRegisterInMemorySkipsClaudeCLIWhenBinaryMissing(t *test
 
 	handler.registerInMemory(provider)
 
-	if _, err := providerReg.GetForTenant(provider.TenantID, provider.Name); err == nil {
-		t.Fatal("GetForTenant succeeded, want not-found — registration should be skipped when binary missing")
+	if _, err := providerReg.GetByName(provider.Name); err == nil {
+		t.Fatal("GetByName succeeded, want not-found — registration should be skipped when binary missing")
 	}
 }
 
@@ -166,7 +166,7 @@ func TestProvidersHandlerRegisterInMemorySkipsClaudeCLIWhenBinaryMissing(t *test
 // (cmd/gateway_providers.go:349). Without this, model alias resolution and token counting fall back
 // to static defaults — affects cost accounting and forward-compat for new model IDs.
 func TestProvidersHandlerRegisterInMemoryAnthropicUsesModelRegistry(t *testing.T) {
-	providerReg := providers.NewRegistry(nil)
+	providerReg := providers.NewRegistry()
 	handler := NewProvidersHandler(newMockProviderStore(), newMockSecretsStore(), providerReg, "")
 
 	modelReg := providers.NewInMemoryRegistry()
@@ -183,9 +183,9 @@ func TestProvidersHandlerRegisterInMemoryAnthropicUsesModelRegistry(t *testing.T
 
 	handler.registerInMemory(provider)
 
-	got, err := providerReg.GetForTenant(provider.TenantID, provider.Name)
+	got, err := providerReg.GetByName(provider.Name)
 	if err != nil {
-		t.Fatalf("GetForTenant() error = %v", err)
+		t.Fatalf("GetByName() error = %v", err)
 	}
 
 	// Reflection probe: the AnthropicProvider stores its registry in an unexported "registry" field.

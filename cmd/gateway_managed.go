@@ -714,7 +714,7 @@ func buildKGExtractFunc(kgStore store.KnowledgeGraphStore, bts store.BuiltinTool
 			return
 		}
 
-		p, err := providerReg.Get(ctx, settings.ExtractionProvider)
+		p, err := providerReg.GetByName(settings.ExtractionProvider)
 		if err != nil {
 			slog.Warn("kg extract: provider not found", "provider", settings.ExtractionProvider, "error", err)
 			return

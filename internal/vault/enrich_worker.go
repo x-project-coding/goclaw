@@ -91,13 +91,9 @@ type EnrichWorker struct {
 	cancelFuncs *sync.Map // key: tenantID string, value: context.CancelFunc
 }
 
-// resolveProviderForTenant delegates to shared background provider resolution.
-func (w *EnrichWorker) resolveProviderForTenant(ctx context.Context, tenantID string) (providers.Provider, string) {
-	tid, err := uuid.Parse(tenantID)
-	if err != nil {
-		tid = providers.MasterTenantID
-	}
-	return providerresolve.ResolveBackgroundProvider(ctx, tid, w.registry, w.systemConfigs)
+// resolveProvider delegates to shared background provider resolution.
+func (w *EnrichWorker) resolveProvider(ctx context.Context) (providers.Provider, string) {
+	return providerresolve.ResolveBackgroundProvider(ctx, w.registry, w.systemConfigs)
 }
 
 // Stop cancels in-flight enrichment for the given tenant.
@@ -298,7 +294,7 @@ func (w *EnrichWorker) processChunk(ctx context.Context, items []eventbus.VaultD
 	tenantID := pending[0].TenantID
 
 	// Resolve provider once per chunk (all items share tenantID)
-	provider, model := w.resolveProviderForTenant(ctx, tenantID)
+	provider, model := w.resolveProvider(ctx)
 	if provider == nil {
 		slog.Warn("vault.enrich: no provider available", "tenant", tenantID)
 		return

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // MediaProviderEntry represents a single provider in an ordered fallback chain.
@@ -135,7 +134,7 @@ func buildDefaultChain(
 ) []MediaProviderEntry {
 	var chain []MediaProviderEntry
 	for _, name := range priority {
-		if _, err := registry.Get(ctx, name); err == nil {
+		if _, err := registry.GetByName(name); err == nil {
 			entry := MediaProviderEntry{
 				Provider: name,
 				Model:    defaultModels[name],
@@ -175,7 +174,7 @@ func ExecuteWithChain(
 
 	var lastErr error
 	for _, entry := range chain {
-		p, err := registry.Get(ctx, entry.Provider)
+		p, err := registry.GetByName(entry.Provider)
 		if err != nil {
 			slog.Warn("media_chain: provider not found, skipping",
 				"provider", entry.Provider, "error", err)
@@ -380,14 +379,7 @@ func wrapPoolProvider(ctx context.Context, reg *providers.Registry, entryProvide
 		return resolved
 	}
 
-	tenantID := store.TenantIDFromContext(ctx)
-	if tenantID.String() == "00000000-0000-0000-0000-000000000000" {
-		// No tenant in context — cannot build a scoped router safely.
-		return resolved
-	}
-
 	router := providers.NewChatGPTOAuthRouter(
-		tenantID,
 		reg,
 		entryProvider,
 		defaults.Strategy,

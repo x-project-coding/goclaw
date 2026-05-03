@@ -177,7 +177,7 @@ func BuildPreviewPrompt(ctx context.Context, ag *store.AgentData, mode PromptMod
 	// --- Provider contribution ---
 	var providerContrib *providers.PromptContribution
 	if deps.ProviderReg != nil && ag.Provider != "" {
-		if p, err := deps.ProviderReg.Get(ctx, ag.Provider); err == nil {
+		if p, err := deps.ProviderReg.GetByName(ag.Provider); err == nil {
 			if pc, ok := p.(providers.PromptContributor); ok {
 				providerContrib = pc.PromptContribution()
 			}

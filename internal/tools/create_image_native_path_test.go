@@ -69,7 +69,7 @@ func TestCreateImageTool_RoutesNativePath(t *testing.T) {
 	}
 
 	// Register provider in a fresh registry.
-	reg := providers.NewRegistry(nil)
+	reg := providers.NewRegistry()
 	reg.Register(fakeProvider)
 
 	// Build a chain that points to the fake native provider.
@@ -136,7 +136,7 @@ func TestCreateImageTool_RoutesNativePath_WithPrompt(t *testing.T) {
 		returnData: pngMagic,
 	}
 
-	reg := providers.NewRegistry(nil)
+	reg := providers.NewRegistry()
 	reg.Register(fakeProvider)
 
 	// Inject per-agent provider override so chain resolves to our fake.
@@ -215,7 +215,7 @@ func TestCreateImageTool_ThreadsImageModel(t *testing.T) {
 				returnData: pngMagic,
 			}
 
-			reg := providers.NewRegistry(nil)
+			reg := providers.NewRegistry()
 			reg.Register(fakeProvider)
 
 			// Build chain entry with optional image_model param.

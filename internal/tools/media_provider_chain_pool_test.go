@@ -4,9 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // helpers
@@ -19,12 +17,8 @@ func newCodexWithDefaults(name, strategy string, extras []string) *providers.Cod
 	return p
 }
 
-func mustTenantCtx() context.Context {
-	return store.WithTenantID(context.Background(), uuid.New())
-}
-
 func registryWith(providers_ ...*providers.CodexProvider) *providers.Registry {
-	reg := providers.NewRegistry(nil)
+	reg := providers.NewRegistry()
 	for _, p := range providers_ {
 		reg.Register(p)
 	}
@@ -39,8 +33,7 @@ func TestWrapsWhenCodexHasExtras(t *testing.T) {
 	extra2 := newCodexWithDefaults("extra2", "", nil)
 	reg := registryWith(base, extra1, extra2)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 	if _, ok := got.(*providers.ChatGPTOAuthRouter); !ok {
 		t.Errorf("wrapPoolProvider() = %T, want *providers.ChatGPTOAuthRouter", got)
@@ -53,8 +46,7 @@ func TestWrapsWhenPriorityOrderWithMembers(t *testing.T) {
 	extra1 := newCodexWithDefaults("extra1", "", nil)
 	reg := registryWith(base, extra1)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 	if _, ok := got.(*providers.ChatGPTOAuthRouter); !ok {
 		t.Errorf("wrapPoolProvider() = %T, want *providers.ChatGPTOAuthRouter", got)
@@ -67,8 +59,7 @@ func TestDoesNotWrapSoloCodexNilDefaults(t *testing.T) {
 	base := providers.NewCodexProvider("base", nil, "", "")
 	reg := registryWith(base)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 	if got != base {
 		t.Errorf("wrapPoolProvider() returned %T, want original *CodexProvider (no wrap)", got)
@@ -81,8 +72,7 @@ func TestDoesNotWrapPrimaryFirstNoExtras(t *testing.T) {
 	base := newCodexWithDefaults("base", "primary_first", []string{})
 	reg := registryWith(base)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 	if got != base {
 		t.Errorf("wrapPoolProvider() with primary_first + no extras: want original provider, got %T", got)
@@ -91,12 +81,11 @@ func TestDoesNotWrapPrimaryFirstNoExtras(t *testing.T) {
 
 // TestDoesNotWrapNonCodex: non-Codex provider (byteplus style) → unchanged.
 func TestDoesNotWrapNonCodex(t *testing.T) {
-	reg := providers.NewRegistry(nil)
+	reg := providers.NewRegistry()
 	fake := &fakeNonCodexProvider{name: "byteplus"}
 	reg.Register(fake)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "byteplus", fake)
+	got := wrapPoolProvider(context.Background(), reg, "byteplus", fake)
 
 	if got != fake {
 		t.Errorf("wrapPoolProvider() returned %T, want original non-Codex provider unchanged", got)
@@ -110,25 +99,10 @@ func TestFallsBackWhenRouterHasNoRegisteredMembers(t *testing.T) {
 	base := newCodexWithDefaults("base", "round_robin", []string{"missing1", "missing2"})
 	reg := registryWith(base)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
-	// Router should fall back because HasRegisteredProviders() returns false
-	// (only base is registered as member, extras missing — router counts base + extras
-	// but can't resolve extras → members list = [base alone], which IS > 0).
-	// Per spec: if router.HasRegisteredProviders() == false → return original.
-	// With base registered and extras missing, registeredProviders() returns [base],
-	// so HasRegisteredProviders() == true → we get a router. Adjust test to check
-	// that wrap happens only when extras are actually resolvable (spec says ≥1 extra):
-	// Since base alone resolves but extra members don't, router.HasRegisteredProviders()
-	// is true (base is a member). The phase spec says "Wrapped router's
-	// HasRegisteredProviders() false → return resolved (don't inject broken router)."
-	// In this case it's NOT false (base resolves as self-member). Router is returned.
-	// This test verifies the fallback only when zero members resolve.
+	// base is in the registry (resolves as pool member), so HasRegisteredProviders() is true.
 	if _, ok := got.(*providers.ChatGPTOAuthRouter); !ok {
-		// When extras are missing but base itself is a Codex in the registry,
-		// HasRegisteredProviders() is true (base counts as a member).
-		// The router IS valid here, so a router is expected.
 		t.Errorf("wrapPoolProvider() with missing extras but base present: got %T, want *ChatGPTOAuthRouter (base self-resolves)", got)
 	}
 }
@@ -137,33 +111,14 @@ func TestFallsBackWhenRouterHasNoRegisteredMembers(t *testing.T) {
 // router genuinely has NO registered members.
 func TestFallsBackWhenZeroMembersResolve(t *testing.T) {
 	// base NOT registered in registry; extras also missing.
-	// We pass the base provider directly to wrapPoolProvider but don't register
-	// it, so GetForTenant won't find it as a Codex — however the router looks up
-	// the default + extras from the registry, not from the passed provider.
 	base := newCodexWithDefaults("ghost", "round_robin", []string{"missing1"})
-	reg := providers.NewRegistry(nil) // empty registry — nothing registered
+	reg := providers.NewRegistry() // empty registry — nothing registered
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "ghost", base)
+	got := wrapPoolProvider(context.Background(), reg, "ghost", base)
 
 	// Router created but HasRegisteredProviders() == false → must return original.
 	if got != base {
 		t.Errorf("wrapPoolProvider() with empty registry: want original provider, got %T", got)
-	}
-}
-
-// TestNoTenantInContext_ReturnsCodex: missing tenant in ctx → safe degrade → original provider.
-func TestNoTenantInContext_ReturnsCodex(t *testing.T) {
-	base := newCodexWithDefaults("base", "round_robin", []string{"extra1"})
-	extra1 := newCodexWithDefaults("extra1", "", nil)
-	reg := registryWith(base, extra1)
-
-	// No tenant in context → TenantIDFromContext returns uuid.Nil.
-	ctx := context.Background()
-	got := wrapPoolProvider(ctx, reg, "base", base)
-
-	if got != base {
-		t.Errorf("wrapPoolProvider() without tenant ctx: want original provider (safe degrade), got %T", got)
 	}
 }
 
@@ -174,8 +129,7 @@ func TestWrappedRouterSatisfiesNativeImageProvider(t *testing.T) {
 	extra1 := newCodexWithDefaults("extra1", "", nil)
 	reg := registryWith(base, extra1)
 
-	ctx := mustTenantCtx()
-	got := wrapPoolProvider(ctx, reg, "base", base)
+	got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 	if _, ok := got.(providers.NativeImageProvider); !ok {
 		t.Errorf("wrapPoolProvider() result %T does not satisfy NativeImageProvider", got)
@@ -188,11 +142,6 @@ func TestParamsInjection(t *testing.T) {
 	base := newCodexWithDefaults("pool_base", "round_robin", []string{"extra1"})
 	extra1 := newCodexWithDefaults("extra1", "", nil)
 	reg := registryWith(base, extra1)
-	tenantID := uuid.New()
-	reg.RegisterForTenant(tenantID, base)
-	reg.RegisterForTenant(tenantID, extra1)
-
-	ctx := store.WithTenantID(context.Background(), tenantID)
 
 	chain := []MediaProviderEntry{{
 		Provider:   "pool_base",
@@ -209,7 +158,7 @@ func TestParamsInjection(t *testing.T) {
 		return []byte("ok"), nil, nil
 	}
 
-	_, err := ExecuteWithChain(ctx, chain, reg, fn)
+	_, err := ExecuteWithChain(context.Background(), chain, reg, fn)
 	if err != nil {
 		t.Fatalf("ExecuteWithChain returned error: %v", err)
 	}
@@ -229,8 +178,7 @@ func TestStrategyPassedThrough(t *testing.T) {
 			extra1 := newCodexWithDefaults("extra1", "", nil)
 			reg := registryWith(base, extra1)
 
-			ctx := mustTenantCtx()
-			got := wrapPoolProvider(ctx, reg, "base", base)
+			got := wrapPoolProvider(context.Background(), reg, "base", base)
 
 			if _, ok := got.(*providers.ChatGPTOAuthRouter); !ok {
 				t.Errorf("strategy %q: wrapPoolProvider() = %T, want *ChatGPTOAuthRouter", strategy, got)

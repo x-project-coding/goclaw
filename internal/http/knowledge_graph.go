@@ -25,7 +25,7 @@ func (h *KnowledgeGraphHandler) NewExtractor(ctx context.Context, providerName, 
 	if h.providerReg == nil || providerName == "" || model == "" {
 		return nil
 	}
-	p, err := h.providerReg.Get(ctx, providerName)
+	p, err := h.providerReg.GetByName(providerName)
 	if err != nil {
 		return nil
 	}

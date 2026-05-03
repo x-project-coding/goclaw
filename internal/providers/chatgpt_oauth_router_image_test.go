@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 )
 
 // imageSSEResponse builds a minimal SSE body that parseNativeImageSSE will accept.
@@ -86,8 +85,7 @@ const b64img = "aW1hZ2VkYXRh" // "imagedata" — not a valid PNG, but parseNativ
 // that runs N-consecutive image calls on an N-member pool, which always hits
 // every member once regardless of the starting offset and cannot detect the bug.
 func TestChatGPTOAuthRouterImage_ChatBurstDoesNotPerturbImageOrder(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	// Dual-purpose test servers: CodexProvider routes both chat and image to
 	// `{apiBase}/codex/responses` — the request body distinguishes them (image
@@ -112,11 +110,11 @@ func TestChatGPTOAuthRouterImage_ChatBurstDoesNotPerturbImageOrder(t *testing.T)
 	}
 	srvA, srvB, srvC := mkServer(0), mkServer(1), mkServer(2)
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", srvA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", srvB.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-c", srvC.URL))
+	registry.Register(newImageCodexProvider("acct-a", srvA.URL))
+	registry.Register(newImageCodexProvider("acct-b", srvB.URL))
+	registry.Register(newImageCodexProvider("acct-c", srvC.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
 
 	// Interleaved pattern from issue #1018: 5 chat, 1 image, 4 chat, 1 image, 3 chat, 1 image.
 	pattern := []struct {
@@ -176,8 +174,7 @@ func TestChatGPTOAuthRouterImage_ChatBurstDoesNotPerturbImageOrder(t *testing.T)
 // calling orderedProviders — i.e. calling them never rotates live traffic offsets.
 // If someone flips those to advance=true in a refactor, this test fails fast.
 func TestChatGPTOAuthRouter_IntrospectionDoesNotAdvanceCounter(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	var hitsA, hitsB, hitsC int
 	serverA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -199,11 +196,11 @@ func TestChatGPTOAuthRouter_IntrospectionDoesNotAdvanceCounter(t *testing.T) {
 	pa := newImageCodexProvider("acct-a", serverA.URL)
 	pb := newImageCodexProvider("acct-b", serverB.URL)
 	pc := newImageCodexProvider("acct-c", serverC.URL)
-	registry.RegisterForTenant(tenantID, pa)
-	registry.RegisterForTenant(tenantID, pb)
-	registry.RegisterForTenant(tenantID, pc)
+	registry.Register(pa)
+	registry.Register(pb)
+	registry.Register(pc)
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
 
 	// Call introspection 20 times — counter must stay at 0.
 	for range 20 {
@@ -227,17 +224,16 @@ func TestChatGPTOAuthRouter_IntrospectionDoesNotAdvanceCounter(t *testing.T) {
 // TestChatGPTOAuthRouterImage_RoundRobin_RotatesAcrossCalls verifies that 2 successive
 // GenerateImage calls each hit a different pool member (round-robin distribution).
 func TestChatGPTOAuthRouterImage_RoundRobin_RotatesAcrossCalls(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	var hitsA, hitsB int
 	serverA := imageTestServer(t, func() string { hitsA++; return imageSSEResponse(b64img) })
 	serverB := imageTestServer(t, func() string { hitsB++; return imageSSEResponse(b64img) })
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", serverB.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-b", serverB.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b"})
 
 	for i := range 2 {
 		if _, err := router.GenerateImage(context.Background(), imageReq); err != nil {
@@ -255,16 +251,15 @@ func TestChatGPTOAuthRouterImage_RoundRobin_RotatesAcrossCalls(t *testing.T) {
 // TestChatGPTOAuthRouterImage_FirstRetryable_SecondSucceeds verifies that when member A
 // returns HTTP 429 (retryable), the router fails over to member B and returns its result.
 func TestChatGPTOAuthRouterImage_FirstRetryable_SecondSucceeds(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	serverA := retryableImageTestServer(t)
 	serverB := imageTestServer(t, func() string { return imageSSEResponse(b64img) })
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", serverB.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-b", serverB.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b"})
 
 	result, err := router.GenerateImage(context.Background(), imageReq)
 	if err != nil {
@@ -278,16 +273,15 @@ func TestChatGPTOAuthRouterImage_FirstRetryable_SecondSucceeds(t *testing.T) {
 // TestChatGPTOAuthRouterImage_PriorityOrder_FirstFails_SecondSucceeds verifies failover
 // under the priority_order strategy: A returns HTTP 429, B succeeds.
 func TestChatGPTOAuthRouterImage_PriorityOrder_FirstFails_SecondSucceeds(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	serverA := retryableImageTestServer(t)
 	serverB := imageTestServer(t, func() string { return imageSSEResponse(b64img) })
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", serverB.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-b", serverB.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "priority_order", []string{"acct-b"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "priority_order", []string{"acct-b"})
 
 	result, err := router.GenerateImage(context.Background(), imageReq)
 	if err != nil {
@@ -301,17 +295,16 @@ func TestChatGPTOAuthRouterImage_PriorityOrder_FirstFails_SecondSucceeds(t *test
 // TestChatGPTOAuthRouterImage_NonRetryable_ReturnsImmediately verifies that HTTP 400
 // (non-retryable) is returned immediately without attempting member B.
 func TestChatGPTOAuthRouterImage_NonRetryable_ReturnsImmediately(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	var hitsB int
 	serverA := badRequestImageTestServer(t)
 	serverB := imageTestServer(t, func() string { hitsB++; return imageSSEResponse(b64img) })
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", serverB.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-b", serverB.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b"})
 
 	_, err := router.GenerateImage(context.Background(), imageReq)
 	if err == nil {
@@ -325,15 +318,14 @@ func TestChatGPTOAuthRouterImage_NonRetryable_ReturnsImmediately(t *testing.T) {
 // TestChatGPTOAuthRouterImage_AllFail_AggregatedError verifies that when all 3 members
 // return retryable errors, the returned error message mentions all member names.
 func TestChatGPTOAuthRouterImage_AllFail_AggregatedError(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	for _, name := range []string{"acct-a", "acct-b", "acct-c"} {
 		s := retryableImageTestServer(t)
-		registry.RegisterForTenant(tenantID, newImageCodexProvider(name, s.URL))
+		registry.Register(newImageCodexProvider(name, s.URL))
 	}
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "priority_order", []string{"acct-b", "acct-c"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "priority_order", []string{"acct-b", "acct-c"})
 
 	_, err := router.GenerateImage(context.Background(), imageReq)
 	if err == nil {
@@ -350,14 +342,13 @@ func TestChatGPTOAuthRouterImage_AllFail_AggregatedError(t *testing.T) {
 // TestChatGPTOAuthRouterImage_ContextCancel_Aborts verifies that a pre-cancelled context
 // causes GenerateImage to return a context-derived error.
 func TestChatGPTOAuthRouterImage_ContextCancel_Aborts(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	// retryable server so the router would attempt failover — but context cancels first
 	serverA := retryableImageTestServer(t)
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", nil)
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before the call
@@ -375,17 +366,16 @@ func TestChatGPTOAuthRouterImage_ContextCancel_Aborts(t *testing.T) {
 // counter advances once per GenerateImage call (not per member tried), matching Chat semantics.
 // With 2 members: call 1 → A, call 2 → B, call 3 → A again.
 func TestChatGPTOAuthRouterImage_RoundRobinAdvancesPerCall(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	var hitsA, hitsB int
 	serverA := imageTestServer(t, func() string { hitsA++; return imageSSEResponse(b64img) })
 	serverB := imageTestServer(t, func() string { hitsB++; return imageSSEResponse(b64img) })
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", serverA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", serverB.URL))
+	registry.Register(newImageCodexProvider("acct-a", serverA.URL))
+	registry.Register(newImageCodexProvider("acct-b", serverB.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b"})
 
 	for i := range 3 {
 		if _, err := router.GenerateImage(context.Background(), imageReq); err != nil {
@@ -410,8 +400,7 @@ func TestChatGPTOAuthRouterImage_RoundRobinAdvancesPerCall(t *testing.T) {
 // ~evenly (each server ±1 of N/3 for its modality). Any shared state would
 // show either a data race (caught by -race) or visible skew.
 func TestChatGPTOAuthRouter_ChatAndImageConcurrent_CountersIndependent(t *testing.T) {
-	tenantID := uuid.New()
-	registry := NewRegistry(nil)
+	registry := NewRegistry()
 
 	var chatHits, imgHits [3]int64
 	mkServer := func(i int) *httptest.Server {
@@ -432,11 +421,11 @@ func TestChatGPTOAuthRouter_ChatAndImageConcurrent_CountersIndependent(t *testin
 	}
 	srvA, srvB, srvC := mkServer(0), mkServer(1), mkServer(2)
 
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-a", srvA.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-b", srvB.URL))
-	registry.RegisterForTenant(tenantID, newImageCodexProvider("acct-c", srvC.URL))
+	registry.Register(newImageCodexProvider("acct-a", srvA.URL))
+	registry.Register(newImageCodexProvider("acct-b", srvB.URL))
+	registry.Register(newImageCodexProvider("acct-c", srvC.URL))
 
-	router := NewChatGPTOAuthRouter(tenantID, registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
+	router := NewChatGPTOAuthRouter(registry, "acct-a", "round_robin", []string{"acct-b", "acct-c"})
 
 	const perModality = 90 // divisible by 3 so even distribution is achievable
 	var wg sync.WaitGroup

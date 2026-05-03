@@ -136,7 +136,7 @@ func buildEmbeddingProvider(
 
 	// Try registry first for the actual API key / base (handles runtime-registered providers)
 	if providerReg != nil {
-		if regProv, regErr := providerReg.Get(context.Background(), dbp.Name); regErr == nil {
+		if regProv, regErr := providerReg.GetByName(dbp.Name); regErr == nil {
 			if op, ok := regProv.(*providers.OpenAIProvider); ok {
 				if apiBase == "" {
 					apiBase = op.APIBase()
@@ -160,15 +160,15 @@ func buildEmbeddingProvider(
 }
 
 func setupSubagents(providerReg *providers.Registry, cfg *config.Config, msgBus *bus.MessageBus, toolsReg *tools.Registry, workspace string, sandboxMgr sandbox.Manager, secureCLIStore store.SecureCLIStore) *tools.SubagentManager {
-	names := providerReg.List(context.Background())
+	names := providerReg.List()
 	if len(names) == 0 {
 		return nil
 	}
 
 	agentCfg := cfg.ResolveAgent("default")
-	provider, err := providerReg.Get(context.Background(), agentCfg.Provider)
+	provider, err := providerReg.GetByName(agentCfg.Provider)
 	if err != nil {
-		provider, _ = providerReg.Get(context.Background(), names[0])
+		provider, _ = providerReg.GetByName(names[0])
 	}
 	if provider == nil {
 		return nil

@@ -303,7 +303,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 				mcpData.AgentMCPLookup = buildMCPServerLookup(mcpStore)
 				cliOpts = append(cliOpts, providers.WithClaudeCLIMCPConfigData(mcpData))
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewClaudeCLIProvider(cliPath, cliOpts...))
+			registry.Register(providers.NewClaudeCLIProvider(cliPath, cliOpts...))
 			slog.Info("registered provider from DB", "name", p.Name)
 			continue
 		}
@@ -319,7 +319,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			if host == "" {
 				host = "http://localhost:11434/v1"
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host), "llama3.3"))
+			registry.Register(providers.NewOpenAIProvider(p.Name, "ollama", config.DockerLocalhost(host), "llama3.3"))
 			slog.Info("registered provider from DB", "name", p.Name)
 			continue
 		}
@@ -341,44 +341,44 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			if oauthSettings := store.ParseChatGPTOAuthProviderSettings(p.Settings); oauthSettings != nil {
 				codex.WithRoutingDefaults(oauthSettings.CodexPool.Strategy, oauthSettings.CodexPool.ExtraProviderNames)
 			}
-			registry.RegisterForTenant(p.TenantID, codex)
+			registry.Register(codex)
 		case store.ProviderAnthropicNative:
-			registry.RegisterForTenant(p.TenantID, providers.NewAnthropicProvider(p.APIKey,
+			registry.Register(providers.NewAnthropicProvider(p.APIKey,
 				providers.WithAnthropicName(p.Name),
 				providers.WithAnthropicBaseURL(p.APIBase),
 				providers.WithAnthropicRegistry(modelReg)))
 		case store.ProviderDashScope:
-			registry.RegisterForTenant(p.TenantID, providers.NewDashScopeProvider(p.Name, p.APIKey, p.APIBase, ""))
+			registry.Register(providers.NewDashScopeProvider(p.Name, p.APIKey, p.APIBase, ""))
 		case store.ProviderBailian:
 			base := p.APIBase
 			if base == "" {
 				base = "https://coding-intl.dashscope.aliyuncs.com/v1"
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "qwen3.5-plus"))
 		case store.ProviderZai:
 			base := p.APIBase
 			if base == "" {
 				base = "https://api.z.ai/api/paas/v4"
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
 		case store.ProviderZaiCoding:
 			base := p.APIBase
 			if base == "" {
 				base = "https://api.z.ai/api/coding/paas/v4"
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "glm-5"))
 		case store.ProviderOllamaCloud:
 			base := p.APIBase
 			if base == "" {
 				base = "https://ollama.com/v1"
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, "llama3.3"))
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, "llama3.3"))
 		case store.ProviderNovita:
 			base := p.APIBase
 			if base == "" {
 				base = store.NovitaDefaultAPIBase
 			}
-			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
+			registry.Register(providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
 		case store.ProviderBytePlus:
 			base := p.APIBase
 			if base == "" {
@@ -386,7 +386,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			}
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.BytePlusDefaultModel)
 			prov.WithProviderType(p.ProviderType)
-			registry.RegisterForTenant(p.TenantID, prov)
+			registry.Register(prov)
 		case store.ProviderBytePlusCoding:
 			base := p.APIBase
 			if base == "" {
@@ -394,7 +394,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			}
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.BytePlusDefaultModel)
 			prov.WithProviderType(p.ProviderType)
-			registry.RegisterForTenant(p.TenantID, prov)
+			registry.Register(prov)
 		default:
 			prov := providers.NewOpenAIProvider(p.Name, p.APIKey, p.APIBase, "")
 			prov.WithProviderType(p.ProviderType)
@@ -404,7 +404,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 			if p.ProviderType == store.ProviderOpenRouter {
 				prov.WithSiteInfo("https://goclaw.sh", "GoClaw")
 			}
-			registry.RegisterForTenant(p.TenantID, prov)
+			registry.Register(prov)
 		}
 		slog.Info("registered provider from DB", "name", p.Name)
 	}
@@ -476,7 +476,7 @@ func registerACPFromDB(registry *providers.Registry, p store.LLMProviderData) {
 	if workDir == "" {
 		workDir = defaultACPWorkDir()
 	}
-	registry.RegisterForTenant(p.TenantID, providers.NewACPProvider(
+	registry.Register(providers.NewACPProvider(
 		binary, settings.Args, workDir, idleTTL, tools.DefaultDenyPatterns(),
 		providers.WithACPName(p.Name),
 		providers.WithACPModel(p.Name),

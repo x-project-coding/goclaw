@@ -308,7 +308,7 @@ func TestEpisodicWorkerHandle_WithSummary(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventSessionCompleted,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  uuid.New().String(),
 		UserID:   uuid.New().String(),
 		Payload: &eventbus.SessionCompletedPayload{
@@ -735,7 +735,7 @@ func TestDreamingWorkerHandle_MeetsThreshold(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -793,7 +793,7 @@ func TestDreamingWorkerHandle_DebounceSkip(t *testing.T) {
 	// First run should succeed
 	event1 := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: providers.MasterTenantID.String(),
+		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload: &eventbus.EpisodicCreatedPayload{

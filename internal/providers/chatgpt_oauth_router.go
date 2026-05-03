@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
 const chatGPTOAuthStrategyRoundRobin = "round_robin"
@@ -23,7 +21,6 @@ const (
 // authenticated Codex providers while keeping the agent's primary provider as
 // the preferred/default account.
 type ChatGPTOAuthRouter struct {
-	tenantID            uuid.UUID
 	registry            *Registry
 	defaultProviderName string
 	extraProviderNames  []string
@@ -37,14 +34,12 @@ type chatGPTOAuthRouteCandidate struct {
 
 // NewChatGPTOAuthRouter creates a provider wrapper for agent-side ChatGPT OAuth routing.
 func NewChatGPTOAuthRouter(
-	tenantID uuid.UUID,
 	registry *Registry,
 	defaultProviderName string,
 	strategy string,
 	extraProviderNames []string,
 ) *ChatGPTOAuthRouter {
 	return &ChatGPTOAuthRouter{
-		tenantID:            tenantID,
 		registry:            registry,
 		defaultProviderName: defaultProviderName,
 		extraProviderNames:  extraProviderNames,
@@ -169,7 +164,7 @@ func (p *ChatGPTOAuthRouter) orderedProviders(ctx context.Context, modality stri
 		return ordered, nil
 	}
 
-	start := p.registry.RoundRobinNext(p.tenantID, p.defaultProviderName, modality, len(active), advance)
+	start := p.registry.RoundRobinNext(p.defaultProviderName, modality, len(active), advance)
 
 	ordered := make([]Provider, 0, len(active)+len(fallback))
 	ordered = append(ordered, active[start:]...)
@@ -233,7 +228,7 @@ func (p *ChatGPTOAuthRouter) registeredProviders() []Provider {
 
 	providers := make([]Provider, 0, len(names))
 	for _, name := range names {
-		provider, err := p.registry.GetForTenant(p.tenantID, name)
+		provider, err := p.registry.GetByName(name)
 		if err != nil {
 			continue
 		}

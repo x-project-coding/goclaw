@@ -42,8 +42,8 @@ type dreamingWorker struct {
 }
 
 // resolveProvider delegates to shared background provider resolution.
-func (w *dreamingWorker) resolveProvider(ctx context.Context, tenantID uuid.UUID) (providers.Provider, string) {
-	return providerresolve.ResolveBackgroundProvider(ctx, tenantID, w.registry, w.systemConfigs)
+func (w *dreamingWorker) resolveProvider(ctx context.Context) (providers.Provider, string) {
+	return providerresolve.ResolveBackgroundProvider(ctx, w.registry, w.systemConfigs)
 }
 
 // formatEntryForSynthesis renders a single episodic entry with recall
@@ -152,8 +152,7 @@ func (w *dreamingWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	}
 
 	// Resolve provider for this tenant at processing time.
-	tenantUUID, _ := uuid.Parse(event.TenantID)
-	provider, model := w.resolveProvider(ctx, tenantUUID)
+	provider, model := w.resolveProvider(ctx)
 	if provider == nil {
 		slog.Warn("dreaming: no provider available", "tenant", event.TenantID, "agent", agentID)
 		return nil

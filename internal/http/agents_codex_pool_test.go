@@ -144,15 +144,14 @@ func TestResolveCodexPoolRoutingIgnoresNonCodexBaseProvider(t *testing.T) {
 }
 
 func TestResolveCodexPoolRoutingUsesRegistryMasterFallback(t *testing.T) {
-	tenantID := uuid.New()
-	registry := providers.NewRegistry(nil)
-	registry.RegisterForTenant(providers.MasterTenantID, providers.NewCodexProvider(
+	registry := providers.NewRegistry()
+	registry.Register(providers.NewCodexProvider(
 		"openai-codex",
 		&testTokenSource{token: "primary-token"},
 		"http://127.0.0.1",
 		"gpt-5.4",
 	).WithRoutingDefaults(store.ChatGPTOAuthStrategyRoundRobin, []string{"codex-work"}))
-	registry.RegisterForTenant(tenantID, providers.NewCodexProvider(
+	registry.Register(providers.NewCodexProvider(
 		"codex-work",
 		&testTokenSource{token: "backup-token"},
 		"http://127.0.0.1",
@@ -160,7 +159,6 @@ func TestResolveCodexPoolRoutingUsesRegistryMasterFallback(t *testing.T) {
 	))
 
 	agent := &store.AgentData{
-		TenantID: tenantID,
 		Provider: "openai-codex",
 	}
 

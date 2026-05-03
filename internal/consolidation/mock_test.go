@@ -3,17 +3,13 @@ package consolidation
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/knowledgegraph"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
 
-// testRegistry creates a Registry with the given provider registered under MasterTenantID.
-// This allows tests to use the new registry-based provider resolution.
+// testRegistry creates a Registry with the given provider registered.
 func testRegistry(p providers.Provider) *providers.Registry {
-	r := providers.NewRegistry(func(ctx context.Context) uuid.UUID {
-		return providers.MasterTenantID
-	})
+	r := providers.NewRegistry()
 	r.Register(p)
 	return r
 }

@@ -3,7 +3,7 @@ package tools
 // Integration tests for pool-failover-before-chain-fallthrough semantics in create_image.
 // These tests exercise the full stack: ExecuteWithChain + wrapPoolProvider +
 // CreateImageTool.callProvider, wired through a real ChatGPTOAuthRouter backed
-// by mock HTTP servers. They prove the contract from issue #1008 is correct:
+// by mock HTTP servers. They prove the contract is correct:
 // pool member failover happens INSIDE the router before the outer chain advances.
 //
 // Not duplicated here (already covered at unit level):
@@ -11,15 +11,14 @@ package tools
 //   - internal/tools/media_provider_chain_pool_test.go      — wrapPoolProvider decisions
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/providers/providertest"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // poolImageSSE returns a minimal SSE body that parseNativeImageSSE accepts.
@@ -52,14 +51,11 @@ func pool429Server(t *testing.T, hits *atomic.Int32) *httptest.Server {
 	return s
 }
 
-// buildPoolChainRegistry creates a registry and registers each CodexProvider under
-// both the master tenant (so ExecuteWithChain's Get resolves it) and the given
-// tenantID (so ChatGPTOAuthRouter's GetForTenant resolves pool members).
-func buildPoolChainRegistry(tenantID uuid.UUID, members ...*providers.CodexProvider) *providers.Registry {
-	reg := providers.NewRegistry(nil)
+// buildPoolChainRegistry creates a registry and registers each CodexProvider.
+func buildPoolChainRegistry(members ...*providers.CodexProvider) *providers.Registry {
+	reg := providers.NewRegistry()
 	for _, p := range members {
-		reg.Register(p)                    // master tenant — found by ExecuteWithChain
-		reg.RegisterForTenant(tenantID, p) // tenant scope — found by router's GetForTenant
+		reg.Register(p)
 	}
 	return reg
 }
@@ -100,10 +96,8 @@ func fakeFallbackEntry(name string) MediaProviderEntry {
 // --- Scenario 1 ---
 // Chain: [Pool(A retryable, B success), Fallback]
 // Expected: result from B; Fallback NOT called.
-// Proves issue #1008 fix: pool failover is internal to the router, never leaks to outer chain.
+// Proves pool failover is internal to the router, never leaks to outer chain.
 func TestCreateImagePoolChain_PoolMemberFailover_FallbackNotCalled(t *testing.T) {
-	tenantID := uuid.New()
-
 	var hitsA, hitsB atomic.Int32
 	serverA := pool429Server(t, &hitsA)
 	serverB := poolSSEServer(t, &hitsB)
@@ -112,7 +106,7 @@ func TestCreateImagePoolChain_PoolMemberFailover_FallbackNotCalled(t *testing.T)
 	memberB := providertest.NewCodexProviderFast("pool-b", serverB.URL)
 	baseA.WithRoutingDefaults("round_robin", []string{"pool-b"})
 
-	reg := buildPoolChainRegistry(tenantID, baseA, memberB)
+	reg := buildPoolChainRegistry(baseA, memberB)
 
 	// Fallback fake — should NOT be called.
 	fallback := &nativeImageProvider{
@@ -122,8 +116,7 @@ func TestCreateImagePoolChain_PoolMemberFailover_FallbackNotCalled(t *testing.T)
 	}
 	reg.Register(fallback)
 
-	ctx := store.WithTenantID(t.Context(), tenantID)
-	ctx = WithToolWorkspace(ctx, t.TempDir())
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
 
 	chain := []MediaProviderEntry{
 		poolBaseChainEntry("pool-a"),
@@ -144,9 +137,8 @@ func TestCreateImagePoolChain_PoolMemberFailover_FallbackNotCalled(t *testing.T)
 	if hitsB.Load() == 0 {
 		t.Error("pool member B was never hit (expected success)")
 	}
-	// Core assertion from issue #1008: fallback must NOT have been called.
 	if fallback.calledWith != nil {
-		t.Errorf("fallback provider was called — pool failover to B should prevent chain fallthrough (issue #1008 regression)")
+		t.Errorf("fallback provider was called — pool failover to B should prevent chain fallthrough")
 	}
 }
 
@@ -154,8 +146,6 @@ func TestCreateImagePoolChain_PoolMemberFailover_FallbackNotCalled(t *testing.T)
 // Chain: [Pool(A fail, B fail), Fallback success]
 // Expected: result from Fallback.
 func TestCreateImagePoolChain_PoolExhausted_FallsThroughToFallback(t *testing.T) {
-	tenantID := uuid.New()
-
 	var hitsA, hitsB atomic.Int32
 	serverA := pool429Server(t, &hitsA)
 	serverB := pool429Server(t, &hitsB)
@@ -164,7 +154,7 @@ func TestCreateImagePoolChain_PoolExhausted_FallsThroughToFallback(t *testing.T)
 	memberB := providertest.NewCodexProviderFast("pool-b2", serverB.URL)
 	baseA.WithRoutingDefaults("round_robin", []string{"pool-b2"})
 
-	reg := buildPoolChainRegistry(tenantID, baseA, memberB)
+	reg := buildPoolChainRegistry(baseA, memberB)
 
 	fallback := &nativeImageProvider{
 		name:       "fallback-fake2",
@@ -173,8 +163,7 @@ func TestCreateImagePoolChain_PoolExhausted_FallsThroughToFallback(t *testing.T)
 	}
 	reg.Register(fallback)
 
-	ctx := store.WithTenantID(t.Context(), tenantID)
-	ctx = WithToolWorkspace(ctx, t.TempDir())
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
 
 	chain := []MediaProviderEntry{
 		poolBaseChainEntry("pool-a2"),
@@ -204,8 +193,6 @@ func TestCreateImagePoolChain_PoolExhausted_FallsThroughToFallback(t *testing.T)
 // Chain: [Pool(A,B) exhausted, Fallback also fails]
 // Expected: error surfaces; no panic.
 func TestCreateImagePoolChain_AllFail_ErrorSurfaces(t *testing.T) {
-	tenantID := uuid.New()
-
 	var hitsA, hitsB atomic.Int32
 	serverA := pool429Server(t, &hitsA)
 	serverB := pool429Server(t, &hitsB)
@@ -214,7 +201,7 @@ func TestCreateImagePoolChain_AllFail_ErrorSurfaces(t *testing.T) {
 	memberB := providertest.NewCodexProviderFast("pool-b3", serverB.URL)
 	baseA.WithRoutingDefaults("round_robin", []string{"pool-b3"})
 
-	reg := buildPoolChainRegistry(tenantID, baseA, memberB)
+	reg := buildPoolChainRegistry(baseA, memberB)
 
 	// Fallback fake that returns an error.
 	fallbackErr := &nativeImageProvider{
@@ -224,8 +211,7 @@ func TestCreateImagePoolChain_AllFail_ErrorSurfaces(t *testing.T) {
 	}
 	reg.Register(fallbackErr)
 
-	ctx := store.WithTenantID(t.Context(), tenantID)
-	ctx = WithToolWorkspace(ctx, t.TempDir())
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
 
 	chain := []MediaProviderEntry{
 		poolBaseChainEntry("pool-a3"),
@@ -251,18 +237,15 @@ func (e *poolChainTestError) Error() string { return e.msg }
 // Chain: [Pool(A)] — single-member pool, no routing defaults.
 // wrapPoolProvider must NOT wrap; callProvider routes directly to A via native path.
 func TestCreateImagePoolChain_SingleMemberPool_NoWrapOverhead(t *testing.T) {
-	tenantID := uuid.New()
-
 	var hitsA atomic.Int32
 	serverA := poolSSEServer(t, &hitsA)
 
 	// Solo provider — no WithRoutingDefaults → wrapPoolProvider returns it unchanged.
 	soloA := providertest.NewCodexProviderFast("solo-a", serverA.URL)
 
-	reg := buildPoolChainRegistry(tenantID, soloA)
+	reg := buildPoolChainRegistry(soloA)
 
-	ctx := store.WithTenantID(t.Context(), tenantID)
-	ctx = WithToolWorkspace(ctx, t.TempDir())
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
 
 	chain := []MediaProviderEntry{poolBaseChainEntry("solo-a")}
 
@@ -283,8 +266,6 @@ func TestCreateImagePoolChain_SingleMemberPool_NoWrapOverhead(t *testing.T) {
 // Chain: [Pool(A,B) round_robin] — 2 calls must hit different members.
 // Verifies RR counter advances once per GenerateImage call (not per member tried).
 func TestCreateImagePoolChain_RoundRobin_RotatesAcrossTwoCalls(t *testing.T) {
-	tenantID := uuid.New()
-
 	var hitsA, hitsB atomic.Int32
 	serverA := poolSSEServer(t, &hitsA)
 	serverB := poolSSEServer(t, &hitsB)
@@ -293,10 +274,9 @@ func TestCreateImagePoolChain_RoundRobin_RotatesAcrossTwoCalls(t *testing.T) {
 	memberB := providertest.NewCodexProviderFast("rr-b", serverB.URL)
 	baseA.WithRoutingDefaults("round_robin", []string{"rr-b"})
 
-	reg := buildPoolChainRegistry(tenantID, baseA, memberB)
+	reg := buildPoolChainRegistry(baseA, memberB)
 
-	ctx := store.WithTenantID(t.Context(), tenantID)
-	ctx = WithToolWorkspace(ctx, t.TempDir())
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
 
 	chain := []MediaProviderEntry{poolBaseChainEntry("rr-a")}
 	tool := NewCreateImageTool(reg)
