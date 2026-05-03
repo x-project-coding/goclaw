@@ -49,19 +49,14 @@ func (s *PGMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPServe
 	encHeaders := s.encryptJSONB(jsonOrEmpty(srv.Headers))
 	encEnv := s.encryptJSONB(jsonOrEmpty(srv.Env))
 
-	tenantID := store.TenantIDFromContext(ctx)
-	if tenantID == uuid.Nil {
-		tenantID = store.MasterTenantID
-	}
-
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (id, name, display_name, transport, command, args, url, headers, env,
-		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, created_at, updated_at, tenant_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		srv.ID, srv.Name, nilStr(srv.DisplayName), srv.Transport, nilStr(srv.Command),
 		jsonOrEmpty(srv.Args), nilStr(srv.URL), encHeaders, encEnv,
 		nilStr(apiKey), nilStr(srv.ToolPrefix), srv.TimeoutSec,
-		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, now, now, tenantID,
+		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, now, now,
 	)
 	return err
 }
@@ -72,18 +67,9 @@ const mcpServerSelectCols = `id, name, COALESCE(display_name, '') AS display_nam
 		 timeout_sec, settings, enabled, created_by, created_at, updated_at`
 
 func (s *PGMCPServerStore) GetServer(ctx context.Context, id uuid.UUID) (*store.MCPServerData, error) {
-	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers WHERE id = $1`
-	qArgs := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return nil, sql.ErrNoRows
-		}
-		q += ` AND tenant_id = $2`
-		qArgs = append(qArgs, tenantID)
-	}
 	var srv store.MCPServerData
-	if err := pkgSqlxDB.GetContext(ctx, &srv, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.GetContext(ctx, &srv,
+		`SELECT `+mcpServerSelectCols+` FROM mcp_servers WHERE id = $1`, id); err != nil {
 		return nil, err
 	}
 	s.decryptServerFields(&srv)
@@ -91,18 +77,9 @@ func (s *PGMCPServerStore) GetServer(ctx context.Context, id uuid.UUID) (*store.
 }
 
 func (s *PGMCPServerStore) GetServerByName(ctx context.Context, name string) (*store.MCPServerData, error) {
-	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers WHERE name = $1`
-	qArgs := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return nil, sql.ErrNoRows
-		}
-		q += ` AND tenant_id = $2`
-		qArgs = append(qArgs, tenantID)
-	}
 	var srv store.MCPServerData
-	if err := pkgSqlxDB.GetContext(ctx, &srv, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.GetContext(ctx, &srv,
+		`SELECT `+mcpServerSelectCols+` FROM mcp_servers WHERE name = $1`, name); err != nil {
 		return nil, err
 	}
 	s.decryptServerFields(&srv)
@@ -123,20 +100,9 @@ func (s *PGMCPServerStore) decryptServerFields(srv *store.MCPServerData) {
 }
 
 func (s *PGMCPServerStore) ListServers(ctx context.Context) ([]store.MCPServerData, error) {
-	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers`
-	var qArgs []any
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return []store.MCPServerData{}, nil
-		}
-		q += ` WHERE tenant_id = $1`
-		qArgs = append(qArgs, tenantID)
-	}
-	q += ` ORDER BY name`
-
 	var result []store.MCPServerData
-	if err := pkgSqlxDB.SelectContext(ctx, &result, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.SelectContext(ctx, &result,
+		`SELECT `+mcpServerSelectCols+` FROM mcp_servers ORDER BY name`); err != nil {
 		return nil, err
 	}
 	for i := range result {
@@ -174,26 +140,11 @@ func (s *PGMCPServerStore) UpdateServer(ctx context.Context, id uuid.UUID, updat
 		}
 	}
 	updates["updated_at"] = time.Now()
-	if store.IsCrossTenant(ctx) {
-		return execMapUpdate(ctx, s.db, "mcp_servers", id, updates)
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required for update")
-	}
-	return execMapUpdateWhereTenant(ctx, s.db, "mcp_servers", updates, id, tid)
+	return execMapUpdate(ctx, s.db, "mcp_servers", id, updates)
 }
 
 func (s *PGMCPServerStore) DeleteServer(ctx context.Context, id uuid.UUID) error {
-	if store.IsCrossTenant(ctx) {
-		_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = $1", id)
-		return err
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required")
-	}
-	_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = $1 AND tenant_id = $2", id, tid)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = $1", id)
 	return err
 }
 

@@ -23,15 +23,15 @@ func (s *PGMCPServerStore) GrantToAgent(ctx context.Context, g *store.MCPAgentGr
 	}
 	g.CreatedAt = time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, tool_allow, tool_deny, config_overrides, granted_by, created_at, tenant_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, tool_allow, tool_deny, config_overrides, granted_by, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 ON CONFLICT (server_id, agent_id) DO UPDATE SET
 		   enabled = EXCLUDED.enabled, tool_allow = EXCLUDED.tool_allow,
 		   tool_deny = EXCLUDED.tool_deny, config_overrides = EXCLUDED.config_overrides,
 		   granted_by = EXCLUDED.granted_by`,
 		g.ID, g.ServerID, g.AgentID, g.Enabled,
 		jsonOrNull(g.ToolAllow), jsonOrNull(g.ToolDeny), jsonOrNull(g.ConfigOverrides),
-		g.GrantedBy, g.CreatedAt, tenantIDForInsert(ctx),
+		g.GrantedBy, g.CreatedAt,
 	)
 	return err
 }
@@ -122,14 +122,14 @@ func (s *PGMCPServerStore) GrantToUser(ctx context.Context, g *store.MCPUserGran
 	}
 	g.CreatedAt = time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, tool_allow, tool_deny, granted_by, created_at, tenant_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, tool_allow, tool_deny, granted_by, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 		 ON CONFLICT (server_id, user_id) DO UPDATE SET
 		   enabled = EXCLUDED.enabled, tool_allow = EXCLUDED.tool_allow,
 		   tool_deny = EXCLUDED.tool_deny, granted_by = EXCLUDED.granted_by`,
 		g.ID, g.ServerID, g.UserID, g.Enabled,
 		jsonOrNull(g.ToolAllow), jsonOrNull(g.ToolDeny),
-		g.GrantedBy, g.CreatedAt, tenantIDForInsert(ctx),
+		g.GrantedBy, g.CreatedAt,
 	)
 	return err
 }
@@ -222,11 +222,11 @@ func (s *PGMCPServerStore) CreateRequest(ctx context.Context, req *store.MCPAcce
 	req.Status = "pending"
 	req.CreatedAt = time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO mcp_access_requests (id, server_id, agent_id, user_id, scope, status, reason, tool_allow, requested_by, created_at, tenant_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		`INSERT INTO mcp_access_requests (id, server_id, agent_id, user_id, scope, status, reason, tool_allow, requested_by, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		req.ID, req.ServerID, nilUUID(req.AgentID), nilStr(req.UserID),
 		req.Scope, req.Status, nilStr(req.Reason),
-		jsonOrNull(req.ToolAllow), req.RequestedBy, req.CreatedAt, tenantIDForInsert(ctx),
+		jsonOrNull(req.ToolAllow), req.RequestedBy, req.CreatedAt,
 	)
 	return err
 }
@@ -302,20 +302,20 @@ func (s *PGMCPServerStore) ReviewRequest(ctx context.Context, requestID uuid.UUI
 				return fmt.Errorf("agent_id required for agent scope")
 			}
 			_, err = tx.ExecContext(ctx,
-				`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, tool_allow, granted_by, created_at, tenant_id)
-				 VALUES ($1,$2,$3,true,$4,$5,$6,$7)
+				`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, tool_allow, granted_by, created_at)
+				 VALUES ($1,$2,$3,true,$4,$5,$6)
 				 ON CONFLICT (server_id, agent_id) DO UPDATE SET enabled = true, tool_allow = EXCLUDED.tool_allow, granted_by = EXCLUDED.granted_by`,
-				store.GenNewID(), req.ServerID, *agentID, jsonOrNull(req.ToolAllow), reviewedBy, now, tenantIDForInsert(ctx),
+				store.GenNewID(), req.ServerID, *agentID, jsonOrNull(req.ToolAllow), reviewedBy, now,
 			)
 		case "user":
 			if userID == nil || *userID == "" {
 				return fmt.Errorf("user_id required for user scope")
 			}
 			_, err = tx.ExecContext(ctx,
-				`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, tool_allow, granted_by, created_at, tenant_id)
-				 VALUES ($1,$2,$3,true,$4,$5,$6,$7)
+				`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, tool_allow, granted_by, created_at)
+				 VALUES ($1,$2,$3,true,$4,$5,$6)
 				 ON CONFLICT (server_id, user_id) DO UPDATE SET enabled = true, tool_allow = EXCLUDED.tool_allow, granted_by = EXCLUDED.granted_by`,
-				store.GenNewID(), req.ServerID, *userID, jsonOrNull(req.ToolAllow), reviewedBy, now, tenantIDForInsert(ctx),
+				store.GenNewID(), req.ServerID, *userID, jsonOrNull(req.ToolAllow), reviewedBy, now,
 			)
 		default:
 			return fmt.Errorf("unknown scope: %s", req.Scope)

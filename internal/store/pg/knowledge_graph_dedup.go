@@ -156,12 +156,11 @@ func (s *PGKnowledgeGraphStore) insertDedupCandidate(ctx context.Context, agentI
 	if err != nil {
 		return fmt.Errorf("insert dedup candidate: entity_b_id: %w", err)
 	}
-	tid := tenantIDForInsert(ctx)
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO kg_dedup_candidates (id, tenant_id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO kg_dedup_candidates (id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (entity_a_id, entity_b_id) DO NOTHING`,
-		uuid.Must(uuid.NewV7()), tid, agentID, userID, aID, bID, similarity, time.Now(),
+		uuid.Must(uuid.NewV7()), agentID, userID, aID, bID, similarity, time.Now(),
 	)
 	return err
 }
@@ -207,7 +206,6 @@ func (s *PGKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID, use
 		SELECT a.id, b.id, 1 - (a.embedding <=> b.embedding) AS similarity
 		FROM kg_entities a
 		JOIN kg_entities b ON b.agent_id = a.agent_id
-		  AND b.tenant_id = a.tenant_id
 		  AND b.entity_type = a.entity_type
 		  AND b.id > a.id
 		  AND b.embedding IS NOT NULL
@@ -223,7 +221,6 @@ func (s *PGKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID, use
 	}
 	defer rows.Close()
 
-	tid := tenantIDForInsert(ctx)
 	found := 0
 	for rows.Next() {
 		var aID, bID string
@@ -246,10 +243,10 @@ func (s *PGKnowledgeGraphStore) ScanDuplicates(ctx context.Context, agentID, use
 			continue
 		}
 		if _, err := s.db.ExecContext(ctx, `
-			INSERT INTO kg_dedup_candidates (id, tenant_id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			INSERT INTO kg_dedup_candidates (id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			ON CONFLICT (entity_a_id, entity_b_id) DO NOTHING`,
-			uuid.Must(uuid.NewV7()), tid, aid, userID, aUUID, bUUID, sim, time.Now(),
+			uuid.Must(uuid.NewV7()), aid, userID, aUUID, bUUID, sim, time.Now(),
 		); err != nil {
 			slog.Warn("kg.scan_duplicates: insert candidate failed", "error", err)
 			continue

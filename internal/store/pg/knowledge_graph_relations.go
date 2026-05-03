@@ -31,16 +31,14 @@ func (s *PGKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation *st
 	}
 	id := uuid.Must(uuid.NewV7())
 	now := time.Now()
-	tid := tenantIDForInsert(ctx)
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO kg_relations
-			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, tenant_id, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = EXCLUDED.confidence,
-			properties  = EXCLUDED.properties,
-			tenant_id   = EXCLUDED.tenant_id`,
-		id, aid, relation.UserID, src, relation.RelationType, tgt, relation.Confidence, props, tid, now,
+			properties  = EXCLUDED.properties`,
+		id, aid, relation.UserID, src, relation.RelationType, tgt, relation.Confidence, props, now,
 	)
 	return err
 }
@@ -179,7 +177,6 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 	defer tx.Rollback() //nolint:errcheck
 
 	now := time.Now()
-	tid := tenantIDForInsert(ctx)
 
 	// Upsert entities and build external_id → DB UUID lookup for relations
 	extIDToUUID := make(map[string]uuid.UUID, len(entities))
@@ -193,8 +190,8 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 		var actualID uuid.UUID
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO kg_entities
-				(id, agent_id, user_id, external_id, name, entity_type, description, properties, source_id, confidence, tenant_id, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+				(id, agent_id, user_id, external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 			ON CONFLICT (agent_id, user_id, external_id) DO UPDATE SET
 				name        = EXCLUDED.name,
 				entity_type = EXCLUDED.entity_type,
@@ -202,11 +199,10 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 				properties  = EXCLUDED.properties,
 				source_id   = EXCLUDED.source_id,
 				confidence  = EXCLUDED.confidence,
-				tenant_id   = EXCLUDED.tenant_id,
 				updated_at  = EXCLUDED.updated_at
 			RETURNING id`,
 			id, aid, userID, e.ExternalID, e.Name, e.EntityType,
-			e.Description, props, e.SourceID, e.Confidence, tid, now,
+			e.Description, props, e.SourceID, e.Confidence, now,
 		).Scan(&actualID); err != nil {
 			return nil, err
 		}
@@ -254,13 +250,12 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 		id := uuid.Must(uuid.NewV7())
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO kg_relations
-				(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, tenant_id, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			ON CONFLICT (agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 				confidence  = EXCLUDED.confidence,
-				properties  = EXCLUDED.properties,
-				tenant_id   = EXCLUDED.tenant_id`,
-			id, aid, userID, src, r.RelationType, tgt, r.Confidence, props, tid, now,
+				properties  = EXCLUDED.properties`,
+			id, aid, userID, src, r.RelationType, tgt, r.Confidence, props, now,
 		); err != nil {
 			return nil, err
 		}
