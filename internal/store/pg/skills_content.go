@@ -20,18 +20,10 @@ func (s *PGSkillStore) LoadSkill(ctx context.Context, name string) (string, bool
 	var slug string
 	var version int
 	var filePath *string
-	// Tenant filter: system skills visible globally, custom skills scoped to tenant.
-	q := "SELECT slug, version, file_path FROM skills WHERE slug = $1 AND status = 'active'"
-	args := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = true OR tenant_id = $2)"
-		args = append(args, tid)
-	}
-	err := s.db.QueryRowContext(ctx, q, args...).Scan(&slug, &version, &filePath)
+	err := s.db.QueryRowContext(ctx,
+		"SELECT slug, version, file_path FROM skills WHERE slug = $1 AND status = 'active'",
+		name,
+	).Scan(&slug, &version, &filePath)
 	if err != nil {
 		return "", false
 	}
@@ -96,17 +88,10 @@ func (s *PGSkillStore) GetSkill(ctx context.Context, name string) (*store.SkillI
 	var version int
 	var isSystem bool
 	var filePath *string
-	q := "SELECT id, name, slug, description, visibility, tags, version, is_system, file_path FROM skills WHERE slug = $1 AND status = 'active'"
-	args := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = true OR tenant_id = $2)"
-		args = append(args, tid)
-	}
-	err := s.db.QueryRowContext(ctx, q, args...).Scan(&id, &skillName, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &filePath)
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, name, slug, description, visibility, tags, version, is_system, file_path FROM skills WHERE slug = $1 AND status = 'active'",
+		name,
+	).Scan(&id, &skillName, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &filePath)
 	if err != nil {
 		return nil, false
 	}
@@ -121,7 +106,7 @@ func (s *PGSkillStore) FilterSkills(ctx context.Context, allowList []string) []s
 	all := s.ListSkills(ctx)
 	var filtered []store.SkillInfo
 	if allowList == nil {
-		// No allowList → return all enabled skills (for agent injection)
+		// No allowList → return all enabled skills (for agent injection).
 		for _, sk := range all {
 			if sk.Enabled {
 				filtered = append(filtered, sk)
@@ -146,7 +131,6 @@ func (s *PGSkillStore) FilterSkills(ctx context.Context, allowList []string) []s
 
 // GetSkillByID returns a SkillInfo for any skill by UUID, regardless of status or enabled flag.
 // Used by admin operations (e.g. toggle) that need full skill info.
-// Tenant filter: system skills visible globally, custom skills scoped to tenant.
 func (s *PGSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (store.SkillInfo, bool) {
 	var name, slug, visibility, status string
 	var desc *string
@@ -155,18 +139,11 @@ func (s *PGSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (store.Sk
 	var isSystem, enabled bool
 	var depsRaw []byte
 	var filePath *string
-	q := `SELECT name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
-		 FROM skills WHERE id = $1`
-	args := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = true OR tenant_id = $2)"
-		args = append(args, tid)
-	}
-	err := s.db.QueryRowContext(ctx, q, args...).Scan(&name, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &status, &enabled, &depsRaw, &filePath)
+	err := s.db.QueryRowContext(ctx,
+		`SELECT name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
+		 FROM skills WHERE id = $1`,
+		id,
+	).Scan(&name, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &status, &enabled, &depsRaw, &filePath)
 	if err != nil {
 		return store.SkillInfo{}, false
 	}
@@ -183,18 +160,10 @@ func (s *PGSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (store.Sk
 // GetSkillOwnerID returns the owner_id for a skill by UUID.
 // Returns ("", false) if the skill does not exist.
 func (s *PGSkillStore) GetSkillOwnerID(ctx context.Context, id uuid.UUID) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE id = $1"
-	args := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = true OR tenant_id = $2)"
-		args = append(args, tid)
-	}
 	var ownerID string
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&ownerID); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT owner_id FROM skills WHERE id = $1", id,
+	).Scan(&ownerID); err != nil {
 		return "", false
 	}
 	return ownerID, true
@@ -203,18 +172,10 @@ func (s *PGSkillStore) GetSkillOwnerID(ctx context.Context, id uuid.UUID) (strin
 // GetSkillOwnerIDBySlug returns the owner_id for a skill by slug.
 // Returns ("", false) if the skill does not exist or is archived.
 func (s *PGSkillStore) GetSkillOwnerIDBySlug(ctx context.Context, slug string) (string, bool) {
-	q := "SELECT owner_id FROM skills WHERE slug = $1 AND status = 'active'"
-	args := []any{slug}
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			tid = store.MasterTenantID
-		}
-		q += " AND (is_system = true OR tenant_id = $2)"
-		args = append(args, tid)
-	}
 	var ownerID string
-	if err := s.db.QueryRowContext(ctx, q, args...).Scan(&ownerID); err != nil {
+	if err := s.db.QueryRowContext(ctx,
+		"SELECT owner_id FROM skills WHERE slug = $1 AND status = 'active'", slug,
+	).Scan(&ownerID); err != nil {
 		return "", false
 	}
 	return ownerID, true

@@ -52,37 +52,23 @@ func hooksTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// seedTenantAndAgent inserts minimal tenant + agent rows and registers cleanup.
-func seedTenantAndAgent(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) {
+// seedAgent inserts a minimal agent row and registers cleanup.
+func seedAgent(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
-	tenantID = uuid.Must(uuid.NewV7())
-	agentID = uuid.Must(uuid.NewV7())
-
-	// UUIDv7s generated in the same millisecond share their 8-char prefix,
-	// so deriving slug/agent_key from `[:8]` collides when a test calls
-	// seedTenantAndAgent twice back-to-back and the second INSERT is swallowed
-	// by ON CONFLICT DO NOTHING on the unique slug/agent_key constraint. Use
-	// the full UUID — always unique.
+	agentID := uuid.Must(uuid.NewV7())
 	_, err := db.Exec(
-		`INSERT INTO tenants (id, name, slug, status) VALUES ($1,$2,$3,'active') ON CONFLICT DO NOTHING`,
-		tenantID, "hook-test-"+tenantID.String()[:8], "ht-"+tenantID.String())
-	if err != nil {
-		t.Fatalf("seed tenant: %v", err)
-	}
-	_, err = db.Exec(
-		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1,$2,$3,'predefined','active','test','test-model','owner') ON CONFLICT DO NOTHING`,
-		agentID, tenantID, "hook-agent-"+agentID.String())
+		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
+		 VALUES ($1,$2,'predefined','active','test','test-model','owner') ON CONFLICT DO NOTHING`,
+		agentID, "hook-agent-"+agentID.String())
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
 	t.Cleanup(func() {
-		db.Exec("DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM hooks WHERE tenant_id=$1)", tenantID)
-		db.Exec("DELETE FROM hooks WHERE tenant_id=$1", tenantID)
+		db.Exec("DELETE FROM hook_executions WHERE hook_id IN (SELECT id FROM hooks WHERE agent_id=$1)", agentID)
+		db.Exec("DELETE FROM hooks WHERE agent_id=$1", agentID)
 		db.Exec("DELETE FROM agents WHERE id=$1", agentID)
-		db.Exec("DELETE FROM tenants WHERE id=$1", tenantID)
 	})
-	return tenantID, agentID
+	return agentID
 }
 
 func masterCtx() context.Context {
@@ -115,12 +101,11 @@ func minimalHook(tenantID uuid.UUID, event hooks.HookEvent) hooks.HookConfig {
 
 func TestPGHookStore_CRUD(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, _ := seedTenantAndAgent(t, db)
 	s := NewPGHookStore(db)
-	ctx := tenantScopedCtx(tenantID)
+	ctx := context.Background()
 
 	// Create
-	cfg := minimalHook(tenantID, hooks.EventPreToolUse)
+	cfg := minimalHook(uuid.Nil, hooks.EventPreToolUse)
 	id, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -128,6 +113,7 @@ func TestPGHookStore_CRUD(t *testing.T) {
 	if id == uuid.Nil {
 		t.Fatal("Create returned nil UUID")
 	}
+	t.Cleanup(func() { db.Exec("DELETE FROM hooks WHERE id=$1", id) })
 
 	// GetByID
 	got, err := s.GetByID(ctx, id)
@@ -139,9 +125,6 @@ func TestPGHookStore_CRUD(t *testing.T) {
 	}
 	if got.Event != hooks.EventPreToolUse {
 		t.Errorf("event mismatch: got %q want %q", got.Event, hooks.EventPreToolUse)
-	}
-	if got.TenantID != tenantID {
-		t.Errorf("tenant_id mismatch")
 	}
 	if got.Version != 1 {
 		t.Errorf("initial version should be 1, got %d", got.Version)
@@ -183,76 +166,49 @@ func TestPGHookStore_CRUD(t *testing.T) {
 	}
 }
 
-// ─── Tenant isolation ─────────────────────────────────────────────────────────
+// ─── List isolation (single-tenant) ──────────────────────────────────────────
 
-func TestPGHookStore_TenantIsolation(t *testing.T) {
+// TestPGHookStore_ListReturnsCreated verifies List returns hooks created in this session.
+// In v4 single-tenant mode there is no per-tenant scoping in the DB.
+func TestPGHookStore_ListReturnsCreated(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantA, _ := seedTenantAndAgent(t, db)
-	tenantB, _ := seedTenantAndAgent(t, db)
 	s := NewPGHookStore(db)
+	ctx := context.Background()
 
-	ctxA := tenantScopedCtx(tenantA)
-	ctxB := tenantScopedCtx(tenantB)
-
-	cfgA := minimalHook(tenantA, hooks.EventStop)
-	idA, err := s.Create(ctxA, cfgA)
+	cfg := minimalHook(uuid.Nil, hooks.EventStop)
+	idA, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create A: %v", err)
 	}
+	t.Cleanup(func() { s.Delete(masterCtx(), idA) })
 
-	// Tenant B cannot read tenant A's hook
-	got, err := s.GetByID(ctxB, idA)
-	// GetByID has no tenant filter — returns the row regardless of scope.
-	// List should filter it out though.
-	_ = got
-	_ = err
-
-	// List from tenant B should not see tenant A's hooks.
-	listB, err := s.List(ctxB, hooks.ListFilter{})
+	list, err := s.List(ctx, hooks.ListFilter{})
 	if err != nil {
-		t.Fatalf("List B: %v", err)
-	}
-	for _, h := range listB {
-		if h.ID == idA {
-			t.Errorf("tenant B saw tenant A hook %s", idA)
-		}
-	}
-
-	// Tenant A can see their own hook.
-	listA, err := s.List(ctxA, hooks.ListFilter{})
-	if err != nil {
-		t.Fatalf("List A: %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	found := false
-	for _, h := range listA {
+	for _, h := range list {
 		if h.ID == idA {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("tenant A did not see their own hook in List")
+		t.Error("List did not return the created hook")
 	}
-
-	// Tenant B cannot delete tenant A's hook.
-	if err := s.Delete(ctxB, idA); err == nil {
-		t.Error("tenant B should not be able to delete tenant A's hook")
-	}
-	// Cleanup.
-	_ = s.Delete(ctxA, idA)
 }
 
 // ─── ResolveForEvent ─────────────────────────────────────────────────────────
 
 func TestPGHookStore_ResolveForEvent(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, agentID := seedTenantAndAgent(t, db)
+	agentID := seedAgent(t, db)
 	s := NewPGHookStore(db)
-	ctx := tenantScopedCtx(tenantID)
+	ctx := context.Background()
 
 	// Create two enabled hooks for pre_tool_use, different priorities.
-	lowPriCfg := minimalHook(tenantID, hooks.EventPreToolUse)
+	lowPriCfg := minimalHook(uuid.Nil, hooks.EventPreToolUse)
 	lowPriCfg.Priority = 0
-	highPriCfg := minimalHook(tenantID, hooks.EventPreToolUse)
+	highPriCfg := minimalHook(uuid.Nil, hooks.EventPreToolUse)
 	highPriCfg.Priority = 10
 
 	id1, _ := s.Create(ctx, lowPriCfg)
@@ -263,7 +219,6 @@ func TestPGHookStore_ResolveForEvent(t *testing.T) {
 	})
 
 	event := hooks.Event{
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventPreToolUse,
 	}
@@ -281,7 +236,7 @@ func TestPGHookStore_ResolveForEvent(t *testing.T) {
 	}
 
 	// Disabled hook should not appear.
-	disabledCfg := minimalHook(tenantID, hooks.EventPreToolUse)
+	disabledCfg := minimalHook(uuid.Nil, hooks.EventPreToolUse)
 	disabledCfg.Enabled = false
 	idDisabled, _ := s.Create(ctx, disabledCfg)
 	t.Cleanup(func() { s.Delete(masterCtx(), idDisabled) })
@@ -298,12 +253,11 @@ func TestPGHookStore_ResolveForEvent(t *testing.T) {
 
 func TestPGHookStore_WriteExecution(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, _ := seedTenantAndAgent(t, db)
 	s := NewPGHookStore(db)
-	ctx := tenantScopedCtx(tenantID)
+	ctx := context.Background()
 
 	// Create a hook for FK.
-	cfg := minimalHook(tenantID, hooks.EventStop)
+	cfg := minimalHook(uuid.Nil, hooks.EventStop)
 	hookID, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -354,12 +308,11 @@ func TestPGHookStore_WriteExecution(t *testing.T) {
 
 func TestPGHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, agentID := seedTenantAndAgent(t, db)
+	agentID := seedAgent(t, db)
 	s := NewPGHookStore(db)
-	ctx := tenantScopedCtx(tenantID)
+	ctx := context.Background()
 
 	event := hooks.Event{
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventSessionStart,
 	}
@@ -372,7 +325,7 @@ func TestPGHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	beforeCount := len(before)
 
 	// Add a hook — cache should be invalidated.
-	cfg := minimalHook(tenantID, hooks.EventSessionStart)
+	cfg := minimalHook(uuid.Nil, hooks.EventSessionStart)
 	id, err := s.Create(ctx, cfg)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -388,17 +341,15 @@ func TestPGHookStore_CacheInvalidatedOnWrite(t *testing.T) {
 	}
 }
 
-// H9 (Phase 03): Create must honor a caller-supplied cfg.ID so the builtin
-// seeder's idempotent UUIDv5 keys survive restarts and tests can use
-// deterministic IDs. Verified on both Create paths (fixed + auto).
+// TestPGHookStore_CreateHonorsFixedID verifies that a caller-supplied cfg.ID is
+// preserved so the builtin seeder's idempotent UUIDv5 keys survive restarts.
 func TestPGHookStore_CreateHonorsFixedID(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, _ := seedTenantAndAgent(t, db)
 	s := NewPGHookStore(db)
-	ctx := tenantScopedCtx(tenantID)
+	ctx := context.Background()
 
 	fixed := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-	cfg := minimalHook(tenantID, hooks.EventUserPromptSubmit)
+	cfg := minimalHook(uuid.Nil, hooks.EventUserPromptSubmit)
 	cfg.ID = fixed
 
 	got, err := s.Create(ctx, cfg)
@@ -407,11 +358,11 @@ func TestPGHookStore_CreateHonorsFixedID(t *testing.T) {
 	}
 	t.Cleanup(func() { s.Delete(masterCtx(), got) })
 	if got != fixed {
-		t.Fatalf("returned id=%s, want %s (H9: caller id must be honored)", got, fixed)
+		t.Fatalf("returned id=%s, want %s (caller id must be honored)", got, fixed)
 	}
 
 	// Nil cfg.ID still auto-generates a UUIDv7.
-	cfg2 := minimalHook(tenantID, hooks.EventPreToolUse)
+	cfg2 := minimalHook(uuid.Nil, hooks.EventPreToolUse)
 	cfg2.ID = uuid.Nil
 	auto, err := s.Create(ctx, cfg2)
 	if err != nil {
@@ -425,13 +376,12 @@ func TestPGHookStore_CreateHonorsFixedID(t *testing.T) {
 
 // ─── Phase 04: builtin-row readonly protection ───────────────────────────────
 
-// TestPGHookStore_BuiltinReadOnly exercises the Phase 04 guard: user-facing
+// TestPGHookStore_BuiltinReadOnly exercises the builtin-row guard: user-facing
 // writes on a source='builtin' row may only toggle enabled; every other patch
 // must surface ErrBuiltinReadOnly. The seed bypass marker unlocks full writes
 // for the loader package only.
 func TestPGHookStore_BuiltinReadOnly(t *testing.T) {
 	db := hooksTestDB(t)
-	tenantID, _ := seedTenantAndAgent(t, db)
 	s := NewPGHookStore(db)
 
 	// Seed a builtin row via WithSeedBypass (the only authorized path).
@@ -449,8 +399,8 @@ func TestPGHookStore_BuiltinReadOnly(t *testing.T) {
 	}
 	t.Cleanup(func() { s.Delete(seedCtx, id) })
 
-	// User ctx: tenant-scoped. Non-enabled patch must be rejected.
-	userCtx := tenantScopedCtx(tenantID)
+	// User ctx: non-builtin-bypass. Non-enabled patch must be rejected.
+	userCtx := context.Background()
 	err = s.Update(userCtx, id, map[string]any{"matcher": "evil"})
 	if !errors.Is(err, hooks.ErrBuiltinReadOnly) {
 		t.Fatalf("Update(matcher) err=%v, want ErrBuiltinReadOnly", err)

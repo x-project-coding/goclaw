@@ -14,8 +14,8 @@ import (
 
 // PGHookBudget implements budget.Dialect over PostgreSQL.
 // Uses a single atomic UPDATE with RETURNING for the hot path and an
-// UPSERT fallback for first-of-month seeding. L2 mitigation: no
-// select-then-update race possible.
+// UPSERT fallback for first-of-month seeding. No select-then-update race possible.
+// In v4 single-tenant mode the userID parameter is the per-user key.
 type PGHookBudget struct {
 	db *sql.DB
 }
@@ -29,20 +29,19 @@ func NewPGHookBudget(db *sql.DB) *PGHookBudget {
 //
 // Path A — current-month row exists and has enough balance:
 //
-//	UPDATE ... SET remaining = remaining - $1 WHERE tenant=$2 AND month=$3 AND remaining >= $1 RETURNING remaining, budget_total
+//	UPDATE ... SET remaining = remaining - $1 WHERE user=$2 AND month=$3 AND remaining >= $1 RETURNING remaining, budget_total
 //	→ one round-trip, no race.
 //
 // Path B — row missing or month stale: INSERT ... ON CONFLICT DO UPDATE
-// with fresh budget_total, then re-run path A. We detect this via
-// affected=0 on the UPDATE and retry exactly once.
+// with fresh budget_total, then re-run path A.
 //
 // Path C — row exists but remaining < cost: affected=0 after seed; return
 // ErrBudgetExceeded.
 func (b *PGHookBudget) DeductAtomic(
-	ctx context.Context, tenantID uuid.UUID, cost int64, month time.Time, defaultBudget int64,
+	ctx context.Context, userID uuid.UUID, cost int64, month time.Time, defaultBudget int64,
 ) (int64, int64, error) {
 	// First try: direct deduct on an existing row for the current month.
-	remaining, total, ok, err := b.tryDeduct(ctx, tenantID, cost, month)
+	remaining, total, ok, err := b.tryDeduct(ctx, userID, cost, month)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -50,14 +49,13 @@ func (b *PGHookBudget) DeductAtomic(
 		return remaining, total, nil
 	}
 
-	// Seed-or-rollover: ensure a row exists for (tenant, month) with a
-	// fresh default budget; then retry the deduct. ON CONFLICT only
-	// overwrites the row when the existing month_start is stale.
-	if err := b.seedIfStale(ctx, tenantID, month, defaultBudget); err != nil {
+	// Seed-or-rollover: ensure a row exists for (user, month) with a
+	// fresh default budget; then retry the deduct.
+	if err := b.seedIfStale(ctx, userID, month, defaultBudget); err != nil {
 		return 0, 0, err
 	}
 
-	remaining, total, ok, err = b.tryDeduct(ctx, tenantID, cost, month)
+	remaining, total, ok, err = b.tryDeduct(ctx, userID, cost, month)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -68,20 +66,18 @@ func (b *PGHookBudget) DeductAtomic(
 }
 
 // tryDeduct runs the atomic UPDATE and reports (remaining, total, rowFound).
-// rowFound=false means either the row was missing OR remaining < cost.
-// Callers must distinguish via the seed path.
 func (b *PGHookBudget) tryDeduct(
-	ctx context.Context, tenantID uuid.UUID, cost int64, month time.Time,
+	ctx context.Context, userID uuid.UUID, cost int64, month time.Time,
 ) (int64, int64, bool, error) {
 	row := b.db.QueryRowContext(ctx, `
-		UPDATE tenant_hook_budget
+		UPDATE user_hook_budget
 		SET remaining = remaining - $1,
 		    updated_at = NOW()
-		WHERE tenant_id = $2
+		WHERE user_id = $2
 		  AND month_start = $3::date
 		  AND remaining >= $1
 		RETURNING remaining, budget_total`,
-		cost, tenantID, month.Format("2006-01-02"),
+		cost, userID, month.Format("2006-01-02"),
 	)
 	var rem, total int64
 	err := row.Scan(&rem, &total)
@@ -94,23 +90,23 @@ func (b *PGHookBudget) tryDeduct(
 	return rem, total, true, nil
 }
 
-// seedIfStale UPSERTs the per-tenant row for month, resetting remaining to
+// seedIfStale UPSERTs the per-user row for month, resetting remaining to
 // defaultBudget when month_start is older than month (rollover) OR the row
-// is missing. Concurrent inserts are serialized by the PK.
+// is missing.
 func (b *PGHookBudget) seedIfStale(
-	ctx context.Context, tenantID uuid.UUID, month time.Time, defaultBudget int64,
+	ctx context.Context, userID uuid.UUID, month time.Time, defaultBudget int64,
 ) error {
 	_, err := b.db.ExecContext(ctx, `
-		INSERT INTO tenant_hook_budget
-		  (tenant_id, month_start, budget_total, remaining, metadata, updated_at)
+		INSERT INTO user_hook_budget
+		  (user_id, month_start, budget_total, remaining, metadata, updated_at)
 		VALUES ($1, $2::date, $3, $3, '{}', NOW())
-		ON CONFLICT (tenant_id) DO UPDATE
+		ON CONFLICT (user_id) DO UPDATE
 		SET month_start = EXCLUDED.month_start,
 		    budget_total = EXCLUDED.budget_total,
 		    remaining = EXCLUDED.remaining,
 		    updated_at = NOW()
-		WHERE tenant_hook_budget.month_start < EXCLUDED.month_start`,
-		tenantID, month.Format("2006-01-02"), defaultBudget,
+		WHERE user_hook_budget.month_start < EXCLUDED.month_start`,
+		userID, month.Format("2006-01-02"), defaultBudget,
 	)
 	if err != nil {
 		return fmt.Errorf("budget seed: %w", err)

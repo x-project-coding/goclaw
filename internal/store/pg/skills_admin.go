@@ -14,7 +14,7 @@ import (
 // When hash is unchanged, returns the existing file_path from DB so the caller
 // uses the correct directory for dep scanning (not a non-existent next-version dir).
 func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreateParams) (uuid.UUID, bool, string, error) {
-	// Check if skill already exists
+	// Check if skill already exists.
 	var existingID uuid.UUID
 	var existingHash *string
 	var existingFilePath string
@@ -23,11 +23,11 @@ func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreat
 	).Scan(&existingID, &existingHash, &existingFilePath)
 
 	if err == nil {
-		// Skill exists — check if hash changed
+		// Skill exists — check if hash changed.
 		if existingHash != nil && p.FileHash != nil && *existingHash == *p.FileHash {
 			return existingID, false, existingFilePath, nil // unchanged, use existing path
 		}
-		// existingHash is nil (old record without hash) — backfill hash without bumping version
+		// existingHash is nil (old record without hash) — backfill hash without bumping version.
 		if existingHash == nil && p.FileHash != nil {
 			_, _ = s.db.ExecContext(ctx,
 				`UPDATE skills SET file_hash = $1, updated_at = NOW() WHERE id = $2`,
@@ -35,7 +35,7 @@ func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreat
 			)
 			return existingID, false, existingFilePath, nil
 		}
-		// Hash genuinely changed — full update with new version
+		// Hash genuinely changed — full update with new version.
 		fmJSON := marshalFrontmatter(p.Frontmatter)
 		_, err = s.db.ExecContext(ctx,
 			`UPDATE skills SET name = $1, description = $2, version = $3, frontmatter = $4,
@@ -52,21 +52,21 @@ func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreat
 		return existingID, true, p.FilePath, nil
 	}
 
-	// New skill — insert
+	// New skill — insert.
 	id := store.GenNewID()
 	fmJSON := marshalFrontmatter(p.Frontmatter)
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status,
-		 is_system, frontmatter, file_path, file_size, file_hash, tenant_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, 'system', 'public', $5, $6, true, $7, $8, $9, $10, $11, NOW(), NOW())`,
+		 is_system, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, 'system', 'public', $5, $6, true, $7, $8, $9, $10, NOW(), NOW())`,
 		id, p.Name, p.Slug, p.Description, p.Version, p.Status,
-		fmJSON, p.FilePath, p.FileSize, p.FileHash, store.MasterTenantID,
+		fmJSON, p.FilePath, p.FileSize, p.FileHash,
 	)
 	if err != nil {
 		return uuid.Nil, false, "", fmt.Errorf("insert system skill: %w", err)
 	}
 	s.BumpVersion()
-	// Generate embedding asynchronously
+	// Generate embedding asynchronously.
 	desc := ""
 	if p.Description != nil {
 		desc = *p.Description
@@ -96,12 +96,12 @@ func (s *PGSkillStore) ListSystemSkillDirs(ctx context.Context) map[string]strin
 	return dirs
 }
 
-// IsSystemSkill checks if a skill slug belongs to a system skill (master tenant only).
+// IsSystemSkill checks if a skill slug belongs to a system skill.
 func (s *PGSkillStore) IsSystemSkill(slug string) bool {
 	var isSystem bool
 	err := s.db.QueryRow(
-		"SELECT is_system FROM skills WHERE slug = $1 AND tenant_id = $2 AND is_system = true",
-		slug, store.MasterTenantID,
+		"SELECT is_system FROM skills WHERE slug = $1 AND is_system = true",
+		slug,
 	).Scan(&isSystem)
 	return err == nil && isSystem
 }

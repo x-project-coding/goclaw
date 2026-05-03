@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // PGHookStore implements hooks.HookStore backed by PostgreSQL.
@@ -43,10 +42,9 @@ func NewPGHookStore(db *sql.DB) *PGHookStore {
 // ─── Create ─────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UUID, error) {
-	// Honor a caller-provided fixed ID when non-nil (H9 fix) — the Phase 04
-	// builtin seeder needs idempotent UPSERTs keyed by UUIDv5, and tests need
-	// deterministic IDs. Fall back to UUIDv7 only when the caller did not
-	// supply one.
+	// Honor a caller-provided fixed ID when non-nil — the builtin seeder needs
+	// idempotent UPSERTs keyed by UUIDv5, and tests need deterministic IDs.
+	// Fall back to UUIDv7 only when the caller did not supply one.
 	id := cfg.ID
 	if id == uuid.Nil {
 		id = uuid.Must(uuid.NewV7())
@@ -62,11 +60,6 @@ func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UU
 		return uuid.Nil, fmt.Errorf("marshal metadata: %w", err)
 	}
 
-	tid := cfg.TenantID
-	if tid == uuid.Nil {
-		tid = tenantIDForInsert(ctx)
-	}
-
 	var matcher, ifExpr, name *string
 	if cfg.Matcher != "" {
 		matcher = &cfg.Matcher
@@ -80,12 +73,12 @@ func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UU
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO hooks
-		  (id, tenant_id, scope, event, handler_type,
+		  (id, scope, event, handler_type,
 		   config, matcher, if_expr, timeout_ms, on_timeout,
 		   priority, enabled, version, source, metadata, name, created_by,
 		   created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1,$13,$14,$15,$16,$17,$17)`,
-		id, tid, string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,1,$12,$13,$14,$15,$16,$16)`,
+		id, string(cfg.Scope), string(cfg.Event), string(cfg.HandlerType),
 		cfgJSON, matcher, ifExpr, cfg.TimeoutMS, string(cfg.OnTimeout),
 		cfg.Priority, cfg.Enabled, string(cfg.Source), metaJSON, name, cfg.CreatedBy,
 		now,
@@ -112,26 +105,12 @@ func (s *PGHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UU
 // ─── GetByID ─────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookConfig, error) {
-	q := `
-		SELECT id, tenant_id, scope, event, handler_type,
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
-		FROM hooks WHERE id = $1`
-	args := []any{id}
-
-	// Tenant-scope guard: non-master callers only see their own rows + globals.
-	// Global hooks use tenant_id = SentinelTenantID (store.MasterTenantID).
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND (tenant_id = $2 OR tenant_id = $3)"
-		args = append(args, tid, store.MasterTenantID)
-	}
-
-	row := s.db.QueryRowContext(ctx, q, args...)
+		FROM hooks WHERE id = $1`, id)
 	cfg, err := scanHookPGRow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -148,27 +127,12 @@ func (s *PGHookStore) GetByID(ctx context.Context, id uuid.UUID) (*hooks.HookCon
 // ─── List ────────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) List(ctx context.Context, filter hooks.ListFilter) ([]hooks.HookConfig, error) {
-	q := `SELECT id, tenant_id, scope, event, handler_type,
+	q := `SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at FROM hooks WHERE 1=1`
 	var args []any
 	n := 1
-
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required for non-master scope")
-		}
-		// Return tenant-specific + global hooks.
-		q += fmt.Sprintf(" AND (tenant_id = $%d OR tenant_id = $%d)", n, n+1)
-		args = append(args, tid, store.MasterTenantID)
-		n += 2
-	} else if filter.TenantID != nil {
-		q += fmt.Sprintf(" AND tenant_id = $%d", n)
-		args = append(args, *filter.TenantID)
-		n++
-	}
 
 	if filter.AgentID != nil {
 		q += fmt.Sprintf(" AND id IN (SELECT hook_id FROM hook_agents WHERE agent_id = $%d)", n)
@@ -226,11 +190,9 @@ func (s *PGHookStore) Update(ctx context.Context, id uuid.UUID, updates map[stri
 		return fmt.Errorf("callers must not include 'version' in update map")
 	}
 
-	// Builtin-row protection (Phase 04). Rows with source='builtin' are canonical
-	// embed-seeded artifacts: UI/user writes may only toggle `enabled`. The
-	// builtin seeder itself passes through via hooks.WithSeedBypass ctx.
-	// Fail-closed: a transient GetByID error must not let a non-enabled patch
-	// slip through against a builtin row.
+	// Builtin-row protection: rows with source='builtin' are canonical
+	// embed-seeded artifacts. UI/user writes may only toggle `enabled`.
+	// The builtin seeder itself passes through via hooks.WithSeedBypass ctx.
 	if !hooks.IsSeedBypass(ctx) {
 		current, err := s.GetByID(ctx, id)
 		if err != nil {
@@ -289,16 +251,6 @@ func (s *PGHookStore) Update(ctx context.Context, id uuid.UUID, updates map[stri
 	args = append(args, id)
 	q := fmt.Sprintf("UPDATE hooks SET %s WHERE id = $%d",
 		strings.Join(setClauses, ", "), i)
-	i++
-
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += fmt.Sprintf(" AND tenant_id = $%d", i)
-		args = append(args, tid)
-	}
 
 	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
@@ -314,8 +266,7 @@ func (s *PGHookStore) Update(ctx context.Context, id uuid.UUID, updates map[stri
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func (s *PGHookStore) Delete(ctx context.Context, id uuid.UUID) error {
-	// Builtin-row protection (Phase 04): reject unless caller marked seed-bypass.
-	// Fail-closed on GetByID errors so we don't accidentally delete a builtin.
+	// Builtin-row protection: reject unless caller marked seed-bypass.
 	if !hooks.IsSeedBypass(ctx) {
 		current, err := s.GetByID(ctx, id)
 		if err != nil {
@@ -326,19 +277,7 @@ func (s *PGHookStore) Delete(ctx context.Context, id uuid.UUID) error {
 		}
 	}
 
-	q := "DELETE FROM hooks WHERE id = $1"
-	args := []any{id}
-
-	if !store.IsMasterScope(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return fmt.Errorf("tenant_id required for non-master scope")
-		}
-		q += " AND tenant_id = $2"
-		args = append(args, tid)
-	}
-
-	res, err := s.db.ExecContext(ctx, q, args...)
+	res, err := s.db.ExecContext(ctx, "DELETE FROM hooks WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("delete hook: %w", err)
 	}
@@ -352,7 +291,6 @@ func (s *PGHookStore) Delete(ctx context.Context, id uuid.UUID) error {
 // ─── ResolveForEvent ─────────────────────────────────────────────────────────
 
 func (s *PGHookStore) ResolveForEvent(ctx context.Context, event hooks.Event) ([]hooks.HookConfig, error) {
-	tenantID := event.TenantID
 	agentID := event.AgentID
 	hookEvent := event.HookEvent
 
@@ -361,21 +299,20 @@ func (s *PGHookStore) ResolveForEvent(ctx context.Context, event hooks.Event) ([
 	err := s.db.QueryRowContext(ctx,
 		`SELECT COALESCE(MAX(version),0) FROM hooks
 		 WHERE enabled = TRUE AND event = $1
-		   AND (tenant_id = $2 OR tenant_id = $3)
 		   AND (
-		     scope IN ('global', 'tenant')
+		     scope IN ('global', 'user')
 		     OR (scope = 'agent' AND EXISTS (
 		       SELECT 1 FROM hook_agents aha
-		       WHERE aha.hook_id = hooks.id AND aha.agent_id = $4
+		       WHERE aha.hook_id = hooks.id AND aha.agent_id = $2
 		     ))
 		   )`,
-		string(hookEvent), tenantID, store.MasterTenantID, agentID,
+		string(hookEvent), agentID,
 	).Scan(&maxVersion)
 	if err != nil {
 		return nil, fmt.Errorf("resolve version check: %w", err)
 	}
 
-	key := hookResolveKey(tenantID, agentID, hookEvent)
+	key := hookResolveKey(agentID, hookEvent)
 	s.cacheMu.Lock()
 	entry, ok := s.cache[key]
 	s.cacheMu.Unlock()
@@ -385,22 +322,21 @@ func (s *PGHookStore) ResolveForEvent(ctx context.Context, event hooks.Event) ([
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, tenant_id, scope, event, handler_type,
+		SELECT id, scope, event, handler_type,
 		       config, matcher, if_expr, timeout_ms, on_timeout,
 		       priority, enabled, version, source, metadata, name, created_by,
 		       created_at, updated_at
 		FROM hooks
 		WHERE enabled = TRUE AND event = $1
-		  AND (tenant_id = $2 OR tenant_id = $3)
 		  AND (
-		    scope IN ('global', 'tenant')
+		    scope IN ('global', 'user')
 		    OR (scope = 'agent' AND EXISTS (
 		      SELECT 1 FROM hook_agents aha
-		      WHERE aha.hook_id = hooks.id AND aha.agent_id = $4
+		      WHERE aha.hook_id = hooks.id AND aha.agent_id = $2
 		    ))
 		  )
 		ORDER BY priority DESC, created_at ASC`,
-		string(hookEvent), tenantID, store.MasterTenantID, agentID,
+		string(hookEvent), agentID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("resolve hooks: %w", err)
@@ -548,8 +484,8 @@ func (s *PGHookStore) invalidateCache() {
 	s.cacheMu.Unlock()
 }
 
-func hookResolveKey(tenantID, agentID uuid.UUID, event hooks.HookEvent) string {
-	return tenantID.String() + "|" + agentID.String() + "|" + string(event)
+func hookResolveKey(agentID uuid.UUID, event hooks.HookEvent) string {
+	return agentID.String() + "|" + string(event)
 }
 
 // ─── scan helper ─────────────────────────────────────────────────────────────
@@ -569,7 +505,7 @@ func scanHookPGRow(row pgRowScanner) (*hooks.HookConfig, error) {
 		cfgJSON, metaJSON      []byte
 	)
 	err := row.Scan(
-		&cfg.ID, &cfg.TenantID,
+		&cfg.ID,
 		&scope, &event, &handlerType,
 		&cfgJSON, &matcher, &ifExpr,
 		&cfg.TimeoutMS, &onTimeout,
@@ -613,3 +549,4 @@ func scanHookPGRow(row pgRowScanner) (*hooks.HookConfig, error) {
 
 	return &cfg, nil
 }
+

@@ -128,10 +128,10 @@ func TestScanCronRow_ValidPayload(t *testing.T) {
 
 	// Build row with deliver/deliver_channel/deliver_to set as dedicated columns.
 	rowVals := validCronRow(payloadJSON)
-	// Indices: stateless=13, deliver=14, deliver_channel=15, deliver_to=16, wake_heartbeat=17
-	rowVals[14] = true      // deliver
-	rowVals[15] = "telegram" // deliver_channel
-	rowVals[16] = "user123" // deliver_to
+	// Indices: stateless=12, deliver=13, deliver_channel=14, deliver_to=15, wake_heartbeat=16
+	rowVals[13] = true       // deliver
+	rowVals[14] = "telegram" // deliver_channel
+	rowVals[15] = "user123"  // deliver_to
 	row := &mockRowScanner{values: rowVals}
 
 	job, err := scanCronRow(row)
