@@ -137,11 +137,10 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	}
 
 	// 3. Budget pre-check (estimate) — cost is counted post-call with real usage.
-	// TODO(v4.x): rewire to ev.UserID — see docs/adr/2026-05-v4-hook-budget-deferred.md.
-	// In v4 ev.TenantID is always uuid.Nil so this branch is unreachable; kept as scaffolding.
-	if h.Budget != nil && ev.TenantID != uuid.Nil {
-		if _, _, err := h.Budget.Deduct(ctx, ev.TenantID, 0); err != nil && !errors.Is(err, budget.ErrBudgetExceeded) {
-			slog.Warn("security.hook.budget_precheck_failed", "err", err, "tenant", ev.TenantID)
+	// Group-prefix senders yield UserID=uuid.Nil; skip budget for them gracefully.
+	if h.Budget != nil && ev.UserID != uuid.Nil {
+		if _, _, err := h.Budget.Deduct(ctx, ev.UserID, 0); err != nil && !errors.Is(err, budget.ErrBudgetExceeded) {
+			slog.Warn("security.hook.budget_precheck_failed", "err", err, "user", ev.UserID)
 		}
 	}
 
@@ -170,7 +169,7 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	if parseErr != nil {
 		slog.Warn("security.hook.prompt_parse_error",
 			"hook_id", cfg.ID,
-			"tenant", ev.TenantID,
+			"user", ev.UserID,
 			"err", parseErr,
 			"injection_detected", injectionDetected,
 		)
@@ -178,13 +177,14 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	}
 
 	// 8. Post-call budget deduct using actual tokens.
-	if h.Budget != nil && ev.TenantID != uuid.Nil && resp.Usage != nil {
+	// Group-prefix senders yield UserID=uuid.Nil; skip budget for them gracefully.
+	if h.Budget != nil && ev.UserID != uuid.Nil && resp.Usage != nil {
 		cost := int64(resp.Usage.TotalTokens)
-		if _, _, err := h.Budget.Deduct(ctx, ev.TenantID, cost); err != nil {
+		if _, _, err := h.Budget.Deduct(ctx, ev.UserID, cost); err != nil {
 			if errors.Is(err, budget.ErrBudgetExceeded) {
 				return hooks.DecisionBlock, ErrPromptBudgetExceeded
 			}
-			slog.Warn("security.hook.budget_deduct_failed", "err", err, "tenant", ev.TenantID)
+			slog.Warn("security.hook.budget_deduct_failed", "err", err, "user", ev.UserID)
 		}
 	}
 
@@ -200,9 +200,9 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 // is hit. The dispatcher maps this to DecisionError and does not retry.
 var ErrPromptPerTurnCapExceeded = errors.New("hook: prompt handler: per-turn cap exceeded")
 
-// ErrPromptBudgetExceeded is returned when the tenant's monthly token budget
+// ErrPromptBudgetExceeded is returned when the user's monthly token budget
 // is drained. Produces DecisionBlock to fail-closed the blocking event.
-var ErrPromptBudgetExceeded = errors.New("hook: prompt handler: tenant budget exceeded")
+var ErrPromptBudgetExceeded = errors.New("hook: prompt handler: user budget exceeded")
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

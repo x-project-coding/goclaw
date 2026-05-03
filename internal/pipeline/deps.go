@@ -4,11 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tokencount"
 	"github.com/nextlevelbuilder/goclaw/internal/workspace"
 )
@@ -124,6 +126,25 @@ func (d *PipelineDeps) FireHook(ctx context.Context, ev hooks.Event) (hooks.Fire
 		return hooks.FireResult{Decision: hooks.DecisionAllow}, nil
 	}
 	return d.Hooks.Fire(ctx, ev)
+}
+
+// parseUserUUID extracts the authenticated user UUID from context.
+// Group-prefixed sender IDs (e.g. "group:...") yield uuid.Nil — no per-user
+// budget applies for group-scoped senders.
+func parseUserUUID(ctx context.Context) uuid.UUID {
+	raw := store.UserIDFromContext(ctx)
+	if raw == "" {
+		return uuid.Nil
+	}
+	// Group-prefix senders are not individual users; skip budget for them.
+	if len(raw) > 6 && raw[:6] == "group:" {
+		return uuid.Nil
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
 }
 
 // PipelineConfig holds pipeline-level settings.

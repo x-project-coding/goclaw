@@ -204,6 +204,10 @@ type Event struct {
 	EventID   string
 	SessionID string
 	TenantID  uuid.UUID
+	// UserID is the authenticated user's UUID. Used for per-user budget
+	// enforcement in the prompt handler. uuid.Nil for group-prefix senders
+	// (no per-user budget applies).
+	UserID    uuid.UUID
 	AgentID   uuid.UUID
 	// ToolName is populated for PreToolUse/PostToolUse events.
 	ToolName  string

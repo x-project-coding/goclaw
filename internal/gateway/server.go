@@ -394,6 +394,9 @@ func (s *Server) SetPolicyEngine(pe *permissions.PolicyEngine) { s.policyEngine 
 // SetPairingService sets the pairing service for channel authentication.
 func (s *Server) SetPairingService(ps store.PairingStore) { s.pairingService = ps }
 
+// SetUsersHandler sets the user CRUD handler.
+func (s *Server) SetUsersHandler(h *httpapi.UsersHandler) { s.handlers = append(s.handlers, h) }
+
 // SetAgentsHandler sets the agent CRUD handler.
 func (s *Server) SetAgentsHandler(h *httpapi.AgentsHandler) { s.handlers = append(s.handlers, h) }
 
@@ -436,6 +439,11 @@ func (s *Server) SetTeamEventsHandler(h *httpapi.TeamEventsHandler) {
 
 // SetCuratorRunsHandler sets the curator run lifecycle handler.
 func (s *Server) SetCuratorRunsHandler(h *httpapi.CuratorRunsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
+// SetHooksBudgetHandler sets the per-user hooks token budget handler.
+func (s *Server) SetHooksBudgetHandler(h *httpapi.HooksBudgetHandler) {
 	s.handlers = append(s.handlers, h)
 }
 

@@ -1,7 +1,7 @@
 # ADR: Hook Prompt-Handler Budget Enforcement Deferred to v4.x
 
 **Date:** 2026-05
-**Status:** Accepted (deferral)
+**Status:** SUPERSEDED — implemented in Phase 14A-3 (2026-05-03). See `docs/adr/2026-05-v4-hook-budget-implemented.md`.
 **Deciders:** v4 EPIC-04 Phase 13 cleanup review (code-reviewer finding H2)
 
 ---

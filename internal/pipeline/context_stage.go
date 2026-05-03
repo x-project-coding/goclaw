@@ -42,6 +42,7 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 			EventID:   uuid.NewString(),
 			SessionID: state.Input.SessionKey,
 			AgentID:   store.AgentIDFromContext(ctx),
+			UserID:    parseUserUUID(ctx),
 			RawInput:  state.Input.Message,
 			HookEvent: hooks.EventSessionStart,
 		})
@@ -54,6 +55,7 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 		EventID:   uuid.NewString(),
 		SessionID: state.Input.SessionKey,
 		AgentID:   store.AgentIDFromContext(ctx),
+		UserID:    parseUserUUID(ctx),
 		RawInput:  state.Input.Message,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}); r.Decision == hooks.DecisionBlock {

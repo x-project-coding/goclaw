@@ -1,4 +1,4 @@
-// Package budget implements atomic per-tenant monthly token budgets for the
+// Package budget implements atomic per-user monthly token budgets for the
 // prompt hook handler. The single-UPDATE deduct pattern avoids select-then-
 // update races (L2 mitigation).
 package budget
@@ -37,7 +37,7 @@ type Dialect interface {
 	// remaining < cost. When the row is missing for the current month, the
 	// implementation must UPSERT with budget_total=DefaultMonthlyBudget and
 	// deduct from that.
-	DeductAtomic(ctx context.Context, tenantID uuid.UUID, cost int64, monthStart time.Time, defaultBudget int64) (remaining int64, total int64, err error)
+	DeductAtomic(ctx context.Context, userID uuid.UUID, cost int64, monthStart time.Time, defaultBudget int64) (remaining int64, total int64, err error)
 }
 
 // Store is the public facade used by the prompt handler. It wraps a Dialect
@@ -57,22 +57,22 @@ func New(d Dialect, now func() time.Time) *Store {
 	return &Store{d: d, Now: now}
 }
 
-// Deduct atomically subtracts cost from the tenant's remaining balance for
+// Deduct atomically subtracts cost from the user's remaining balance for
 // the current month. Returns (remaining, total, nil) on success,
 // (_, _, ErrBudgetExceeded) when insufficient, or a wrapped driver error
 // otherwise. Seeds a fresh month row with DefaultMonthlyBudget when absent.
 //
 // cost=0 is always allowed and returns the current remaining (useful for
 // pre-flight checks and metrics without a real deduct).
-func (s *Store) Deduct(ctx context.Context, tenantID uuid.UUID, cost int64) (remaining int64, total int64, err error) {
-	if tenantID == uuid.Nil {
-		return 0, 0, fmt.Errorf("budget: nil tenant_id")
+func (s *Store) Deduct(ctx context.Context, userID uuid.UUID, cost int64) (remaining int64, total int64, err error) {
+	if userID == uuid.Nil {
+		return 0, 0, fmt.Errorf("budget: nil user_id")
 	}
 	if cost < 0 {
 		return 0, 0, fmt.Errorf("budget: negative cost %d", cost)
 	}
 	month := monthStart(s.Now())
-	remaining, total, err = s.d.DeductAtomic(ctx, tenantID, cost, month, DefaultMonthlyBudget)
+	remaining, total, err = s.d.DeductAtomic(ctx, userID, cost, month, DefaultMonthlyBudget)
 	if errors.Is(err, sql.ErrNoRows) {
 		// Dialect guarantees UPSERT — ErrNoRows here means the row was
 		// found but remaining < cost. Normalize to ErrBudgetExceeded so

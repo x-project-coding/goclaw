@@ -63,6 +63,8 @@ func (d *gatewayDeps) wireAuthBootstrap(ctx context.Context) error {
 	d.server.SetAuthHandler(httpapi.NewAuthHandler(
 		users, sessions, ks, accessTTL, refreshTTL,
 	))
+	d.server.SetUsersHandler(httpapi.NewUsersHandler(users))
+	d.server.SetHooksBudgetHandler(httpapi.NewHooksBudgetHandler(d.pgStores.UserHookBudget))
 	return nil
 }
 

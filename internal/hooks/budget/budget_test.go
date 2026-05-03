@@ -114,10 +114,10 @@ func TestDeduct_NegativeCost_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestDeduct_NilTenantID_ReturnsError(t *testing.T) {
+func TestDeduct_NilUserID_ReturnsError(t *testing.T) {
 	s := budget.New(&fakeDialect{}, nil)
 	if _, _, err := s.Deduct(context.Background(), uuid.Nil, 100); err == nil {
-		t.Fatal("expected error for nil tenant_id")
+		t.Fatal("expected error for nil user_id")
 	}
 }
 

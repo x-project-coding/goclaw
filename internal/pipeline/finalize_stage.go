@@ -164,6 +164,7 @@ func (s *FinalizeStage) Execute(ctx context.Context, state *RunState) error {
 			EventID:   uuid.NewString(),
 			SessionID: state.Input.SessionKey,
 			AgentID:   store.AgentIDFromContext(ctx),
+			UserID:    parseUserUUID(ctx),
 			HookEvent: hooks.EventStop,
 		})
 	}
