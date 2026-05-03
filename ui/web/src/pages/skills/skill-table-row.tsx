@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { SkillTenantOverride } from "./skill-tenant-override";
 import type { SkillInfo } from "./hooks/use-skills";
 
 const visibilityColor: Record<string, string> = {
@@ -16,22 +15,18 @@ const visibilityColor: Record<string, string> = {
 interface SkillTableRowProps {
   skill: SkillInfo;
   tab: "core" | "custom";
-  hasTenantScope: boolean;
   toggling: string | null;
   onView: (name: string) => void;
   onEdit: (skill: SkillInfo) => void;
   onDelete: (skill: SkillInfo) => void;
   onToggle: (skill: SkillInfo, enabled: boolean) => void;
   onCycleVisibility: (skill: SkillInfo) => void;
-  onSetTenantConfig: (id: string, enabled: boolean) => Promise<void>;
-  onDeleteTenantConfig: (id: string) => Promise<void>;
 }
 
 /** Single row in the skills table with inline status, visibility, and action controls. */
 export function SkillTableRow({
-  skill, tab, hasTenantScope, toggling,
+  skill, tab, toggling,
   onView, onEdit, onDelete, onToggle, onCycleVisibility,
-  onSetTenantConfig, onDeleteTenantConfig,
 }: SkillTableRowProps) {
   const { t } = useTranslation("skills");
   const isArchived = skill.status === "archived";
@@ -113,22 +108,13 @@ export function SkillTableRow({
         <div className="flex items-center justify-end gap-2">
           {skill.id && (
             <>
-              {hasTenantScope ? (
-                <SkillTenantOverride
-                  skill={skill}
-                  toggling={toggling === skill.id}
-                  onSetTenantConfig={onSetTenantConfig}
-                  onDeleteTenantConfig={onDeleteTenantConfig}
-                />
-              ) : (
-                <Switch
-                  size="sm"
-                  checked={skill.enabled !== false}
-                  disabled={toggling === skill.id}
-                  onCheckedChange={(checked) => onToggle(skill, checked)}
-                  title={skill.enabled !== false ? t("toggle.disable") : t("toggle.enable")}
-                />
-              )}
+              <Switch
+                size="sm"
+                checked={skill.enabled !== false}
+                disabled={toggling === skill.id}
+                onCheckedChange={(checked) => onToggle(skill, checked)}
+                title={skill.enabled !== false ? t("toggle.disable") : t("toggle.enable")}
+              />
               <Button variant="ghost" size="sm" onClick={() => onEdit(skill)} className="gap-1">
                 <Pencil className="h-3.5 w-3.5" />
               </Button>

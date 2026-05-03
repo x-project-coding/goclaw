@@ -1,7 +1,6 @@
 export interface MergeContactsRequest {
   contact_ids: string[];
-  tenant_user_id?: string;
-  create_user?: { user_id: string; display_name?: string };
+  target_user_id: string;
 }
 
 export interface MergeContactsResponse {

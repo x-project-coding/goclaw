@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useHttp } from "./use-ws";
-import { useAuthStore } from "@/stores/use-auth-store";
 
 interface EmbeddingStatus {
   configured: boolean;
@@ -11,7 +10,6 @@ interface EmbeddingStatus {
 
 export function useEmbeddingStatus() {
   const http = useHttp();
-  const tenantId = useAuthStore((s) => s.tenantId);
   const [status, setStatus] = useState<EmbeddingStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,8 +24,7 @@ export function useEmbeddingStatus() {
     }
   }, [http]);
 
-  // Re-fetch when tenant changes
-  useEffect(() => { refresh(); }, [refresh, tenantId]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   return { status, loading, refresh };
 }

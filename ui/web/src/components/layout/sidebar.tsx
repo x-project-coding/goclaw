@@ -25,7 +25,6 @@ import {
   Network,
   Contact,
   KeyRound,
-  Building2,
   ArrowLeftRight,
   FileArchive,
   DatabaseBackup,
@@ -39,7 +38,6 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { usePendingPairingsCount } from "@/hooks/use-pending-pairings-count";
 import { useAuthStore } from "@/stores/use-auth-store";
-import { useTenants } from "@/hooks/use-tenants";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -50,8 +48,8 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
   const { t } = useTranslation("sidebar");
   const { pendingCount } = usePendingPairingsCount();
   const role = useAuthStore((s) => s.role);
-  const { isOwner } = useTenants();
   const isAdmin = role === "admin" || role === "owner";
+  const isOwner = role === "owner";
 
   return (
     <aside
@@ -128,9 +126,6 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         {isAdmin && (
         <SidebarGroup label={t("groups.system")} collapsed={collapsed}>
-          {isOwner && (
-            <SidebarItem to={ROUTES.TENANTS} icon={Building2} label={t("nav.tenants")} collapsed={collapsed} />
-          )}
           <SidebarItem to={ROUTES.PROVIDERS} icon={Cpu} label={t("nav.providers")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.CLI_CREDENTIALS} icon={KeyRound} label={t("nav.cliCredentials")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.API_KEYS} icon={KeyRound} label={t("nav.apiKeys")} collapsed={collapsed} />

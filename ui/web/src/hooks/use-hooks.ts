@@ -7,7 +7,6 @@ import { toast } from "@/stores/use-toast-store";
 
 export interface HookConfig {
   id: string;
-  tenant_id: string;
   agent_id?: string | null;
   agent_ids?: string[];
   name?: string;

@@ -4,14 +4,13 @@ import { useHttp } from "@/hooks/use-ws";
 import { queryKeys } from "@/lib/query-keys";
 import type { ComboboxOption } from "@/components/ui/combobox";
 
-/** Unified search result from contacts + tenant_users. */
+/** User search result from channel_contacts. */
 export interface UserPickerItem {
   id: string;
-  /** Tenant_user primary key (UUID). Only present when source === "tenant_user". */
   uuid?: string;
   display_name?: string;
   username?: string;
-  source: "contact" | "tenant_user";
+  source: "contact";
   channel_type?: string;
   peer_kind?: string;
   merged_tenant_user_id?: string;
@@ -19,23 +18,14 @@ export interface UserPickerItem {
 }
 
 /**
- * Unified user picker hook — searches both channel_contacts and tenant_users.
+ * User picker hook — searches channel_contacts.
  * - Empty search: returns 30 most recent
  * - With search: debounced server-side ILIKE search
- * - Deduplicates merged contacts (shows tenant_user badge instead)
- */
-/**
- * @param source - Filter by source: "contact" | "tenant_user" | undefined (both).
- *   Use "tenant_user" for merge dialog / add tenant user (contacts excluded).
- * @param valueMode - "user_id" (default) or "uuid". When "uuid", the combobox
- *   commits the tenant_user primary key instead of the user_id string. Only
- *   callers forwarding the value as a tenant_user foreign key (contact merge)
- *   should opt in.
  */
 export function useUserPicker(
   search: string,
   peerKind?: string,
-  source?: "contact" | "tenant_user",
+  source?: "contact",
   valueMode?: "user_id" | "uuid",
 ) {
   const http = useHttp();
@@ -63,19 +53,16 @@ export function useUserPicker(
   const results = data ?? [];
 
   /** Format results as ComboboxOptions with source badges.
-   *  Committed value = tenant_user UUID only when valueMode === "uuid" AND the
-   *  result is a tenant_user row. All other callers (allow/deny lists, MCP/CLI
-   *  credentials, add-tenant-user dialog) still receive the user_id string. */
+   *  Committed value = uuid field when valueMode === "uuid" and uuid is present,
+   *  otherwise user_id string. */
   const options: ComboboxOption[] = useMemo(() =>
     results.map((r) => {
       const parts: string[] = [];
       if (r.display_name) parts.push(r.display_name);
       if (r.username) parts.push(`@${r.username}`);
       parts.push(`(${r.id})`);
-      if (r.source === "contact" && r.channel_type) parts.push(`[${r.channel_type}]`);
-      if (r.source === "tenant_user") parts.push("[tenant]");
-      if (r.merged_tenant_user_id) parts.push(`→ ${r.merged_tenant_user_id}`);
-      const value = valueMode === "uuid" && r.source === "tenant_user" && r.uuid ? r.uuid : r.id;
+      if (r.channel_type) parts.push(`[${r.channel_type}]`);
+      const value = valueMode === "uuid" && r.uuid ? r.uuid : r.id;
       return { value, label: parts.join(" ") };
     }),
     [results, valueMode],

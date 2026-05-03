@@ -42,11 +42,7 @@ export const ROUTES = {
   ACTIVITY: "/activity",
   API_KEYS: "/api-keys",
   PACKAGES: "/packages",
-  TENANTS: "/admin/tenants",
-  TENANT_DETAIL: "/admin/tenants/:id",
-  SETUP: "/setup",
   BACKUP_RESTORE: "/backup-restore",
-  SELECT_TENANT: "/select-tenant",
   HOOKS: "/hooks",
   HOOK_DETAIL: "/hooks/:id",
 } as const;

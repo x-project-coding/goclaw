@@ -85,7 +85,7 @@ export function useTtsConfig() {
   const { data: tts = DEFAULT_TTS, isPending: loading } = useQuery({
     queryKey: queryKeys.tts.all,
     queryFn: async () => {
-      // Use per-tenant TTS config endpoint instead of global config.get
+      // Use dedicated TTS config endpoint
       const res = await fetch("/v1/tts/config", {
         headers: http.getAuthHeaders(),
       });
@@ -109,7 +109,7 @@ export function useTtsConfig() {
       setSaving(true);
       setError(null);
       try {
-        // Use per-tenant TTS config endpoint instead of config.patch (master-scope)
+        // Use dedicated TTS config endpoint
         const res = await fetch("/v1/tts/config", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...http.getAuthHeaders() },
@@ -133,7 +133,7 @@ export function useTtsConfig() {
     [http, invalidate],
   );
 
-  // POST→Blob not in HttpClient; use fetch + getAuthHeaders() for tenant/user header parity.
+  // POST→Blob not in HttpClient; use fetch + getAuthHeaders() for auth header parity.
   // See: http-client.ts:107-109 — getAuthHeaders() returns Authorization + X-GoClaw-* headers.
   const synthesize = useCallback(
     async (params: SynthesizeParams): Promise<Blob> => {

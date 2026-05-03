@@ -124,9 +124,6 @@ export class HttpClient {
     if (userId) h["X-GoClaw-User-Id"] = userId;
     const senderID = this.getSenderID();
     if (senderID) h["X-GoClaw-Sender-Id"] = senderID;
-    // Tenant scope: narrow cross-tenant admin to a specific tenant
-    const tenantScope = localStorage.getItem("goclaw:tenant_id");
-    if (tenantScope) h["X-GoClaw-Tenant-Id"] = tenantScope;
     return h;
   }
 
@@ -169,7 +166,7 @@ export class HttpClient {
         }
       }
 
-      if (res.status === 401 || code === "TENANT_ACCESS_REVOKED") {
+      if (res.status === 401) {
         this.onAuthFailure?.();
       }
       throw apiErr;

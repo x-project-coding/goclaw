@@ -1,7 +1,6 @@
 /** Vault document in the Knowledge Vault registry. */
 export interface VaultDocument {
   id: string;
-  tenant_id: string;
   agent_id?: string | null;
   team_id?: string;
   scope: "personal" | "team" | "shared";

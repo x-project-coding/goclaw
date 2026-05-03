@@ -8,20 +8,9 @@ interface CategoryGroupProps {
   tools: BuiltinToolData[];
   onToggle: (tool: BuiltinToolData) => void;
   onSettings: (tool: BuiltinToolData) => void;
-  tenantId: string | null;
-  onSetTenantConfig: (name: string, enabled: boolean) => Promise<void>;
-  onDeleteTenantConfig: (name: string) => Promise<void>;
 }
 
-export function CategoryGroup({
-  category,
-  tools,
-  onToggle,
-  onSettings,
-  tenantId,
-  onSetTenantConfig,
-  onDeleteTenantConfig,
-}: CategoryGroupProps) {
+export function CategoryGroup({ category, tools, onToggle, onSettings }: CategoryGroupProps) {
   const { t } = useTranslation("tools");
   return (
     <div className="rounded-lg border">
@@ -38,9 +27,6 @@ export function CategoryGroup({
             tool={tool}
             onToggle={onToggle}
             onSettings={onSettings}
-            tenantId={tenantId}
-            onSetTenantConfig={onSetTenantConfig}
-            onDeleteTenantConfig={onDeleteTenantConfig}
           />
         ))}
       </div>

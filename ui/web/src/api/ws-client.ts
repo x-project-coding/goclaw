@@ -27,13 +27,6 @@ export class WsClient {
   /** Server-assigned role from connect response. */
   role: "owner" | "admin" | "operator" | "viewer" | "" = "";
 
-  /** Tenant fields from connect response. */
-  tenantId = "";
-  tenantName = "";
-  tenantSlug = "";
-  isOwner = false;
-  /** Server-derived: caller qualifies for master-only actions (owner OR on master tenant). Advisory UI hint only — backend still enforces. */
-  isMasterScope = false;
   /** Server edition, drives UI feature gating. */
   edition: "standard" | "lite" = "standard";
   serverVersion = "";
@@ -209,11 +202,6 @@ export class WsClient {
         status?: string;
         pairing_code?: string;
         sender_id?: string;
-        tenant_id?: string;
-        tenant_name?: string;
-        tenant_slug?: string;
-        is_owner?: boolean;
-        is_master_scope?: boolean;
         edition?: "standard" | "lite";
         server?: { name?: string; version?: string };
       }>("connect", {
@@ -221,8 +209,6 @@ export class WsClient {
         user_id: this.getUserId(),
         sender_id: this.getSenderID(),
         locale: localStorage.getItem("goclaw:language") || "en",
-        tenant_hint: localStorage.getItem("goclaw:tenant_hint") || "",
-        tenant_id: localStorage.getItem("goclaw:tenant_id") || "",
         protocolVersion: PROTOCOL_VERSION,
       });
       if (this.connectGeneration !== generation) return;
@@ -248,23 +234,11 @@ export class WsClient {
 
       this.authenticated = true;
       this.role = (res?.role as "owner" | "admin" | "operator" | "viewer") ?? "";
-      this.tenantId = res?.tenant_id ?? "";
-      this.tenantName = res?.tenant_name ?? "";
-      this.tenantSlug = res?.tenant_slug ?? "";
-      this.isOwner = res?.is_owner ?? false;
-      this.isMasterScope = res?.is_master_scope ?? false;
       this.edition = res?.edition ?? "standard";
       this.serverVersion = res?.server?.version ?? "";
       this.onStateChange("connected");
-    } catch (e) {
+    } catch {
       if (this.connectGeneration === generation) {
-        // Tenant access revoked → force logout instead of reconnect
-        if (e instanceof ApiError && e.code === "TENANT_ACCESS_REVOKED") {
-          this.intentionalClose = true;
-          this.ws?.close();
-          this.onAuthFailure?.();
-          return;
-        }
         this.intentionalClose = true;
         this.ws?.close();
       }
@@ -297,12 +271,8 @@ export class WsClient {
       pending.resolve(frame.payload);
     } else {
       const err = frame.error as ErrorShape;
-      // Only force logout on tenant revocation (session-level invalidation).
       // UNAUTHORIZED from a method call means "insufficient permission for this action",
       // not "session expired" — let the caller handle it via the rejected promise.
-      if (err.code === "TENANT_ACCESS_REVOKED") {
-        this.onAuthFailure?.();
-      }
       pending.reject(
         new ApiError(err.code, err.message, err.details, err.retryable),
       );

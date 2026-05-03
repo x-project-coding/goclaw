@@ -36,7 +36,6 @@ import enActivity from "./locales/en/activity.json";
 import enApiKeys from "./locales/en/api-keys.json";
 import enCliCredentials from "./locales/en/cli-credentials.json";
 import enPackages from "./locales/en/packages.json";
-import enTenants from "./locales/en/tenants.json";
 import enSystemSettings from "./locales/en/system-settings.json";
 import enImportExport from "./locales/en/import-export.json";
 import enV3Capabilities from "./locales/en/v3-capabilities.json";
@@ -78,7 +77,6 @@ import viActivity from "./locales/vi/activity.json";
 import viApiKeys from "./locales/vi/api-keys.json";
 import viCliCredentials from "./locales/vi/cli-credentials.json";
 import viPackages from "./locales/vi/packages.json";
-import viTenants from "./locales/vi/tenants.json";
 import viSystemSettings from "./locales/vi/system-settings.json";
 import viImportExport from "./locales/vi/import-export.json";
 import viV3Capabilities from "./locales/vi/v3-capabilities.json";
@@ -120,7 +118,6 @@ import zhActivity from "./locales/zh/activity.json";
 import zhApiKeys from "./locales/zh/api-keys.json";
 import zhCliCredentials from "./locales/zh/cli-credentials.json";
 import zhPackages from "./locales/zh/packages.json";
-import zhTenants from "./locales/zh/tenants.json";
 import zhSystemSettings from "./locales/zh/system-settings.json";
 import zhImportExport from "./locales/zh/import-export.json";
 import zhV3Capabilities from "./locales/zh/v3-capabilities.json";
@@ -144,7 +141,7 @@ const ns = [
   "channels", "providers", "traces", "events",
   "usage", "approvals", "nodes", "logs", "tools", "mcp", "tts",
   "setup", "memory", "vault", "storage", "pending-messages", "contacts", "activity", "api-keys",
-  "cli-credentials", "packages", "tenants", "system-settings", "import-export",
+  "cli-credentials", "packages", "system-settings", "import-export",
   "v3-capabilities",
   "backup",
   "hooks",
@@ -164,7 +161,6 @@ i18n.use(initReactI18next).init({
       contacts: enContacts, activity: enActivity, "api-keys": enApiKeys,
       "cli-credentials": enCliCredentials,
       packages: enPackages,
-      tenants: enTenants,
       "system-settings": enSystemSettings,
       "import-export": enImportExport,
       "v3-capabilities": enV3Capabilities,
@@ -183,7 +179,6 @@ i18n.use(initReactI18next).init({
       contacts: viContacts, activity: viActivity, "api-keys": viApiKeys,
       "cli-credentials": viCliCredentials,
       packages: viPackages,
-      tenants: viTenants,
       "system-settings": viSystemSettings,
       "import-export": viImportExport,
       "v3-capabilities": viV3Capabilities,
@@ -202,7 +197,6 @@ i18n.use(initReactI18next).init({
       contacts: zhContacts, activity: zhActivity, "api-keys": zhApiKeys,
       "cli-credentials": zhCliCredentials,
       packages: zhPackages,
-      tenants: zhTenants,
       "system-settings": zhSystemSettings,
       "import-export": zhImportExport,
       "v3-capabilities": zhV3Capabilities,

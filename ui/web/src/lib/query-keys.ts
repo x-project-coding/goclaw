@@ -92,17 +92,9 @@ export const queryKeys = {
     all: ["packages"] as const,
     runtimes: ["packages", "runtimes"] as const,
   },
-  tenantUsers: {
-    all: ["tenantUsers"] as const,
-  },
   users: {
     all: ["users"] as const,
     search: (params: Record<string, unknown>) => ["users", "search", params] as const,
-  },
-  tenants: {
-    all: ["tenants"] as const,
-    detail: (tenantId: string) => ["tenants", tenantId] as const,
-    users: (tenantId: string) => ["tenants", tenantId, "users"] as const,
   },
   vault: {
     all: ["vault"] as const,

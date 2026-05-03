@@ -11,7 +11,6 @@ import { BuiltinToolSettingsDialog } from "./builtin-tool-settings-dialog";
 import { MEDIA_TOOLS } from "./media-provider-params-schema";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
-import { useTenants } from "@/hooks/use-tenants";
 import { CategoryGroup } from "./builtin-tool-category-group";
 
 const CATEGORY_ORDER = [
@@ -22,13 +21,6 @@ const CATEGORY_ORDER = [
 // Tools that have dedicated configuration pages elsewhere and should not appear
 // in the builtin-tools list. TTS config moved to /tts page.
 const HIDDEN_TOOL_NAMES = new Set(["tts"]);
-
-// Hardcoded master tenant UUID; mirrors backend store.MasterTenantID. When
-// the current tenant is NOT the master, UI routes settings writes through
-// the tenant-config endpoint. Backend enforces the same rule defensively —
-// this is purely a UX guard so tenant admins never see a 403 from the
-// global endpoint.
-const MASTER_TENANT_ID = "0193a5b0-7000-7000-8000-000000000001";
 
 /** Media tool that is enabled but has no provider chain configured */
 function needsProviderConfig(tool: BuiltinToolData): boolean {
@@ -41,18 +33,7 @@ function needsProviderConfig(tool: BuiltinToolData): boolean {
 
 export function BuiltinToolsPage() {
   const { t } = useTranslation("tools");
-  const {
-    tools,
-    loading,
-    refresh,
-    updateTool,
-    setTenantConfig,
-    deleteTenantConfig,
-    setTenantSettings,
-    clearTenantSettings,
-  } = useBuiltinTools();
-  const { currentTenantId } = useTenants();
-  const hasTenantScope = !!currentTenantId && currentTenantId !== MASTER_TENANT_ID;
+  const { tools, loading, refresh, updateTool } = useBuiltinTools();
   const spinning = useMinLoading(loading);
   const showSkeleton = useDeferredLoading(loading && tools.length === 0);
   const [search, setSearch] = useState("");
@@ -87,22 +68,8 @@ export function BuiltinToolsPage() {
     await updateTool(tool.name, { enabled: !tool.enabled });
   };
 
-  // Route settings writes through the correct endpoint based on scope:
-  //   - Master scope → PUT /v1/tools/builtin/{name}   (global default)
-  //   - Tenant scope → PUT /v1/tools/builtin/{name}/tenant-config (override)
-  // Backend enforces master-scope defensively (Phase 0b), so even if this
-  // UI check drifted, a tenant admin would hit 403 instead of corrupting
-  // the global defaults.
   const handleSaveSettings = async (name: string, settings: Record<string, unknown>) => {
-    if (hasTenantScope) {
-      await setTenantSettings(name, settings);
-    } else {
-      await updateTool(name, { settings });
-    }
-  };
-
-  const handleResetTenantSettings = async (name: string) => {
-    await clearTenantSettings(name);
+    await updateTool(name, { settings });
   };
 
   return (
@@ -183,9 +150,6 @@ export function BuiltinToolsPage() {
               tools={grouped.get(category)!}
               onToggle={handleToggle}
               onSettings={setSettingsTool}
-              tenantId={currentTenantId ?? null}
-              onSetTenantConfig={setTenantConfig}
-              onDeleteTenantConfig={deleteTenantConfig}
             />
           ))
         )}
@@ -198,10 +162,7 @@ export function BuiltinToolsPage() {
           if (!open) setSettingsTool(null);
         }}
         onSave={handleSaveSettings}
-        tenantScope={hasTenantScope}
-        onResetToDefault={hasTenantScope ? handleResetTenantSettings : undefined}
       />
     </div>
   );
 }
-

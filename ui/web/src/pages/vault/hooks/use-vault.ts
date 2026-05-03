@@ -72,7 +72,7 @@ export function useVaultSearch(agentId: string) {
   return { search, invalidate };
 }
 
-/** Tenant-wide vault search (agent_id optional). */
+/** Vault search (agent_id optional). */
 export function useVaultSearchAll() {
   const http = useHttp();
 

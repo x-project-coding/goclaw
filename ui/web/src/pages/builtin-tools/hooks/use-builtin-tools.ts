@@ -12,12 +12,7 @@ export interface BuiltinToolData {
   description: string;
   category: string;
   enabled: boolean;
-  tenant_enabled: boolean | null;
   settings: Record<string, unknown>;
-  // Tenant override for settings JSON. Null when no tenant override
-  // exists (row in builtin_tool_tenant_configs has settings column NULL
-  // or row absent). Present only when request is tenant-scoped.
-  tenant_settings: Record<string, unknown> | null;
   requires: string[];
   metadata: Record<string, unknown>;
   // Boolean status map for tool API keys. Raw values are never returned.
@@ -64,71 +59,10 @@ export function useBuiltinTools() {
     [http, invalidate],
   );
 
-  const setTenantConfig = useCallback(
-    async (name: string, enabled: boolean) => {
-      try {
-        queryClient.setQueryData<BuiltinToolData[]>(queryKeys.builtinTools.all, (old) =>
-          old?.map((t) => (t.name === name ? { ...t, tenant_enabled: enabled } : t)),
-        );
-        await http.put(`/v1/tools/builtin/${name}/tenant-config`, { enabled });
-        await invalidate();
-        toast.success(i18next.t("tools:builtin.settingsDialog.toast.saved"));
-      } catch (err) {
-        toast.error(i18next.t("tools:builtin.settingsDialog.toast.failed"), userFriendlyError(err));
-        throw err;
-      }
-    },
-    [http, queryClient, invalidate],
-  );
-
-  // setTenantSettings writes the JSONB `settings` column of
-  // builtin_tool_tenant_configs for the current tenant. Passing `null`
-  // clears the override (backend maps literal `null` → SQL NULL) while
-  // preserving the `enabled` column on the same row.
-  const setTenantSettings = useCallback(
-    async (name: string, settings: Record<string, unknown> | null) => {
-      try {
-        queryClient.setQueryData<BuiltinToolData[]>(queryKeys.builtinTools.all, (old) =>
-          old?.map((t) => (t.name === name ? { ...t, tenant_settings: settings } : t)),
-        );
-        await http.put(`/v1/tools/builtin/${name}/tenant-config`, { settings });
-        await invalidate();
-        toast.success(i18next.t("tools:builtin.settingsDialog.toast.saved"));
-      } catch (err) {
-        toast.error(i18next.t("tools:builtin.settingsDialog.toast.failed"), userFriendlyError(err));
-        throw err;
-      }
-    },
-    [http, queryClient, invalidate],
-  );
-
-  const clearTenantSettings = useCallback(
-    (name: string) => setTenantSettings(name, null),
-    [setTenantSettings],
-  );
-
-  const deleteTenantConfig = useCallback(
-    async (name: string) => {
-      try {
-        await http.delete(`/v1/tools/builtin/${name}/tenant-config`);
-        await invalidate();
-        toast.success(i18next.t("tools:builtin.settingsDialog.toast.saved"));
-      } catch (err) {
-        toast.error(i18next.t("tools:builtin.settingsDialog.toast.failed"), userFriendlyError(err));
-        throw err;
-      }
-    },
-    [http, invalidate],
-  );
-
   return {
     tools,
     loading,
     refresh: invalidate,
     updateTool,
-    setTenantConfig,
-    deleteTenantConfig,
-    setTenantSettings,
-    clearTenantSettings,
   };
 }

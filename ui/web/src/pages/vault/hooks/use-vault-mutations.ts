@@ -109,7 +109,7 @@ export function useCreateLink() {
   return { create };
 }
 
-/** Rescan workspace to sync vault documents from filesystem (tenant-wide). */
+/** Rescan workspace to sync vault documents from filesystem. */
 export function useRescanWorkspace() {
   const http = useHttp();
   const queryClient = useQueryClient();

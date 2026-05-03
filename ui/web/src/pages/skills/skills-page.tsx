@@ -22,9 +22,6 @@ import { useRuntimes } from "./hooks/use-runtimes";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
-import { useTenants } from "@/hooks/use-tenants";
-
-const MASTER_TENANT_ID = "0193a5b0-7000-7000-8000-000000000001";
 
 type Tab = "core" | "custom";
 
@@ -33,11 +30,8 @@ export function SkillsPage() {
   const {
     skills, loading, refresh, getSkill, uploadSkill, updateSkill, deleteSkill,
     getSkillVersions, getSkillFiles, getSkillFileContent, rescanDeps, installSingleDep, toggleSkill,
-    setTenantConfig, deleteTenantConfig,
   } = useSkills();
   const { runtimes } = useRuntimes();
-  const { currentTenantId } = useTenants();
-  const hasTenantScope = !!currentTenantId && currentTenantId !== MASTER_TENANT_ID;
   const spinning = useMinLoading(loading);
   const showSkeleton = useDeferredLoading(loading && skills.length === 0);
   const [tab, setTab] = useState<Tab>("core");
@@ -91,16 +85,6 @@ export function SkillsPage() {
     if (!skill.id) return;
     setToggling(skill.id);
     try { await toggleSkill(skill.id, enabled); } finally { setToggling(null); }
-  };
-
-  const handleSetTenantConfig = async (id: string, enabled: boolean) => {
-    setToggling(id);
-    try { await setTenantConfig(id, enabled); } finally { setToggling(null); }
-  };
-
-  const handleDeleteTenantConfig = async (id: string) => {
-    setToggling(id);
-    try { await deleteTenantConfig(id); } finally { setToggling(null); }
   };
 
   return (
@@ -176,15 +160,12 @@ export function SkillsPage() {
                     key={skill.name}
                     skill={skill}
                     tab={tab}
-                    hasTenantScope={hasTenantScope}
                     toggling={toggling}
                     onView={handleViewSkill}
                     onEdit={setEditTarget}
                     onDelete={setDeleteTarget}
                     onToggle={handleToggle}
                     onCycleVisibility={handleCycleVisibility}
-                    onSetTenantConfig={handleSetTenantConfig}
-                    onDeleteTenantConfig={handleDeleteTenantConfig}
                   />
                 ))}
               </tbody>

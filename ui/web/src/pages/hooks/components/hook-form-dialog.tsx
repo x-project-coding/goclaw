@@ -32,8 +32,9 @@ interface HookFormDialogProps {
 
 export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFormDialogProps) {
   const { t } = useTranslation("hooks");
-  const isMasterScope = useAuthStore((s) => s.isMasterScope);
-  // Global scope hidden for non-master callers; existing `global` hooks still render as-is in edit mode.
+  const role = useAuthStore((s) => s.role);
+  // Global scope only visible to owner/admin; existing `global` hooks still render as-is in edit mode.
+  const isMasterScope = role === "owner" || role === "admin";
   const scopeOptions = isMasterScope
     ? (["global", "tenant", "agent"] as const)
     : (["tenant", "agent"] as const);
