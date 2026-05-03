@@ -240,6 +240,8 @@ const (
 	MsgRefreshTokenRevoked  = "error.refresh_token_revoked"  // "refresh token revoked"
 	MsgAccessTokenExpired   = "error.access_token_expired"   // "access token expired"
 	MsgAccessTokenInvalid   = "error.access_token_invalid"   // "access token invalid"
+	MsgCurrentPasswordWrong = "error.current_password_wrong" // "current password is incorrect"
+	MsgDisplayNameInvalid   = "error.display_name_invalid"   // "display name must be 2-64 characters"
 
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"

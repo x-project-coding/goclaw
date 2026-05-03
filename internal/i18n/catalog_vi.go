@@ -247,5 +247,7 @@ func init() {
 		MsgRefreshTokenRevoked:  "refresh token đã bị thu hồi",
 		MsgAccessTokenExpired:   "access token đã hết hạn",
 		MsgAccessTokenInvalid:   "access token không hợp lệ",
+		MsgCurrentPasswordWrong: "mật khẩu hiện tại không đúng",
+		MsgDisplayNameInvalid:   "tên hiển thị phải từ 2 đến 64 ký tự",
 	})
 }

@@ -247,5 +247,7 @@ func init() {
 		MsgRefreshTokenRevoked:  "refresh token revoked",
 		MsgAccessTokenExpired:   "access token expired",
 		MsgAccessTokenInvalid:   "access token invalid",
+		MsgCurrentPasswordWrong: "current password is incorrect",
+		MsgDisplayNameInvalid:   "display name must be between 2 and 64 characters",
 	})
 }

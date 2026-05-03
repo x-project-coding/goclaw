@@ -61,12 +61,14 @@ func NewAuthHandler(
 	}
 }
 
-// RegisterRoutes mounts the four auth endpoints on mux.
+// RegisterRoutes mounts the auth + self-management endpoints on mux.
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/auth/login", loginRateLimitMiddleware(h.handleLogin))
 	mux.HandleFunc("/v1/auth/refresh", h.handleRefresh)
 	mux.HandleFunc("/v1/auth/logout", requireAuth(permissions.RoleViewer, h.handleLogout))
 	mux.HandleFunc("/v1/auth/me", requireAuth(permissions.RoleViewer, h.handleMe))
+	mux.HandleFunc("/v1/auth/change-password", requireAuth(permissions.RoleViewer, h.handleChangePassword))
+	mux.HandleFunc("/v1/users/me", requireAuth(permissions.RoleViewer, h.handleUpdateMe))
 }
 
 type loginBody struct {
@@ -254,4 +256,142 @@ func (h *AuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {
 		resp["display_name"] = *user.DisplayName
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// updateMeBody is the JSON body for PATCH /v1/users/me. Optional fields; only
+// non-nil fields are persisted.
+type updateMeBody struct {
+	DisplayName *string `json:"display_name"`
+}
+
+// handleUpdateMe lets an authenticated user update their own profile.
+// Currently only display_name is mutable; email + role + status remain
+// admin-controlled and are intentionally not exposed here.
+func (h *AuthHandler) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	locale := extractLocale(r)
+	uidStr := store.UserIDFromContext(r.Context())
+	if uidStr == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no user"})
+		return
+	}
+	uid, err := uuid.Parse(uidStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+	var body updateMeBody
+	if !bindJSON(w, r, locale, &body) {
+		return
+	}
+	updates := map[string]any{}
+	if body.DisplayName != nil {
+		name := strings.TrimSpace(*body.DisplayName)
+		// Mirror FE schema: 2..64 chars. Backend remains source of truth.
+		if n := len(name); n < 2 || n > 64 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":   "display_name_invalid",
+				"message": i18n.T(locale, i18n.MsgDisplayNameInvalid),
+			})
+			return
+		}
+		updates["display_name"] = name
+	}
+	if len(updates) == 0 {
+		// Nothing to update — return current state for symmetry with /me.
+		h.handleMe(w, r)
+		return
+	}
+	if err := h.users.Update(r.Context(), uid, updates); err != nil {
+		slog.Error("user.update_failed", "err", err, "user_id", uid)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
+		return
+	}
+	h.handleMe(w, r)
+}
+
+type changePasswordBody struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// handleChangePassword verifies the current password, validates the new one,
+// hashes + writes it, and revokes ALL sessions (including the caller's). The
+// client is expected to redirect to /login afterwards. Revoking everything is
+// the simpler + safer choice over selective revocation: a stolen access token
+// cannot ride out the rotation grace period.
+func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	locale := extractLocale(r)
+	uidStr := store.UserIDFromContext(r.Context())
+	if uidStr == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no user"})
+		return
+	}
+	uid, err := uuid.Parse(uidStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+	var body changePasswordBody
+	if !bindJSON(w, r, locale, &body) {
+		return
+	}
+	if body.CurrentPassword == "" || body.NewPassword == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing fields"})
+		return
+	}
+	if body.CurrentPassword == body.NewPassword {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error":   "weak_password",
+			"message": i18n.T(locale, i18n.MsgWeakPassword),
+		})
+		return
+	}
+	if err := auth.ValidatePasswordComplexity(body.NewPassword); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error":   "weak_password",
+			"message": i18n.T(locale, i18n.MsgWeakPassword),
+		})
+		return
+	}
+	user, err := h.users.Get(r.Context(), uid)
+	if err != nil || user == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+	ok, _ := auth.VerifyPassword(body.CurrentPassword, user.PasswordHash)
+	if !ok {
+		slog.Warn("security.change_password_wrong_current", "user_id", uid, "ip", r.RemoteAddr)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"error":   "current_password_wrong",
+			"message": i18n.T(locale, i18n.MsgCurrentPasswordWrong),
+		})
+		return
+	}
+	newHash, err := auth.HashPassword(body.NewPassword)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "hash error"})
+		return
+	}
+	if err := h.users.Update(r.Context(), uid, map[string]any{"password_hash": newHash}); err != nil {
+		slog.Error("user.password_update_failed", "err", err, "user_id", uid)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
+		return
+	}
+	// Force re-login on every device. Includes the current session — caller
+	// must redirect to /login. This trades minor UX cost for clean session
+	// hygiene after a credential rotation.
+	if err := auth.RevokeAllForUser(r.Context(), h.sessions, uid); err != nil {
+		// Non-fatal: password changed, but session revoke failed. Log + warn.
+		slog.Error("user.password_changed_revoke_failed", "err", err, "user_id", uid)
+	}
+	slog.Info("auth.password_changed", "user_id", uid, "ip", r.RemoteAddr)
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -247,5 +247,7 @@ func init() {
 		MsgRefreshTokenRevoked:  "刷新令牌已被吊销",
 		MsgAccessTokenExpired:   "访问令牌已过期",
 		MsgAccessTokenInvalid:   "访问令牌无效",
+		MsgCurrentPasswordWrong: "当前密码不正确",
+		MsgDisplayNameInvalid:   "显示名称必须为 2 到 64 个字符",
 	})
 }
