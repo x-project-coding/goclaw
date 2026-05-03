@@ -13,8 +13,6 @@ import (
 )
 
 // buildSessionFilter builds a dynamic WHERE clause from SessionListOpts using ? placeholders.
-// v4: tenant_id removed; SessionListOpts.TenantID is ignored at this layer (struct
-// field still exists for PG compat until L3 context purge lands).
 func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, []any) {
 	prefix := ""
 	if tableAlias != "" {

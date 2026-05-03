@@ -139,9 +139,7 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 	}
 
 	// Propagate tenant ID from store context to browser context for page isolation.
-	if tid := store.TenantIDFromContext(ctx); tid.String() != "00000000-0000-0000-0000-000000000000" {
-		ctx = WithTenantID(ctx, tid.String())
-	}
+	ctx = WithTenantID(ctx, store.MasterTenantID.String())
 
 	// Auto-start browser for actions that need it
 	switch action {

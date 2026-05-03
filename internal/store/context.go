@@ -8,6 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// MasterTenantID is the well-known UUID used for event scoping and DB queries.
+// Every WS client is assigned this ID at connect time so event routing works correctly.
+var MasterTenantID = uuid.MustParse("0193a5b0-7000-7000-8000-000000000001")
+
 type contextKey string
 
 const (
@@ -330,30 +334,6 @@ func LocaleFromContext(ctx context.Context) string {
 	return "en"
 }
 
-// WithTenantID is a no-op in v4 single-tenant. Returns ctx unchanged.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func WithTenantID(ctx context.Context, _ uuid.UUID) context.Context {
-	return ctx
-}
-
-// TenantIDFromContext always returns MasterTenantID in v4 single-tenant.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func TenantIDFromContext(_ context.Context) uuid.UUID {
-	return MasterTenantID
-}
-
-// WithCrossTenant is a no-op in v4 single-tenant. Returns ctx unchanged.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func WithCrossTenant(ctx context.Context) context.Context {
-	return ctx
-}
-
-// IsCrossTenant always returns false in v4 single-tenant.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func IsCrossTenant(_ context.Context) bool {
-	return false
-}
-
 // IsOwnerRole returns true if the caller has the "owner" role.
 func IsOwnerRole(ctx context.Context) bool {
 	return RoleFromContext(ctx) == string(RoleOwner)
@@ -373,18 +353,6 @@ func IsMasterScope(ctx context.Context) bool {
 // RoleOwner is the owner role constant for context checks.
 // Must match permissions.RoleOwner.
 const RoleOwner = "owner"
-
-// WithTenantSlug is a no-op in v4 single-tenant. Returns ctx unchanged.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func WithTenantSlug(ctx context.Context, _ string) context.Context {
-	return ctx
-}
-
-// TenantSlugFromContext always returns "" in v4 single-tenant.
-// Kept for caller compat; Phase 13 removes all call sites and this stub.
-func TenantSlugFromContext(_ context.Context) string {
-	return ""
-}
 
 // WithRole returns a new context with the caller's permission role.
 func WithRole(ctx context.Context, role string) context.Context {

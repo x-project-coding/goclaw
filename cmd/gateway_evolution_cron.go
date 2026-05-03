@@ -94,8 +94,6 @@ func releaseAdvisoryLock(ctx context.Context, conn *sql.Conn) {
 }
 
 // runSuggestionAnalysis lists agents with evolution enabled and runs analysis.
-// Note: List(ctx, "") uses bare context (no tenant) to list ALL agents cross-tenant.
-// Per-agent calls are scoped via WithTenantID.
 func runSuggestionAnalysis(stores *store.Stores, engine *agent.SuggestionEngine) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
