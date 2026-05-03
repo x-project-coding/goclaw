@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,11 +66,7 @@ func (s *PGConfigPermissionStore) InvalidateCache() {
 
 // CheckPermission evaluates deny-first, allow-second permission with Go-level wildcard matching.
 func (s *PGConfigPermissionStore) CheckPermission(ctx context.Context, agentID uuid.UUID, scope, configType, userID string) (bool, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	cacheKey := tid.String() + ":" + agentID.String() + ":" + userID
+	cacheKey := agentID.String() + ":" + userID
 
 	// Check cache.
 	s.mu.RLock()
@@ -82,15 +77,11 @@ func (s *PGConfigPermissionStore) CheckPermission(ctx context.Context, agentID u
 	s.mu.RUnlock()
 
 	// Fetch from DB.
-	tClause, tArgs, _, err := scopeClause(ctx, 3)
-	if err != nil {
-		return false, err
-	}
 	var permRows []permRow
-	err = pkgSqlxDB.SelectContext(ctx, &permRows,
+	err := pkgSqlxDB.SelectContext(ctx, &permRows,
 		`SELECT scope, config_type, permission, user_id FROM agent_config_permissions
-		 WHERE agent_id = $1 AND (user_id = $2 OR user_id = '*')`+tClause,
-		append([]any{agentID, userID}, tArgs...)...,
+		 WHERE agent_id = $1 AND (user_id = $2 OR user_id = '*')`,
+		agentID, userID,
 	)
 	if err != nil {
 		return false, err
@@ -170,14 +161,14 @@ func (s *PGConfigPermissionStore) Grant(ctx context.Context, perm *store.ConfigP
 	}
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_config_permissions (agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at, tenant_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
+		`INSERT INTO agent_config_permissions (agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
 		 ON CONFLICT (agent_id, scope, config_type, user_id) DO UPDATE SET
 		        permission = EXCLUDED.permission,
 		        granted_by = EXCLUDED.granted_by,
 		        metadata = EXCLUDED.metadata,
 		        updated_at = EXCLUDED.updated_at`,
-		perm.AgentID, perm.Scope, perm.ConfigType, perm.UserID, perm.Permission, perm.GrantedBy, meta, now, tenantIDForInsert(ctx),
+		perm.AgentID, perm.Scope, perm.ConfigType, perm.UserID, perm.Permission, perm.GrantedBy, meta, now,
 	)
 	if err == nil {
 		s.InvalidateCache()
@@ -186,13 +177,9 @@ func (s *PGConfigPermissionStore) Grant(ctx context.Context, perm *store.ConfigP
 }
 
 func (s *PGConfigPermissionStore) Revoke(ctx context.Context, agentID uuid.UUID, scope, configType, userID string) error {
-	tClause, tArgs, _, err := scopeClause(ctx, 5)
-	if err != nil {
-		return err
-	}
-	_, err = s.db.ExecContext(ctx,
-		`DELETE FROM agent_config_permissions WHERE agent_id = $1 AND scope = $2 AND config_type = $3 AND user_id = $4`+tClause,
-		append([]any{agentID, scope, configType, userID}, tArgs...)...,
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM agent_config_permissions WHERE agent_id = $1 AND scope = $2 AND config_type = $3 AND user_id = $4`,
+		agentID, scope, configType, userID,
 	)
 	if err == nil {
 		s.InvalidateCache()
@@ -201,10 +188,6 @@ func (s *PGConfigPermissionStore) Revoke(ctx context.Context, agentID uuid.UUID,
 }
 
 func (s *PGConfigPermissionStore) List(ctx context.Context, agentID uuid.UUID, configType, scope string) ([]store.ConfigPermission, error) {
-	tClause, tArgs, _, err := scopeClause(ctx, 0) // paramN unused; we append manually
-	if err != nil {
-		return nil, err
-	}
 	query := `SELECT id, agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at
 	          FROM agent_config_permissions WHERE agent_id = $1`
 	args := []any{agentID}
@@ -216,10 +199,6 @@ func (s *PGConfigPermissionStore) List(ctx context.Context, agentID uuid.UUID, c
 	if scope != "" {
 		args = append(args, scope)
 		query += ` AND scope = $` + itoa(len(args))
-	}
-	if tClause != "" {
-		args = append(args, tArgs...)
-		query += fmt.Sprintf(" AND tenant_id = $%d", len(args))
 	}
 	query += ` ORDER BY created_at`
 
@@ -235,11 +214,7 @@ func (s *PGConfigPermissionStore) List(ctx context.Context, agentID uuid.UUID, c
 // ListFileWriters returns cached file_writer allow permissions for a given agentID+scope.
 // Hot-path: called during system prompt injection for every group message.
 func (s *PGConfigPermissionStore) ListFileWriters(ctx context.Context, agentID uuid.UUID, scope string) ([]store.ConfigPermission, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	cacheKey := tid.String() + ":" + agentID.String() + ":" + scope
+	cacheKey := agentID.String() + ":" + scope
 
 	s.fwMu.RLock()
 	if entry, ok := s.fwCache[cacheKey]; ok && time.Since(entry.fetched) < permCacheTTL {
@@ -248,16 +223,12 @@ func (s *PGConfigPermissionStore) ListFileWriters(ctx context.Context, agentID u
 	}
 	s.fwMu.RUnlock()
 
-	tClause, tArgs, _, err := scopeClause(ctx, 3)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at
 		 FROM agent_config_permissions
-		 WHERE agent_id = $1 AND config_type = 'file_writer' AND scope = $2 AND permission = 'allow'`+tClause+`
+		 WHERE agent_id = $1 AND config_type = 'file_writer' AND scope = $2 AND permission = 'allow'
 		 ORDER BY created_at`,
-		append([]any{agentID, scope}, tArgs...)...,
+		agentID, scope,
 	)
 	if err != nil {
 		return nil, err
@@ -299,3 +270,4 @@ func scanConfigPermissions(rows *sql.Rows) ([]store.ConfigPermission, error) {
 func itoa(n int) string {
 	return strconv.Itoa(n)
 }
+

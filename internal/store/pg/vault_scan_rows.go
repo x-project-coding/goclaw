@@ -13,7 +13,6 @@ import (
 // Metadata is scanned as raw JSON then unmarshalled post-scan.
 type vaultDocRow struct {
 	ID           uuid.UUID  `db:"id"`
-	TenantID     uuid.UUID  `db:"tenant_id"`
 	AgentID      *uuid.UUID `db:"agent_id"`
 	TeamID       *uuid.UUID `db:"team_id"`
 	ChatID       *string    `db:"chat_id"`
@@ -34,7 +33,6 @@ type vaultDocRow struct {
 func (r *vaultDocRow) toVaultDocument() store.VaultDocument {
 	doc := store.VaultDocument{
 		ID:           r.ID.String(),
-		TenantID:     r.TenantID.String(),
 		Scope:        r.Scope,
 		CustomScope:  r.CustomScope,
 		Path:         r.Path,

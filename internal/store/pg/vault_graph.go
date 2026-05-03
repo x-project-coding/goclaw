@@ -21,23 +21,19 @@ func NewPGVaultGraphStore(db *sql.DB) *PGVaultGraphStore {
 
 // ListGraphNodes returns lightweight vault nodes with pre-computed degree.
 func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphNode, int, error) {
-	tid := parseUUIDOrNil(tenantID)
-
 	q := `SELECT vd.id, vd.title, vd.path, vd.doc_type,
 		COALESCE(deg.cnt, 0) AS degree
 		FROM vault_documents vd
 		LEFT JOIN (
 			SELECT doc_id, COUNT(*) AS cnt FROM (
-				SELECT from_doc_id AS doc_id FROM vault_links vl
-				JOIN vault_documents d ON d.id = vl.from_doc_id AND d.tenant_id = $1
+				SELECT from_doc_id AS doc_id FROM vault_links
 				UNION ALL
-				SELECT to_doc_id AS doc_id FROM vault_links vl
-				JOIN vault_documents d ON d.id = vl.to_doc_id AND d.tenant_id = $1
+				SELECT to_doc_id AS doc_id FROM vault_links
 			) sub GROUP BY doc_id
 		) deg ON deg.doc_id = vd.id
-		WHERE vd.tenant_id = $1`
-	args := []any{tid}
-	p := 2
+		WHERE true`
+	var args []any
+	p := 1
 
 	if agentID != "" {
 		aid := parseUUIDOrNil(agentID)
@@ -79,7 +75,7 @@ func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentI
 	}
 
 	// Count total nodes in scope (without LIMIT).
-	total, err := s.countGraphNodes(ctx, tid, agentID, opts)
+	total, err := s.countGraphNodes(ctx, agentID, opts)
 	if err != nil {
 		return nodes, len(nodes), nil // non-fatal: return what we have
 	}
@@ -88,12 +84,10 @@ func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentI
 
 // ListGraphEdges returns lightweight vault edges for nodes in scope.
 func (s *PGVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
-	tid := parseUUIDOrNil(tenantID)
-
 	// Subquery selects doc IDs in scope (same filters as ListGraphNodes).
-	subQ := `SELECT id FROM vault_documents WHERE tenant_id = $1`
-	args := []any{tid}
-	p := 2
+	subQ := `SELECT id FROM vault_documents WHERE true`
+	var args []any
+	p := 1
 
 	if agentID != "" {
 		aid := parseUUIDOrNil(agentID)
@@ -113,7 +107,6 @@ func (s *PGVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentI
 	}
 	subQ += fmt.Sprintf(" LIMIT $%d", p)
 	args = append(args, limit)
-	p++
 
 	q := fmt.Sprintf(`SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type
 		FROM vault_links vl
@@ -140,10 +133,10 @@ func (s *PGVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentI
 	return edges, len(edges), nil
 }
 
-func (s *PGVaultGraphStore) countGraphNodes(ctx context.Context, tid any, agentID string, opts store.VaultGraphListOptions) (int, error) {
-	q := `SELECT COUNT(*) FROM vault_documents WHERE tenant_id = $1`
-	args := []any{tid}
-	p := 2
+func (s *PGVaultGraphStore) countGraphNodes(ctx context.Context, agentID string, opts store.VaultGraphListOptions) (int, error) {
+	q := `SELECT COUNT(*) FROM vault_documents WHERE true`
+	var args []any
+	p := 1
 
 	if agentID != "" {
 		aid := parseUUIDOrNil(agentID)
