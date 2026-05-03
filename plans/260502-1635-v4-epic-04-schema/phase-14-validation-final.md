@@ -13,7 +13,7 @@
 - Effort: 6 dev-days + 2d Phase 14A endpoint impl
 - Sub-phase 14A (impl missing endpoints): committed in `feat(v4): phase-14a` (Users CRUD, hook budget rewire + GET /v1/hooks/budget, secure-cli ADR, channel pairing audit-correction)
 - Sub-phase 14B (write 16 e2e test files): committed across 4 batches (b1: users+agents+hooks; b2: memory+vault+oauth+mcp+cli; b3: teams+sessions+chat+ws+cron; b4: rbac+isolation+backup)
-- **Remaining red-state work:** (1) restore handler must execute `UPDATE user_sessions SET revoked_at=NOW() WHERE revoked_at IS NULL` post-load (Finding 6); (2) KG list endpoint must filter by user_id of caller (TestIsolationKGEntityUserScoped). Both are v4.0 release gates.
+- **Remaining red-state work:** ✅ both fixed in commit `7cbd10ea` (2026-05-04). (1) `RevokeAllSessionsPostRestore` wired into `backup.Restore` for both PG and SQLite. (2) KG handler `auth()` now gates `WithSharedKG` on `IsMasterScope` so non-admin callers get per-user filter already enforced by the store layer.
 - Description: Implement remaining e2e tests covering full master § 11 matrix not yet covered by per-phase tests. RBAC matrix (root/admin/member/viewer × all resources). Multi-user isolation. Backup/restore round-trip. WebSocket frame coverage. LLM real-call smoke (Bailian + OpenRouter). Final regression run. Branch merge gate.
 
 ## Key Insights
