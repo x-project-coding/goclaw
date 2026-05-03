@@ -1,5 +1,7 @@
 export const ROUTES = {
   LOGIN: "/login",
+  BOOTSTRAP: "/bootstrap",
+  PROFILE: "/profile",
   OVERVIEW: "/overview",
   CHAT: "/chat",
   CHAT_PATTERN: "/chat/:sessionKey?",

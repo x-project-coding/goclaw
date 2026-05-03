@@ -1,44 +1,58 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router";
+import { useEffect, useState } from "react";
+import { Navigate, useNavigate, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@/stores/use-auth-store";
+import { useAuth } from "@/auth/auth-context";
 import { ROUTES } from "@/lib/constants";
 import { LoginLayout } from "./login-layout";
-import { LoginTabs, type LoginMode } from "./login-tabs";
-import { TokenForm } from "./token-form";
-import { PairingForm } from "./pairing-form";
+import { PasswordForm } from "./password-form";
+
+interface BootstrapStatus {
+  bootstrapped: boolean;
+}
 
 export function LoginPage() {
-  const { t } = useTranslation("login");
-  const [mode, setMode] = useState<LoginMode>("token");
-
-  const setCredentials = useAuthStore((s) => s.setCredentials);
-  const setPairing = useAuthStore((s) => s.setPairing);
+  const { t } = useTranslation("auth");
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [needsBootstrap, setNeedsBootstrap] = useState(false);
 
-  const from =
-    (location.state as { from?: { pathname: string } })?.from?.pathname ??
-    ROUTES.OVERVIEW;
+  // Probe bootstrap status — if gateway is uninitialized, redirect to /bootstrap so the
+  // operator can create the first root user without manually navigating.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/v1/bootstrap/status")
+      .then((res) => (res.ok ? (res.json() as Promise<BootstrapStatus>) : null))
+      .then((body) => {
+        if (cancelled || !body) return;
+        if (!body.bootstrapped) setNeedsBootstrap(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function handleTokenLogin(userId: string, token: string) {
-    setCredentials(token, userId);
-    navigate(from, { replace: true });
+  if (needsBootstrap) {
+    return <Navigate to={ROUTES.BOOTSTRAP} replace />;
   }
 
-  function handlePairingApproved(senderID: string, userId: string) {
-    setPairing(senderID, userId);
-    setTimeout(() => navigate(from, { replace: true }), 500);
+  const from =
+    (location.state as { from?: { pathname: string } })?.from?.pathname ?? ROUTES.OVERVIEW;
+
+  if (isAuthenticated) {
+    return <Navigate to={from} replace />;
   }
 
   return (
-    <LoginLayout subtitle={t("subtitle")}>
-      <LoginTabs mode={mode} onModeChange={setMode} />
-      {mode === "token" ? (
-        <TokenForm onSubmit={handleTokenLogin} />
-      ) : (
-        <PairingForm onApproved={handlePairingApproved} />
-      )}
+    <LoginLayout subtitle={t("login.subtitle")}>
+      <h2 className="text-center text-lg font-semibold">{t("login.title")}</h2>
+      <PasswordForm
+        onSubmit={async (email, password) => {
+          await login(email, password);
+          navigate(from, { replace: true });
+        }}
+      />
     </LoginLayout>
   );
 }

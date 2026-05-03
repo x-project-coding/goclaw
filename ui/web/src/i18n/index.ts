@@ -6,6 +6,7 @@ import enCommon from "./locales/en/common.json";
 import enSidebar from "./locales/en/sidebar.json";
 import enTopbar from "./locales/en/topbar.json";
 import enLogin from "./locales/en/login.json";
+import enAuth from "./locales/en/auth.json";
 import enOverview from "./locales/en/overview.json";
 import enChat from "./locales/en/chat.json";
 import enAgents from "./locales/en/agents.json";
@@ -47,6 +48,7 @@ import viCommon from "./locales/vi/common.json";
 import viSidebar from "./locales/vi/sidebar.json";
 import viTopbar from "./locales/vi/topbar.json";
 import viLogin from "./locales/vi/login.json";
+import viAuth from "./locales/vi/auth.json";
 import viOverview from "./locales/vi/overview.json";
 import viChat from "./locales/vi/chat.json";
 import viAgents from "./locales/vi/agents.json";
@@ -88,6 +90,7 @@ import zhCommon from "./locales/zh/common.json";
 import zhSidebar from "./locales/zh/sidebar.json";
 import zhTopbar from "./locales/zh/topbar.json";
 import zhLogin from "./locales/zh/login.json";
+import zhAuth from "./locales/zh/auth.json";
 import zhOverview from "./locales/zh/overview.json";
 import zhChat from "./locales/zh/chat.json";
 import zhAgents from "./locales/zh/agents.json";
@@ -136,7 +139,7 @@ function getInitialLanguage(): string {
 }
 
 const ns = [
-  "common", "sidebar", "topbar", "login", "overview", "chat",
+  "common", "sidebar", "topbar", "login", "auth", "overview", "chat",
   "agents", "teams", "sessions", "skills", "cron", "config",
   "channels", "providers", "traces", "events",
   "usage", "approvals", "nodes", "logs", "tools", "mcp", "tts",
@@ -150,7 +153,7 @@ const ns = [
 i18n.use(initReactI18next).init({
   resources: {
     en: {
-      common: enCommon, sidebar: enSidebar, topbar: enTopbar, login: enLogin,
+      common: enCommon, sidebar: enSidebar, topbar: enTopbar, login: enLogin, auth: enAuth,
       overview: enOverview, chat: enChat, agents: enAgents, teams: enTeams,
       sessions: enSessions, skills: enSkills, cron: enCron, config: enConfig,
       channels: enChannels, providers: enProviders, traces: enTraces,
@@ -169,7 +172,7 @@ i18n.use(initReactI18next).init({
       hooks: enHooks,
     },
     vi: {
-      common: viCommon, sidebar: viSidebar, topbar: viTopbar, login: viLogin,
+      common: viCommon, sidebar: viSidebar, topbar: viTopbar, login: viLogin, auth: viAuth,
       overview: viOverview, chat: viChat, agents: viAgents, teams: viTeams,
       sessions: viSessions, skills: viSkills, cron: viCron, config: viConfig,
       channels: viChannels, providers: viProviders, traces: viTraces,
@@ -188,7 +191,7 @@ i18n.use(initReactI18next).init({
       hooks: viHooks,
     },
     zh: {
-      common: zhCommon, sidebar: zhSidebar, topbar: zhTopbar, login: zhLogin,
+      common: zhCommon, sidebar: zhSidebar, topbar: zhTopbar, login: zhLogin, auth: zhAuth,
       overview: zhOverview, chat: zhChat, agents: zhAgents, teams: zhTeams,
       sessions: zhSessions, skills: zhSkills, cron: zhCron, config: zhConfig,
       channels: zhChannels, providers: zhProviders, traces: zhTraces,

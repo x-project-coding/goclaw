@@ -12,6 +12,12 @@ import { lazyWithRetry } from "@/lib/lazy-with-retry";
 const LoginPage = lazyWithRetry(() =>
   import("@/pages/login/login-page").then((m) => ({ default: m.LoginPage })),
 );
+const BootstrapPage = lazyWithRetry(() =>
+  import("@/pages/bootstrap/bootstrap-page").then((m) => ({ default: m.BootstrapPage })),
+);
+const ProfilePage = lazyWithRetry(() =>
+  import("@/pages/profile/profile-page").then((m) => ({ default: m.ProfilePage })),
+);
 const OverviewPage = lazyWithRetry(() =>
   import("@/pages/overview/overview-page").then((m) => ({ default: m.OverviewPage })),
 );
@@ -135,6 +141,7 @@ export function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route path={ROUTES.BOOTSTRAP} element={<BootstrapPage />} />
 
         {/* Tenant selector — accessible when authenticated but tenant not yet selected */}
         <Route path={ROUTES.SELECT_TENANT} element={<TenantSelectorPage />} />
@@ -177,6 +184,7 @@ export function AppRoutes() {
           <Route path={ROUTES.CRON_DETAIL} element={<CronPage key="detail" />} />
           <Route path={ROUTES.HOOKS} element={<HooksPage key="list" />} />
           <Route path={ROUTES.HOOK_DETAIL} element={<HooksPage key="detail" />} />
+          <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
           {/* Admin-only pages */}
           <Route path={ROUTES.CONFIG} element={<RequireCrossTenant><ConfigPage /></RequireCrossTenant>} />
           <Route path={ROUTES.PROVIDERS} element={<RequireAdmin><ProvidersPage key="list" /></RequireAdmin>} />

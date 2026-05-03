@@ -8,7 +8,10 @@ type UserRole = "owner" | "admin" | "operator" | "viewer" | "";
 export type Edition = "standard" | "lite";
 
 interface AuthState {
+  // v4 password auth: token = JWT access token. refreshToken kept separate.
+  // Existing 60+ callers read `token` directly — keep field name stable to avoid wide refactor.
   token: string;
+  refreshToken: string;
   userId: string;
   senderID: string; // browser pairing: persistent device identity
   connected: boolean;
@@ -24,6 +27,7 @@ interface AuthState {
   tenantSelected: boolean; // true after user picks a tenant (or auto-selected)
 
   setCredentials: (token: string, userId: string) => void;
+  setTokens: (accessToken: string, refreshToken: string, userId: string) => void;
   setPairing: (senderID: string, userId: string) => void;
   setConnected: (connected: boolean, serverInfo?: { name?: string; version?: string }) => void;
   setRole: (role: UserRole) => void;
@@ -38,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       token: "",
+      refreshToken: "",
       userId: "",
       senderID: "",
       connected: false,
@@ -54,6 +59,10 @@ export const useAuthStore = create<AuthState>()(
 
       setCredentials: (token, userId) => {
         set({ token, userId });
+      },
+
+      setTokens: (accessToken, refreshToken, userId) => {
+        set({ token: accessToken, refreshToken, userId });
       },
 
       setPairing: (senderID, userId) => {
@@ -90,7 +99,7 @@ export const useAuthStore = create<AuthState>()(
         localStorage.removeItem("goclaw:tenant_hint");
         clearSetupSkippedState();
         set({
-          token: "", userId: "", senderID: "", connected: false, role: "", serverInfo: null,
+          token: "", refreshToken: "", userId: "", senderID: "", connected: false, role: "", serverInfo: null,
           tenantId: "", tenantName: "", tenantSlug: "", isOwner: false,
           isMasterScope: false, edition: "standard",
           availableTenants: [], tenantSelected: false,
@@ -102,6 +111,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         // Only persist credentials — not transient runtime state
         token: state.token,
+        refreshToken: state.refreshToken,
         userId: state.userId,
         senderID: state.senderID,
       }),
