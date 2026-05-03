@@ -16,7 +16,6 @@ import (
 // PARTITION BY (source_base, task_id) cap semantics.
 func (s *SQLiteTeamStore) BatchGetTaskSiblingsByBasenames(
 	ctx context.Context,
-	_ uuid.UUID,
 	basenames []string,
 	limit int,
 ) (map[string][]store.TaskSibling, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -15,13 +14,9 @@ import (
 // Caps at `limit` per (source_base × task_id) pair — a file attached to two
 // different tasks gets up to `limit` siblings from each task (not shared).
 //
-// Tenant isolation via tta.tenant_id filter; team isolation via matching
-// vd.team_id = tta.team_id in the join.
-//
-// Single SQL per chunk — `ANY($2)` lets us avoid 1 query per basename.
+// Single SQL per chunk — `ANY($1)` lets us avoid 1 query per basename.
 func (s *PGTeamStore) BatchGetTaskSiblingsByBasenames(
 	ctx context.Context,
-	tenantID uuid.UUID,
 	basenames []string,
 	limit int,
 ) (map[string][]store.TaskSibling, error) {
@@ -55,7 +50,7 @@ func (s *PGTeamStore) BatchGetTaskSiblingsByBasenames(
 WITH target_tasks AS (
   SELECT DISTINCT tta.base_name AS source_base, tta.task_id
   FROM team_task_attachments tta
-  WHERE tta.tenant_id = $1 AND tta.base_name = ANY($2)
+  WHERE tta.base_name = ANY($1)
 ),
 ranked AS (
   SELECT
@@ -71,17 +66,16 @@ ranked AS (
   FROM target_tasks tt
   JOIN team_task_attachments tta2 ON tta2.task_id = tt.task_id
   JOIN vault_documents vd
-    ON vd.tenant_id = tta2.tenant_id
-   AND vd.team_id = tta2.team_id
+    ON vd.team_id = tta2.team_id
    AND vd.path_basename = tta2.base_name
   WHERE tta2.base_name != tt.source_base
 )
 SELECT source_base, task_id, doc_id, base_name, created_at
 FROM ranked
-WHERE rn <= $3
+WHERE rn <= $2
 ORDER BY source_base, task_id, created_at DESC
 `
-		rows, err := s.db.QueryContext(ctx, q, tenantID, pqStringArray(chunk), limit)
+		rows, err := s.db.QueryContext(ctx, q, pqStringArray(chunk), limit)
 		if err != nil {
 			return nil, fmt.Errorf("batch task siblings: %w", err)
 		}

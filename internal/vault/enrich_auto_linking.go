@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -22,13 +21,6 @@ func (w *EnrichWorker) phase25TaskLinking(ctx context.Context, embedded []enrich
 	if w.teamStore == nil || len(embedded) == 0 {
 		return
 	}
-	first := embedded[0].payload
-	tenantUUID, terr := uuid.Parse(first.TenantID)
-	if terr != nil {
-		slog.Warn("vault.enrich.phase2_5: parse tenant", "err", terr)
-		return
-	}
-
 	// Collect unique basenames from the chunk using Phase 0's docMap.
 	baseNames := make([]string, 0, len(embedded))
 	docByBasename := make(map[string][]*enriched, len(embedded))
@@ -49,7 +41,7 @@ func (w *EnrichWorker) phase25TaskLinking(ctx context.Context, embedded []enrich
 	}
 
 	siblingsByBase, err := w.teamStore.BatchGetTaskSiblingsByBasenames(
-		ctx, tenantUUID, baseNames, enrichTaskSiblingCap,
+		ctx, baseNames, enrichTaskSiblingCap,
 	)
 	if err != nil {
 		slog.Warn("vault.enrich.phase2_5: batch_task_siblings", "err", err)

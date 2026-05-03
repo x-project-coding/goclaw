@@ -265,7 +265,6 @@ type TaskCommentStore interface {
 	// at `limit` (red-team concern #11). Chunks input at 500.
 	BatchGetTaskSiblingsByBasenames(
 		ctx context.Context,
-		tenantID uuid.UUID,
 		basenames []string,
 		limit int,
 	) (map[string][]TaskSibling, error)
