@@ -39,9 +39,9 @@ type fwCacheEntry struct {
 type SQLiteConfigPermissionStore struct {
 	db      *sql.DB
 	mu      sync.RWMutex
-	cache   map[string]permCacheEntry // key: "tenantID:agentID:userID"
+	cache   map[string]permCacheEntry // key: "agentID:userID"
 	fwMu    sync.RWMutex
-	fwCache map[string]fwCacheEntry // key: "tenantID:agentID:scope"
+	fwCache map[string]fwCacheEntry // key: "agentID:scope"
 }
 
 func NewSQLiteConfigPermissionStore(db *sql.DB) *SQLiteConfigPermissionStore {
@@ -64,11 +64,7 @@ func (s *SQLiteConfigPermissionStore) InvalidateCache() {
 }
 
 func (s *SQLiteConfigPermissionStore) CheckPermission(ctx context.Context, agentID uuid.UUID, scope, configType, userID string) (bool, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	cacheKey := tid.String() + ":" + agentID.String() + ":" + userID
+	cacheKey := agentID.String() + ":" + userID
 
 	s.mu.RLock()
 	if entry, ok := s.cache[cacheKey]; ok && time.Since(entry.fetched) < permCacheTTL {
@@ -77,14 +73,10 @@ func (s *SQLiteConfigPermissionStore) CheckPermission(ctx context.Context, agent
 	}
 	s.mu.RUnlock()
 
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return false, err
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT scope, config_type, permission, user_id FROM agent_config_permissions
-		 WHERE agent_id = ? AND (user_id = ? OR user_id = '*')`+tClause,
-		append([]any{agentID, userID}, tArgs...)...,
+		 WHERE agent_id = ? AND (user_id = ? OR user_id = '*')`,
+		agentID, userID,
 	)
 	if err != nil {
 		return false, err
@@ -117,14 +109,14 @@ func (s *SQLiteConfigPermissionStore) Grant(ctx context.Context, perm *store.Con
 	}
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_config_permissions (agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at, tenant_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?)
+		`INSERT INTO agent_config_permissions (agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?)
 		 ON CONFLICT (agent_id, scope, config_type, user_id) DO UPDATE SET
 		        permission = excluded.permission,
 		        granted_by = excluded.granted_by,
 		        metadata = excluded.metadata,
 		        updated_at = excluded.updated_at`,
-		perm.AgentID, perm.Scope, perm.ConfigType, perm.UserID, perm.Permission, perm.GrantedBy, meta, now, now, tenantIDForInsert(ctx),
+		perm.AgentID, perm.Scope, perm.ConfigType, perm.UserID, perm.Permission, perm.GrantedBy, meta, now, now,
 	)
 	if err == nil {
 		s.InvalidateCache()
@@ -133,13 +125,9 @@ func (s *SQLiteConfigPermissionStore) Grant(ctx context.Context, perm *store.Con
 }
 
 func (s *SQLiteConfigPermissionStore) Revoke(ctx context.Context, agentID uuid.UUID, scope, configType, userID string) error {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = s.db.ExecContext(ctx,
-		`DELETE FROM agent_config_permissions WHERE agent_id = ? AND scope = ? AND config_type = ? AND user_id = ?`+tClause,
-		append([]any{agentID, scope, configType, userID}, tArgs...)...,
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM agent_config_permissions WHERE agent_id = ? AND scope = ? AND config_type = ? AND user_id = ?`,
+		agentID, scope, configType, userID,
 	)
 	if err == nil {
 		s.InvalidateCache()
@@ -161,14 +149,6 @@ func (s *SQLiteConfigPermissionStore) List(ctx context.Context, agentID uuid.UUI
 		args = append(args, scope)
 	}
 
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if tClause != "" {
-		query += tClause
-		args = append(args, tArgs...)
-	}
 	query += " ORDER BY created_at"
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -181,11 +161,7 @@ func (s *SQLiteConfigPermissionStore) List(ctx context.Context, agentID uuid.UUI
 }
 
 func (s *SQLiteConfigPermissionStore) ListFileWriters(ctx context.Context, agentID uuid.UUID, scope string) ([]store.ConfigPermission, error) {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		tid = store.MasterTenantID
-	}
-	cacheKey := tid.String() + ":" + agentID.String() + ":" + scope
+	cacheKey := agentID.String() + ":" + scope
 
 	s.fwMu.RLock()
 	if entry, ok := s.fwCache[cacheKey]; ok && time.Since(entry.fetched) < permCacheTTL {
@@ -194,16 +170,12 @@ func (s *SQLiteConfigPermissionStore) ListFileWriters(ctx context.Context, agent
 	}
 	s.fwMu.RUnlock()
 
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, scope, config_type, user_id, permission, granted_by, metadata, created_at, updated_at
 		 FROM agent_config_permissions
-		 WHERE agent_id = ? AND config_type = 'file_writer' AND scope = ? AND permission = 'allow'`+tClause+`
+		 WHERE agent_id = ? AND config_type = 'file_writer' AND scope = ? AND permission = 'allow'
 		 ORDER BY created_at`,
-		append([]any{agentID, scope}, tArgs...)...,
+		agentID, scope,
 	)
 	if err != nil {
 		return nil, err

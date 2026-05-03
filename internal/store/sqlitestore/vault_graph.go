@@ -28,15 +28,13 @@ func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, ag
 		FROM vault_documents vd
 		LEFT JOIN (
 			SELECT doc_id, COUNT(*) AS cnt FROM (
-				SELECT from_doc_id AS doc_id FROM vault_links vl
-				JOIN vault_documents d ON d.id = vl.from_doc_id AND d.tenant_id = ?
+				SELECT from_doc_id AS doc_id FROM vault_links
 				UNION ALL
-				SELECT to_doc_id AS doc_id FROM vault_links vl
-				JOIN vault_documents d ON d.id = vl.to_doc_id AND d.tenant_id = ?
+				SELECT to_doc_id AS doc_id FROM vault_links
 			) sub GROUP BY doc_id
 		) deg ON deg.doc_id = vd.id
-		WHERE vd.tenant_id = ?`
-	args := []any{tenantID, tenantID, tenantID}
+		WHERE 1=1`
+	var args []any
 
 	if agentID != "" {
 		q += " AND vd.agent_id = ?"
@@ -85,8 +83,8 @@ func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, ag
 // ListGraphEdges returns lightweight vault edges for nodes in scope.
 func (s *SQLiteVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
 	// Build subquery for doc IDs in scope.
-	subQ := `SELECT id FROM vault_documents WHERE tenant_id = ?`
-	subArgs := []any{tenantID}
+	subQ := `SELECT id FROM vault_documents WHERE 1=1`
+	var subArgs []any
 
 	if agentID != "" {
 		subQ += " AND agent_id = ?"
@@ -135,8 +133,8 @@ func (s *SQLiteVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, ag
 }
 
 func (s *SQLiteVaultGraphStore) countGraphNodes(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) (int, error) {
-	q := `SELECT COUNT(*) FROM vault_documents WHERE tenant_id = ?`
-	args := []any{tenantID}
+	q := `SELECT COUNT(*) FROM vault_documents WHERE 1=1`
+	var args []any
 
 	if agentID != "" {
 		q += " AND agent_id = ?"
@@ -174,4 +172,3 @@ func sqliteAppendGraphTeamFilter(q string, args []any, tableAlias string, teamID
 	}
 	return q, args
 }
-

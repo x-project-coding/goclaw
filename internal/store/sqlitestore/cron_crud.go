@@ -120,16 +120,6 @@ func (s *SQLiteCronStore) ListJobs(ctx context.Context, includeDisabled bool, ag
 		args = append(args, userID)
 	}
 
-	clause, targs, tErr := scopeClause(ctx)
-	if tErr != nil {
-		slog.Warn("cron.ListJobs: tenant context missing, returning empty (fail-closed)", "error", tErr)
-		return nil
-	}
-	if clause != "" {
-		q += clause
-		args = append(args, targs...)
-	}
-
 	q += " ORDER BY created_at DESC"
 
 	rows, err := s.db.QueryContext(ctx, q, args...)

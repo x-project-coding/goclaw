@@ -22,13 +22,9 @@ import (
 // --- Agent-level Context Files ---
 
 func (s *SQLiteAgentStore) GetAgentContextFiles(ctx context.Context, agentID uuid.UUID) ([]store.AgentContextFileData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT agent_id, file_name, content FROM agent_context_files WHERE agent_id = ?"+tClause+" ORDER BY file_name",
-		append([]any{agentID}, tArgs...)...)
+		"SELECT agent_id, file_name, content FROM agent_context_files WHERE agent_id = ? ORDER BY file_name",
+		agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +55,10 @@ func (s *SQLiteAgentStore) SetAgentContextFile(ctx context.Context, agentID uuid
 // instances that already have that file. Returns updated row count.
 // SQLite does not support UPDATE...FROM, so we use a 2-step approach.
 func (s *SQLiteAgentStore) PropagateContextFile(ctx context.Context, agentID uuid.UUID, fileName string) (int, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	// Step 1: fetch the agent-level content.
 	var content string
-	err = s.db.QueryRowContext(ctx,
-		"SELECT content FROM agent_context_files WHERE agent_id = ? AND file_name = ?"+tClause,
-		append([]any{agentID, fileName}, tArgs...)...,
+	err := s.db.QueryRowContext(ctx,
+		"SELECT content FROM agent_context_files WHERE agent_id = ? AND file_name = ?",
+		agentID, fileName,
 	).Scan(&content)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
@@ -77,10 +67,9 @@ func (s *SQLiteAgentStore) PropagateContextFile(ctx context.Context, agentID uui
 		return 0, err
 	}
 
-	// Step 2: update all matching user context files.
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE user_context_files SET content = ?, updated_at = ? WHERE agent_id = ? AND file_name = ?"+tClause,
-		append([]any{content, time.Now(), agentID, fileName}, tArgs...)...,
+		"UPDATE user_context_files SET content = ?, updated_at = ? WHERE agent_id = ? AND file_name = ?",
+		content, time.Now(), agentID, fileName,
 	)
 	if err != nil {
 		return 0, err
@@ -92,13 +81,9 @@ func (s *SQLiteAgentStore) PropagateContextFile(ctx context.Context, agentID uui
 // --- Per-user Context Files ---
 
 func (s *SQLiteAgentStore) GetUserContextFiles(ctx context.Context, agentID uuid.UUID, userID string) ([]store.UserContextFileData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT agent_id, user_id, file_name, content FROM user_context_files WHERE agent_id = ? AND user_id = ?"+tClause+" ORDER BY file_name",
-		append([]any{agentID, userID}, tArgs...)...)
+		"SELECT agent_id, user_id, file_name, content FROM user_context_files WHERE agent_id = ? AND user_id = ? ORDER BY file_name",
+		agentID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -126,13 +111,9 @@ func (s *SQLiteAgentStore) SetUserContextFile(ctx context.Context, agentID uuid.
 }
 
 func (s *SQLiteAgentStore) ListUserContextFilesByName(ctx context.Context, agentID uuid.UUID, fileName string) ([]store.UserContextFileData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT agent_id, user_id, file_name, content FROM user_context_files WHERE agent_id = ? AND file_name = ?"+tClause,
-		append([]any{agentID, fileName}, tArgs...)...)
+		"SELECT agent_id, user_id, file_name, content FROM user_context_files WHERE agent_id = ? AND file_name = ?",
+		agentID, fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -150,13 +131,9 @@ func (s *SQLiteAgentStore) ListUserContextFilesByName(ctx context.Context, agent
 }
 
 func (s *SQLiteAgentStore) DeleteUserContextFile(ctx context.Context, agentID uuid.UUID, userID, fileName string) error {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = s.db.ExecContext(ctx,
-		"DELETE FROM user_context_files WHERE agent_id = ? AND user_id = ? AND file_name = ?"+tClause,
-		append([]any{agentID, userID, fileName}, tArgs...)...)
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM user_context_files WHERE agent_id = ? AND user_id = ? AND file_name = ?",
+		agentID, userID, fileName)
 	return err
 }
 
@@ -164,28 +141,23 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 	if len(oldUserIDs) == 0 {
 		return nil
 	}
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return err
-	}
 
 	placeholders := make([]string, len(oldUserIDs))
-	baseArgs := make([]any, 0, len(oldUserIDs)+1+len(tArgs))
+	oldIDArgs := make([]any, len(oldUserIDs))
 	for i, id := range oldUserIDs {
 		placeholders[i] = "?"
-		baseArgs = append(baseArgs, id)
+		oldIDArgs[i] = id
 	}
 	inClause := strings.Join(placeholders, ",")
-	baseArgs = append(baseArgs, newUserID)
-	baseArgs = append(baseArgs, tArgs...)
 
-	delArgs := make([]any, len(oldUserIDs))
-	copy(delArgs, baseArgs[:len(oldUserIDs)])
-	delArgs = append(delArgs, tArgs...)
+	// baseArgs: oldIDs... + newUserID (for INSERT SELECT)
+	baseArgs := append(oldIDArgs, newUserID)
+	// delArgs: oldIDs only (for DELETE)
+	delArgs := oldIDArgs
 
-	uuid := `lower(hex(randomblob(4))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(6)))`
+	uuidExpr := `lower(hex(randomblob(4))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(6)))`
 
-	// DO NOTHING on conflict — existing tenant user data always wins.
+	// DO NOTHING on conflict — existing user data always wins.
 	migrate := func(insertQ, deleteQ string) {
 		if _, err := s.db.ExecContext(ctx, insertQ, baseArgs...); err != nil {
 			slog.Warn("merge.migrate", "error", err)
@@ -199,40 +171,40 @@ func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserID
 	migrate(
 		fmt.Sprintf(`INSERT INTO user_context_files (id, agent_id, user_id, file_name, content, updated_at)
 			SELECT %s, agent_id, ?, file_name, content, updated_at
-			FROM user_context_files WHERE user_id IN (%s)%s
-			ON CONFLICT (agent_id, user_id, file_name) DO NOTHING`, uuid, inClause, tClause),
-		fmt.Sprintf(`DELETE FROM user_context_files WHERE user_id IN (%s)%s`, inClause, tClause),
+			FROM user_context_files WHERE user_id IN (%s)
+			ON CONFLICT (agent_id, user_id, file_name) DO NOTHING`, uuidExpr, inClause),
+		fmt.Sprintf(`DELETE FROM user_context_files WHERE user_id IN (%s)`, inClause),
 	)
 
 	// 2. user_agent_overrides
 	migrate(
 		fmt.Sprintf(`INSERT INTO user_agent_overrides (id, agent_id, user_id, provider, model, settings, created_at, updated_at)
 			SELECT %s, agent_id, ?, provider, model, settings, created_at, updated_at
-			FROM user_agent_overrides WHERE user_id IN (%s)%s
-			ON CONFLICT (agent_id, user_id) DO NOTHING`, uuid, inClause, tClause),
-		fmt.Sprintf(`DELETE FROM user_agent_overrides WHERE user_id IN (%s)%s`, inClause, tClause),
+			FROM user_agent_overrides WHERE user_id IN (%s)
+			ON CONFLICT (agent_id, user_id) DO NOTHING`, uuidExpr, inClause),
+		fmt.Sprintf(`DELETE FROM user_agent_overrides WHERE user_id IN (%s)`, inClause),
 	)
 
 	// 3. user_agent_profiles
 	migrate(
 		fmt.Sprintf(`INSERT INTO user_agent_profiles (agent_id, user_id, workspace, first_seen_at, last_seen_at, metadata)
 			SELECT agent_id, ?, workspace, first_seen_at, last_seen_at, metadata
-			FROM user_agent_profiles WHERE user_id IN (%s)%s
-			ON CONFLICT (agent_id, user_id) DO NOTHING`, inClause, tClause),
-		fmt.Sprintf(`DELETE FROM user_agent_profiles WHERE user_id IN (%s)%s`, inClause, tClause),
+			FROM user_agent_profiles WHERE user_id IN (%s)
+			ON CONFLICT (agent_id, user_id) DO NOTHING`, inClause),
+		fmt.Sprintf(`DELETE FROM user_agent_profiles WHERE user_id IN (%s)`, inClause),
 	)
 
 	// 4. memory_documents
 	migrate(
 		fmt.Sprintf(`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at, created_at)
 			SELECT %s, agent_id, ?, path, content, hash, updated_at, created_at
-			FROM memory_documents WHERE user_id IN (%s)%s
-			ON CONFLICT (agent_id, COALESCE(user_id,''), path) DO NOTHING`, uuid, inClause, tClause),
-		fmt.Sprintf(`DELETE FROM memory_documents WHERE user_id IN (%s)%s`, inClause, tClause),
+			FROM memory_documents WHERE user_id IN (%s)
+			ON CONFLICT (agent_id, COALESCE(user_id,''), path) DO NOTHING`, uuidExpr, inClause),
+		fmt.Sprintf(`DELETE FROM memory_documents WHERE user_id IN (%s)`, inClause),
 	)
 
 	// 5. memory_chunks: re-point remaining chunks.
-	repoint := fmt.Sprintf(`UPDATE memory_chunks SET user_id = ? WHERE user_id IN (%s)%s`, inClause, tClause)
+	repoint := fmt.Sprintf(`UPDATE memory_chunks SET user_id = ? WHERE user_id IN (%s)`, inClause)
 	if _, err := s.db.ExecContext(ctx, repoint, baseArgs...); err != nil {
 		slog.Warn("merge.migrate_chunks", "error", err)
 	}
@@ -306,12 +278,6 @@ func (s *SQLiteAgentStore) EnsureUserProfile(ctx context.Context, agentID uuid.U
 // --- User Instances ---
 
 func (s *SQLiteAgentStore) ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]store.UserInstanceData, error) {
-	tClause, tArgs, err := scopeClauseAlias(ctx, "p")
-	if err != nil {
-		return nil, err
-	}
-	queryArgs := []any{agentID, agentID}
-	queryArgs = append(queryArgs, tArgs...)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT p.user_id,
 		       strftime('%Y-%m-%dT%H:%M:%SZ', p.first_seen_at) AS first_seen_at,
@@ -325,9 +291,9 @@ func (s *SQLiteAgentStore) ListUserInstances(ctx context.Context, agentID uuid.U
 		    WHERE agent_id = ?
 		    GROUP BY user_id
 		) fc ON fc.user_id = p.user_id
-		WHERE p.agent_id = ?`+tClause+`
+		WHERE p.agent_id = ?
 		ORDER BY p.last_seen_at DESC
-	`, queryArgs...)
+	`, agentID, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -353,14 +319,10 @@ func (s *SQLiteAgentStore) UpdateUserProfileMetadata(ctx context.Context, agentI
 	if err != nil {
 		return err
 	}
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return err
-	}
 	_, err = s.db.ExecContext(ctx,
 		`UPDATE user_agent_profiles SET metadata = json_patch(COALESCE(metadata, '{}'), ?)
-		 WHERE agent_id = ? AND user_id = ?`+tClause,
-		append([]any{metaJSON, agentID, userID}, tArgs...)...,
+		 WHERE agent_id = ? AND user_id = ?`,
+		metaJSON, agentID, userID,
 	)
 	return err
 }
@@ -368,14 +330,10 @@ func (s *SQLiteAgentStore) UpdateUserProfileMetadata(ctx context.Context, agentI
 // --- User Overrides ---
 
 func (s *SQLiteAgentStore) GetUserOverride(ctx context.Context, agentID uuid.UUID, userID string) (*store.UserAgentOverrideData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var d store.UserAgentOverrideData
-	err = s.db.QueryRowContext(ctx,
-		"SELECT agent_id, user_id, provider, model FROM user_agent_overrides WHERE agent_id = ? AND user_id = ?"+tClause,
-		append([]any{agentID, userID}, tArgs...)...,
+	err := s.db.QueryRowContext(ctx,
+		"SELECT agent_id, user_id, provider, model FROM user_agent_overrides WHERE agent_id = ? AND user_id = ?",
+		agentID, userID,
 	).Scan(&d.AgentID, &d.UserID, &d.Provider, &d.Model)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

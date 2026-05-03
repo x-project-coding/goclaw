@@ -52,36 +52,22 @@ func (s *SQLiteMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPS
 	encHeaders := s.encryptJSON(jsonOrEmpty(srv.Headers))
 	encEnv := s.encryptJSON(jsonOrEmpty(srv.Env))
 
-	tenantID := store.TenantIDFromContext(ctx)
-	if tenantID == uuid.Nil {
-		tenantID = store.MasterTenantID
-	}
-
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (id, name, display_name, transport, command, args, url, headers, env,
-		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, created_at, updated_at, tenant_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		srv.ID, srv.Name, nilStr(srv.DisplayName), srv.Transport, nilStr(srv.Command),
 		jsonOrEmpty(srv.Args), nilStr(srv.URL), encHeaders, encEnv,
 		nilStr(apiKey), nilStr(srv.ToolPrefix), srv.TimeoutSec,
-		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, now, now, tenantID,
+		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, now, now,
 	)
 	return err
 }
 
 func (s *SQLiteMCPServerStore) GetServer(ctx context.Context, id uuid.UUID) (*store.MCPServerData, error) {
 	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers WHERE id = ?`
-	qArgs := []any{id}
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return nil, sql.ErrNoRows
-		}
-		q += ` AND tenant_id = ?`
-		qArgs = append(qArgs, tenantID)
-	}
 	var row mcpServerRow
-	if err := pkgSqlxDB.GetContext(ctx, &row, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.GetContext(ctx, &row, q, id); err != nil {
 		return nil, err
 	}
 	srv := row.toMCPServerData()
@@ -91,17 +77,8 @@ func (s *SQLiteMCPServerStore) GetServer(ctx context.Context, id uuid.UUID) (*st
 
 func (s *SQLiteMCPServerStore) GetServerByName(ctx context.Context, name string) (*store.MCPServerData, error) {
 	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers WHERE name = ?`
-	qArgs := []any{name}
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return nil, sql.ErrNoRows
-		}
-		q += ` AND tenant_id = ?`
-		qArgs = append(qArgs, tenantID)
-	}
 	var row mcpServerRow
-	if err := pkgSqlxDB.GetContext(ctx, &row, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.GetContext(ctx, &row, q, name); err != nil {
 		return nil, err
 	}
 	srv := row.toMCPServerData()
@@ -123,20 +100,9 @@ func (s *SQLiteMCPServerStore) decryptServerFields(srv *store.MCPServerData) {
 }
 
 func (s *SQLiteMCPServerStore) ListServers(ctx context.Context) ([]store.MCPServerData, error) {
-	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers`
-	var qArgs []any
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID == uuid.Nil {
-			return []store.MCPServerData{}, nil
-		}
-		q += ` WHERE tenant_id = ?`
-		qArgs = append(qArgs, tenantID)
-	}
-	q += ` ORDER BY name`
-
+	q := `SELECT ` + mcpServerSelectCols + ` FROM mcp_servers ORDER BY name`
 	var rows []mcpServerRow
-	if err := pkgSqlxDB.SelectContext(ctx, &rows, q, qArgs...); err != nil {
+	if err := pkgSqlxDB.SelectContext(ctx, &rows, q); err != nil {
 		return nil, err
 	}
 	result := make([]store.MCPServerData, 0, len(rows))
@@ -173,26 +139,11 @@ func (s *SQLiteMCPServerStore) UpdateServer(ctx context.Context, id uuid.UUID, u
 		}
 	}
 	updates["updated_at"] = time.Now().UTC()
-	if store.IsCrossTenant(ctx) {
-		return execMapUpdate(ctx, s.db, "mcp_servers", id, updates)
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required for update")
-	}
-	return execMapUpdateWhereTenant(ctx, s.db, "mcp_servers", updates, id, tid)
+	return execMapUpdate(ctx, s.db, "mcp_servers", id, updates)
 }
 
 func (s *SQLiteMCPServerStore) DeleteServer(ctx context.Context, id uuid.UUID) error {
-	if store.IsCrossTenant(ctx) {
-		_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = ?", id)
-		return err
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required")
-	}
-	_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = ? AND tenant_id = ?", id, tid)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE id = ?", id)
 	return err
 }
 

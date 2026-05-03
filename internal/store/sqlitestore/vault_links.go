@@ -14,13 +14,13 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// CreateLinks batch-inserts vault links with tenant validation.
+// CreateLinks batch-inserts vault links with same-team boundary validation.
 func (s *SQLiteVaultStore) CreateLinks(ctx context.Context, links []store.VaultLink) error {
 	if len(links) == 0 {
 		return nil
 	}
 
-	// Collect all unique doc IDs for tenant validation.
+	// Collect all unique doc IDs for boundary validation.
 	docIDSet := make(map[string]struct{})
 	for _, l := range links {
 		docIDSet[l.FromDocID] = struct{}{}
@@ -31,10 +31,9 @@ func (s *SQLiteVaultStore) CreateLinks(ctx context.Context, links []store.VaultL
 		docIDs = append(docIDs, id)
 	}
 
-	// Batch-fetch tenant_id for all referenced docs.
+	// Batch-fetch team_id for all referenced docs.
 	type docMeta struct {
-		tenantID string
-		teamID   *string
+		teamID *string
 	}
 	docMap := make(map[string]docMeta, len(docIDs))
 	ph := make([]string, len(docIDs))
@@ -44,18 +43,18 @@ func (s *SQLiteVaultStore) CreateLinks(ctx context.Context, links []store.VaultL
 		args[i] = id
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, tenant_id, team_id FROM vault_documents WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
+		`SELECT id, team_id FROM vault_documents WHERE id IN (`+strings.Join(ph, ",")+`)`, args...)
 	if err != nil {
 		return fmt.Errorf("vault batch link: fetch docs: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, tid string
+		var id string
 		var teamID *string
-		if err := rows.Scan(&id, &tid, &teamID); err != nil {
+		if err := rows.Scan(&id, &teamID); err != nil {
 			return fmt.Errorf("vault batch link: scan doc: %w", err)
 		}
-		docMap[id] = docMeta{tenantID: tid, teamID: teamID}
+		docMap[id] = docMeta{teamID: teamID}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("vault batch link: rows err: %w", err)
@@ -68,9 +67,6 @@ func (s *SQLiteVaultStore) CreateLinks(ctx context.Context, links []store.VaultL
 		from, fromOK := docMap[l.FromDocID]
 		to, toOK := docMap[l.ToDocID]
 		if !fromOK || !toOK {
-			continue
-		}
-		if from.tenantID != to.tenantID {
 			continue
 		}
 		if from.teamID != nil && to.teamID != nil && *from.teamID != *to.teamID {
@@ -111,25 +107,21 @@ func (s *SQLiteVaultStore) CreateLinks(ctx context.Context, links []store.VaultL
 }
 
 // CreateLink inserts a vault link, updating context+metadata on conflict.
-// Validates same-tenant + same-team boundary before insert.
+// Validates same-team boundary before insert.
 func (s *SQLiteVaultStore) CreateLink(ctx context.Context, link *store.VaultLink) error {
-	// Verify both docs exist and belong to same tenant + team boundary.
-	var fromTenant, toTenant string
+	// Verify both docs exist and belong to same team boundary.
 	var fromTeamID, toTeamID *string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT tenant_id, team_id FROM vault_documents WHERE id = ?`, link.FromDocID,
-	).Scan(&fromTenant, &fromTeamID)
+		`SELECT team_id FROM vault_documents WHERE id = ?`, link.FromDocID,
+	).Scan(&fromTeamID)
 	if err != nil {
 		return fmt.Errorf("vault link: source doc not found: %w", err)
 	}
 	err = s.db.QueryRowContext(ctx,
-		`SELECT tenant_id, team_id FROM vault_documents WHERE id = ?`, link.ToDocID,
-	).Scan(&toTenant, &toTeamID)
+		`SELECT team_id FROM vault_documents WHERE id = ?`, link.ToDocID,
+	).Scan(&toTeamID)
 	if err != nil {
 		return fmt.Errorf("vault link: target doc not found: %w", err)
-	}
-	if fromTenant != toTenant {
-		return fmt.Errorf("vault link: documents belong to different tenants")
 	}
 	if fromTeamID != nil && toTeamID != nil && *fromTeamID != *toTeamID {
 		return fmt.Errorf("vault link: documents belong to different teams")
@@ -156,23 +148,19 @@ func (s *SQLiteVaultStore) CreateLink(ctx context.Context, link *store.VaultLink
 	return nil
 }
 
-// DeleteLink removes a vault link by ID, scoped by tenant via JOIN to vault_documents (F9).
+// DeleteLink removes a vault link by ID.
 func (s *SQLiteVaultStore) DeleteLink(ctx context.Context, tenantID, id string) error {
-	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM vault_links WHERE id = ?
-		AND from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)`,
-		id, tenantID)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM vault_links WHERE id = ?`, id)
 	return err
 }
 
-// GetOutLinks returns all links originating from a document, scoped by tenant (F9).
+// GetOutLinks returns all links originating from a document.
 func (s *SQLiteVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) ([]store.VaultLink, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.metadata, vl.created_at
-		FROM vault_links vl
-		JOIN vault_documents d ON d.id = vl.from_doc_id
-		WHERE vl.from_doc_id = ? AND d.tenant_id = ?
-		ORDER BY vl.created_at`, docID, tenantID)
+		SELECT id, from_doc_id, to_doc_id, link_type, context, metadata, created_at
+		FROM vault_links
+		WHERE from_doc_id = ?
+		ORDER BY created_at`, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -186,17 +174,15 @@ func (s *SQLiteVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string
 		return nil, nil
 	}
 	ph := strings.Repeat("?,", len(docIDs)-1) + "?"
-	args := make([]any, 0, len(docIDs)+1)
-	for _, id := range docIDs {
-		args = append(args, id)
+	args := make([]any, len(docIDs))
+	for i, id := range docIDs {
+		args[i] = id
 	}
-	args = append(args, tenantID)
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT vl.id, vl.from_doc_id, vl.to_doc_id, vl.link_type, vl.context, vl.metadata, vl.created_at
-		FROM vault_links vl
-		JOIN vault_documents d ON d.id = vl.from_doc_id
-		WHERE vl.from_doc_id IN (`+ph+`) AND d.tenant_id = ?
-		ORDER BY vl.created_at`, args...)
+		`SELECT id, from_doc_id, to_doc_id, link_type, context, metadata, created_at
+		FROM vault_links
+		WHERE from_doc_id IN (`+ph+`)
+		ORDER BY created_at`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -210,9 +196,9 @@ func (s *SQLiteVaultStore) GetBacklinks(ctx context.Context, tenantID, docID str
 		SELECT vl.from_doc_id, vl.context, vd.title, vd.path, vd.team_id
 		FROM vault_links vl
 		JOIN vault_documents vd ON vd.id = vl.from_doc_id
-		WHERE vl.to_doc_id = ? AND vd.tenant_id = ?
+		WHERE vl.to_doc_id = ?
 		ORDER BY vd.updated_at DESC
-		LIMIT 100`, docID, tenantID)
+		LIMIT 100`, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -228,24 +214,21 @@ func (s *SQLiteVaultStore) GetBacklinks(ctx context.Context, tenantID, docID str
 	return backlinks, rows.Err()
 }
 
-// DeleteDocLinks removes all links from or to a document, scoped by tenant (F9).
+// DeleteDocLinks removes all links from or to a document.
 func (s *SQLiteVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID string) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
-		WHERE (from_doc_id = ? OR to_doc_id = ?)
-		  AND from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)`,
-		docID, docID, tenantID)
+		WHERE from_doc_id = ? OR to_doc_id = ?`,
+		docID, docID)
 	return err
 }
 
-// DeleteDocLinksByType removes outbound links of a specific type from a document, scoped by tenant.
+// DeleteDocLinksByType removes outbound links of a specific type from a document.
 func (s *SQLiteVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
-		WHERE from_doc_id = ?
-		  AND link_type = ?
-		  AND from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)`,
-		docID, linkType, tenantID)
+		WHERE from_doc_id = ? AND link_type = ?`,
+		docID, linkType)
 	return err
 }
 
@@ -254,19 +237,16 @@ func (s *SQLiteVaultStore) DeleteDocLinksByTypes(ctx context.Context, tenantID, 
 	if len(types) == 0 {
 		return nil
 	}
-	// Build IN clause with ? placeholders.
 	params := []any{docID}
 	placeholders := make([]string, len(types))
 	for i, t := range types {
 		params = append(params, t)
 		placeholders[i] = "?"
 	}
-	params = append(params, tenantID)
 	q := fmt.Sprintf(`
 		DELETE FROM vault_links
 		WHERE from_doc_id = ?
-		  AND link_type IN (%s)
-		  AND from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)`,
+		  AND link_type IN (%s)`,
 		strings.Join(placeholders, ","))
 	_, err := s.db.ExecContext(ctx, q, params...)
 	return err

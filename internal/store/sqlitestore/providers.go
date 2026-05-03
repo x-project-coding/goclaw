@@ -15,7 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-const providerSelectCols = `id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at, tenant_id`
+const providerSelectCols = `id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at`
 
 // SQLiteProviderStore implements store.ProviderStore backed by SQLite.
 type SQLiteProviderStore struct {
@@ -54,20 +54,18 @@ func (s *SQLiteProviderStore) CreateProvider(ctx context.Context, p *store.LLMPr
 	now := time.Now()
 	p.CreatedAt = now
 	p.UpdatedAt = now
-	tid := tenantIDForInsert(ctx)
-	p.TenantID = tid
-	// UPSERT: if provider with same (tenant_id, name) exists, update it and return its ID.
-	// This handles orphaned providers left after agent deletion (#295).
+	// UPSERT: if provider with same name exists, update it and return its ID.
+	// This handles orphaned providers left after agent deletion.
 	var actualID string
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(tenant_id, name) DO UPDATE SET
+		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(name) DO UPDATE SET
 			display_name = excluded.display_name, provider_type = excluded.provider_type,
 			api_base = excluded.api_base, api_key = excluded.api_key,
 			enabled = excluded.enabled, settings = excluded.settings, updated_at = excluded.updated_at
 		 RETURNING id`,
-		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, now, now, tid,
+		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, now, now,
 	).Scan(&actualID)
 	if err == nil {
 		if parsed, parseErr := uuid.Parse(actualID); parseErr == nil {
@@ -78,15 +76,9 @@ func (s *SQLiteProviderStore) CreateProvider(ctx context.Context, p *store.LLMPr
 }
 
 func (s *SQLiteProviderStore) GetProvider(ctx context.Context, id uuid.UUID) (*store.LLMProviderData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var row providerRow
-	args := append([]any{id}, tArgs...)
-	err = pkgSqlxDB.GetContext(ctx, &row,
-		`SELECT `+providerSelectCols+` FROM llm_providers WHERE id = ?`+tClause,
-		args...,
+	err := pkgSqlxDB.GetContext(ctx, &row,
+		`SELECT `+providerSelectCols+` FROM llm_providers WHERE id = ?`, id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %s", id)
@@ -97,15 +89,9 @@ func (s *SQLiteProviderStore) GetProvider(ctx context.Context, id uuid.UUID) (*s
 }
 
 func (s *SQLiteProviderStore) GetProviderByName(ctx context.Context, name string) (*store.LLMProviderData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var row providerRow
-	args := append([]any{name}, tArgs...)
-	err = pkgSqlxDB.GetContext(ctx, &row,
-		`SELECT `+providerSelectCols+` FROM llm_providers WHERE name = ?`+tClause,
-		args...,
+	err := pkgSqlxDB.GetContext(ctx, &row,
+		`SELECT `+providerSelectCols+` FROM llm_providers WHERE name = ?`, name,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %s", name)
@@ -116,14 +102,9 @@ func (s *SQLiteProviderStore) GetProviderByName(ctx context.Context, name string
 }
 
 func (s *SQLiteProviderStore) ListProviders(ctx context.Context) ([]store.LLMProviderData, error) {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var rows []providerRow
-	err = pkgSqlxDB.SelectContext(ctx, &rows,
-		`SELECT `+providerSelectCols+` FROM llm_providers WHERE true`+tClause+` ORDER BY name`,
-		tArgs...,
+	err := pkgSqlxDB.SelectContext(ctx, &rows,
+		`SELECT `+providerSelectCols+` FROM llm_providers ORDER BY name`,
 	)
 	if err != nil {
 		return nil, err
@@ -153,45 +134,20 @@ func (s *SQLiteProviderStore) UpdateProvider(ctx context.Context, id uuid.UUID, 
 			updates["api_key"] = encrypted
 		}
 	}
-	if store.IsCrossTenant(ctx) {
-		return execMapUpdate(ctx, s.db, "llm_providers", id, updates)
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required")
-	}
-	return execMapUpdateWhereTenant(ctx, s.db, "llm_providers", updates, id, tid)
+	return execMapUpdate(ctx, s.db, "llm_providers", id, updates)
 }
 
 func (s *SQLiteProviderStore) DeleteProvider(ctx context.Context, id uuid.UUID) error {
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return err
-	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	// Safe no-op after Commit.
 	defer tx.Rollback()
 
 	// Defensive: disable heartbeats so the next scheduler tick after delete
 	// cannot fire stale config. FK ON DELETE SET NULL clears provider_id auto.
-	// Tenant-scope the UPDATE through agents to prevent cross-tenant side effects.
-	// IsCrossTenant (master scope) bypasses scoping for legitimate cross-tenant admin.
-	var updateQuery string
-	var updateArgs []any
-	if store.IsCrossTenant(ctx) {
-		updateQuery = "UPDATE agent_heartbeats SET enabled = 0 WHERE provider_id = ?"
-		updateArgs = []any{id}
-	} else {
-		tid := store.TenantIDFromContext(ctx)
-		updateQuery = `UPDATE agent_heartbeats SET enabled = 0
-		               WHERE provider_id = ?
-		                 AND agent_id IN (SELECT id FROM agents WHERE tenant_id = ?)`
-		updateArgs = []any{id, tid}
-	}
-	res, err := tx.ExecContext(ctx, updateQuery, updateArgs...)
+	res, err := tx.ExecContext(ctx,
+		"UPDATE agent_heartbeats SET enabled = 0 WHERE provider_id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -200,10 +156,8 @@ func (s *SQLiteProviderStore) DeleteProvider(ctx context.Context, id uuid.UUID) 
 			"provider_id", id, "heartbeats_disabled", n)
 	}
 
-	args := append([]any{id}, tArgs...)
 	if _, err := tx.ExecContext(ctx,
-		"DELETE FROM llm_providers WHERE id = ?"+tClause,
-		args...,
+		"DELETE FROM llm_providers WHERE id = ?", id,
 	); err != nil {
 		return err
 	}

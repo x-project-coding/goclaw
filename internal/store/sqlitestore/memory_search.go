@@ -49,30 +49,20 @@ func (s *SQLiteMemoryStore) likeSearch(ctx context.Context, query, agentID, user
 	var args []any
 
 	if userID != "" {
-		tc, tcArgs, err := scopeClause(ctx)
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT path, start_line, end_line, text, user_id
 			 FROM memory_chunks
 			 WHERE agent_id = ? AND (user_id IS NULL OR user_id = ?)
-			 AND text LIKE ? ESCAPE '\'` + tc + `
+			 AND text LIKE ? ESCAPE '\'
 			 ORDER BY user_id DESC
 			 LIMIT ?`
-		args = append([]any{agentID, userID, pattern}, tcArgs...)
-		args = append(args, limit)
+		args = []any{agentID, userID, pattern, limit}
 	} else {
-		tc, tcArgs, err := scopeClause(ctx)
-		if err != nil {
-			return nil, err
-		}
 		q = `SELECT path, start_line, end_line, text, user_id
 			 FROM memory_chunks
 			 WHERE agent_id = ? AND user_id IS NULL
-			 AND text LIKE ? ESCAPE '\'` + tc + `
+			 AND text LIKE ? ESCAPE '\'
 			 LIMIT ?`
-		args = append([]any{agentID, pattern}, tcArgs...)
-		args = append(args, limit)
+		args = []any{agentID, pattern, limit}
 	}
 
 	rows, err := s.db.QueryContext(ctx, q, args...)

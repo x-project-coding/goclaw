@@ -23,13 +23,11 @@ type providerRow struct {
 	Settings     json.RawMessage `json:"settings" db:"settings"`
 	CreatedAt    sqliteTime      `json:"created_at" db:"created_at"`
 	UpdatedAt    sqliteTime      `json:"updated_at" db:"updated_at"`
-	TenantID     uuid.UUID       `json:"tenant_id" db:"tenant_id"`
 }
 
 func (r *providerRow) toLLMProviderData() store.LLMProviderData {
 	return store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: r.ID, CreatedAt: r.CreatedAt.Time, UpdatedAt: r.UpdatedAt.Time},
-		TenantID:     r.TenantID,
 		Name:         r.Name,
 		DisplayName:  r.DisplayName,
 		ProviderType: r.ProviderType,

@@ -12,17 +12,12 @@ import (
 )
 
 // DeleteLinksBySource removes vault_links rows whose metadata->>'source'
-// equals the given source key. Mirrors PG variant — tenant isolation via
-// subquery on vault_documents since SQLite DELETE lacks USING.
+// equals the given source key. SQLite DELETE lacks USING so we use a subquery.
 func (s *SQLiteVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, source string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
 		WHERE json_extract(metadata, '$.source') = ?
-		  AND (
-		    from_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)
-		    OR to_doc_id IN (SELECT id FROM vault_documents WHERE tenant_id = ?)
-		  )
-	`, source, tenantID, tenantID)
+	`, source)
 	if err != nil {
 		return 0, fmt.Errorf("delete links by source: %w", err)
 	}
@@ -32,8 +27,6 @@ func (s *SQLiteVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, so
 
 // BatchFindByDelegationIDs returns vault docs sharing any of the given
 // delegation_ids, grouped by delegation_id, capped per bucket at `limit`.
-// Uses the SQLite partial index idx_vault_docs_delegation added by the v15
-// → v16 migration (json_extract based).
 func (s *SQLiteVaultStore) BatchFindByDelegationIDs(
 	ctx context.Context,
 	tenantID string,
@@ -46,7 +39,7 @@ func (s *SQLiteVaultStore) BatchFindByDelegationIDs(
 	}
 
 	delegPH := make([]string, len(delegationIDs))
-	args := []any{tenantID}
+	var args []any
 	for i, d := range delegationIDs {
 		delegPH[i] = "?"
 		args = append(args, d)
@@ -65,7 +58,7 @@ func (s *SQLiteVaultStore) BatchFindByDelegationIDs(
 	q := fmt.Sprintf(`
 WITH ranked AS (
   SELECT
-    id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename,
+    id, agent_id, team_id, scope, custom_scope, path, path_basename,
     title, doc_type, content_hash, summary, metadata, created_at, updated_at,
     json_extract(metadata, '$.delegation_id') AS deleg_id,
     ROW_NUMBER() OVER (
@@ -73,11 +66,10 @@ WITH ranked AS (
       ORDER BY created_at DESC, id DESC
     ) AS rn
   FROM vault_documents
-  WHERE tenant_id = ?
-    AND json_extract(metadata, '$.delegation_id') IN (%s)
+  WHERE json_extract(metadata, '$.delegation_id') IN (%s)
     %s
 )
-SELECT id, tenant_id, agent_id, team_id, scope, custom_scope, path, path_basename,
+SELECT id, agent_id, team_id, scope, custom_scope, path, path_basename,
        title, doc_type, content_hash, summary, metadata, created_at, updated_at, deleg_id
 FROM ranked
 WHERE rn <= ?
@@ -98,7 +90,7 @@ ORDER BY deleg_id, created_at DESC
 		var delegID string
 		ca, ua := &sqliteTime{}, &sqliteTime{}
 		if err := rows.Scan(
-			&doc.ID, &doc.TenantID, &agentID, &doc.TeamID, &doc.Scope, &doc.CustomScope,
+			&doc.ID, &agentID, &doc.TeamID, &doc.Scope, &doc.CustomScope,
 			&doc.Path, &doc.PathBasename, &doc.Title, &doc.DocType, &doc.ContentHash,
 			&doc.Summary, &metaJSON, ca, ua, &delegID,
 		); err != nil {
