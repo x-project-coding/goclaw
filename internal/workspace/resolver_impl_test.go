@@ -24,7 +24,7 @@ func TestResolve_PersonalOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := filepath.Join(base, "tenants", "acme", "agent-123", "user-456")
+	want := filepath.Join(base, "agent-123", "user-456")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -58,7 +58,7 @@ func TestResolve_PersonalGroup(t *testing.T) {
 	}
 
 	// Group chat uses chatID for isolation
-	want := filepath.Join(base, "tenants", "acme", "agent-123", "chat-789")
+	want := filepath.Join(base, "agent-123", "chat-789")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -81,7 +81,7 @@ func TestResolve_PredefinedShared(t *testing.T) {
 	}
 
 	// Predefined = shared, no user subdir
-	want := filepath.Join(base, "tenants", "acme", "agent-pre")
+	want := filepath.Join(base, "agent-pre")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -107,7 +107,7 @@ func TestResolve_TeamShared(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := filepath.Join(base, "tenants", "acme", "teams", "team-abc")
+	want := filepath.Join(base, "teams", "team-abc")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -142,7 +142,7 @@ func TestResolve_TeamIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	teamRoot := filepath.Join(base, "tenants", "acme", "teams", "team-abc")
+	teamRoot := filepath.Join(base, "teams", "team-abc")
 	want := filepath.Join(teamRoot, "chat-1")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
@@ -244,7 +244,7 @@ func TestResolve_MasterTenant(t *testing.T) {
 		AgentID:   "agent-1",
 		AgentType: "open",
 		UserID:    "user-1",
-		TenantID:  masterTenantID,
+		TenantID:  "0193a5b0-7000-7000-8000-000000000001",
 		PeerKind:  "direct",
 		BaseDir:   base,
 	})

@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -51,11 +50,9 @@ func isOwnerOfSkill(ctx context.Context, skills store.SkillManageStore, slug str
 	return ownerID == actorID || ownerID == userID || ownerID == senderID
 }
 
-// tenantSkillsDir returns the skills-store directory scoped to the calling agent's tenant.
-func (t *SkillManageTool) tenantSkillsDir(ctx context.Context) string {
-	tid := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	return config.TenantSkillsStoreDir(t.dataDir, tid, slug)
+// skillsDir returns the skills-store root directory.
+func (t *SkillManageTool) skillsDir() string {
+	return filepath.Join(t.dataDir, "skills-store")
 }
 
 func (t *SkillManageTool) Name() string { return "skill_manage" }
@@ -153,7 +150,7 @@ func (t *SkillManageTool) executeCreate(ctx context.Context, args map[string]any
 
 	// Version + destination (tenant-scoped)
 	version := t.skills.GetNextVersion(ctx, slug)
-	destDir := filepath.Join(t.tenantSkillsDir(ctx), slug, fmt.Sprintf("%d", version))
+	destDir := filepath.Join(t.skillsDir(), slug, fmt.Sprintf("%d", version))
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return ErrorResult(fmt.Sprintf("failed to create skill directory: %v", err))
 	}
@@ -289,7 +286,7 @@ func (t *SkillManageTool) executePatch(ctx context.Context, args map[string]any)
 		return ErrorResult(fmt.Sprintf("failed to lock version: %v", lockErr))
 	}
 	defer commitLock() //nolint:errcheck
-	destDir := filepath.Join(t.tenantSkillsDir(ctx), slug, fmt.Sprintf("%d", newVer))
+	destDir := filepath.Join(t.skillsDir(), slug, fmt.Sprintf("%d", newVer))
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return ErrorResult(fmt.Sprintf("failed to create new version directory: %v", err))
 	}
@@ -357,7 +354,7 @@ func (t *SkillManageTool) executeDelete(ctx context.Context, args map[string]any
 	}
 
 	// Soft-delete on disk: move to .trash/<slug>.<unix-timestamp>
-	skillsDir := t.tenantSkillsDir(ctx)
+	skillsDir := t.skillsDir()
 	trashDir := filepath.Join(skillsDir, ".trash")
 	if err := os.MkdirAll(trashDir, 0755); err != nil {
 		slog.Warn("skill_manage: failed to create .trash dir", "error", err)

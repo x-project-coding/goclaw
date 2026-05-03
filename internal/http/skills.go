@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
@@ -43,12 +42,9 @@ func NewSkillsHandler(skills store.SkillManageStore, baseDir, dataDir, bundledDi
 	return &SkillsHandler{skills: skills, baseDir: baseDir, dataDir: dataDir, bundledDir: bundledDir, msgBus: msgBus}
 }
 
-// tenantSkillsDir returns the skills-store directory scoped to the requesting tenant.
-// Master tenant returns h.baseDir unchanged (backward compat).
-func (h *SkillsHandler) tenantSkillsDir(r *http.Request) string {
-	tid := store.TenantIDFromContext(r.Context())
-	slug := store.TenantSlugFromContext(r.Context())
-	return config.TenantSkillsStoreDir(h.dataDir, tid, slug)
+// tenantSkillsDir returns the skills-store directory. v4 single-tenant: always returns base.
+func (h *SkillsHandler) tenantSkillsDir(_ *http.Request) string {
+	return filepath.Join(h.dataDir, "skills-store")
 }
 
 func (h *SkillsHandler) skillUploadLock(scopeKey string) *sync.Mutex {
@@ -121,11 +117,7 @@ func (h *SkillsHandler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc 
 // that should only be accessible to the master tenant or cross-tenant admins.
 func (h *SkillsHandler) requireMasterTenant(w http.ResponseWriter, r *http.Request) bool {
 	ctx := r.Context()
-	if store.IsOwnerRole(ctx) {
-		return true
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == store.MasterTenantID {
+	if store.IsMasterScope(ctx) {
 		return true
 	}
 	locale := store.LocaleFromContext(ctx)

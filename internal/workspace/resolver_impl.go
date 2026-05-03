@@ -9,11 +9,6 @@ import (
 	"strings"
 )
 
-// masterTenantID is the sentinel UUID for the master/default tenant.
-// Master tenant workspaces use base dir directly (no tenants/ prefix).
-// Must match config.masterTenantID in internal/config/tenant_paths.go.
-const masterTenantID = "0193a5b0-7000-7000-8000-000000000001"
-
 // defaultResolver implements Resolver for all 6 workspace scenarios.
 // Stateless — all inputs come via ResolveParams. No DB queries.
 // Does NOT import tools package (avoids circular dependency).
@@ -121,24 +116,10 @@ func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
 	return wc
 }
 
-// tenantPath returns tenant-scoped directory.
-// Master tenant returns base dir directly (backward compat with v2).
-// Uses slug when available (matches config.TenantWorkspace), falls back to UUID.
-func tenantPath(base, tenantID, tenantSlug string) string {
-	if tenantID == "" || tenantID == masterTenantID {
-		return base
-	}
-	segment := tenantSlug
-	if segment == "" {
-		segment = tenantID
-	}
-	result := filepath.Join(base, "tenants", sanitizeSegment(segment))
-	// Path traversal defense: ensure result stays under tenants/ base
-	tenantsBase := filepath.Join(base, "tenants") + string(filepath.Separator)
-	if !strings.HasPrefix(result+string(filepath.Separator), tenantsBase) {
-		return filepath.Join(base, "tenants", sanitizeSegment(tenantID))
-	}
-	return result
+// tenantPath returns base dir unchanged in v4 single-tenant.
+// Phase 13 removes TenantID/TenantSlug fields from ResolveParams and this function.
+func tenantPath(base, _, _ string) string {
+	return base
 }
 
 // userChatSegment returns the isolation segment: chatID for group, userID for direct.

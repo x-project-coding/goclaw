@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -32,11 +31,9 @@ func NewPublishSkillTool(skills store.SkillManageStore, baseDir, dataDir string,
 	return &PublishSkillTool{skills: skills, base: baseDir, dataDir: dataDir, loader: loader}
 }
 
-// tenantSkillsDir returns the skills-store directory scoped to the calling agent's tenant.
-func (t *PublishSkillTool) tenantSkillsDir(ctx context.Context) string {
-	tid := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	return config.TenantSkillsStoreDir(t.dataDir, tid, slug)
+// skillsDir returns the skills-store root directory.
+func (t *PublishSkillTool) skillsDir() string {
+	return filepath.Join(t.dataDir, "skills-store")
 }
 
 func (t *PublishSkillTool) Name() string { return "publish_skill" }
@@ -119,7 +116,7 @@ func (t *PublishSkillTool) Execute(ctx context.Context, args map[string]any) *Re
 
 	// Version + destination (tenant-scoped)
 	version := t.skills.GetNextVersion(ctx, slug)
-	destDir := filepath.Join(t.tenantSkillsDir(ctx), slug, fmt.Sprintf("%d", version))
+	destDir := filepath.Join(t.skillsDir(), slug, fmt.Sprintf("%d", version))
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return ErrorResult(fmt.Sprintf("failed to create destination: %v", err))
 	}

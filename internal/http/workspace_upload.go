@@ -13,7 +13,6 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -109,10 +108,9 @@ func (h *WorkspaceUploadHandler) handleUpload(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Resolve tenant-scoped workspace directory.
-	tenantID := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	scopeDir := config.TenantTeamDir(h.dataDir, tenantID, slug, teamID)
+	// Resolve workspace directory. v4 single-tenant: teams/{teamID} under dataDir.
+	tenantID := store.TenantIDFromContext(ctx) // used for bus.BroadcastForTenant below
+	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)
 	}
@@ -241,9 +239,8 @@ func (h *WorkspaceUploadHandler) handleMove(w http.ResponseWriter, r *http.Reque
 		chatID = ""
 	}
 
-	tenantID := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	scopeDir := config.TenantTeamDir(h.dataDir, tenantID, slug, teamID)
+	tenantID := store.TenantIDFromContext(ctx) // used for bus.BroadcastForTenant below
+	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)
 	}

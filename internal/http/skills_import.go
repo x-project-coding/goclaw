@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -246,18 +245,13 @@ func (h *SkillsHandler) doSkillsImport(ctx context.Context, r io.Reader, userID 
 	return summary, nil
 }
 
-// tenantSkillsDirForImport returns the skills filesystem directory for import, scoped to tenant.
-func (h *SkillsHandler) tenantSkillsDirForImport(ctx context.Context) string {
-	tid := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	return config.TenantSkillsStoreDir(h.dataDir, tid, slug)
+// tenantSkillsDirForImport returns the skills filesystem directory for import.
+// v4 single-tenant: always returns skills-store root.
+func (h *SkillsHandler) tenantSkillsDirForImport(_ context.Context) string {
+	return filepath.Join(h.dataDir, "skills-store")
 }
 
-// tenantIDForSkillImport returns tenant UUID for skill INSERT, falling back to MasterTenantID.
-func tenantIDForSkillImport(ctx context.Context) uuid.UUID {
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return store.MasterTenantID
-	}
-	return tid
+// tenantIDForSkillImport returns the master tenant UUID for skill INSERT.
+func tenantIDForSkillImport(_ context.Context) uuid.UUID {
+	return store.MasterTenantID
 }

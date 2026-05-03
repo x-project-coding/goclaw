@@ -105,24 +105,6 @@ func TestBuildMapUpdate_NoAutoUpdatedAt_UnknownTable(t *testing.T) {
 	}
 }
 
-func TestBuildMapUpdateWhereTenant_PG_DropsTenant(t *testing.T) {
-	id := uuid.New()
-	tid := uuid.New()
-	q, args, err := BuildMapUpdateWhereTenant(testDialectPG{}, "agents", map[string]any{"name": "x"}, id, tid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(q, "tenant_id") {
-		t.Errorf("v4: tenant_id should be dropped, got: %s", q)
-	}
-	// name + updated_at + id = 3 args (tenantID dropped)
-	if len(args) != 3 {
-		t.Errorf("expected 3 args, got %d", len(args))
-	}
-	if args[len(args)-1] != id {
-		t.Error("last arg should be id")
-	}
-}
 
 func TestBuildScopeClause_PG_NoTenant(t *testing.T) {
 	scope := QueryScope{}
@@ -185,30 +167,6 @@ func TestBuildMapUpdate_InvalidTable(t *testing.T) {
 	}
 }
 
-func TestBuildMapUpdateWhereTenant_InvalidTable(t *testing.T) {
-	_, _, err := BuildMapUpdateWhereTenant(testDialectPG{}, "bad; DROP", map[string]any{"col": "v"}, uuid.New(), uuid.New())
-	if err == nil {
-		t.Error("expected error for invalid table name")
-	}
-}
-
-func TestBuildMapUpdateWhereTenant_SQLite_DropsTenant(t *testing.T) {
-	id := uuid.New()
-	tid := uuid.New()
-	q, args, err := BuildMapUpdateWhereTenant(testDialectSQLite{}, "agents", map[string]any{"name": "y"}, id, tid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(q, "$") {
-		t.Errorf("SQLite query should use ?, got: %s", q)
-	}
-	if strings.Contains(q, "tenant_id") {
-		t.Errorf("v4: tenant_id should be dropped, got: %s", q)
-	}
-	if len(args) != 3 {
-		t.Errorf("expected 3 args, got %d", len(args))
-	}
-}
 
 func TestBuildScopeClauseAlias_PG_WithProject(t *testing.T) {
 	pid := uuid.New()
@@ -225,29 +183,3 @@ func TestBuildScopeClauseAlias_PG_WithProject(t *testing.T) {
 	}
 }
 
-func TestTenantIDForInsert_NonNil(t *testing.T) {
-	tid := uuid.New()
-	fallback := uuid.New()
-	if got := TenantIDForInsert(tid, fallback); got != tid {
-		t.Errorf("got %s, want %s", got, tid)
-	}
-}
-
-func TestTenantIDForInsert_Nil(t *testing.T) {
-	fallback := uuid.New()
-	if got := TenantIDForInsert(uuid.Nil, fallback); got != fallback {
-		t.Errorf("got %s, want fallback %s", got, fallback)
-	}
-}
-
-func TestRequireTenantID_Valid(t *testing.T) {
-	if err := RequireTenantID(uuid.New()); err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestRequireTenantID_Nil(t *testing.T) {
-	if err := RequireTenantID(uuid.Nil); err == nil {
-		t.Error("expected error for nil tenant ID")
-	}
-}

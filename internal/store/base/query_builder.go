@@ -61,13 +61,6 @@ func BuildMapUpdate(d Dialect, table string, id uuid.UUID, updates map[string]an
 	return q, args, nil
 }
 
-// BuildMapUpdateWhereTenant builds a dynamic UPDATE with id in WHERE.
-// v4 single-tenant: tenantID arg ignored; signature kept for caller compat
-// until call sites switch to BuildMapUpdate. Auto-sets updated_at for
-// tables listed in TablesWithUpdatedAt.
-func BuildMapUpdateWhereTenant(d Dialect, table string, updates map[string]any, id, _ uuid.UUID) (string, []any, error) {
-	return BuildMapUpdate(d, table, id, updates)
-}
 
 // BuildScopeClause is a no-op in v4 (single-tenant). Returns empty clause and
 // the same startParam so callers chaining placeholder indices stay consistent.

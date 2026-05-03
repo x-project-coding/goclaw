@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/vault"
@@ -230,14 +229,9 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-// resolveTenantWorkspace returns the tenant-scoped workspace root.
-func (h *VaultHandler) resolveTenantWorkspace(ctx context.Context) string {
-	if h.workspace == "" {
-		return ""
-	}
-	tenantID := store.TenantIDFromContext(ctx)
-	slug := store.TenantSlugFromContext(ctx)
-	return config.TenantWorkspace(h.workspace, tenantID, slug)
+// resolveTenantWorkspace returns the workspace root. v4 single-tenant: no per-tenant scoping.
+func (h *VaultHandler) resolveTenantWorkspace(_ context.Context) string {
+	return h.workspace
 }
 
 // buildRescanMaps pre-loads agent_key→UUID and team UUID sets for the current tenant.
