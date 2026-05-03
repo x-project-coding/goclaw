@@ -113,6 +113,10 @@ func init() {
 		// Skills
 		MsgSkillsUpdateNotSupported: "skills.update không được hỗ trợ với skill dựa trên tệp",
 		MsgCannotResolveSkillID:     "không thể xác định ID skill dựa trên tệp",
+		MsgInvalidSkillSource:       "skill source không hợp lệ: phải là một trong builtin, hub-verified, hub-unverified, agent-created, user-uploaded",
+		MsgIsSystemDeprecated:       "trường is_system không còn được hỗ trợ; dùng source='builtin' thay thế",
+		MsgVersionAlreadyArchived:   "phiên bản skill đã được lưu trữ",
+		MsgCuratorInvalidTransition: "chuyển trạng thái curator run không hợp lệ: %s -> %s",
 
 		// Logs
 		MsgInvalidLogAction: "action phải là 'start' hoặc 'stop'",

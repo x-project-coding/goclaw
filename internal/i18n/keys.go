@@ -114,6 +114,10 @@ const (
 	// --- Skills ---
 	MsgSkillsUpdateNotSupported = "error.skills_update_not_supported" // "skills.update not supported for file-based skills"
 	MsgCannotResolveSkillID     = "error.cannot_resolve_skill_id"     // "cannot resolve skill ID for file-based skill"
+	MsgInvalidSkillSource       = "error.invalid_skill_source"        // "invalid skill source: must be one of builtin, hub-verified, hub-unverified, agent-created, user-uploaded"
+	MsgIsSystemDeprecated       = "error.is_system_deprecated"        // "is_system field is no longer supported; use source='builtin' instead"
+	MsgVersionAlreadyArchived   = "error.version_already_archived"    // "skill version already archived"
+	MsgCuratorInvalidTransition = "error.curator_invalid_transition"  // "invalid curator run state transition: %s -> %s"
 
 	// --- Logs ---
 	MsgInvalidLogAction = "error.invalid_log_action" // "action must be 'start' or 'stop'"

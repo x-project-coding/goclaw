@@ -39,7 +39,7 @@ func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreat
 		fmJSON := marshalFrontmatter(p.Frontmatter)
 		_, err = s.db.ExecContext(ctx,
 			`UPDATE skills SET name = $1, description = $2, version = $3, frontmatter = $4,
-			 file_path = $5, file_size = $6, file_hash = $7, is_system = true,
+			 file_path = $5, file_size = $6, file_hash = $7, source = 'builtin',
 			 visibility = 'public', status = $8, updated_at = NOW()
 			 WHERE id = $9`,
 			p.Name, p.Description, p.Version, fmJSON,
@@ -57,8 +57,8 @@ func (s *PGSkillStore) UpsertSystemSkill(ctx context.Context, p store.SkillCreat
 	fmJSON := marshalFrontmatter(p.Frontmatter)
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status,
-		 is_system, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, 'system', 'public', $5, $6, true, $7, $8, $9, $10, NOW(), NOW())`,
+		 source, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, 'system', 'public', $5, $6, 'builtin', $7, $8, $9, $10, NOW(), NOW())`,
 		id, p.Name, p.Slug, p.Description, p.Version, p.Status,
 		fmJSON, p.FilePath, p.FileSize, p.FileHash,
 	)
@@ -81,12 +81,12 @@ type skillDirRow struct {
 	FilePath string `db:"file_path"`
 }
 
-// ListSystemSkillDirs returns slug->file_path map for all enabled system skills.
-// Disabled system skills are excluded — dep checking and injection are skipped for them.
+// ListSystemSkillDirs returns slug->file_path map for all enabled builtin skills.
+// Disabled builtin skills are excluded — dep checking and injection are skipped for them.
 func (s *PGSkillStore) ListSystemSkillDirs(ctx context.Context) map[string]string {
 	var rows []skillDirRow
 	if err := pkgSqlxDB.SelectContext(ctx, &rows,
-		`SELECT slug, file_path FROM skills WHERE is_system = true AND enabled = true`); err != nil {
+		`SELECT slug, file_path FROM skills WHERE source = 'builtin' AND enabled = true`); err != nil {
 		return nil
 	}
 	dirs := make(map[string]string, len(rows))
@@ -96,12 +96,12 @@ func (s *PGSkillStore) ListSystemSkillDirs(ctx context.Context) map[string]strin
 	return dirs
 }
 
-// IsSystemSkill checks if a skill slug belongs to a system skill.
+// IsSystemSkill returns true if the skill slug has source='builtin'.
 func (s *PGSkillStore) IsSystemSkill(slug string) bool {
-	var isSystem bool
+	var source string
 	err := s.db.QueryRow(
-		"SELECT is_system FROM skills WHERE slug = $1 AND is_system = true",
+		"SELECT source FROM skills WHERE slug = $1 AND source = 'builtin'",
 		slug,
-	).Scan(&isSystem)
-	return err == nil && isSystem
+	).Scan(&source)
+	return err == nil
 }

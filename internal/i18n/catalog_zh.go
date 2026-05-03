@@ -113,6 +113,10 @@ func init() {
 		// Skills
 		MsgSkillsUpdateNotSupported: "基于文件的Skill不支持 skills.update",
 		MsgCannotResolveSkillID:     "无法解析基于文件的Skill ID",
+		MsgInvalidSkillSource:       "无效的 skill source: 必须是 builtin, hub-verified, hub-unverified, agent-created, user-uploaded 之一",
+		MsgIsSystemDeprecated:       "is_system 字段已不再支持; 请使用 source='builtin' 替代",
+		MsgVersionAlreadyArchived:   "skill 版本已归档",
+		MsgCuratorInvalidTransition: "无效的 curator run 状态转换: %s -> %s",
 
 		// Logs
 		MsgInvalidLogAction: "action 必须是 'start' 或 'stop'",

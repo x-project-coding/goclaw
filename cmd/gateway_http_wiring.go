@@ -30,6 +30,7 @@ type httpHandlers struct {
 	secureCLI        *httpapi.SecureCLIHandler
 	secureCLIGrant   *httpapi.SecureCLIGrantHandler
 	mcpUserCreds     *httpapi.MCPUserCredentialsHandler
+	curatorRuns      *httpapi.CuratorRunsHandler
 }
 
 // wireHTTPHandlersOnServer registers all HTTP handler objects onto the gateway server.
@@ -100,6 +101,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 	}
 	if h.secureCLIGrant != nil {
 		d.server.SetSecureCLIGrantHandler(h.secureCLIGrant)
+	}
+	if h.curatorRuns != nil {
+		d.server.SetCuratorRunsHandler(h.curatorRuns)
 	}
 
 	// Activity audit log API

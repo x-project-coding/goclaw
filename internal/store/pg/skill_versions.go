@@ -22,7 +22,7 @@ func NewPGSkillVersionsStore(db *sql.DB) *PGSkillVersionsStore {
 }
 
 const skillVersionsSelectColumns = `id, skill_id, version, file_hash, file_path,
-	file_size, frontmatter, changelog, published_by, created_at`
+	file_size, frontmatter, content, changelog, published_by, created_at, archived_at, archive_path`
 
 func (s *PGSkillVersionsStore) Create(ctx context.Context, v *store.SkillVersion) error {
 	if v.ID == uuid.Nil {
@@ -37,21 +37,29 @@ func (s *PGSkillVersionsStore) Create(ctx context.Context, v *store.SkillVersion
 	}
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO skill_versions
-			(id, skill_id, version, file_hash, file_path, file_size, frontmatter, changelog, published_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			(id, skill_id, version, file_hash, file_path, file_size, frontmatter, content, changelog, published_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING `+skillVersionsSelectColumns,
 		v.ID, v.SkillID, v.Version, v.FileHash, v.FilePath, v.FileSize,
-		v.Frontmatter, nilStr(deref(v.Changelog)), nilStr(deref(v.PublishedBy)),
+		v.Frontmatter, v.Content, nilStr(deref(v.Changelog)), nilStr(deref(v.PublishedBy)),
 	)
 	return scanSkillVersion(row, v)
 }
 
 func (s *PGSkillVersionsStore) ListBySkillID(ctx context.Context, skillID uuid.UUID) ([]store.SkillVersion, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+skillVersionsSelectColumns+`
+	return s.ListBySkillIDFiltered(ctx, skillID, true)
+}
+
+// ListBySkillIDFiltered lists versions for a skill. When includeArchived=false, archived rows are excluded.
+func (s *PGSkillVersionsStore) ListBySkillIDFiltered(ctx context.Context, skillID uuid.UUID, includeArchived bool) ([]store.SkillVersion, error) {
+	q := `SELECT ` + skillVersionsSelectColumns + `
 		   FROM skill_versions
-		  WHERE skill_id = $1
-		  ORDER BY version DESC`, skillID)
+		  WHERE skill_id = $1`
+	if !includeArchived {
+		q += ` AND archived_at IS NULL`
+	}
+	q += ` ORDER BY version DESC`
+	rows, err := s.db.QueryContext(ctx, q, skillID)
 	if err != nil {
 		return nil, fmt.Errorf("skill_versions list: %w", err)
 	}
@@ -67,12 +75,12 @@ func (s *PGSkillVersionsStore) ListBySkillID(ctx context.Context, skillID uuid.U
 	return out, rows.Err()
 }
 
-// GetActive returns the highest-version row for the skill, or ErrNotFound.
+// GetActive returns the highest non-archived version row for the skill, or ErrNotFound.
 func (s *PGSkillVersionsStore) GetActive(ctx context.Context, skillID uuid.UUID) (*store.SkillVersion, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+skillVersionsSelectColumns+`
 		   FROM skill_versions
-		  WHERE skill_id = $1
+		  WHERE skill_id = $1 AND archived_at IS NULL
 		  ORDER BY version DESC
 		  LIMIT 1`, skillID)
 	var v store.SkillVersion
@@ -97,11 +105,25 @@ func (s *PGSkillVersionsStore) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// Archive sets archived_at=NOW(), archive_path on a version and clears its content.
+// Returns ErrNotFound if the version does not exist or is already archived.
+func (s *PGSkillVersionsStore) Archive(ctx context.Context, id, skillID uuid.UUID, archivePath string) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE skill_versions
+		   SET archived_at = NOW(), archive_path = $3, content = ''
+		 WHERE id = $1 AND skill_id = $2 AND archived_at IS NULL`, id, skillID, archivePath)
+	if err != nil {
+		return fmt.Errorf("skill_versions archive: %w", err)
+	}
+	return rowsAffectedNotFound(res)
+}
+
 func scanSkillVersion(r rowScanner, v *store.SkillVersion) error {
-	var changelog, publishedBy *string
+	var changelog, publishedBy, archivePath *string
 	err := r.Scan(
 		&v.ID, &v.SkillID, &v.Version, &v.FileHash, &v.FilePath, &v.FileSize,
-		&v.Frontmatter, &changelog, &publishedBy, &v.CreatedAt,
+		&v.Frontmatter, &v.Content, &changelog, &publishedBy, &v.CreatedAt,
+		&v.ArchivedAt, &archivePath,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ErrNotFound
@@ -111,5 +133,6 @@ func scanSkillVersion(r rowScanner, v *store.SkillVersion) error {
 	}
 	v.Changelog = changelog
 	v.PublishedBy = publishedBy
+	v.ArchivePath = archivePath
 	return nil
 }

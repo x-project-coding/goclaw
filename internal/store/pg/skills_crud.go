@@ -33,12 +33,12 @@ func (s *PGSkillStore) UpdateSkill(ctx context.Context, id uuid.UUID, updates ma
 }
 
 func (s *PGSkillStore) DeleteSkill(ctx context.Context, id uuid.UUID) error {
-	// Reject deletion of system skills.
-	var isSystem bool
-	if err := s.db.QueryRowContext(ctx, "SELECT is_system FROM skills WHERE id = $1", id).Scan(&isSystem); err != nil {
+	// Reject deletion of builtin skills.
+	var source string
+	if err := s.db.QueryRowContext(ctx, "SELECT source FROM skills WHERE id = $1", id).Scan(&source); err != nil {
 		return fmt.Errorf("check skill: %w", err)
 	}
-	if isSystem {
+	if source == "builtin" {
 		return fmt.Errorf("cannot delete system skill")
 	}
 
@@ -104,6 +104,10 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 	if status == "" {
 		status = "active"
 	}
+	source := p.Source
+	if source == "" {
+		source = "user-uploaded"
+	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -129,8 +133,8 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 	id := store.GenNewID()
 	var returnedID uuid.UUID
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status, deps, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+		`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status, source, deps, frontmatter, file_path, file_size, file_hash, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
 		 ON CONFLICT (slug) DO UPDATE SET
 		   name = EXCLUDED.name, description = EXCLUDED.description,
 		   version = EXCLUDED.version, frontmatter = EXCLUDED.frontmatter,
@@ -140,7 +144,7 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 		   status = EXCLUDED.status, updated_at = NOW()
 		 RETURNING id`,
 		id, p.Name, p.Slug, p.Description, p.OwnerID, p.Visibility, version,
-		status, depsJSON, fmJSON, p.FilePath, p.FileSize, p.FileHash,
+		status, source, depsJSON, fmJSON, p.FilePath, p.FileSize, p.FileHash,
 	).Scan(&returnedID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("upsert skill: %w", err)
@@ -161,13 +165,38 @@ func (s *PGSkillStore) CreateSkillManaged(ctx context.Context, p store.SkillCrea
 	return returnedID, nil
 }
 
-// GetSkillFilePath returns the filesystem path, version, and system flag for a skill by UUID.
-func (s *PGSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (filePath string, slug string, version int, isSystem bool, ok bool) {
+// GetSkillFilePath returns the filesystem path, slug, version, source, and ok for a skill by UUID.
+// source == "builtin" means the skill is a builtin/system skill.
+func (s *PGSkillStore) GetSkillFilePath(ctx context.Context, id uuid.UUID) (filePath string, slug string, version int, source string, ok bool) {
 	err := s.db.QueryRowContext(ctx,
-		"SELECT file_path, slug, version, is_system FROM skills WHERE id = $1 AND status = 'active'",
+		"SELECT file_path, slug, version, source FROM skills WHERE id = $1 AND status = 'active'",
 		id,
-	).Scan(&filePath, &slug, &version, &isSystem)
-	return filePath, slug, version, isSystem, err == nil
+	).Scan(&filePath, &slug, &version, &source)
+	return filePath, slug, version, source, err == nil
+}
+
+// MarkSkillUsed updates last_used_at and increments usage_count (best-effort sidecar).
+func (s *PGSkillStore) MarkSkillUsed(ctx context.Context, id uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE skills SET last_used_at = NOW(), usage_count = usage_count + 1 WHERE id = $1`, id)
+	return err
+}
+
+// MarkSkillViewed updates last_viewed_at (best-effort sidecar).
+func (s *PGSkillStore) MarkSkillViewed(ctx context.Context, id uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE skills SET last_viewed_at = NOW() WHERE id = $1`, id)
+	return err
+}
+
+// PinSkill sets the pinned flag for a skill.
+func (s *PGSkillStore) PinSkill(ctx context.Context, id uuid.UUID, pinned bool) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE skills SET pinned = $1, updated_at = NOW() WHERE id = $2`, pinned, id)
+	if err == nil {
+		s.BumpVersion()
+	}
+	return err
 }
 
 // GetNextVersion returns the next version number for a skill slug.

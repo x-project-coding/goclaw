@@ -40,7 +40,7 @@ func ExportCustomSkills(ctx context.Context, db *sql.DB) ([]CustomSkillExport, e
 	var scanned []customSkillExportRow
 	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
 		"SELECT id, name, slug, description, visibility, version, frontmatter, tags, deps, file_path"+
-			" FROM skills WHERE is_system = false"+
+			" FROM skills WHERE source != 'builtin'"+
 			" ORDER BY name",
 	); err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func ExportSkillGrantsWithAgentKey(ctx context.Context, db *sql.DB, skillID uuid
 func ExportSkillsPreview(ctx context.Context, db *sql.DB) (*SkillsExportPreview, error) {
 	var p SkillsExportPreview
 	if err := db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM skills WHERE is_system = false",
+		"SELECT COUNT(*) FROM skills WHERE source != 'builtin'",
 	).Scan(&p.CustomSkills); err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func ExportSkillsPreview(ctx context.Context, db *sql.DB) (*SkillsExportPreview,
 	if err := db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM skill_agent_grants g"+
 			" JOIN skills s ON s.id = g.skill_id"+
-			" WHERE s.is_system = false",
+			" WHERE s.source != 'builtin'",
 	).Scan(&p.TotalGrants); err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func ExportSkillGrantAgentKeys(ctx context.Context, db *sql.DB) ([]string, error
 			" FROM skill_agent_grants g"+
 			" JOIN skills s ON s.id = g.skill_id"+
 			" JOIN agents a ON a.id = g.agent_id"+
-			" WHERE s.is_system = false",
+			" WHERE s.source != 'builtin'",
 	)
 	if err != nil {
 		return nil, err

@@ -71,6 +71,7 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		UserSessions:   NewSQLiteUserSessionsStore(db),
 		SkillVersions:  NewSQLiteSkillVersionsStore(db),
 		CuratorRuns:    NewSQLiteCuratorRunsStore(db),
+		CuratorEvents:  NewSQLiteCuratorEventsStore(db),
 		UserHookBudget: NewSQLiteUserHookBudgetStore(db),
 		Hooks:          NewSQLiteHookStore(db),
 	}, nil

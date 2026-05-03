@@ -634,11 +634,11 @@ func TestSkillInfoRow_ToSkillInfo(t *testing.T) {
 		ID: uuid.New(), Name: "n", Slug: "s", Desc: &desc,
 		Visibility: "public",
 		Tags:       pq.StringArray{"tag1", "tag2"},
-		Version:    1, IsSystem: true, Status: "active", Enabled: true,
+		Version:    1, Source: "builtin", Status: "active", Enabled: true,
 		DepsRaw: []byte(`{"missing":["m1"]}`),
 	}
 	info := r.toSkillInfo("/base")
-	if info.Visibility != "public" || info.Status != "active" || !info.Enabled || !info.IsSystem {
+	if info.Visibility != "public" || info.Status != "active" || !info.Enabled || info.Source != "builtin" {
 		t.Errorf("%+v", info)
 	}
 	if len(info.Tags) != 2 || info.Tags[0] != "tag1" {

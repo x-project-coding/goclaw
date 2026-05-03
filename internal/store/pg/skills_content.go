@@ -82,23 +82,22 @@ func (s *PGSkillStore) BuildSummary(ctx context.Context, allowList []string) str
 
 func (s *PGSkillStore) GetSkill(ctx context.Context, name string) (*store.SkillInfo, bool) {
 	var id uuid.UUID
-	var skillName, slug, visibility string
+	var skillName, slug, visibility, source string
 	var desc *string
 	var tags []string
 	var version int
-	var isSystem bool
 	var filePath *string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, name, slug, description, visibility, tags, version, is_system, file_path FROM skills WHERE slug = $1 AND status = 'active'",
+		"SELECT id, name, slug, description, visibility, tags, version, source, file_path FROM skills WHERE slug = $1 AND status = 'active'",
 		name,
-	).Scan(&id, &skillName, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &filePath)
+	).Scan(&id, &skillName, &slug, &desc, &visibility, pq.Array(&tags), &version, &source, &filePath)
 	if err != nil {
 		return nil, false
 	}
 	info := buildSkillInfo(id.String(), skillName, slug, desc, version, s.baseDir, filePath)
 	info.Visibility = visibility
 	info.Tags = tags
-	info.IsSystem = isSystem
+	info.Source = source
 	return &info, true
 }
 
@@ -132,25 +131,25 @@ func (s *PGSkillStore) FilterSkills(ctx context.Context, allowList []string) []s
 // GetSkillByID returns a SkillInfo for any skill by UUID, regardless of status or enabled flag.
 // Used by admin operations (e.g. toggle) that need full skill info.
 func (s *PGSkillStore) GetSkillByID(ctx context.Context, id uuid.UUID) (store.SkillInfo, bool) {
-	var name, slug, visibility, status string
+	var name, slug, visibility, status, source string
 	var desc *string
 	var tags []string
 	var version int
-	var isSystem, enabled bool
+	var enabled bool
 	var depsRaw []byte
 	var filePath *string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT name, slug, description, visibility, tags, version, is_system, status, enabled, deps, file_path
+		`SELECT name, slug, description, visibility, tags, version, source, status, enabled, deps, file_path
 		 FROM skills WHERE id = $1`,
 		id,
-	).Scan(&name, &slug, &desc, &visibility, pq.Array(&tags), &version, &isSystem, &status, &enabled, &depsRaw, &filePath)
+	).Scan(&name, &slug, &desc, &visibility, pq.Array(&tags), &version, &source, &status, &enabled, &depsRaw, &filePath)
 	if err != nil {
 		return store.SkillInfo{}, false
 	}
 	info := buildSkillInfo(id.String(), name, slug, desc, version, s.baseDir, filePath)
 	info.Visibility = visibility
 	info.Tags = tags
-	info.IsSystem = isSystem
+	info.Source = source
 	info.Status = status
 	info.Enabled = enabled
 	info.MissingDeps = parseDepsColumn(depsRaw)

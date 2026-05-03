@@ -113,6 +113,10 @@ func init() {
 		// Skills
 		MsgSkillsUpdateNotSupported: "skills.update not supported for file-based skills",
 		MsgCannotResolveSkillID:     "cannot resolve skill ID for file-based skill",
+		MsgInvalidSkillSource:       "invalid skill source: must be one of builtin, hub-verified, hub-unverified, agent-created, user-uploaded",
+		MsgIsSystemDeprecated:       "is_system field is no longer supported; use source='builtin' instead",
+		MsgVersionAlreadyArchived:   "skill version already archived",
+		MsgCuratorInvalidTransition: "invalid curator run state transition: %s -> %s",
 
 		// Logs
 		MsgInvalidLogAction: "action must be 'start' or 'stop'",

@@ -524,7 +524,13 @@ func setupSkillsSystem(
 	skillsLoader := skills.NewLoader(workspace, globalSkillsDir, builtinSkillsDir)
 	skillSearchTool := tools.NewSkillSearchTool(skillsLoader)
 	toolsReg.Register(skillSearchTool)
-	toolsReg.Register(tools.NewUseSkillTool())
+	useSkillTool := tools.NewUseSkillTool()
+	if pgStores != nil {
+		if manageStore, ok := pgStores.Skills.(store.SkillManageStore); ok {
+			useSkillTool.SetSkillStore(manageStore)
+		}
+	}
+	toolsReg.Register(useSkillTool)
 	slog.Info("skill_search tool registered", "skills", len(skillsLoader.ListSkills(context.Background())))
 
 	// Wire skills-store directory into filesystem loader so agents

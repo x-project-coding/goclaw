@@ -70,7 +70,7 @@ func buildSkillEmbeddingTenantCond(scope string) string {
 		return ""
 	}
 	tenantExpr := strings.TrimPrefix(scope, " AND ")
-	return fmt.Sprintf(" AND (is_system = true OR (%s))", tenantExpr)
+	return fmt.Sprintf(" AND (source = 'builtin' OR (%s))", tenantExpr)
 }
 
 // BackfillSkillEmbeddings generates embeddings for all active skills that don't have one yet.

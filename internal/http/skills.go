@@ -28,13 +28,19 @@ var (
 
 // SkillsHandler handles skill management HTTP endpoints.
 type SkillsHandler struct {
-	skills      store.SkillManageStore
-	baseDir     string // filesystem base for skill content (skills-store/) — master scope
-	dataDir     string // parent data dir for scoped skill paths
-	bundledDir  string // original bundled skills dir (fallback for broken managed copies)
-	msgBus      *bus.MessageBus
-	db          *sql.DB  // for export/import direct queries
-	uploadLocks sync.Map // per-slug mutex; bounded by validated slug set, entries are tiny (*sync.Mutex)
+	skills        store.SkillManageStore
+	skillVersions store.SkillVersionsStore // optional; nil if not wired
+	baseDir       string                   // filesystem base for skill content (skills-store/) — master scope
+	dataDir       string                   // parent data dir for scoped skill paths
+	bundledDir    string                   // original bundled skills dir (fallback for broken managed copies)
+	msgBus        *bus.MessageBus
+	db            *sql.DB  // for export/import direct queries
+	uploadLocks   sync.Map // per-slug mutex; bounded by validated slug set, entries are tiny (*sync.Mutex)
+}
+
+// SetSkillVersionsStore injects the skill versions store into the handler.
+func (h *SkillsHandler) SetSkillVersionsStore(sv store.SkillVersionsStore) {
+	h.skillVersions = sv
 }
 
 // NewSkillsHandler creates a handler for skill management endpoints.
@@ -78,8 +84,11 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/skills/{id}", h.authMiddleware(h.handleGet))
 	mux.HandleFunc("GET /v1/agents/{agentID}/skills", h.authMiddleware(h.handleListAgentSkills))
 	mux.HandleFunc("GET /v1/skills/{id}/versions", h.authMiddleware(h.handleListVersions))
+	mux.HandleFunc("GET /v1/skills/{id}/version-records", h.authMiddleware(h.handleListVersionsDB))
 	mux.HandleFunc("GET /v1/skills/{id}/files/{path...}", h.authMiddleware(h.handleReadFile))
 	mux.HandleFunc("GET /v1/skills/{id}/files", h.authMiddleware(h.handleListFiles))
+	// Version archive (admin+)
+	mux.HandleFunc("POST /v1/skills/{id}/versions/{vid}/archive", h.adminMiddleware(h.handleArchiveVersion))
 	// Skill writes (admin+)
 	mux.HandleFunc("POST /v1/skills/upload", h.adminMiddleware(h.handleUpload))
 	mux.HandleFunc("PUT /v1/skills/{id}", h.adminMiddleware(h.handleUpdate))
@@ -96,6 +105,9 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/skills/install-dep", h.adminMiddleware(h.handleInstallDep))
 	mux.HandleFunc("GET /v1/skills/runtimes", h.adminMiddleware(h.handleRuntimes))
 	mux.HandleFunc("POST /v1/skills/{id}/toggle", h.adminMiddleware(h.handleToggle))
+	// Sidecar actions (member+)
+	mux.HandleFunc("POST /v1/skills/{id}/pin", h.authMiddleware(h.handlePin))
+	mux.HandleFunc("POST /v1/skills/{id}/view", h.authMiddleware(h.handleMarkView))
 	// Export / Import (admin+)
 	mux.HandleFunc("GET /v1/skills/export/preview", h.adminMiddleware(h.handleSkillsExportPreview))
 	mux.HandleFunc("GET /v1/skills/export", h.adminMiddleware(h.handleSkillsExport))
@@ -140,6 +152,14 @@ func (h *SkillsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "skill", id)})
 		return
 	}
+	// Best-effort sidecar: record this view.
+	if skill.ID != "" {
+		if uid, err := uuid.Parse(skill.ID); err == nil {
+			if err := h.skills.MarkSkillViewed(r.Context(), uid); err != nil {
+				slog.Warn("skill view mark failed", "id", skill.ID, "error", err)
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, skill)
 }
 
@@ -166,11 +186,24 @@ func (h *SkillsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	if !bindJSON(w, r, locale, &updates) {
 		return
 	}
+	// Reject deprecated is_system field.
+	if _, hasIsSystem := updates["is_system"]; hasIsSystem {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgIsSystemDeprecated)})
+		return
+	}
+	// Validate source enum if provided. `builtin` and `agent-created` are
+	// server-only sources (seed and agent context, respectively) — reject if
+	// supplied via user payload regardless of role.
+	if src, ok := updates["source"]; ok {
+		if !isValidSkillSource(src) || !isUserAssignableSkillSource(src) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidSkillSource)})
+			return
+		}
+	}
 	// Prevent changing sensitive fields (use /toggle endpoint for enabled)
 	delete(updates, "id")
 	delete(updates, "owner_id")
 	delete(updates, "file_path")
-	delete(updates, "is_system")
 	delete(updates, "enabled")
 
 	if err := h.skills.UpdateSkill(r.Context(), id, updates); err != nil {
@@ -254,7 +287,7 @@ func (h *SkillsHandler) handleInstallDeps(w http.ResponseWriter, r *http.Request
 	allSkills := h.skills.ListAllSkills(masterCtx)
 	statusChanged := false
 	for _, sk := range allSkills {
-		if !sk.IsSystem {
+		if sk.Source != "builtin" {
 			continue
 		}
 		if _, exists := dirs[sk.Slug]; !exists {
@@ -428,8 +461,8 @@ func (h *SkillsHandler) scanWithFallback(sk store.SkillInfo) *skills.SkillManife
 		return manifest
 	}
 
-	// Fallback: try bundled dir for system skills whose managed copy is broken.
-	if !sk.IsSystem || h.bundledDir == "" {
+	// Fallback: try bundled dir for builtin skills whose managed copy is broken.
+	if sk.Source != "builtin" || h.bundledDir == "" {
 		return manifest
 	}
 
@@ -531,5 +564,74 @@ func (h *SkillsHandler) handleToggle(w http.ResponseWriter, r *http.Request) {
 	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
 	emitAudit(h.msgBus, r, "skill.toggled", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": body.Enabled, "status": newStatus})
+}
+
+// handlePin sets the pinned flag for a skill.
+// Body: {"pinned": bool}
+func (h *SkillsHandler) handlePin(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
+		return
+	}
+	var body struct {
+		Pinned bool `json:"pinned"`
+	}
+	if !bindJSON(w, r, locale, &body) {
+		return
+	}
+	if err := h.skills.PinSkill(r.Context(), id, body.Pinned); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "pinned": body.Pinned})
+}
+
+// handleMarkView records a view event on the skill (best-effort).
+func (h *SkillsHandler) handleMarkView(w http.ResponseWriter, r *http.Request) {
+	locale := store.LocaleFromContext(r.Context())
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "skill")})
+		return
+	}
+	if err := h.skills.MarkSkillViewed(r.Context(), id); err != nil {
+		slog.Warn("skill view mark failed", "id", idStr, "error", err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// validSkillSources is the allowed set for the source enum.
+var validSkillSources = map[string]struct{}{
+	"builtin":        {},
+	"hub-verified":   {},
+	"hub-unverified": {},
+	"agent-created":  {},
+	"user-uploaded":  {},
+}
+
+// isValidSkillSource returns true if src is one of the 5 allowed values.
+func isValidSkillSource(src any) bool {
+	s, ok := src.(string)
+	if !ok {
+		return false
+	}
+	_, valid := validSkillSources[s]
+	return valid
+}
+
+// isUserAssignableSkillSource returns false for `builtin` and `agent-created`,
+// which are server-controlled (seed + agent context) and must not be settable
+// via HTTP payload, even by admin.
+func isUserAssignableSkillSource(src any) bool {
+	s, ok := src.(string)
+	if !ok {
+		return false
+	}
+	return s != "builtin" && s != "agent-created"
 }
 

@@ -165,17 +165,16 @@ func (h *SkillsHandler) doSkillsImport(ctx context.Context, r io.Reader, userID 
 		skillDir := filepath.Join(skillsDir, sanitizeName(slug))
 		skillFilePath := filepath.Join(skillDir, "SKILL.md")
 
-		// Check if slug already exists in this tenant before writing files
-		tid := tenantIDForSkillImport(ctx)
+		// Check if slug already exists before writing files (v4: single-tenant)
 		var existing bool
 		_ = h.db.QueryRowContext(ctx,
-			"SELECT EXISTS(SELECT 1 FROM skills WHERE slug = $1 AND tenant_id = $2)", slug, tid,
+			"SELECT EXISTS(SELECT 1 FROM skills WHERE slug = $1)", slug,
 		).Scan(&existing)
 
 		var skillID uuid.UUID
 		if existing {
 			_ = h.db.QueryRowContext(ctx,
-				"SELECT id FROM skills WHERE slug = $1 AND tenant_id = $2", slug, tid,
+				"SELECT id FROM skills WHERE slug = $1", slug,
 			).Scan(&skillID)
 			summary.SkillsSkipped++
 		} else {
@@ -201,10 +200,10 @@ func (h *SkillsHandler) doSkillsImport(ctx context.Context, r io.Reader, userID 
 			}
 			_, err := h.db.ExecContext(ctx,
 				`INSERT INTO skills (id, name, slug, description, owner_id, visibility, version, status,
-				 is_system, file_path, file_size, tenant_id, created_at, updated_at)
-				 VALUES ($1,$2,$3,$4,$5,$6,$7,'active',false,$8,0,$9,NOW(),NOW())`,
+				 source, file_path, file_size, created_at, updated_at)
+				 VALUES ($1,$2,$3,$4,$5,$6,$7,'active','user-uploaded',$8,0,NOW(),NOW())`,
 				skillID, meta.Name, slug, meta.Description,
-				userID, visibility, version, skillFilePath, tid,
+				userID, visibility, version, skillFilePath,
 			)
 			if err != nil {
 				slog.Warn("skills.import: insert skill", "slug", slug, "error", err)
@@ -222,7 +221,7 @@ func (h *SkillsHandler) doSkillsImport(ctx context.Context, r io.Reader, userID 
 			for _, g := range grants {
 				var agentID uuid.UUID
 				if err := h.db.QueryRowContext(ctx,
-					"SELECT id FROM agents WHERE agent_key = $1 AND tenant_id = $2", g.AgentKey, tid,
+					"SELECT id FROM agents WHERE agent_key = $1", g.AgentKey,
 				).Scan(&agentID); err != nil {
 					slog.Warn("skills.import: agent not found for grant", "key", g.AgentKey)
 					continue
@@ -249,9 +248,4 @@ func (h *SkillsHandler) doSkillsImport(ctx context.Context, r io.Reader, userID 
 // v4 single-tenant: always returns skills-store root.
 func (h *SkillsHandler) tenantSkillsDirForImport(_ context.Context) string {
 	return filepath.Join(h.dataDir, "skills-store")
-}
-
-// tenantIDForSkillImport returns the master tenant UUID for skill INSERT.
-func tenantIDForSkillImport(_ context.Context) uuid.UUID {
-	return store.MasterTenantID
 }

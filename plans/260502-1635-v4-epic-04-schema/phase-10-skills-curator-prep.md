@@ -10,7 +10,7 @@
 ## Overview
 
 - Priority: P1
-- Status: pending
+- Status: completed 2026-05-03
 - Effort: 6 dev-days
 - Description: Refactor `skills` business logic — drop `is_system` flag (Q-2), populate `source` enum (Q9: 5 values). Add sidecar columns wiring (last_used_at, last_viewed_at, last_patched_at, pinned, usage_count). Wire `skill_versions` audit trail (Q10 archive semantics). Wire `curator_runs` state machine for EPIC-06 S9 prep.
 
@@ -166,16 +166,26 @@ Curator state machine (S9 prep):
 
 ## Todo List
 
-- [ ] 4 i18n keys + 12 catalog entries
-- [ ] 6 e2e skills test files written (red)
-- [ ] internal/http/skills.go refactored (source enum, drop is_system)
-- [ ] internal/http/skill_versions.go (CRUD + archive)
-- [ ] internal/http/curator_runs.go (CRUD + state machine)
-- [ ] Sidecar wiring (MarkUsed on tool invocation)
-- [ ] Routes wired in server.go
-- [ ] go build (PG + sqliteonly) + go vet clean
-- [ ] All 6 e2e skills tests green
-- [ ] Earlier phase tests still green
+- [x] 4 i18n keys + 12 catalog entries (en/vi/zh)
+- [x] Schema (PG + SQLite): drop `is_system`, add `source` CHECK enum + sidecar cols + skill_versions archive cols + curator_runs status CHECK + new `curator_events` table
+- [x] Store layer refactor: `IsSystem` → `Source`; sidecar helpers (`MarkSkillUsed/MarkSkillViewed/PinSkill`); `Archive(id, skillID, archivePath)` with cross-skill guard; new `CuratorEventsStore` (PG + SQLite)
+- [x] 6 store-layer e2e tests under `tests/e2e/stores/` (HTTP-level deferred to Phase 14 per `helpers.LoginAs` skip)
+- [x] internal/http/skills.go refactored (source enum at HTTP + DB CHECK; reject `is_system` payload; reject server-only `source ∈ {builtin, agent-created}` from update path)
+- [x] internal/http/skills_versions_archive.go — archive endpoint with skill_id guard
+- [x] internal/http/curator_runs.go (CRUD + state machine + events)
+- [x] Sidecar wiring (MarkSkillUsed on `use_skill` tool activation)
+- [x] Routes wired in server.go + cmd/gateway_http_*.go
+- [x] go build (PG + sqliteonly) + go vet clean
+- [x] All 6 Phase 10 e2e tests green
+- [x] Code-review pass (score 7.5 → C1+C2+H1+H3 fixed)
+
+### Pre-existing failures (NOT Phase 10 regressions, separate ticket)
+
+- `TestHandleUpload_AutoInstallsMissingDepsAndKeepsSkillActive`
+- `TestRequireMasterScope_NilTenant_Allows`
+- `TestAPIKeyRevoke_AllowsOwnTenantKey`
+
+Root cause: Phase 06 role rename (`IsOwnerRole` → `IsRootRole`) + master-scope hotfix work. Untouched by Phase 10.
 
 ## Success Criteria
 

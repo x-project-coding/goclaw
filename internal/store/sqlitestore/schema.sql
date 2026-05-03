@@ -637,31 +637,38 @@ CREATE INDEX IF NOT EXISTS idx_vault_links_to   ON vault_links(to_doc_id);
 
 -- Note: embedding (vector) column omitted.
 CREATE TABLE IF NOT EXISTS skills (
-    id           TEXT         NOT NULL PRIMARY KEY,
-    name         VARCHAR(255) NOT NULL,
-    slug         VARCHAR(255) NOT NULL,
-    description  TEXT,
-    owner_id     VARCHAR(255) NOT NULL,
-    visibility   VARCHAR(10)  NOT NULL DEFAULT 'private',
-    version      INT          NOT NULL DEFAULT 1,
-    status       VARCHAR(20)  NOT NULL DEFAULT 'active',
-    frontmatter  TEXT         NOT NULL DEFAULT '{}',
-    file_path    TEXT         NOT NULL,
-    file_size    INTEGER      NOT NULL DEFAULT 0,
-    file_hash    VARCHAR(64),
-    tags         TEXT,
-    is_system    INTEGER      NOT NULL DEFAULT 0,
-    deps         TEXT         NOT NULL DEFAULT '{}',
-    enabled      INTEGER      NOT NULL DEFAULT 1,
-    created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    id              TEXT         NOT NULL PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    slug            VARCHAR(255) NOT NULL,
+    description     TEXT,
+    owner_id        VARCHAR(255) NOT NULL,
+    visibility      VARCHAR(10)  NOT NULL DEFAULT 'private',
+    version         INT          NOT NULL DEFAULT 1,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'active',
+    frontmatter     TEXT         NOT NULL DEFAULT '{}',
+    file_path       TEXT         NOT NULL,
+    file_size       INTEGER      NOT NULL DEFAULT 0,
+    file_hash       VARCHAR(64),
+    tags            TEXT,
+    source          VARCHAR(20)  NOT NULL DEFAULT 'user-uploaded'
+                    CHECK (source IN ('builtin', 'hub-verified', 'hub-unverified', 'agent-created', 'user-uploaded')),
+    deps            TEXT         NOT NULL DEFAULT '{}',
+    enabled         INTEGER      NOT NULL DEFAULT 1,
+    last_used_at    TEXT,
+    last_viewed_at  TEXT,
+    last_patched_at TEXT,
+    pinned          INTEGER      NOT NULL DEFAULT 0,
+    usage_count     INTEGER      NOT NULL DEFAULT 0,
+    created_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_slug       ON skills(slug)       WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_skills_owner             ON skills(owner_id);
 CREATE INDEX IF NOT EXISTS idx_skills_visibility        ON skills(visibility) WHERE status = 'active';
-CREATE INDEX IF NOT EXISTS idx_skills_system            ON skills(is_system)  WHERE is_system = 1;
+CREATE INDEX IF NOT EXISTS idx_skills_source            ON skills(source)     WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_skills_enabled           ON skills(enabled)    WHERE enabled = 0;
+CREATE INDEX IF NOT EXISTS idx_skills_pinned            ON skills(pinned)     WHERE pinned = 1;
 
 CREATE TABLE IF NOT EXISTS skill_agent_grants (
     id             TEXT         NOT NULL PRIMARY KEY,
@@ -694,18 +701,23 @@ CREATE TABLE IF NOT EXISTS skill_versions (
     file_path    TEXT         NOT NULL,
     file_size    INTEGER      NOT NULL DEFAULT 0,
     frontmatter  TEXT         NOT NULL DEFAULT '{}',
+    content      TEXT         NOT NULL DEFAULT '',
     changelog    TEXT,
     published_by VARCHAR(255),
+    archived_at  TEXT,
+    archive_path TEXT,
     created_at   TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(skill_id, version)
 );
 
-CREATE INDEX IF NOT EXISTS idx_skill_versions_skill ON skill_versions(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skill_versions_skill    ON skill_versions(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skill_versions_archived ON skill_versions(skill_id) WHERE archived_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS curator_runs (
     id           TEXT        NOT NULL PRIMARY KEY,
     skill_id     TEXT        REFERENCES skills(id) ON DELETE SET NULL,
-    status       VARCHAR(20) NOT NULL DEFAULT 'running',
+    status       VARCHAR(20) NOT NULL DEFAULT 'running'
+                 CHECK (status IN ('running', 'completed', 'failed')),
     result       TEXT,
     error        TEXT,
     triggered_by VARCHAR(255),
@@ -715,6 +727,16 @@ CREATE TABLE IF NOT EXISTS curator_runs (
 
 CREATE INDEX IF NOT EXISTS idx_curator_runs_skill  ON curator_runs(skill_id);
 CREATE INDEX IF NOT EXISTS idx_curator_runs_status ON curator_runs(status);
+
+CREATE TABLE IF NOT EXISTS curator_events (
+    id         TEXT         NOT NULL PRIMARY KEY,
+    run_id     TEXT         NOT NULL REFERENCES curator_runs(id) ON DELETE CASCADE,
+    event_type VARCHAR(32)  NOT NULL,
+    payload    TEXT         NOT NULL DEFAULT '{}',
+    created_at TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_curator_events_run ON curator_events(run_id, created_at);
 
 -- ============================================================
 -- Section 9: Channels

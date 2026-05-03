@@ -54,12 +54,17 @@ func TestRequireMasterScope_MasterTenant_Allows(t *testing.T) {
 	}
 }
 
-func TestRequireMasterScope_NilTenant_Allows(t *testing.T) {
-	// Legacy / system callers without any tenant ctx.
+func TestRequireMasterScope_NoRole_Rejects(t *testing.T) {
+	// v4 single-tenant: caller without any role context fails master-scope.
+	// Master scope requires explicit root or admin role; legacy nil-tenant
+	// fallback was dropped when v4 stopped distinguishing tenants.
 	r := newMasterScopeReq(http.MethodPut, "/test", uuid.Nil, "")
 	w := httptest.NewRecorder()
-	if !requireMasterScope(w, r) {
-		t.Fatalf("nil tenant ctx must be allowed (master-scope fallback), got %d", w.Code)
+	if requireMasterScope(w, r) {
+		t.Fatalf("no-role ctx must NOT be allowed in v4 single-tenant")
+	}
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
 
@@ -212,16 +217,15 @@ func TestAPIKeyRevoke_RejectsSystemKeyForTenantAdmin(t *testing.T) {
 	}
 }
 
-// TestAPIKeyRevoke_AllowsOwnTenantKey happy path — tenant admin revoking a
-// key owned by their own tenant must succeed (no regression).
+// TestAPIKeyRevoke_AllowsOwnTenantKey happy path — admin revoking a
+// key owned by the master tenant (v4 single-tenant) must succeed.
 func TestAPIKeyRevoke_AllowsOwnTenantKey(t *testing.T) {
 	ms := newMockAPIKeyStore()
-	tid := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	keyID := uuid.New()
 	ms.byID[keyID] = &store.APIKeyData{
 		ID:       keyID,
 		Name:     "own-tenant-key",
-		TenantID: tid,
+		TenantID: store.MasterTenantID,
 	}
 
 	h := &APIKeysHandler{apiKeys: ms}

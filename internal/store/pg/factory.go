@@ -59,6 +59,7 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		UserSessions:   NewPGUserSessionsStore(db),
 		SkillVersions:  NewPGSkillVersionsStore(db),
 		CuratorRuns:    NewPGCuratorRunsStore(db),
+		CuratorEvents:  NewPGCuratorEventsStore(db),
 		UserHookBudget: NewPGUserHookBudgetStore(db),
 		Hooks:          NewPGHookStore(db),
 	}, nil

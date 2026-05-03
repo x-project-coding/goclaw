@@ -53,6 +53,7 @@ DROP TABLE IF EXISTS channel_pending_messages CASCADE;
 DROP TABLE IF EXISTS channel_instances        CASCADE;
 
 -- Skills
+DROP TABLE IF EXISTS curator_events    CASCADE;
 DROP TABLE IF EXISTS curator_runs      CASCADE;
 DROP TABLE IF EXISTS skill_versions    CASCADE;
 DROP TABLE IF EXISTS skill_user_grants CASCADE;

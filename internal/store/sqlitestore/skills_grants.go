@@ -130,7 +130,7 @@ func (s *SQLiteSkillStore) ListAccessible(ctx context.Context, agentID uuid.UUID
 		LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?
 		LEFT JOIN skill_user_grants sug ON s.id = sug.skill_id AND (sug.user_id = ? OR sug.user_id = ?)
 		WHERE s.status = 'active' AND (
-			s.is_system = 1
+			s.source = 'builtin'
 			OR s.visibility = 'public'
 			OR (s.visibility = 'private' AND (s.owner_id = ? OR s.owner_id = ?))
 			OR (s.visibility = 'internal' AND (sag.id IS NOT NULL OR sug.id IS NOT NULL))
@@ -164,7 +164,7 @@ func (s *SQLiteSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid
 		`SELECT s.id, s.name, s.slug, COALESCE(s.description, ''), s.visibility, s.version,
 		        (sag.id IS NOT NULL) AS granted,
 		        sag.pinned_version,
-		        s.is_system
+		        s.source
 		 FROM skills s
 		 LEFT JOIN skill_agent_grants sag ON s.id = sag.skill_id AND sag.agent_id = ?
 		 WHERE s.status = 'active'
@@ -178,7 +178,7 @@ func (s *SQLiteSkillStore) ListWithGrantStatus(ctx context.Context, agentID uuid
 	for rows.Next() {
 		var r store.SkillWithGrantStatus
 		if err := rows.Scan(&r.ID, &r.Name, &r.Slug, &r.Description, &r.Visibility,
-			&r.Version, &r.Granted, &r.PinnedVer, &r.IsSystem); err != nil {
+			&r.Version, &r.Granted, &r.PinnedVer, &r.Source); err != nil {
 			slog.Warn("skill_grants: scan error in ListWithGrantStatus", "error", err)
 			continue
 		}

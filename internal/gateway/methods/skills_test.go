@@ -83,7 +83,7 @@ func TestSkillsList_EmptyStore_ReturnsEmptyList(t *testing.T) {
 
 func TestSkillsList_WithSkills_ReturnsAll(t *testing.T) {
 	skills := []store.SkillInfo{
-		{Name: "skill-a", Slug: "skill-a", Enabled: true, IsSystem: true},
+		{Name: "skill-a", Slug: "skill-a", Enabled: true, Source: "builtin"},
 		{Name: "skill-b", Slug: "skill-b", Enabled: false},
 	}
 	m := buildSkillMethods(t, skills)

@@ -37,7 +37,7 @@ Each impl phase MUST follow: **(1) write failing tests → (2) impl → (3) veri
 | 07 | Pool/cache refactor (13 structs) | **completed 2026-05-03** | 5d | 06 (parallel to 08) |
 | 08 | CLI prune (drop ~25, keep 7) | **completed 2026-05-03** | 3d | 06 (parallel to 07) |
 | 09 | Channels + merge-contact R1 fix | pending | 12d | 06 + 07 |
-| 10 | Skills + skill_versions + curator | pending | 6d | 05 (S9 prep, can run after 09) |
+| 10 | Skills + skill_versions + curator | **completed 2026-05-03** | 6d | 05 (S9 prep, can run after 09) |
 | 11 | Frontend bootstrap + login + refresh | pending | 25d | 06 + 09 |
 | ~~12~~ | ~~Desktop edition first-run (sqliteonly)~~ | **DEFERRED → EPIC-05-desktop** | ~~6d~~ | — |
 | 13 | Cleanup deferred (MasterTenantID purge, dead code) | pending | 8-10d | 09+10 |

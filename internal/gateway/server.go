@@ -434,6 +434,11 @@ func (s *Server) SetTeamEventsHandler(h *httpapi.TeamEventsHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetCuratorRunsHandler sets the curator run lifecycle handler.
+func (s *Server) SetCuratorRunsHandler(h *httpapi.CuratorRunsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetTeamAttachmentsHandler sets the team attachment download handler.
 func (s *Server) SetTeamAttachmentsHandler(h *httpapi.TeamAttachmentsHandler) {
 	s.handlers = append(s.handlers, h)

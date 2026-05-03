@@ -44,7 +44,6 @@ func (m *SkillsMethods) handleList(ctx context.Context, client *gateway.Client, 
 			"description": s.Description,
 			"source":      s.Source,
 			"version":     s.Version,
-			"is_system":   s.IsSystem,
 			"enabled":     s.Enabled,
 		}
 		if s.ID != "" {

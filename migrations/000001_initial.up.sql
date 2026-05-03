@@ -654,32 +654,39 @@ CREATE INDEX idx_vault_versions_doc ON vault_versions(doc_id);
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS skills (
-    id           UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    name         VARCHAR(255) NOT NULL,
-    slug         VARCHAR(255) NOT NULL,
-    description  TEXT,
-    owner_id     VARCHAR(255) NOT NULL,
-    visibility   VARCHAR(10)  NOT NULL DEFAULT 'private',
-    version      INT          NOT NULL DEFAULT 1,
-    status       VARCHAR(20)  NOT NULL DEFAULT 'active',
-    frontmatter  JSONB        NOT NULL DEFAULT '{}',
-    file_path    TEXT         NOT NULL,
-    file_size    BIGINT       NOT NULL DEFAULT 0,
-    file_hash    VARCHAR(64),
-    tags         JSONB,
-    is_system    BOOLEAN      NOT NULL DEFAULT FALSE,
-    deps         JSONB        NOT NULL DEFAULT '{}',
-    enabled      BOOLEAN      NOT NULL DEFAULT TRUE,
-    embedding    vector(1536),
-    created_at   TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ  DEFAULT NOW()
+    id              UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    name            VARCHAR(255) NOT NULL,
+    slug            VARCHAR(255) NOT NULL,
+    description     TEXT,
+    owner_id        VARCHAR(255) NOT NULL,
+    visibility      VARCHAR(10)  NOT NULL DEFAULT 'private',
+    version         INT          NOT NULL DEFAULT 1,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'active',
+    frontmatter     JSONB        NOT NULL DEFAULT '{}',
+    file_path       TEXT         NOT NULL,
+    file_size       BIGINT       NOT NULL DEFAULT 0,
+    file_hash       VARCHAR(64),
+    tags            JSONB,
+    source          VARCHAR(20)  NOT NULL DEFAULT 'user-uploaded'
+                    CHECK (source IN ('builtin', 'hub-verified', 'hub-unverified', 'agent-created', 'user-uploaded')),
+    deps            JSONB        NOT NULL DEFAULT '{}',
+    enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
+    embedding       vector(1536),
+    last_used_at    TIMESTAMPTZ,
+    last_viewed_at  TIMESTAMPTZ,
+    last_patched_at TIMESTAMPTZ,
+    pinned          BOOLEAN      NOT NULL DEFAULT FALSE,
+    usage_count     BIGINT       NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX idx_skills_slug       ON skills(slug) WHERE status = 'active';
 CREATE INDEX idx_skills_owner             ON skills(owner_id);
 CREATE INDEX idx_skills_visibility        ON skills(visibility)  WHERE status = 'active';
-CREATE INDEX idx_skills_system            ON skills(is_system)   WHERE is_system = TRUE;
+CREATE INDEX idx_skills_source            ON skills(source)      WHERE status = 'active';
 CREATE INDEX idx_skills_enabled           ON skills(enabled)     WHERE enabled = FALSE;
+CREATE INDEX idx_skills_pinned            ON skills(pinned)      WHERE pinned = TRUE;
 CREATE INDEX idx_skills_embedding         ON skills USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 CREATE TABLE IF NOT EXISTS skill_agent_grants (
@@ -713,18 +720,23 @@ CREATE TABLE IF NOT EXISTS skill_versions (
     file_path    TEXT         NOT NULL,
     file_size    BIGINT       NOT NULL DEFAULT 0,
     frontmatter  JSONB        NOT NULL DEFAULT '{}',
+    content      TEXT         NOT NULL DEFAULT '',
     changelog    TEXT,
     published_by VARCHAR(255),
+    archived_at  TIMESTAMPTZ,
+    archive_path TEXT,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     UNIQUE(skill_id, version)
 );
 
-CREATE INDEX idx_skill_versions_skill ON skill_versions(skill_id);
+CREATE INDEX idx_skill_versions_skill    ON skill_versions(skill_id);
+CREATE INDEX idx_skill_versions_archived ON skill_versions(skill_id) WHERE archived_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS curator_runs (
     id           UUID        NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     skill_id     UUID        REFERENCES skills(id) ON DELETE SET NULL,
-    status       VARCHAR(20) NOT NULL DEFAULT 'running',
+    status       VARCHAR(20) NOT NULL DEFAULT 'running'
+                 CHECK (status IN ('running', 'completed', 'failed')),
     result       JSONB,
     error        TEXT,
     triggered_by VARCHAR(255),
@@ -734,6 +746,16 @@ CREATE TABLE IF NOT EXISTS curator_runs (
 
 CREATE INDEX idx_curator_runs_skill  ON curator_runs(skill_id);
 CREATE INDEX idx_curator_runs_status ON curator_runs(status);
+
+CREATE TABLE IF NOT EXISTS curator_events (
+    id         UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    run_id     UUID         NOT NULL REFERENCES curator_runs(id) ON DELETE CASCADE,
+    event_type VARCHAR(32)  NOT NULL,
+    payload    JSONB        NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_curator_events_run ON curator_events(run_id, created_at);
 
 -- ============================================================
 -- Section 9: Channels

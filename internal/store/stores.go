@@ -40,6 +40,7 @@ type Stores struct {
 	UserSessions    UserSessionsStore
 	SkillVersions   SkillVersionsStore
 	CuratorRuns     CuratorRunsStore
+	CuratorEvents   CuratorEventsStore
 	UserHookBudget  UserHookBudgetStore
 	// Hooks is hooks.HookStore — typed as any to avoid import cycle
 	// (hooks package imports store for context helpers).

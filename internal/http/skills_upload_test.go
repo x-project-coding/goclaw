@@ -316,7 +316,10 @@ func newTestUploadHandler(t *testing.T) (*SkillsHandler, *skillManageStoreStub, 
 	skillStore := newSkillManageStoreStub(baseDir)
 	handler := NewSkillsHandler(skillStore, baseDir, root, "", bus.New())
 	ctx := store.WithLocale(
-		store.WithUserID(context.Background(), "user-1"),
+		store.WithRole(
+			store.WithUserID(context.Background(), "user-1"),
+			store.RoleRoot,
+		),
 		"en",
 	)
 	return handler, skillStore, ctx, root
@@ -392,7 +395,7 @@ func (s *skillManageStoreStub) seedSystemSkill(slug, dir string) {
 		Version:  1,
 		Status:   "active",
 		Enabled:  true,
-		IsSystem: true,
+		Source: "builtin",
 	}
 	s.systemDirs[slug] = dir
 }
@@ -505,7 +508,7 @@ func (s *skillManageStoreStub) ListAllSkills(context.Context) []store.SkillInfo 
 func (s *skillManageStoreStub) ListAllSystemSkills(context.Context) []store.SkillInfo {
 	var out []store.SkillInfo
 	for _, skill := range s.skills {
-		if skill.IsSystem {
+		if skill.Source == "builtin" {
 			out = append(out, skill)
 		}
 	}
@@ -538,9 +541,12 @@ func (s *skillManageStoreStub) RevokeFromUser(context.Context, uuid.UUID, string
 func (s *skillManageStoreStub) ListWithGrantStatus(context.Context, uuid.UUID) ([]store.SkillWithGrantStatus, error) {
 	return nil, nil
 }
-func (s *skillManageStoreStub) GetSkillFilePath(context.Context, uuid.UUID) (string, string, int, bool, bool) {
-	return "", "", 0, false, false
+func (s *skillManageStoreStub) GetSkillFilePath(context.Context, uuid.UUID) (string, string, int, string, bool) {
+	return "", "", 0, "", false
 }
+func (s *skillManageStoreStub) MarkSkillUsed(context.Context, uuid.UUID) error   { return nil }
+func (s *skillManageStoreStub) MarkSkillViewed(context.Context, uuid.UUID) error { return nil }
+func (s *skillManageStoreStub) PinSkill(context.Context, uuid.UUID, bool) error  { return nil }
 
 // ---------------------------------------------------------------------------
 // Hash comparison / idempotency tests
