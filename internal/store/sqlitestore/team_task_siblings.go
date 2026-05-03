@@ -16,7 +16,7 @@ import (
 // PARTITION BY (source_base, task_id) cap semantics.
 func (s *SQLiteTeamStore) BatchGetTaskSiblingsByBasenames(
 	ctx context.Context,
-	tenantID uuid.UUID,
+	_ uuid.UUID,
 	basenames []string,
 	limit int,
 ) (map[string][]store.TaskSibling, error) {
@@ -50,7 +50,7 @@ func (s *SQLiteTeamStore) BatchGetTaskSiblingsByBasenames(
 		chunk := clean[start:end]
 
 		ph := make([]string, len(chunk))
-		args := []any{tenantID.String()}
+		args := []any{}
 		for i, b := range chunk {
 			ph[i] = "?"
 			args = append(args, b)
@@ -61,7 +61,7 @@ func (s *SQLiteTeamStore) BatchGetTaskSiblingsByBasenames(
 WITH target_tasks AS (
   SELECT DISTINCT tta.base_name AS source_base, tta.task_id
   FROM team_task_attachments tta
-  WHERE tta.tenant_id = ? AND tta.base_name IN (%s)
+  WHERE tta.base_name IN (%s)
 ),
 ranked AS (
   SELECT
@@ -77,8 +77,7 @@ ranked AS (
   FROM target_tasks tt
   JOIN team_task_attachments tta2 ON tta2.task_id = tt.task_id
   JOIN vault_documents vd
-    ON vd.tenant_id = tta2.tenant_id
-   AND vd.team_id = tta2.team_id
+    ON vd.team_id = tta2.team_id
    AND vd.path_basename = tta2.base_name
   WHERE tta2.base_name != tt.source_base
 )

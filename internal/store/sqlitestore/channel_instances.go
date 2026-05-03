@@ -29,7 +29,7 @@ func NewSQLiteChannelInstanceStore(db *sql.DB, encryptionKey string) *SQLiteChan
 }
 
 const channelInstanceSelectCols = `id, name, display_name, channel_type, agent_id,
- credentials, config, enabled, created_by, created_at, updated_at, tenant_id`
+ credentials, config, enabled, created_by, created_at, updated_at`
 
 func (s *SQLiteChannelInstanceStore) Create(ctx context.Context, inst *store.ChannelInstanceData) error {
 	if err := store.ValidateUserID(inst.CreatedBy); err != nil {
@@ -53,48 +53,27 @@ func (s *SQLiteChannelInstanceStore) Create(ctx context.Context, inst *store.Cha
 	now := time.Now()
 	inst.CreatedAt = now
 	inst.UpdatedAt = now
-	tid := tenantIDForInsert(ctx)
 
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO channel_instances (id, name, display_name, channel_type, agent_id,
-		 credentials, config, enabled, created_by, created_at, updated_at, tenant_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 credentials, config, enabled, created_by, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		inst.ID, inst.Name, inst.DisplayName, inst.ChannelType, inst.AgentID,
 		credsBytes, jsonOrEmpty(inst.Config),
-		inst.Enabled, inst.CreatedBy, now, now, tid,
+		inst.Enabled, inst.CreatedBy, now, now,
 	)
 	return err
 }
 
 func (s *SQLiteChannelInstanceStore) Get(ctx context.Context, id uuid.UUID) (*store.ChannelInstanceData, error) {
-	if store.IsCrossTenant(ctx) {
-		row := s.db.QueryRowContext(ctx,
-			`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE id = ?`, id)
-		return s.scanInstance(row)
-	}
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
-	args := append([]any{id}, tArgs...)
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE id = ?`+tClause, args...)
+		`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE id = ?`, id)
 	return s.scanInstance(row)
 }
 
 func (s *SQLiteChannelInstanceStore) GetByName(ctx context.Context, name string) (*store.ChannelInstanceData, error) {
-	if store.IsCrossTenant(ctx) {
-		row := s.db.QueryRowContext(ctx,
-			`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE name = ?`, name)
-		return s.scanInstance(row)
-	}
-	tClause, tArgs, err := scopeClause(ctx)
-	if err != nil {
-		return nil, err
-	}
-	args := append([]any{name}, tArgs...)
 	row := s.db.QueryRowContext(ctx,
-		`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE name = ?`+tClause, args...)
+		`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE name = ?`, name)
 	return s.scanInstance(row)
 }
 
@@ -108,7 +87,7 @@ func (s *SQLiteChannelInstanceStore) scanInstance(row *sql.Row) (*store.ChannelI
 	err := row.Scan(
 		&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 		&creds, &config,
-		&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt, &inst.TenantID,
+		&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -148,7 +127,7 @@ func (s *SQLiteChannelInstanceStore) scanInstances(rows *sql.Rows) ([]store.Chan
 		if err := rows.Scan(
 			&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 			&creds, &config,
-			&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt, &inst.TenantID,
+			&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt,
 		); err != nil {
 			continue
 		}
@@ -218,14 +197,7 @@ func (s *SQLiteChannelInstanceStore) Update(ctx context.Context, id uuid.UUID, u
 		updates["credentials"] = credsBytes
 	}
 	updates["updated_at"] = time.Now()
-	if store.IsCrossTenant(ctx) {
-		return execMapUpdate(ctx, s.db, "channel_instances", id, updates)
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required for update")
-	}
-	return execMapUpdateWhereTenant(ctx, s.db, "channel_instances", updates, id, tid)
+	return execMapUpdate(ctx, s.db, "channel_instances", id, updates)
 }
 
 func (s *SQLiteChannelInstanceStore) loadExistingCreds(ctx context.Context, id uuid.UUID) (map[string]any, error) {
@@ -247,31 +219,13 @@ func (s *SQLiteChannelInstanceStore) loadExistingCreds(ctx context.Context, id u
 }
 
 func (s *SQLiteChannelInstanceStore) Delete(ctx context.Context, id uuid.UUID) error {
-	if store.IsCrossTenant(ctx) {
-		_, err := s.db.ExecContext(ctx, "DELETE FROM channel_instances WHERE id = ?", id)
-		return err
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required")
-	}
-	_, err := s.db.ExecContext(ctx, "DELETE FROM channel_instances WHERE id = ? AND tenant_id = ?", id, tid)
+	_, err := s.db.ExecContext(ctx, "DELETE FROM channel_instances WHERE id = ?", id)
 	return err
 }
 
 func (s *SQLiteChannelInstanceStore) ListEnabled(ctx context.Context) ([]store.ChannelInstanceData, error) {
-	query := `SELECT ` + channelInstanceSelectCols + ` FROM channel_instances WHERE enabled = 1`
-	var qArgs []any
-	if !store.IsCrossTenant(ctx) {
-		tClause, tArgs, err := scopeClause(ctx)
-		if err != nil {
-			return nil, err
-		}
-		query += tClause
-		qArgs = tArgs
-	}
-	query += ` ORDER BY name`
-	rows, err := s.db.QueryContext(ctx, query, qArgs...)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+channelInstanceSelectCols+` FROM channel_instances WHERE enabled = 1 ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -279,18 +233,8 @@ func (s *SQLiteChannelInstanceStore) ListEnabled(ctx context.Context) ([]store.C
 }
 
 func (s *SQLiteChannelInstanceStore) ListAll(ctx context.Context) ([]store.ChannelInstanceData, error) {
-	query := `SELECT ` + channelInstanceSelectCols + ` FROM channel_instances WHERE 1=1`
-	var qArgs []any
-	if !store.IsCrossTenant(ctx) {
-		tClause, tArgs, err := scopeClause(ctx)
-		if err != nil {
-			return nil, err
-		}
-		query += tClause
-		qArgs = tArgs
-	}
-	query += ` ORDER BY name`
-	rows, err := s.db.QueryContext(ctx, query, qArgs...)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+channelInstanceSelectCols+` FROM channel_instances ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -315,17 +259,9 @@ func (s *SQLiteChannelInstanceStore) ListAllEnabled(ctx context.Context) ([]stor
 	return s.scanInstances(rows)
 }
 
-func buildChannelInstanceWhereSQLite(ctx context.Context, opts store.ChannelInstanceListOpts) (string, []any) {
+func buildChannelInstanceWhereSQLite(_ context.Context, opts store.ChannelInstanceListOpts) (string, []any) {
 	var conditions []string
 	var args []any
-
-	if !store.IsCrossTenant(ctx) {
-		tenantID := store.TenantIDFromContext(ctx)
-		if tenantID != uuid.Nil {
-			conditions = append(conditions, "tenant_id = ?")
-			args = append(args, tenantID)
-		}
-	}
 
 	if opts.Search != "" {
 		escaped := strings.NewReplacer("%", "\\%", "_", "\\_").Replace(opts.Search)

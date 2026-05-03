@@ -24,7 +24,7 @@ const taskLockDuration = 30 * time.Minute
 const maxListTasksRows = 30
 
 // taskSelectCols is the shared SELECT column list for task queries.
-const taskSelectCols = `t.id, t.team_id, t.tenant_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.user_id, t.channel,
+const taskSelectCols = `t.id, t.team_id, t.subject, t.description, t.status, t.owner_agent_id, t.blocked_by, t.priority, t.result, t.user_id, t.channel,
 		 t.task_type, t.task_number, COALESCE(t.identifier,''), t.created_by_agent_id, COALESCE(t.assignee_user_id,''), t.parent_id,
 		 COALESCE(t.chat_id,''), t.metadata, t.locked_at, t.lock_expires_at, COALESCE(t.progress_percent,0), COALESCE(t.progress_step,''),
 		 t.followup_at, COALESCE(t.followup_count,0), COALESCE(t.followup_max,0), COALESCE(t.followup_message,''), COALESCE(t.followup_channel,''), COALESCE(t.followup_chat_id,''),
@@ -43,20 +43,10 @@ const taskJoinClause = `FROM team_tasks t
 // ============================================================
 
 func (s *SQLiteTeamStore) ListTaskScopes(ctx context.Context, teamID uuid.UUID) ([]store.ScopeEntry, error) {
-	args := []any{teamID}
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND tenant_id = ?"
-		args = append(args, tid)
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT DISTINCT channel, chat_id FROM team_tasks
-		 WHERE team_id = ? AND channel IS NOT NULL AND channel != ''`+tenantWhere+`
-		 ORDER BY channel, chat_id`, args...)
+		 WHERE team_id = ? AND channel IS NOT NULL AND channel != ''
+		 ORDER BY channel, chat_id`, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +108,8 @@ func (s *SQLiteTeamStore) CreateTask(ctx context.Context, task *store.TeamTaskDa
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO team_tasks (id, team_id, subject, description, status, owner_agent_id, blocked_by, priority, result, user_id, channel,
-		 task_type, task_number, identifier, created_by_agent_id, parent_id, chat_id, metadata, locked_at, lock_expires_at, created_at, updated_at, tenant_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 task_type, task_number, identifier, created_by_agent_id, parent_id, chat_id, metadata, locked_at, lock_expires_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		task.ID, task.TeamID, task.Subject, task.Description,
 		task.Status, task.OwnerAgentID, blockedByJSON,
 		task.Priority, task.Result,
@@ -129,7 +119,7 @@ func (s *SQLiteTeamStore) CreateTask(ctx context.Context, task *store.TeamTaskDa
 		nilStr(task.ChatID),
 		metaJSON,
 		task.LockedAt, task.LockExpiresAt,
-		now, now, tenantIDForInsert(ctx),
+		now, now,
 	)
 	if err != nil {
 		return err
@@ -168,14 +158,7 @@ func (s *SQLiteTeamStore) UpdateTask(ctx context.Context, taskID uuid.UUID, upda
 		}
 	}
 	updates["updated_at"] = time.Now()
-	if store.IsCrossTenant(ctx) {
-		return execMapUpdate(ctx, s.db, "team_tasks", taskID, updates)
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == uuid.Nil {
-		return fmt.Errorf("tenant_id required for update")
-	}
-	return execMapUpdateWhereTenant(ctx, s.db, "team_tasks", updates, taskID, tid)
+	return execMapUpdate(ctx, s.db, "team_tasks", taskID, updates)
 }
 
 func (s *SQLiteTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, orderBy string, statusFilter string, userID string, channel string, chatID string, limit int, offset int) ([]store.TeamTaskData, error) {
@@ -201,23 +184,12 @@ func (s *SQLiteTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, order
 	// Scope filter using COALESCE for optional channel/chatID.
 	scopeWhere := "AND (? = '' OR COALESCE(t.channel,'') = ?) AND (? = '' OR COALESCE(t.chat_id,'') = ?)"
 
-	args := []any{teamID, userID, userID, channel, channel, chatID, chatID}
-
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND t.tenant_id = ?"
-		args = append(args, tid)
-	}
-	args = append(args, limit+1, offset)
+	args := []any{teamID, userID, userID, channel, channel, chatID, chatID, limit + 1, offset}
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+taskSelectCols+`
 		 `+taskJoinClause+`
-		 WHERE t.team_id = ? AND (? = '' OR t.user_id = ?) `+statusWhere+` `+scopeWhere+tenantWhere+`
+		 WHERE t.team_id = ? AND (? = '' OR t.user_id = ?) `+statusWhere+` `+scopeWhere+`
 		 ORDER BY `+orderClause+`
 		 LIMIT ? OFFSET ?`, args...)
 	if err != nil {
@@ -228,20 +200,10 @@ func (s *SQLiteTeamStore) ListTasks(ctx context.Context, teamID uuid.UUID, order
 }
 
 func (s *SQLiteTeamStore) GetTask(ctx context.Context, taskID uuid.UUID) (*store.TeamTaskData, error) {
-	args := []any{taskID}
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND t.tenant_id = ?"
-		args = append(args, tid)
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+taskSelectCols+`
 		 `+taskJoinClause+`
-		 WHERE t.id = ?`+tenantWhere, args...)
+		 WHERE t.id = ?`, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -266,19 +228,10 @@ func (s *SQLiteTeamStore) GetTasksByIDs(ctx context.Context, ids []uuid.UUID) ([
 	for i, id := range ids {
 		args[i] = id
 	}
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND t.tenant_id = ?"
-		args = append(args, tid)
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+taskSelectCols+`
 		 `+taskJoinClause+`
-		 WHERE t.id IN (`+placeholders+`)`+tenantWhere, args...)
+		 WHERE t.id IN (`+placeholders+`)`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -320,24 +273,13 @@ func (s *SQLiteTeamStore) SearchTasks(ctx context.Context, teamID uuid.UUID, que
 		likeClauses[i] = "(t.subject LIKE ? OR t.description LIKE ?)"
 		args = append(args, pat, pat)
 	}
-	args = append(args, userID, userID)
-
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND t.tenant_id = ?"
-		args = append(args, tid)
-	}
-	args = append(args, limit)
+	args = append(args, userID, userID, limit)
 
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+taskSelectCols+`
 		 `+taskJoinClause+`
 		 WHERE t.team_id = ? AND `+strings.Join(likeClauses, " AND ")+`
-		   AND (? = '' OR t.user_id = ?)`+tenantWhere+`
+		   AND (? = '' OR t.user_id = ?)
 		 ORDER BY t.created_at DESC
 		 LIMIT ?`, args...)
 	if err != nil {
@@ -348,17 +290,6 @@ func (s *SQLiteTeamStore) SearchTasks(ctx context.Context, teamID uuid.UUID, que
 }
 
 func (s *SQLiteTeamStore) DeleteTask(ctx context.Context, taskID, teamID uuid.UUID) error {
-	args := []any{taskID, teamID}
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND tenant_id = ?"
-		args = append(args, tid)
-	}
-
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("delete task: begin tx: %w", err)
@@ -366,8 +297,8 @@ func (s *SQLiteTeamStore) DeleteTask(ctx context.Context, taskID, teamID uuid.UU
 	defer tx.Rollback() //nolint:errcheck
 
 	res, err := tx.ExecContext(ctx,
-		`DELETE FROM team_tasks WHERE id = ? AND team_id = ? AND status IN ('completed','failed','cancelled')`+tenantWhere,
-		args...)
+		`DELETE FROM team_tasks WHERE id = ? AND team_id = ? AND status IN ('completed','failed','cancelled')`,
+		taskID, teamID)
 	if err != nil {
 		return err
 	}
@@ -401,17 +332,7 @@ func (s *SQLiteTeamStore) DeleteTasks(ctx context.Context, taskIDs []uuid.UUID, 
 	}
 	args = append(args, teamID)
 
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND tenant_id = ?"
-		args = append(args, tid)
-	}
-
-	cond := `id IN (` + placeholders + `) AND team_id = ? AND status IN ('completed','failed','cancelled')` + tenantWhere
+	cond := `id IN (` + placeholders + `) AND team_id = ? AND status IN ('completed','failed','cancelled')`
 
 	// Fetch IDs to delete first.
 	selectRows, err := s.db.QueryContext(ctx, `SELECT id FROM team_tasks WHERE `+cond, args...)
@@ -468,23 +389,13 @@ func (s *SQLiteTeamStore) ListActiveTasksByChatID(ctx context.Context, chatID st
 	if chatID == "" {
 		return nil, nil
 	}
-	args := []any{chatID}
-	tenantWhere := ""
-	if !store.IsCrossTenant(ctx) {
-		tid := store.TenantIDFromContext(ctx)
-		if tid == uuid.Nil {
-			return nil, fmt.Errorf("tenant_id required")
-		}
-		tenantWhere = " AND t.tenant_id = ?"
-		args = append(args, tid)
-	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+taskSelectCols+`
 		 `+taskJoinClause+`
 		 WHERE COALESCE(t.chat_id,'') = ?
-		   AND t.status IN ('pending','in_progress','blocked','in_review')`+tenantWhere+`
+		   AND t.status IN ('pending','in_progress','blocked','in_review')
 		 ORDER BY t.task_number ASC
-		 LIMIT 50`, args...)
+		 LIMIT 50`, chatID)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +421,7 @@ func scanTaskRowsJoined(rows *sql.Rows) ([]store.TeamTaskData, error) {
 		var followupMessage, followupChannel, followupChatID string
 		createdAt, updatedAt := scanTimePair()
 		if err := rows.Scan(
-			&d.ID, &d.TeamID, &d.TenantID, &d.Subject, &desc, &d.Status,
+			&d.ID, &d.TeamID, &d.Subject, &desc, &d.Status,
 			&ownerID, &blockedByJSON, &d.Priority, &result,
 			&userID, &channel,
 			&d.TaskType, &d.TaskNumber, &identifier, &createdByAgentID, &assigneeUserID, &parentID,
