@@ -12,6 +12,16 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/nextlevelbuilder/goclaw/internal/auth"
+)
+
+var (
+	// rootHashOnce caches the hashed root password so repeated ResetDB calls
+	// in a single process don't re-run Argon2id (m=64MB, t=3 — measurable).
+	rootHashOnce sync.Once
+	rootHashStr  string
+	rootHashErr  error
 )
 
 var (
@@ -126,9 +136,8 @@ func quoteIdents(in []string) []string {
 
 // seedRootUser inserts the root user used by Phase 06 bootstrap tests.
 //
-// Phase 01 placeholder: since `users` table doesn't exist until Phase 03 PG
-// schema lands, this is a no-op when the table is missing. Phase 06 will
-// switch to Argon2id-hashed password via `auth.HashPassword()`.
+// Phase 06+: hashes E2E_ROOT_PASSWORD with Argon2id so /v1/auth/login works
+// against the seeded credentials. Hash is cached process-wide.
 func seedRootUser(ctx context.Context, db *sql.DB) error {
 	exists, err := tableExists(ctx, db, "users")
 	if err != nil {
@@ -138,18 +147,33 @@ func seedRootUser(ctx context.Context, db *sql.DB) error {
 		// Pre-Phase-03: nothing to seed. Harness self-tests still pass.
 		return nil
 	}
+	hash, err := rootPasswordHash()
+	if err != nil {
+		return fmt.Errorf("hash root password: %w", err)
+	}
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO users (id, email, display_name, password_hash, role, created_at, updated_at)
 		VALUES (uuid_generate_v7(), $1, $2, $3, 'root', now(), now())
 		ON CONFLICT (email) DO NOTHING`,
-		RootEmail(), RootDisplayName(), placeholderPasswordHash())
+		RootEmail(), RootDisplayName(), hash)
 	return err
 }
 
-// placeholderPasswordHash returns a string usable until Phase 06 ships Argon2id.
-// Format chosen so a `LIKE 'argon2id$%'` check is unambiguous about its placeholder status.
+// rootPasswordHash returns an Argon2id PHC-encoded hash of E2E_ROOT_PASSWORD.
+// Cached because Argon2id is intentionally slow and the same value is re-used
+// for every ResetDB call in a single test process.
+func rootPasswordHash() (string, error) {
+	rootHashOnce.Do(func() {
+		rootHashStr, rootHashErr = auth.HashPassword(RootPassword())
+	})
+	return rootHashStr, rootHashErr
+}
+
+// placeholderPasswordHash returns a non-real PHC string for SeedUser fixtures
+// that never need to authenticate via password (only DB-level user identity).
+// Login attempts against this hash will fail VerifyPassword as intended.
 func placeholderPasswordHash() string {
-	return "argon2id$placeholder$pre-p06-bootstrap-pending"
+	return "argon2id$placeholder$test-fixture-no-login"
 }
 
 // tableExists reports whether `name` is a table in schema=public.

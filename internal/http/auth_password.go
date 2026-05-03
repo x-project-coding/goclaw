@@ -300,17 +300,31 @@ func (h *AuthHandler) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 		}
 		updates["display_name"] = name
 	}
-	if len(updates) == 0 {
-		// Nothing to update — return current state for symmetry with /me.
-		h.handleMe(w, r)
+	if len(updates) > 0 {
+		if err := h.users.Update(r.Context(), uid, updates); err != nil {
+			slog.Error("user.update_failed", "err", err, "user_id", uid)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
+			return
+		}
+	}
+	// Return the post-update row directly. Cannot delegate to handleMe — it
+	// only accepts GET.
+	user, err := h.users.Get(r.Context(), uid)
+	if err != nil || user == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
-	if err := h.users.Update(r.Context(), uid, updates); err != nil {
-		slog.Error("user.update_failed", "err", err, "user_id", uid)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
-		return
+	resp := map[string]any{
+		"user_id":    user.ID.String(),
+		"email":      user.Email,
+		"role":       user.Role,
+		"status":     user.Status,
+		"created_at": user.CreatedAt,
 	}
-	h.handleMe(w, r)
+	if user.DisplayName != nil {
+		resp["display_name"] = *user.DisplayName
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type changePasswordBody struct {

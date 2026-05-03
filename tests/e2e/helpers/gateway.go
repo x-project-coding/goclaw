@@ -58,9 +58,15 @@ func StartGateway(t *testing.T) *Gateway {
 
 	cmd := exec.Command(binary)
 	cmd.Dir = repoRoot
+	// Bridge env-file values into the env-var names the gateway reads.
+	// env.e2e-tests/.env uses GOCLAW_DATABASE_URL; the gateway resolves PG via
+	// GOCLAW_POSTGRES_DSN (see cmd/gateway_stores_pg.go).
 	cmd.Env = append(os.Environ(),
 		"GOCLAW_PORT="+port,
 		"GOCLAW_HOST="+GatewayHost(),
+		"GOCLAW_POSTGRES_DSN="+DatabaseURL(),
+		"GOCLAW_JWT_SECRET="+JWTSecret(),
+		"GOCLAW_ENCRYPTION_KEY="+EncryptionKey(),
 	)
 	// Inherit stdout/stderr so test logs surface gateway diagnostics.
 	cmd.Stdout = os.Stderr
