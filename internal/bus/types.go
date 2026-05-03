@@ -75,7 +75,6 @@ const (
 	CacheKindAPIKeys          = "api_keys"
 	CacheKindHeartbeat        = "heartbeat"
 	CacheKindConfigPerms      = "config_perms"
-	CacheKindTenantUsers      = "tenant_users"
 	CacheKindAgentAccess      = "agent_access"
 	CacheKindTeamAccess       = "team_access"
 	CacheKindTenants          = "tenants"

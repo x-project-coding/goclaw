@@ -21,9 +21,9 @@ type MCPToolLister interface {
 	ServerToolNames(serverName string) []string
 }
 
-// MCPPoolEvictor evicts pooled connections for a tenant+server (called on credential rotation).
+// MCPPoolEvictor evicts a pooled connection by server name (called on credential rotation).
 type MCPPoolEvictor interface {
-	Evict(tenantID uuid.UUID, serverName string)
+	Evict(serverName string)
 }
 
 // MCPHandler handles MCP server management HTTP endpoints.
@@ -279,8 +279,7 @@ func (h *MCPHandler) handleUpdateServer(w http.ResponseWriter, r *http.Request) 
 		_, hasHeaders := updates["headers"]
 		_, hasEnv := updates["env"]
 		if hasKey || hasHeaders || hasEnv {
-			tid := store.MasterTenantID
-			h.poolEvictor.Evict(tid, serverName)
+			h.poolEvictor.Evict(serverName)
 		}
 	}
 
@@ -323,8 +322,7 @@ func (h *MCPHandler) handleReconnectServer(w http.ResponseWriter, r *http.Reques
 	}
 
 	if h.poolEvictor != nil {
-		tid := store.MasterTenantID
-		h.poolEvictor.Evict(tid, srv.Name)
+		h.poolEvictor.Evict(srv.Name)
 	}
 
 	h.emitCacheInvalidate()

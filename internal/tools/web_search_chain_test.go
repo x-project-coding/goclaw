@@ -208,16 +208,15 @@ func TestBuildChainFromStorage(t *testing.T) {
 	}
 }
 
-// --- Cache tests (see tenant_chain_cache_test.go for comprehensive cache tests) ---
+// --- Cache tests (see web_search_chain_cache_test.go for comprehensive cache tests) ---
 
-func TestTenantChainCache_SetGet(t *testing.T) {
-	c := newTenantChainCache()
+func TestWebSearchChainCache_SetGet(t *testing.T) {
+	c := newWebSearchChainCache()
 
-	tid := uuid.New()
 	providers := []SearchProvider{&fakeSearchProvider{"ddg"}}
-	c.Set(tid, providers)
+	c.Set(providers)
 
-	got, ok := c.Get(tid)
+	got, ok := c.Get()
 	if !ok || len(got) != 1 || got[0].Name() != "ddg" {
 		t.Errorf("cache Get: ok=%v got=%v", ok, chainNames(got))
 	}

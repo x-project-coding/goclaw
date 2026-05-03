@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
@@ -501,18 +500,15 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 }
 
 // InvalidateAgent removes an agent from the router cache, forcing re-resolution.
-// Used when agent config is updated via API.
-// Matches both plain key ("agentKey") and tenant-scoped key ("tenantID:agentKey")
-// via exact-segment match (prevents substring collisions like "sub-foo" matching
-// when invalidating "foo"). Empty agentKey is rejected to prevent wildcard wipes.
+// Used when agent config is updated via API. Empty agentKey is rejected to
+// prevent accidental wildcard wipes (use InvalidateAll for that).
 func (r *Router) InvalidateAgent(agentKey string) {
+	if agentKey == "" {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for key := range r.agents {
-		if matchAgentCacheKey(key, agentKey) {
-			delete(r.agents, key)
-		}
-	}
+	delete(r.agents, agentKey)
 	slog.Debug("invalidated agent cache", "agent", agentKey)
 }
 
@@ -523,27 +519,6 @@ func (r *Router) InvalidateAll() {
 	defer r.mu.Unlock()
 	r.agents = make(map[string]*agentEntry)
 	slog.Debug("invalidated all agent caches")
-}
-
-// InvalidateTenant clears all cached agents for a single tenant.
-// Cache keys are "tenantID:agentKey" when tenant-scoped (see agentCacheKey).
-// Non-tenant entries (bare "agentKey") are untouched. uuid.Nil is a no-op —
-// callers use InvalidateAll for global invalidation.
-func (r *Router) InvalidateTenant(tenantID uuid.UUID) {
-	if tenantID == uuid.Nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	prefix := tenantID.String() + ":"
-	var deleted int
-	for key := range r.agents {
-		if strings.HasPrefix(key, prefix) {
-			delete(r.agents, key)
-			deleted++
-		}
-	}
-	slog.Debug("invalidated tenant agent cache", "tenant", tenantID, "count", deleted)
 }
 
 func derefInt(p *int) int {

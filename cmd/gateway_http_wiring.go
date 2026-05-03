@@ -232,9 +232,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 
 	// ElevenLabs voice list + refresh endpoints (GET /v1/voices, POST /v1/voices/refresh).
 	// VoiceCache is shared between the HTTP handler and the WS voices.list method.
-	// TTL 1h + LRU cap 1000 tenants.
+	// TTL 1h.
 	{
-		voiceCache := audio.NewVoiceCache(1*time.Hour, 1000)
+		voiceCache := audio.NewVoiceCache(1 * time.Hour)
 		var secretStore store.ConfigSecretsStore
 		if d.pgStores != nil && d.pgStores.ConfigSecrets != nil {
 			secretStore = d.pgStores.ConfigSecrets

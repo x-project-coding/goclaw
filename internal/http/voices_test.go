@@ -12,7 +12,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // mockVoiceListProvider is a simple test double for audio.VoiceListProvider.
@@ -31,7 +30,7 @@ func TestVoicesHandler_Unauthenticated(t *testing.T) {
 	httpapi.InitGatewayToken(voicesTestToken)
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	h := httpapi.NewVoicesHandler(cache, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -51,10 +50,10 @@ func TestVoicesHandler_CachedResponse(t *testing.T) {
 	httpapi.InitGatewayToken("")
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	voices := []audio.Voice{{ID: "v1", Name: "Bella", Category: "premade"}}
 	// Seed for MasterTenantID — that's what dev-mode auth injects.
-	cache.Set(store.MasterTenantID, voices)
+	cache.Set(voices)
 
 	called := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +99,7 @@ func TestVoicesHandler_LiveFetch(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	p := elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: "k", BaseURL: upstream.URL})
 	h := httpapi.NewVoicesHandlerWithProvider(cache, p)
 	mux := http.NewServeMux()
@@ -122,7 +121,7 @@ func TestVoicesHandler_LiveFetch(t *testing.T) {
 	}
 
 	// Verify cache was populated.
-	cached, ok := cache.Get(store.MasterTenantID)
+	cached, ok := cache.Get()
 	if !ok || len(cached) != 1 {
 		t.Error("expected live fetch result to be cached")
 	}
@@ -133,7 +132,7 @@ func TestVoicesHandler_RefreshUnauthenticated(t *testing.T) {
 	httpapi.InitGatewayToken(voicesTestToken)
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	h := httpapi.NewVoicesHandler(cache, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -158,7 +157,7 @@ func TestVoicesHandler_RefreshAdmin(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	p := elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: "k", BaseURL: upstream.URL})
 	h := httpapi.NewVoicesHandlerWithProvider(cache, p)
 	mux := http.NewServeMux()
@@ -194,7 +193,7 @@ func TestVoicesHandler_InterfaceRefactor_Elevenlabs(t *testing.T) {
 
 	// Inject as audio.VoiceListProvider interface — confirms the refactor works.
 	var p audio.VoiceListProvider = elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: "k", BaseURL: upstream.URL})
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	h := httpapi.NewVoicesHandlerWithProvider(cache, p)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -227,7 +226,7 @@ func TestVoicesHandler_MiniMaxBranch(t *testing.T) {
 	}
 	mock := &mockVoiceListProvider{voices: mockVoices}
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	h := httpapi.NewVoicesHandlerWithProvider(cache, mock)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -262,7 +261,7 @@ func TestVoicesHandler_MiniMaxFirstFetchFailure_502(t *testing.T) {
 		err:    fmt.Errorf("upstream 500: internal server error"),
 	}
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	h := httpapi.NewVoicesHandlerWithProvider(cache, mock)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
@@ -293,7 +292,7 @@ func TestVoicesHandler_BackwardCompat_ElevenlabsUnchanged(t *testing.T) {
 	defer upstream.Close()
 
 	p := elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: "k", BaseURL: upstream.URL})
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	// NewVoicesHandlerWithProvider now accepts audio.VoiceListProvider —
 	// ElevenLabs TTSProvider implements it, so this must compile.
 	h := httpapi.NewVoicesHandlerWithProvider(cache, p)

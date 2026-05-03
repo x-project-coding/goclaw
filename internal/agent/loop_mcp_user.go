@@ -6,7 +6,6 @@ import (
 	"maps"
 
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -74,7 +73,7 @@ func (l *Loop) getUserMCPTools(ctx context.Context, userID string) []tools.Tool 
 		maps.Copy(env, uc.Env)
 
 		// Acquire user-keyed pool connection
-		entry, err := l.mcpPool.AcquireUser(ctx, store.MasterTenantID, srv.Name, userID,
+		entry, err := l.mcpPool.AcquireUser(ctx, srv.Name, userID,
 			srv.Transport, srv.Command, args, env, srv.URL, headers, srv.TimeoutSec)
 		if err != nil {
 			slog.Warn("mcp.user_pool_acquire_failed", "server", srv.Name, "user", userID, "error", err)
@@ -84,7 +83,7 @@ func (l *Loop) getUserMCPTools(ctx context.Context, userID string) []tools.Tool 
 		// Release immediately — BridgeTools hold client pointer directly.
 		// This allows pool idle eviction to work (refCount=0 + lastUsed for TTL).
 		// When pool evicts the connection, BridgeTool.Execute detects connected=false.
-		l.mcpPool.ReleaseUser(mcpbridge.UserPoolKey(store.MasterTenantID, srv.Name, userID))
+		l.mcpPool.ReleaseUser(mcpbridge.UserPoolKey(srv.Name, userID))
 
 		// Create BridgeTools pointing to user's connection and register in the
 		// shared tool registry so ExecuteWithContext can resolve them by name.

@@ -162,8 +162,8 @@ func (m *Manager) registerBridgeTools(ss *serverState, mcpTools []mcpgo.Tool, se
 // connectViaPool acquires a shared connection from the pool and creates
 // per-agent BridgeTools pointing to the shared client/connected pointers.
 // serverID is the MCP server UUID from DB.
-func (m *Manager) connectViaPool(ctx context.Context, tenantID uuid.UUID, name, transportType, command string, args []string, env map[string]string, url string, headers map[string]string, toolPrefix string, timeoutSec int, serverID uuid.UUID) error {
-	entry, err := m.pool.Acquire(ctx, tenantID, name, transportType, command, args, env, url, headers, timeoutSec)
+func (m *Manager) connectViaPool(ctx context.Context, name, transportType, command string, args []string, env map[string]string, url string, headers map[string]string, toolPrefix string, timeoutSec int, serverID uuid.UUID) error {
+	entry, err := m.pool.Acquire(ctx, name, transportType, command, args, env, url, headers, timeoutSec)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (m *Manager) connectViaPool(ctx context.Context, tenantID uuid.UUID, name, 
 	if m.poolKeys == nil {
 		m.poolKeys = make(map[string]string)
 	}
-	m.poolKeys[name] = poolKey(tenantID, name)
+	m.poolKeys[name] = name
 	m.mu.Unlock()
 
 	if len(registeredNames) > 0 {

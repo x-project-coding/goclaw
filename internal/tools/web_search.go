@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -94,7 +92,7 @@ func normalizeFreshness(value string) string {
 type WebSearchTool struct {
 	secrets    store.ConfigSecretsStore
 	cache      *webCache
-	chainCache *tenantChainCache
+	chainCache *webSearchChainCache
 }
 
 // NewWebSearchTool constructs a WebSearchTool. msgBus may be nil (e.g. desktop
@@ -103,7 +101,7 @@ func NewWebSearchTool(secrets store.ConfigSecretsStore, msgBus *bus.MessageBus) 
 	t := &WebSearchTool{
 		secrets:    secrets,
 		cache:      newWebCache(defaultCacheMaxEntries, defaultCacheTTL),
-		chainCache: newTenantChainCache(),
+		chainCache: newWebSearchChainCache(),
 	}
 
 	if msgBus != nil {
@@ -115,12 +113,8 @@ func NewWebSearchTool(secrets store.ConfigSecretsStore, msgBus *bus.MessageBus) 
 			if !ok || payload.Kind != bus.CacheKindBuiltinTools || payload.Key != "web_search" {
 				return
 			}
-			if payload.TenantID == uuid.Nil {
-				// Master admin write — wipe all tenants.
-				t.chainCache.InvalidateAll()
-			} else {
-				t.chainCache.Invalidate(payload.TenantID)
-			}
+			// Single-tenant: any cache_invalidate event for web_search drops the chain.
+			t.chainCache.Invalidate()
 		})
 	}
 

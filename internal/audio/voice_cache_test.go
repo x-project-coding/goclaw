@@ -5,17 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 )
 
 func TestVoiceCache_SetGetHit(t *testing.T) {
-	c := audio.NewVoiceCache(time.Hour, 100)
-	tid := uuid.New()
+	c := audio.NewVoiceCache(time.Hour)
 	voices := []audio.Voice{{ID: "v1", Name: "Bella"}}
 
-	c.Set(tid, voices)
-	got, ok := c.Get(tid)
+	c.Set(voices)
+	got, ok := c.Get()
 	if !ok {
 		t.Fatal("expected cache hit")
 	}
@@ -25,70 +23,53 @@ func TestVoiceCache_SetGetHit(t *testing.T) {
 }
 
 func TestVoiceCache_ExpiredMiss(t *testing.T) {
-	c := audio.NewVoiceCache(10*time.Millisecond, 100)
-	tid := uuid.New()
-	c.Set(tid, []audio.Voice{{ID: "v1"}})
+	c := audio.NewVoiceCache(10 * time.Millisecond)
+	c.Set([]audio.Voice{{ID: "v1"}})
 
 	time.Sleep(20 * time.Millisecond)
-	_, ok := c.Get(tid)
+	_, ok := c.Get()
 	if ok {
 		t.Fatal("expected cache miss after TTL expiry")
 	}
 }
 
-func TestVoiceCache_LRUEviction(t *testing.T) {
-	cap := 3
-	c := audio.NewVoiceCache(time.Hour, cap)
-
-	ids := make([]uuid.UUID, cap+1)
-	for i := range ids {
-		ids[i] = uuid.New()
-	}
-	voices := []audio.Voice{{ID: "x"}}
-
-	// Fill to capacity
-	for i := range cap {
-		c.Set(ids[i], voices)
-	}
-	// Access ids[0] to make it recently used
-	c.Get(ids[0])
-
-	// Insert one more — should evict the LRU entry (ids[1] was least recently used)
-	c.Set(ids[cap], voices)
-
-	_, ok := c.Get(ids[1])
-	if ok {
-		t.Fatal("ids[1] should have been evicted as LRU")
-	}
-	// ids[0] and ids[cap] must still be present
-	if _, ok := c.Get(ids[0]); !ok {
-		t.Error("ids[0] should still be cached (recently accessed)")
-	}
-	if _, ok := c.Get(ids[cap]); !ok {
-		t.Error("ids[cap] should be cached (just inserted)")
+func TestVoiceCache_NoTTLNeverExpires(t *testing.T) {
+	c := audio.NewVoiceCache(0)
+	c.Set([]audio.Voice{{ID: "v1"}})
+	time.Sleep(15 * time.Millisecond)
+	if _, ok := c.Get(); !ok {
+		t.Fatal("ttl=0 should never expire")
 	}
 }
 
 func TestVoiceCache_Invalidate(t *testing.T) {
-	c := audio.NewVoiceCache(time.Hour, 100)
-	tid := uuid.New()
-	c.Set(tid, []audio.Voice{{ID: "v1"}})
-	c.Invalidate(tid)
-	_, ok := c.Get(tid)
-	if ok {
+	c := audio.NewVoiceCache(time.Hour)
+	c.Set([]audio.Voice{{ID: "v1"}})
+	c.Invalidate()
+	if _, ok := c.Get(); ok {
 		t.Fatal("expected miss after invalidate")
 	}
 }
 
+func TestVoiceCache_OverwriteRefreshesEntry(t *testing.T) {
+	c := audio.NewVoiceCache(time.Hour)
+	c.Set([]audio.Voice{{ID: "v1"}})
+	c.Set([]audio.Voice{{ID: "v2"}, {ID: "v3"}})
+
+	got, ok := c.Get()
+	if !ok || len(got) != 2 || got[0].ID != "v2" {
+		t.Fatalf("expected overwrite to replace voices, got %+v ok=%v", got, ok)
+	}
+}
+
 func TestVoiceCache_ConcurrentSafe(t *testing.T) {
-	c := audio.NewVoiceCache(time.Hour, 500)
+	c := audio.NewVoiceCache(time.Hour)
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
-			tid := uuid.New()
-			c.Set(tid, []audio.Voice{{ID: "v"}})
-			c.Get(tid)
-			c.Invalidate(tid)
+			c.Set([]audio.Voice{{ID: "v"}})
+			c.Get()
+			c.Invalidate()
 		})
 	}
 	wg.Wait()

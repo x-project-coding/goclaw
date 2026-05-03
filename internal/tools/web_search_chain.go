@@ -7,25 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// web_search_chain.go — per-tenant provider chain resolution.
+// web_search_chain.go — provider chain resolution.
 //
 // On every Execute() call, resolveChain() returns the ordered slice of
-// SearchProviders for the current tenant.  A 60-second TTL cache per
-// tenant UUID amortizes DB reads (≈1 round-trip/min/tenant on cache miss).
+// SearchProviders. A 60-second TTL cache amortizes DB reads
+// (≈1 round-trip/min on cache miss).
 //
 // Chain construction rules (buildChainFromStorage):
-//  1. Parse tenant settings from ctx (builtin_tool_tenant_configs.settings).
+//  1. Parse settings from ctx (builtin_tool_configs.settings).
 //  2. Use NormalizeWebSearchProviderOrder to determine iteration order.
 //  3. DDG is always appended last — force-enabled, no API key required.
-//  4. For other providers: skip if tenant explicitly disabled, or if no API
-//     key found in config_secrets for the current tenant.
+//  4. For other providers: skip if explicitly disabled, or if no API
+//     key found in config_secrets.
 //
-// Tenant settings schema (stored in builtin_tool_tenant_configs.settings):
+// Settings schema (stored in builtin_tool_configs.settings):
 //
 //	{
 //	  "provider_order": ["brave", "exa"],     // optional reorder
@@ -33,60 +31,48 @@ import (
 //	  "duckduckgo": { "enabled": true }
 //	}
 
-// tenantChainTTL is the cache TTL for per-tenant provider chains.
-const tenantChainTTL = 60 * time.Second
+// chainCacheTTL is the cache TTL for the provider chain.
+const chainCacheTTL = 60 * time.Second
 
-// tenantChainEntry is one cached chain record.
-type tenantChainEntry struct {
-	chain   []SearchProvider
-	expires time.Time
+// webSearchChainCache holds a single resolved provider chain with TTL.
+type webSearchChainCache struct {
+	mu       sync.Mutex
+	chain    []SearchProvider
+	hasEntry bool
+	expires  time.Time
+	now      func() time.Time // injected for testing; defaults to time.Now
 }
 
-// tenantChainCache is a simple RWMutex-guarded map from tenant UUID to
-// provider chain with TTL expiry.
-type tenantChainCache struct {
-	mu      sync.RWMutex
-	entries map[uuid.UUID]tenantChainEntry
-	now     func() time.Time // injected for testing; defaults to time.Now
+func newWebSearchChainCache() *webSearchChainCache {
+	return &webSearchChainCache{now: time.Now}
 }
 
-func newTenantChainCache() *tenantChainCache {
-	return &tenantChainCache{
-		entries: make(map[uuid.UUID]tenantChainEntry),
-		now:     time.Now, // default to real time
-	}
-}
-
-// Get returns the cached chain for tid if it exists and has not expired.
-func (c *tenantChainCache) Get(tid uuid.UUID) ([]SearchProvider, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	e, ok := c.entries[tid]
-	if !ok || c.now().After(e.expires) {
+// Get returns the cached chain if it exists and has not expired.
+func (c *webSearchChainCache) Get() ([]SearchProvider, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.hasEntry || c.now().After(c.expires) {
 		return nil, false
 	}
-	return e.chain, true
+	return c.chain, true
 }
 
-// Set stores the chain for tid with the configured TTL.
-func (c *tenantChainCache) Set(tid uuid.UUID, chain []SearchProvider) {
+// Set stores the chain with the configured TTL.
+func (c *webSearchChainCache) Set(chain []SearchProvider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[tid] = tenantChainEntry{chain: chain, expires: c.now().Add(tenantChainTTL)}
+	c.chain = chain
+	c.hasEntry = true
+	c.expires = c.now().Add(chainCacheTTL)
 }
 
-// Invalidate removes the cache entry for a single tenant.
-func (c *tenantChainCache) Invalidate(tid uuid.UUID) {
+// Invalidate drops the cached chain. Called on admin writes that may shift
+// provider availability (e.g. API-key rotation).
+func (c *webSearchChainCache) Invalidate() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.entries, tid)
-}
-
-// InvalidateAll drops all cached entries (used on master-admin write).
-func (c *tenantChainCache) InvalidateAll() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.entries = make(map[uuid.UUID]tenantChainEntry)
+	c.chain = nil
+	c.hasEntry = false
 }
 
 // WebSearchProviderOverride is the per-provider override envelope. Only
@@ -140,19 +126,19 @@ func (w *WebSearchChainOverride) UnmarshalJSON(data []byte) error {
 }
 
 // resolveChain returns the ordered provider slice.
-// It checks the TTL cache first; on miss it calls buildChainFromStorage.
+// It checks the TTL cache first; on miss it calls BuildChainFromStorage.
 func (t *WebSearchTool) resolveChain(ctx context.Context) []SearchProvider {
-	if chain, ok := t.chainCache.Get(store.MasterTenantID); ok {
+	if chain, ok := t.chainCache.Get(); ok {
 		return chain
 	}
 
 	chain := BuildChainFromStorage(ctx, t.secrets)
-	t.chainCache.Set(store.MasterTenantID, chain)
+	t.chainCache.Set(chain)
 	return chain
 }
 
 // BuildChainFromStorage constructs the provider chain for the current
-// request by combining tenant settings from ctx with API keys from secrets.
+// request by combining settings from ctx with API keys from secrets.
 // Exported for testing.
 func BuildChainFromStorage(ctx context.Context, secrets store.ConfigSecretsStore) []SearchProvider {
 	// Parse tenant override (may be nil/empty → all defaults).

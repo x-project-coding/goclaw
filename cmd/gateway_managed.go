@@ -490,10 +490,6 @@ func wireExtras(
 				return
 			}
 			stores.Skills.BumpVersion()
-			if payload.TenantID != uuid.Nil {
-				agentRouter.InvalidateTenant(payload.TenantID)
-				return
-			}
 			agentRouter.InvalidateAll()
 		})
 	}
@@ -565,8 +561,7 @@ func wireExtras(
 	}
 
 	// Builtin tools cache: re-apply disables on settings/enabled changes.
-	// Tenant-scoped events only invalidate that tenant's cached agents — the
-	// global registry disables list is master-only and unaffected.
+	// Re-applies the global registry disables list and clears all cached agents.
 	if stores.BuiltinTools != nil {
 		msgBus.Subscribe(bus.TopicCacheBuiltinTools, func(event bus.Event) {
 			if event.Name != protocol.EventCacheInvalidate {
@@ -574,10 +569,6 @@ func wireExtras(
 			}
 			payload, ok := event.Payload.(bus.CacheInvalidatePayload)
 			if !ok || payload.Kind != bus.CacheKindBuiltinTools {
-				return
-			}
-			if payload.TenantID != uuid.Nil {
-				agentRouter.InvalidateTenant(payload.TenantID)
 				return
 			}
 			applyBuiltinToolDisables(context.Background(), stores.BuiltinTools, toolsReg)

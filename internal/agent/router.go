@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // ResolverFunc is called when an agent isn't found in the cache.
@@ -82,19 +80,15 @@ func (r *Router) Register(ag Agent) {
 
 // Get returns an agent by ID. Lazy-creates from DB via resolver if needed.
 // Cached entries expire after TTL as a safety net for multi-instance deployments.
-// Cache key includes tenant so the same agent_key in different tenants resolves independently.
 //
 // Canonicalization: after a successful resolver call, the cache entry is stored
-// under `tenantID:agentKey` (canonical) regardless of whether the caller passed
-// a UUID or an agent_key. Callers passing the UUID form incur a fresh resolver
-// call on every invocation because the raw-UUID key never lands in the map.
-// Production callers pass agent_key today (see cmd/gateway_managed.go and
-// heartbeat/chat handlers), so the hot path is unaffected.
+// under the agent's canonical key (`ag.ID()` returns agent_key) regardless of
+// whether the caller passed a UUID or an agent_key. Callers passing the UUID
+// form incur a fresh resolver call on every invocation because the raw-UUID
+// input never lands in the map.
 func (r *Router) Get(ctx context.Context, agentID string) (Agent, error) {
-	cacheKey := agentCacheKey(ctx, agentID)
-
 	r.mu.RLock()
-	entry, ok := r.agents[cacheKey]
+	entry, ok := r.agents[agentID]
 	resolver := r.resolver
 	r.mu.RUnlock()
 
@@ -105,7 +99,7 @@ func (r *Router) Get(ctx context.Context, agentID string) (Agent, error) {
 	// TTL expired → remove stale entry so resolver re-creates
 	if ok {
 		r.mu.Lock()
-		delete(r.agents, cacheKey)
+		delete(r.agents, agentID)
 		r.mu.Unlock()
 	}
 
@@ -115,15 +109,9 @@ func (r *Router) Get(ctx context.Context, agentID string) (Agent, error) {
 		if err != nil {
 			return nil, err
 		}
-		// Canonicalize: always cache under `tenantID:agent_key` (ag.ID() is agent_key),
-		// never under a raw UUID input. This prevents fragmentation where two cache
-		// entries exist for the same logical agent.
-		canonicalKey := agentCacheKey(ctx, ag.ID())
+		// Canonicalize: always cache under the agent's own ID (agent_key).
+		canonicalKey := ag.ID()
 		r.mu.Lock()
-		// Double-check: another goroutine might have created it under the canonical key.
-		// Re-check TTL so a UUID-form caller cannot receive a stale canonical entry
-		// indefinitely — this branch is the only eviction path for entries the caller
-		// never wrote under the raw input key.
 		if existing, ok := r.agents[canonicalKey]; ok {
 			if r.ttl == 0 || time.Since(existing.cachedAt) < r.ttl {
 				r.mu.Unlock()
@@ -139,42 +127,14 @@ func (r *Router) Get(ctx context.Context, agentID string) (Agent, error) {
 	return nil, fmt.Errorf("agent not found: %s", agentID)
 }
 
-// agentCacheKey returns a cache key for the agent router.
-func agentCacheKey(_ context.Context, agentID string) string {
-	return agentID
-}
-
-// matchAgentCacheKey reports whether a cache key's final segment equals agentKey.
-// Cache keys are either bare ("agentKey") or tenant-scoped ("tenantID:agentKey").
-// Exact-segment match — not suffix match — prevents substring collisions like
-// "tenantX:sub-foo" being wiped when invalidating "foo". Rejects empty agentKey
-// to guard against accidental wildcard wipes.
-func matchAgentCacheKey(cacheKey, agentKey string) bool {
-	if agentKey == "" {
-		return false
-	}
-	if cacheKey == agentKey {
-		return true
-	}
-	// Find the last ":" segment boundary — tenant-scoped keys use "tenant:key".
-	for i := len(cacheKey) - 1; i >= 0; i-- {
-		if cacheKey[i] == ':' {
-			return cacheKey[i+1:] == agentKey
-		}
-	}
-	return false
-}
-
-// Remove removes an agent from the router.
-// Matches both plain and tenant-scoped keys via exact-segment match.
+// Remove removes an agent from the router by agent_key.
 func (r *Router) Remove(agentID string) {
+	if agentID == "" {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for key := range r.agents {
-		if matchAgentCacheKey(key, agentID) {
-			delete(r.agents, key)
-		}
-	}
+	delete(r.agents, agentID)
 }
 
 // List returns all registered agent IDs.
@@ -210,15 +170,11 @@ func (r *Router) ListInfo() []AgentInfo {
 	return infos
 }
 
-// IsRunning checks if a specific agent is currently running (cached in
-// router). Ctx carries tenant scope — without it, a bare lookup returns false
-// in tenant-scoped deployments because cache keys are stored as
-// `tenantID:agentKey` after resolution.
+// IsRunning checks if a specific agent is currently running (cached in router).
 func (r *Router) IsRunning(ctx context.Context, agentID string) bool {
-	cacheKey := agentCacheKey(ctx, agentID)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if entry, ok := r.agents[cacheKey]; ok {
+	if entry, ok := r.agents[agentID]; ok {
 		return entry.agent.IsRunning()
 	}
 	return false
@@ -229,10 +185,9 @@ func (r *Router) IsRunning(ctx context.Context, agentID string) bool {
 // Returns (nil, false) on miss or when the entry has exceeded TTL.
 // Does NOT trigger resolver fallback — call Router.Get() for that path.
 func (r *Router) GetCached(ctx context.Context, agentID string) (Agent, bool) {
-	cacheKey := agentCacheKey(ctx, agentID)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	entry, ok := r.agents[cacheKey]
+	entry, ok := r.agents[agentID]
 	if !ok {
 		return nil, false
 	}
@@ -254,9 +209,8 @@ type ActiveRun struct {
 	StartedAt  time.Time
 	InjectCh   chan InjectedMessage // buffered channel for mid-run user message injection
 	Done       chan struct{}        // closed when goroutine actually exits (via UnregisterRun)
-	State      atomic.Int32        // 0=running, 1=aborting, 2=done
-	TraceID    uuid.UUID           // set after trace creation via SetRunTraceID
-	TenantID   uuid.UUID           // captured at RegisterRun for forceMarkTraceAborted
+	State      atomic.Int32         // 0=running, 1=aborting, 2=done
+	TraceID    uuid.UUID            // set after trace creation via SetRunTraceID
 }
 
 // AbortResult describes the outcome of a single AbortRun call.
@@ -294,7 +248,6 @@ func (r *Router) RegisterRun(ctx context.Context, runID, sessionKey, agentID str
 		StartedAt:  time.Now(),
 		InjectCh:   injectCh,
 		Done:       make(chan struct{}),
-		TenantID:   store.MasterTenantID,
 	})
 	r.sessionRuns.Store(sessionKey, runID)
 	return injectCh

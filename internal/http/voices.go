@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/minimax"
@@ -45,17 +43,16 @@ func (h *VoicesHandler) RegisterRoutes(mux *http.ServeMux) {
 // handleList serves GET /v1/voices — returns cached list or fetches live.
 func (h *VoicesHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := store.MasterTenantID
 	locale := store.LocaleFromContext(ctx)
 
-	if voices, ok := h.cache.Get(tenantID); ok {
+	if voices, ok := h.cache.Get(); ok {
 		writeJSON(w, http.StatusOK, map[string]any{"voices": voices})
 		return
 	}
 
-	p, err := h.resolveProvider(r, tenantID)
+	p, err := h.resolveProvider(r)
 	if err != nil {
-		slog.Warn("voices: no provider configured", "tenant_id", tenantID, "error", err)
+		slog.Warn("voices: no provider configured", "error", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{
 			"error": i18n.T(locale, i18n.MsgVoicesListFailed, err.Error()),
 		})
@@ -64,29 +61,28 @@ func (h *VoicesHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 	voices, err := p.ListVoices(ctx)
 	if err != nil {
-		slog.Warn("voices: list failed", "tenant_id", tenantID, "error", err)
+		slog.Warn("voices: list failed", "error", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error": i18n.T(locale, i18n.MsgTtsMiniMaxVoicesFailed, err.Error()),
 		})
 		return
 	}
 
-	h.cache.Set(tenantID, voices)
+	h.cache.Set(voices)
 	writeJSON(w, http.StatusOK, map[string]any{"voices": voices})
 }
 
 // handleRefresh serves POST /v1/voices/refresh — admin-only, forces a live
-// refetch by invalidating the tenant's cache entry.
+// refetch by invalidating the cache entry.
 func (h *VoicesHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := store.MasterTenantID
 	locale := store.LocaleFromContext(ctx)
 
-	h.cache.Invalidate(tenantID)
+	h.cache.Invalidate()
 
-	p, err := h.resolveProvider(r, tenantID)
+	p, err := h.resolveProvider(r)
 	if err != nil {
-		slog.Warn("voices: no provider on refresh", "tenant_id", tenantID, "error", err)
+		slog.Warn("voices: no provider on refresh", "error", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{
 			"error": i18n.T(locale, i18n.MsgVoicesListFailed, err.Error()),
 		})
@@ -95,20 +91,20 @@ func (h *VoicesHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 	voices, err := p.ListVoices(ctx)
 	if err != nil {
-		slog.Warn("voices: refresh fetch failed", "tenant_id", tenantID, "error", err)
+		slog.Warn("voices: refresh fetch failed", "error", err)
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error": i18n.T(locale, i18n.MsgVoicesListFailed, err.Error()),
 		})
 		return
 	}
 
-	h.cache.Set(tenantID, voices)
+	h.cache.Set(voices)
 	writeJSON(w, http.StatusOK, map[string]any{"voices": voices})
 }
 
 // resolveProvider returns the VoiceListProvider for this request.
 // Priority: injected provider (test/pre-built) > query-param ?provider > secret store lookup (elevenlabs default).
-func (h *VoicesHandler) resolveProvider(r *http.Request, tenantID uuid.UUID) (audio.VoiceListProvider, error) {
+func (h *VoicesHandler) resolveProvider(r *http.Request) (audio.VoiceListProvider, error) {
 	if h.provider != nil {
 		return h.provider, nil
 	}
@@ -125,15 +121,15 @@ func (h *VoicesHandler) resolveProvider(r *http.Request, tenantID uuid.UUID) (au
 	case "minimax":
 		apiKey, err := h.secretStore.Get(r.Context(), "tts.minimax.api_key")
 		if err != nil || apiKey == "" {
-			return nil, fmt.Errorf("MiniMax API key not found for tenant %s", tenantID)
+			return nil, fmt.Errorf("MiniMax API key not found")
 		}
 		apiBase, _ := h.secretStore.Get(r.Context(), "tts.minimax.api_base")
-		return minimax.NewVoiceLister(apiKey, apiBase, 15000, tenantID), nil
+		return minimax.NewVoiceLister(apiKey, apiBase, 15000, store.MasterTenantID), nil
 
 	case "elevenlabs":
 		apiKey, err := h.secretStore.Get(r.Context(), "tts.elevenlabs.api_key")
 		if err != nil || apiKey == "" {
-			return nil, fmt.Errorf("ElevenLabs API key not found for tenant %s", tenantID)
+			return nil, fmt.Errorf("ElevenLabs API key not found")
 		}
 		return elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: apiKey}), nil
 

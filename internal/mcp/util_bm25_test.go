@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/google/uuid"
 )
 
 // --- mapToEnvSlice ---
@@ -353,18 +352,9 @@ func TestTokenizeMCP_BasicTokenization(t *testing.T) {
 
 // --- Pool key helpers ---
 
-func TestPoolKey(t *testing.T) {
-	id := uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	key := poolKey(id, "my-server")
-	if key != "00000000-0000-0000-0000-000000000001/my-server" {
-		t.Errorf("poolKey: got %q", key)
-	}
-}
-
 func TestUserPoolKey(t *testing.T) {
-	id := uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	key := UserPoolKey(id, "server", "user123")
-	if key != "00000000-0000-0000-0000-000000000001/server/user:user123" {
+	key := UserPoolKey("server", "user123")
+	if key != "server/user:user123" {
 		t.Errorf("UserPoolKey: got %q", key)
 	}
 }

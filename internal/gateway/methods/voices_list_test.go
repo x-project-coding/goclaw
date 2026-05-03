@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
@@ -16,15 +15,13 @@ import (
 // TestVoicesMethods_CacheHit verifies a warm cache entry is returned without
 // calling the upstream provider.
 func TestVoicesMethods_CacheHit(t *testing.T) {
-	cache := audio.NewVoiceCache(time.Hour, 100)
-	tid := uuid.New()
+	cache := audio.NewVoiceCache(time.Hour)
 	voices := []audio.Voice{{ID: "v1", Name: "Bella"}}
-	cache.Set(tid, voices)
+	cache.Set(voices)
 
-	ctx := t.Context()
 	m := methods.NewVoicesMethods(cache, nil)
 
-	got, err := m.FetchVoices(ctx, tid)
+	got, err := m.FetchVoices(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -36,10 +33,10 @@ func TestVoicesMethods_CacheHit(t *testing.T) {
 // TestVoicesMethods_NoProvider verifies an error is returned when the cache
 // misses and no provider is configured.
 func TestVoicesMethods_NoProvider(t *testing.T) {
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	m := methods.NewVoicesMethods(cache, nil)
 
-	_, err := m.FetchVoices(t.Context(), uuid.New())
+	_, err := m.FetchVoices(t.Context())
 	if err == nil {
 		t.Fatal("expected error when no provider configured")
 	}
@@ -58,12 +55,11 @@ func TestVoicesMethods_LiveFetch(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	cache := audio.NewVoiceCache(time.Hour, 100)
+	cache := audio.NewVoiceCache(time.Hour)
 	p := elevenlabs.NewTTSProvider(elevenlabs.Config{APIKey: "k", BaseURL: upstream.URL})
 	m := methods.NewVoicesMethods(cache, p)
 
-	tid := uuid.New()
-	got, err := m.FetchVoices(t.Context(), tid)
+	got, err := m.FetchVoices(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -71,8 +67,7 @@ func TestVoicesMethods_LiveFetch(t *testing.T) {
 		t.Errorf("unexpected voices: %+v", got)
 	}
 
-	// Result should be cached now.
-	cached, ok := cache.Get(tid)
+	cached, ok := cache.Get()
 	if !ok || len(cached) != 1 {
 		t.Error("expected live fetch result to be cached")
 	}

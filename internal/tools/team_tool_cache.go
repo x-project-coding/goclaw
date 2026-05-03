@@ -104,17 +104,6 @@ func (m *TeamToolManager) InvalidateAgentCache() {
 	m.agentKeyCache.Range(func(k, _ any) bool { m.agentKeyCache.Delete(k); return true })
 }
 
-// agentKeyCacheKey builds a tenant-scoped cache key for agentKeyCache.
-// Agent keys (e.g. "my-agent") are unique per-tenant, not globally,
-// so the cache key must include tenant to prevent cross-tenant pollution.
-func agentKeyCacheKey(ctx context.Context, key string) string {
-	tid := store.MasterTenantID
-	if tid == uuid.Nil {
-		return "0:" + key
-	}
-	return tid.String() + ":" + key
-}
-
 // cachedGetAgentByID returns agent data from cache or DB with TTL.
 func (m *TeamToolManager) cachedGetAgentByID(ctx context.Context, id uuid.UUID) (*store.AgentData, error) {
 	if entry, ok := m.agentCache.Load(id); ok {
@@ -131,19 +120,18 @@ func (m *TeamToolManager) cachedGetAgentByID(ctx context.Context, id uuid.UUID) 
 	now := time.Now()
 	e := &agentCacheEntry{agent: ag, cachedAt: now}
 	m.agentCache.Store(id, e)
-	m.agentKeyCache.Store(agentKeyCacheKey(ctx, ag.AgentKey), e)
+	m.agentKeyCache.Store(ag.AgentKey, e)
 	return ag, nil
 }
 
 // cachedGetAgentByKey returns agent data from cache or DB with TTL.
 func (m *TeamToolManager) cachedGetAgentByKey(ctx context.Context, key string) (*store.AgentData, error) {
-	ck := agentKeyCacheKey(ctx, key)
-	if entry, ok := m.agentKeyCache.Load(ck); ok {
+	if entry, ok := m.agentKeyCache.Load(key); ok {
 		ce := entry.(*agentCacheEntry)
 		if time.Since(ce.cachedAt) < teamCacheTTL {
 			return ce.agent, nil
 		}
-		m.agentKeyCache.Delete(ck)
+		m.agentKeyCache.Delete(key)
 	}
 	ag, err := m.agentStore.GetByKey(ctx, key)
 	if err != nil {
@@ -151,7 +139,7 @@ func (m *TeamToolManager) cachedGetAgentByKey(ctx context.Context, key string) (
 	}
 	now := time.Now()
 	e := &agentCacheEntry{agent: ag, cachedAt: now}
-	m.agentKeyCache.Store(ck, e)
+	m.agentKeyCache.Store(key, e)
 	m.agentCache.Store(ag.ID, e)
 	return ag, nil
 }
@@ -170,7 +158,6 @@ func (m *TeamToolManager) cachedListMembers(ctx context.Context, teamID uuid.UUI
 // preWarmAgentKeyCache batch-fetches agents by key and populates the cache.
 // Reduces N+1 queries when rendering task lists with agent display names.
 func (m *TeamToolManager) preWarmAgentKeyCache(ctx context.Context, keys []string) {
-	// Deduplicate and filter already-cached keys.
 	unique := make(map[string]bool)
 	var missing []string
 	for _, k := range keys {
@@ -178,11 +165,10 @@ func (m *TeamToolManager) preWarmAgentKeyCache(ctx context.Context, keys []strin
 			continue
 		}
 		unique[k] = true
-		ck := agentKeyCacheKey(ctx, k)
-		if entry, ok := m.agentKeyCache.Load(ck); ok {
+		if entry, ok := m.agentKeyCache.Load(k); ok {
 			ce := entry.(*agentCacheEntry)
 			if time.Since(ce.cachedAt) < teamCacheTTL {
-				continue // still valid
+				continue
 			}
 		}
 		missing = append(missing, k)
@@ -200,8 +186,7 @@ func (m *TeamToolManager) preWarmAgentKeyCache(ctx context.Context, keys []strin
 	for i := range agents {
 		ag := &agents[i]
 		e := &agentCacheEntry{agent: ag, cachedAt: now}
-		ck := agentKeyCacheKey(ctx, ag.AgentKey)
-		m.agentKeyCache.Store(ck, e)
+		m.agentKeyCache.Store(ag.AgentKey, e)
 		m.agentCache.Store(ag.ID, e)
 	}
 }
@@ -239,8 +224,7 @@ func (m *TeamToolManager) preWarmAgentIDCache(ctx context.Context, ids []uuid.UU
 		ag := &agents[i]
 		e := &agentCacheEntry{agent: ag, cachedAt: now}
 		m.agentCache.Store(ag.ID, e)
-		ck := agentKeyCacheKey(ctx, ag.AgentKey)
-		m.agentKeyCache.Store(ck, e)
+		m.agentKeyCache.Store(ag.AgentKey, e)
 	}
 }
 
