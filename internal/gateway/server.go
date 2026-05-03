@@ -313,10 +313,14 @@ func tokenAuthMiddleware(token string, next http.Handler) http.Handler {
 func (s *Server) Start(ctx context.Context) error {
 	mux := s.BuildMux()
 
+	// Wrap with bootstrap-required gate. When users count is 0 at startup,
+	// /v1/bootstrap/* + /healthz + /metrics + /v1/version pass through; everything
+	// else returns 503. Successful POST /v1/bootstrap/init flips the flag.
+	var handler http.Handler = httpapi.BootstrapRequiredMiddleware(mux)
+
 	// Wrap with CORS for desktop dev mode (Wails serves frontend on different port).
-	var handler http.Handler = mux
 	if os.Getenv("GOCLAW_DESKTOP") == "1" {
-		handler = desktopCORS(mux)
+		handler = desktopCORS(handler)
 	}
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Gateway.Host, s.cfg.Gateway.Port)
@@ -559,6 +563,12 @@ func (s *Server) SetAgentStore(as store.AgentStore) { s.agentStore = as }
 
 // SetMessageBus sets the message bus for MCP bridge media delivery.
 func (s *Server) SetMessageBus(mb *bus.MessageBus) { s.msgBus = mb }
+
+// SetBootstrapHandler registers /v1/bootstrap/{status,init} on the mux.
+func (s *Server) SetBootstrapHandler(h *httpapi.BootstrapHandler) { s.handlers = append(s.handlers, h) }
+
+// SetAuthHandler registers /v1/auth/{login,refresh,logout,me} on the mux.
+func (s *Server) SetAuthHandler(h *httpapi.AuthHandler) { s.handlers = append(s.handlers, h) }
 
 // SetVersion sets the server version for health responses.
 func (s *Server) SetVersion(v string) { s.version = v }

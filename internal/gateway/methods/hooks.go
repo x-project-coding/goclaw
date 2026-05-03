@@ -74,7 +74,7 @@ func (m *HookMethods) requireViewer(next gateway.MethodHandler) gateway.MethodHa
 	return m.requireMinRole(permissions.RoleViewer, next)
 }
 func (m *HookMethods) requireOperator(next gateway.MethodHandler) gateway.MethodHandler {
-	return m.requireMinRole(permissions.RoleOperator, next)
+	return m.requireMinRole(permissions.RoleMember, next)
 }
 func (m *HookMethods) requireAdmin(next gateway.MethodHandler) gateway.MethodHandler {
 	return m.requireMinRole(permissions.RoleAdmin, next)

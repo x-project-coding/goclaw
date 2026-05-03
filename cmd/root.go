@@ -47,6 +47,7 @@ func init() {
 	rootCmd.AddCommand(restoreCmd())
 	rootCmd.AddCommand(authCmd())
 	rootCmd.AddCommand(setupCmd())
+	rootCmd.AddCommand(resetPasswordCmd())
 }
 
 func versionCmd() *cobra.Command {

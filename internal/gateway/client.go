@@ -217,7 +217,7 @@ func (c *Client) TenantID() uuid.UUID { return c.tenantID }
 func (c *Client) TenantSlug() string { return c.tenantSlug }
 
 // IsOwner returns true if the client has the owner role (tenant management + full access).
-func (c *Client) IsOwner() bool { return c.role == permissions.RoleOwner }
+func (c *Client) IsOwner() bool { return c.role == permissions.RoleRoot }
 
 // HasScope reports whether the client has the given scope.
 func (c *Client) HasScope(scope permissions.Scope) bool {

@@ -201,7 +201,7 @@ func (m *APIKeysMethods) handleRevoke(ctx context.Context, client *gateway.Clien
 	// caller is a system owner) before revoking. Personal-key path skips
 	// this because the ownerID filter already scopes to the caller.
 	//
-	// NOTE: Use client.IsOwner() — NOT store.IsOwnerRole(ctx). The WS router
+	// NOTE: Use client.IsOwner() — NOT store.IsRootRole(ctx). The WS router
 	// does not inject role into ctx (see router.go handleRequest), so the
 	// ctx-based helper is dead here. Client carries the authoritative role
 	// from connect.

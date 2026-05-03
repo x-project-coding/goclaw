@@ -53,12 +53,12 @@ func (h *TTSHandler) UpdateManager(mgr *audio.Manager) {
 	h.manager = mgr
 }
 
-// RegisterRoutes wires TTS endpoints onto mux with RoleOperator auth.
+// RegisterRoutes wires TTS endpoints onto mux with RoleMember auth.
 func (h *TTSHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/tts/synthesize",
-		requireAuth(permissions.RoleOperator, h.handleSynthesize))
+		requireAuth(permissions.RoleMember, h.handleSynthesize))
 	mux.HandleFunc("POST /v1/tts/test-connection",
-		requireAuth(permissions.RoleOperator, h.handleTestConnection))
+		requireAuth(permissions.RoleMember, h.handleTestConnection))
 	h.registerCapabilitiesRoute(mux)
 }
 

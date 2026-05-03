@@ -66,7 +66,7 @@ func (h *VaultHandler) doSearch(w http.ResponseWriter, r *http.Request, agentID 
 			searchOpts.ChatID = &cid
 			searchOpts.TeamIsolated = true
 		}
-	} else if !store.IsOwnerRole(r.Context()) {
+	} else if !store.IsRootRole(r.Context()) {
 		if ids := h.userAccessibleTeamIDs(r.Context()); len(ids) > 0 {
 			searchOpts.TeamIDs = ids
 		} else {
@@ -114,7 +114,7 @@ func (h *VaultHandler) handleGetLinks(w http.ResponseWriter, r *http.Request) {
 
 	// Filter backlinks by team boundary — derive team context from the target document
 	// itself (not a query param) so clients don't need to supply it correctly.
-	isOwner := store.IsOwnerRole(r.Context())
+	isOwner := store.IsRootRole(r.Context())
 	if !isOwner {
 		targetDoc, _ := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
 		var currentTeamID string

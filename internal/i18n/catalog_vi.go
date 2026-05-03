@@ -226,5 +226,17 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Đã forward sang %s theo yêu cầu: %q",
+
+		// Auth + Bootstrap (Phase 06)
+		MsgBootstrapRequired:    "gateway chưa được khởi tạo — gọi POST /v1/bootstrap/init trước",
+		MsgBootstrapAlreadyDone: "gateway đã được khởi tạo trước đó",
+		MsgInvalidEmail:         "email không hợp lệ",
+		MsgWeakPassword:         "mật khẩu phải có ít nhất 12 ký tự bao gồm chữ cái, số và ký tự đặc biệt",
+		MsgInvalidCredentials:   "email hoặc mật khẩu không đúng",
+		MsgRefreshTokenInvalid:  "refresh token không hợp lệ",
+		MsgRefreshTokenExpired:  "refresh token đã hết hạn",
+		MsgRefreshTokenRevoked:  "refresh token đã bị thu hồi",
+		MsgAccessTokenExpired:   "access token đã hết hạn",
+		MsgAccessTokenInvalid:   "access token không hợp lệ",
 	})
 }

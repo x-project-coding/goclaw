@@ -20,7 +20,7 @@ import (
 //
 // The HTTP fix in internal/http/api_keys.go has its own test file, but the
 // original Phase 0b WS fix (internal/gateway/methods/api_keys.go) had zero
-// test coverage — and a Major bug slipped past: store.IsOwnerRole(ctx)
+// test coverage — and a Major bug slipped past: store.IsRootRole(ctx)
 // always returns false in WS handlers because the router does not inject
 // role into ctx. The bug was caught by code review, not tests. These tests
 // lock the fix in place and cover the four critical paths.
@@ -161,7 +161,7 @@ func TestWSRevoke_TenantAdmin_SystemKey_Denied(t *testing.T) {
 }
 
 // TestWSRevoke_SystemOwner_SystemKey_Allowed is the regression caught by
-// code review: the original Phase 0b fix used store.IsOwnerRole(ctx),
+// code review: the original Phase 0b fix used store.IsRootRole(ctx),
 // which returns false in WS because the router does not inject role into
 // ctx. This test exercises the now-correct client.IsOwner() path.
 func TestWSRevoke_SystemOwner_SystemKey_Allowed(t *testing.T) {
@@ -177,7 +177,7 @@ func TestWSRevoke_SystemOwner_SystemKey_Allowed(t *testing.T) {
 	m := &APIKeysMethods{apiKeys: stub}
 	// Owner client — narrowed-to-master tenant scope is the default for
 	// owner logins per router.applyTenantScope.
-	client := gateway.NewTestClient(permissions.RoleOwner, store.MasterTenantID, "owner-1")
+	client := gateway.NewTestClient(permissions.RoleRoot, store.MasterTenantID, "owner-1")
 
 	m.handleRevoke(wsCallCtx(client), client, buildRevokeRequest(t, keyID))
 
@@ -226,7 +226,7 @@ func TestWSRevoke_SystemOwner_CrossTenantKey_Allowed(t *testing.T) {
 	})
 
 	m := &APIKeysMethods{apiKeys: stub}
-	client := gateway.NewTestClient(permissions.RoleOwner, store.MasterTenantID, "owner-1")
+	client := gateway.NewTestClient(permissions.RoleRoot, store.MasterTenantID, "owner-1")
 
 	m.handleRevoke(wsCallCtx(client), client, buildRevokeRequest(t, keyID))
 

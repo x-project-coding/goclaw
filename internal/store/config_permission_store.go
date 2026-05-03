@@ -101,7 +101,7 @@ func CheckFileWriterPermission(ctx context.Context, permStore ConfigPermissionSt
 // legitimate dashboard-dispatched work (#915).
 func isAdminRole(ctx context.Context) bool {
 	switch RoleFromContext(ctx) {
-	case "admin", "operator", RoleOwner:
+	case "admin", "operator", RoleRoot:
 		return true
 	}
 	return false

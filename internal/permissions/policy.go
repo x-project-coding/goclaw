@@ -23,10 +23,10 @@ import (
 type Role string
 
 const (
-	RoleOwner    Role = "owner"    // Tenant management + full access (superset of admin)
-	RoleAdmin    Role = "admin"    // Full access to all methods
-	RoleOperator Role = "operator" // Read + write access (no admin operations)
-	RoleViewer   Role = "viewer"   // Read-only access
+	RoleRoot   Role = "root"   // Bootstrap-created super-admin; superset of admin
+	RoleAdmin  Role = "admin"  // Full access to all methods
+	RoleMember Role = "member" // Read + write access (no admin operations)
+	RoleViewer Role = "viewer" // Read-only access
 
 	// RoleNone is a sentinel returned by MethodRole for methods that have no
 	// explicit classification. The router treats it as deny-for-everyone so
@@ -132,7 +132,7 @@ func RoleFromScopes(scopes []Scope) Role {
 	if slices.Contains(scopes, ScopeWrite) ||
 		slices.Contains(scopes, ScopeApprovals) ||
 		slices.Contains(scopes, ScopePairing) {
-		return RoleOperator
+		return RoleMember
 	}
 	if slices.Contains(scopes, ScopeRead) {
 		return RoleViewer
@@ -160,7 +160,7 @@ func MethodRole(method string) Role {
 
 	// Write methods (require operator or above)
 	if isWriteMethod(method) {
-		return RoleOperator
+		return RoleMember
 	}
 
 	// Read-only methods (viewer and above)
@@ -426,11 +426,11 @@ func HasMinRole(role, required Role) bool {
 
 func roleLevel(r Role) int {
 	switch r {
-	case RoleOwner:
+	case RoleRoot:
 		return 4
 	case RoleAdmin:
 		return 3
-	case RoleOperator:
+	case RoleMember:
 		return 2
 	case RoleViewer:
 		return 1

@@ -381,7 +381,7 @@ func TestPGHookStore_BuiltinReadOnly(t *testing.T) {
 	s := NewPGHookStore(db)
 
 	// Seed a builtin row via WithSeedBypass (the only authorized path).
-	seedCtx := hooks.WithSeedBypass(store.WithRole(masterCtx(), store.RoleOwner))
+	seedCtx := hooks.WithSeedBypass(store.WithRole(masterCtx(), store.RoleRoot))
 	cfg := minimalHook(hooks.SentinelTenantID, hooks.EventUserPromptSubmit)
 	cfg.Source = hooks.SourceBuiltin
 	cfg.Scope = hooks.ScopeGlobal

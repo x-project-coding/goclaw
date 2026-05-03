@@ -66,5 +66,5 @@ func (h *TTSHandler) handleCapabilities(w http.ResponseWriter, r *http.Request) 
 // Called from TTSHandler.RegisterRoutes to keep all TTS routes co-located.
 func (h *TTSHandler) registerCapabilitiesRoute(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/tts/capabilities",
-		requireAuth(permissions.RoleOperator, h.handleCapabilities))
+		requireAuth(permissions.RoleMember, h.handleCapabilities))
 }

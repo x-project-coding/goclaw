@@ -30,7 +30,7 @@ func TestPermission_AdminOnlyRejectsOperator(t *testing.T) {
 	for _, method := range adminMethods {
 		t.Run(method, func(t *testing.T) {
 			// INVARIANT: Operator MUST NOT access admin methods
-			if pe.CanAccess(permissions.RoleOperator, method) {
+			if pe.CanAccess(permissions.RoleMember, method) {
 				t.Errorf("INVARIANT VIOLATION: Operator can access admin method %s", method)
 			}
 
@@ -43,7 +43,7 @@ func TestPermission_AdminOnlyRejectsOperator(t *testing.T) {
 			if !pe.CanAccess(permissions.RoleAdmin, method) {
 				t.Errorf("Admin should access %s", method)
 			}
-			if !pe.CanAccess(permissions.RoleOwner, method) {
+			if !pe.CanAccess(permissions.RoleRoot, method) {
 				t.Errorf("Owner should access %s", method)
 			}
 		})
@@ -72,7 +72,7 @@ func TestPermission_WriteRejectsViewer(t *testing.T) {
 			}
 
 			// Operator, Admin, and Owner should have access
-			if !pe.CanAccess(permissions.RoleOperator, method) {
+			if !pe.CanAccess(permissions.RoleMember, method) {
 				t.Errorf("Operator should access %s", method)
 			}
 		})
@@ -99,7 +99,7 @@ func TestPermission_OwnerSupersetOfAdmin(t *testing.T) {
 	for _, method := range allMethods {
 		t.Run(method, func(t *testing.T) {
 			adminCan := pe.CanAccess(permissions.RoleAdmin, method)
-			ownerCan := pe.CanAccess(permissions.RoleOwner, method)
+			ownerCan := pe.CanAccess(permissions.RoleRoot, method)
 
 			// INVARIANT: If Admin can access, Owner MUST be able to access
 			if adminCan && !ownerCan {
@@ -122,9 +122,9 @@ func TestPermission_RoleHierarchy(t *testing.T) {
 		lower    permissions.Role
 		required permissions.Role
 	}{
-		{"owner_beats_admin", permissions.RoleOwner, permissions.RoleAdmin, permissions.RoleAdmin},
-		{"admin_beats_operator", permissions.RoleAdmin, permissions.RoleOperator, permissions.RoleAdmin},
-		{"operator_beats_viewer", permissions.RoleOperator, permissions.RoleViewer, permissions.RoleOperator},
+		{"owner_beats_admin", permissions.RoleRoot, permissions.RoleAdmin, permissions.RoleAdmin},
+		{"admin_beats_operator", permissions.RoleAdmin, permissions.RoleMember, permissions.RoleAdmin},
+		{"operator_beats_viewer", permissions.RoleMember, permissions.RoleViewer, permissions.RoleMember},
 	}
 
 	for _, tt := range tests {
@@ -149,7 +149,7 @@ func TestPermission_ScopesToRoleMapping(t *testing.T) {
 		expected permissions.Role
 	}{
 		{"admin_scope_is_admin", []permissions.Scope{permissions.ScopeAdmin}, permissions.RoleAdmin},
-		{"write_scope_is_operator", []permissions.Scope{permissions.ScopeWrite}, permissions.RoleOperator},
+		{"write_scope_is_operator", []permissions.Scope{permissions.ScopeWrite}, permissions.RoleMember},
 		{"read_scope_is_viewer", []permissions.Scope{permissions.ScopeRead}, permissions.RoleViewer},
 		{"empty_scope_is_viewer", []permissions.Scope{}, permissions.RoleViewer},
 	}

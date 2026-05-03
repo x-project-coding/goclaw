@@ -226,5 +226,17 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
+
+		// Auth + Bootstrap (Phase 06)
+		MsgBootstrapRequired:    "网关尚未初始化 — 请先调用 POST /v1/bootstrap/init",
+		MsgBootstrapAlreadyDone: "网关已完成初始化",
+		MsgInvalidEmail:         "邮箱地址无效",
+		MsgWeakPassword:         "密码至少 12 位且需包含字母、数字和特殊符号",
+		MsgInvalidCredentials:   "邮箱或密码错误",
+		MsgRefreshTokenInvalid:  "刷新令牌无效",
+		MsgRefreshTokenExpired:  "刷新令牌已过期",
+		MsgRefreshTokenRevoked:  "刷新令牌已被吊销",
+		MsgAccessTokenExpired:   "访问令牌已过期",
+		MsgAccessTokenInvalid:   "访问令牌无效",
 	})
 }

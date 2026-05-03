@@ -55,8 +55,8 @@ func TestCapabilitiesHandler_RequiresAuth(t *testing.T) {
 	}
 }
 
-// TestCapabilitiesHandler_RoleOperator verifies viewer gets 403, operator gets 200.
-func TestCapabilitiesHandler_RoleOperator(t *testing.T) {
+// TestCapabilitiesHandler_RoleMember verifies viewer gets 403, operator gets 200.
+func TestCapabilitiesHandler_RoleMember(t *testing.T) {
 	setupTestToken(t, "caps-test-token")
 
 	viewerRaw := "viewer-caps-key"

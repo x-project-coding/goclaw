@@ -334,9 +334,9 @@ func LocaleFromContext(ctx context.Context) string {
 	return "en"
 }
 
-// IsOwnerRole returns true if the caller has the "owner" role.
-func IsOwnerRole(ctx context.Context) bool {
-	return RoleFromContext(ctx) == string(RoleOwner)
+// IsRootRole returns true if the caller has the "root" role.
+func IsRootRole(ctx context.Context) bool {
+	return RoleFromContext(ctx) == RoleRoot
 }
 
 // IsAdminRole returns true if the caller has the "admin" role.
@@ -345,14 +345,14 @@ func IsAdminRole(ctx context.Context) bool {
 }
 
 // IsMasterScope reports whether ctx should be treated as master-scope:
-// owner or admin role. v4 single-tenant: no tenant-ID check needed.
+// root or admin role. v4 single-tenant: no tenant-ID check needed.
 func IsMasterScope(ctx context.Context) bool {
-	return IsOwnerRole(ctx) || IsAdminRole(ctx)
+	return IsRootRole(ctx) || IsAdminRole(ctx)
 }
 
-// RoleOwner is the owner role constant for context checks.
-// Must match permissions.RoleOwner.
-const RoleOwner = "owner"
+// RoleRoot is the root role constant for context checks.
+// Must match permissions.RoleRoot.
+const RoleRoot = "root"
 
 // WithRole returns a new context with the caller's permission role.
 func WithRole(ctx context.Context, role string) context.Context {

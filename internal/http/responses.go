@@ -55,7 +55,7 @@ func (h *ResponsesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	if !permissions.HasMinRole(auth.Role, permissions.RoleOperator) {
+	if !permissions.HasMinRole(auth.Role, permissions.RoleMember) {
 		http.Error(w, `{"error":"permission denied: insufficient role"}`, http.StatusForbidden)
 		return
 	}

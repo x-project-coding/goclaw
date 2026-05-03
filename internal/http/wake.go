@@ -65,7 +65,7 @@ func (h *WakeHandler) handleWake(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": i18n.T(locale, i18n.MsgUnauthorized)})
 		return
 	}
-	if !permissions.HasMinRole(auth.Role, permissions.RoleOperator) {
+	if !permissions.HasMinRole(auth.Role, permissions.RoleMember) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgPermissionDenied, r.URL.Path)})
 		return
 	}

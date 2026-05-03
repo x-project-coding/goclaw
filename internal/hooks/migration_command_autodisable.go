@@ -36,7 +36,7 @@ func DisableLegacyCommandHooks(ctx context.Context, hs HookStore, ed edition.Edi
 
 	// Reach all tenants' rows. store.WithOwnerRole does NOT exist — see
 	// phase-04 red-team notes. Use WithRole explicitly.
-	ctx = store.WithRole(ctx, store.RoleOwner)
+	ctx = store.WithRole(ctx, store.RoleRoot)
 
 	enabled := true
 	rows, err := hs.List(ctx, ListFilter{Enabled: &enabled})

@@ -108,7 +108,7 @@ func InitPairingAuth(ps store.PairingStore) {
 }
 
 // InitOwnerIDs sets the configured owner user IDs for HTTP auth.
-// Owners get RoleOwner with gateway token; others get RoleAdmin scoped to their tenant.
+// Owners get RoleRoot with gateway token; others get RoleAdmin scoped to their tenant.
 func InitOwnerIDs(ids []string) {
 	pkgOwnerIDs = ids
 }
@@ -142,6 +142,7 @@ type authResult struct {
 	KeyData       *store.APIKeyData // non-nil when authenticated via API key
 	TenantID      uuid.UUID         // resolved tenant; always concrete after resolution
 	TenantSlug    string            // resolved tenant slug for filesystem paths
+	JWTSub        string            // non-empty when authenticated via JWT (claims.Sub)
 }
 
 // resolveAuth determines the caller's role from the request.
@@ -161,9 +162,15 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		isOwner := isHTTPOwnerID(userID, pkgOwnerIDs)
 		role := permissions.RoleAdmin
 		if isOwner {
-			role = permissions.RoleOwner
+			role = permissions.RoleRoot
 		}
 		res := authResult{Role: role, Authenticated: true, TenantID: store.MasterTenantID}
+		return res
+	}
+	// JWT access token → role from claims. Checked before API-key path so that
+	// password-auth users don't need an API key configured on the server.
+	if claims, ok := resolveJWTBearer(bearer); ok {
+		res := buildJWTAuthResult(claims)
 		return res
 	}
 	// API key → role from scopes
@@ -175,7 +182,7 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		paired, err := pkgPairingStore.IsPaired(r.Context(), senderID, "browser")
 		if err == nil && paired {
 			return authResult{
-				Role:          permissions.RoleOperator,
+				Role:          permissions.RoleMember,
 				Authenticated: true,
 				TenantID:      store.MasterTenantID,
 			}
@@ -199,7 +206,7 @@ func httpMinRole(method string) permissions.Role {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return permissions.RoleViewer
 	default: // POST, PUT, PATCH, DELETE
-		return permissions.RoleOperator
+		return permissions.RoleMember
 	}
 }
 
@@ -227,6 +234,12 @@ func enrichContext(ctx context.Context, r *http.Request, auth authResult) contex
 			)
 		}
 		userID = auth.KeyData.OwnerID
+	}
+	// JWT-authed callers carry their identity in claims.Sub rather than the
+	// X-GoClaw-User-Id header. The Sub is always trustworthy because the JWT
+	// is signature-verified.
+	if auth.JWTSub != "" {
+		userID = auth.JWTSub
 	}
 	if userID != "" {
 		ctx = store.WithUserID(ctx, userID)

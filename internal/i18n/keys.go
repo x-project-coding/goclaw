@@ -220,6 +220,18 @@ const (
 	MsgTenantMismatch      = "error.tenant_mismatch"       // "tenant user does not belong to this tenant"
 	MsgTenantScopeRequired = "error.tenant_scope_required" // "tenant scope is required for this operation"
 
+	// --- Auth + Bootstrap (Phase 06) ---
+	MsgBootstrapRequired    = "error.bootstrap_required"     // "gateway not bootstrapped — POST /v1/bootstrap/init first"
+	MsgBootstrapAlreadyDone = "error.bootstrap_already_done" // "bootstrap already completed"
+	MsgInvalidEmail         = "error.invalid_email"          // "invalid email address"
+	MsgWeakPassword         = "error.weak_password"          // "password must be at least 12 chars and contain a letter, digit, and symbol"
+	MsgInvalidCredentials   = "error.invalid_credentials"    // "invalid email or password"
+	MsgRefreshTokenInvalid  = "error.refresh_token_invalid"  // "refresh token invalid"
+	MsgRefreshTokenExpired  = "error.refresh_token_expired"  // "refresh token expired"
+	MsgRefreshTokenRevoked  = "error.refresh_token_revoked"  // "refresh token revoked"
+	MsgAccessTokenExpired   = "error.access_token_expired"   // "access token expired"
+	MsgAccessTokenInvalid   = "error.access_token_invalid"   // "access token invalid"
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard = "hook.command_disabled_standard" // "command-type hooks are only available on Lite edition"

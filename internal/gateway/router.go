@@ -84,7 +84,7 @@ func (r *MethodRouter) Handle(ctx context.Context, client *Client, req *protocol
 
 	// Inject locale + tenant + role into context.
 	// All connect paths guarantee client.tenantID is set (owner defaults to MasterTenantID).
-	// Role injection is required so store.IsOwnerRole / store.IsMasterScope work
+	// Role injection is required so store.IsRootRole / store.IsMasterScope work
 	// from WS handlers — without it, ctx-based permission helpers silently
 	// evaluate as non-owner. HTTP layer does the same via enrichContext.
 	ctx = store.WithLocale(ctx, i18n.Normalize(client.locale))
@@ -107,15 +107,19 @@ func (r *MethodRouter) registerDefaults() {
 // --- Built-in handlers ---
 
 func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *protocol.RequestFrame) {
-	// Parse connect params
+	// Parse connect params. Phase 06: AccessToken is the v4 password-auth path
+	// (HS256 JWT issued by /v1/auth/login). Token remains for gateway-token /
+	// API-key compatibility. tenant_* params kept as no-ops for backward compat
+	// during the desktop/web client rollout — they are silently ignored.
 	var params struct {
 		Token       string `json:"token"`
+		AccessToken string `json:"accessToken"`  // v4 JWT access token from /v1/auth/login
 		UserID      string `json:"user_id"`
 		SenderID    string `json:"sender_id"`    // browser pairing: stored sender ID for reconnect
 		Locale      string `json:"locale"`       // user's preferred locale (en, vi, zh)
-		TenantHint  string `json:"tenant_hint"`  // optional tenant slug for browser pairing multi-tenant
-		TenantID    string `json:"tenant_id"`    // cross-tenant admin: narrow scope to specific tenant (UUID or slug)
-		TenantScope string `json:"tenant_scope"` // deprecated: alias for tenant_id (backward compat)
+		TenantHint  string `json:"tenant_hint"`  // ignored in v4 single-tenant
+		TenantID    string `json:"tenant_id"`    // ignored in v4 single-tenant
+		TenantScope string `json:"tenant_scope"` // ignored in v4 single-tenant
 	}
 	if req.Params != nil {
 		json.Unmarshal(req.Params, &params)
@@ -132,13 +136,37 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		client.authenticated = true
 		client.userID = params.UserID
 
-		// Owner IDs get RoleOwner; others keep RoleAdmin. Single-tenant model
+		// Owner IDs get RoleRoot; others keep RoleAdmin. Single-tenant model
 		// (v4): always master scope.
 		if isOwnerID(params.UserID, r.server.cfg.Gateway.OwnerIDs) {
-			client.role = permissions.RoleOwner
+			client.role = permissions.RoleRoot
 		}
 		client.tenantID = store.MasterTenantID
 		r.sendConnectResponse(ctx, client, req.ID)
+		return
+	}
+
+	// Path 1a: JWT access token (Phase 06, v4 multi-user auth).
+	// Issued by /v1/auth/login or /v1/bootstrap/init. Carries Sub (user UUID) + Role.
+	if params.AccessToken != "" {
+		if claims, ok := httpapi.ResolveJWTAccess(params.AccessToken); ok {
+			client.role = permissions.Role(claims.Role)
+			client.authenticated = true
+			client.userID = claims.Sub
+			client.tenantID = store.MasterTenantID
+			slog.Debug("security.ws_connect_resolved_jwt",
+				"client", client.id,
+				"role", string(client.role),
+				"sub", claims.Sub,
+			)
+			r.sendConnectResponse(ctx, client, req.ID)
+			return
+		}
+		// Invalid JWT → reject (do NOT fall through to API-key path; the param
+		// name is explicit so a wrong/expired JWT must fail closed).
+		locale := i18n.Normalize(client.locale)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized,
+			i18n.T(locale, i18n.MsgAccessTokenInvalid)))
 		return
 	}
 
@@ -177,7 +205,7 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 
 	// Path 2: No token configured → operator (backward compat)
 	if configToken == "" {
-		client.role = permissions.RoleOperator
+		client.role = permissions.RoleMember
 		client.authenticated = true
 		client.userID = params.UserID
 		client.tenantID = store.MasterTenantID
@@ -201,7 +229,7 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			return
 		}
 		if paired {
-			client.role = permissions.RoleOperator
+			client.role = permissions.RoleMember
 			client.authenticated = true
 			client.userID = params.UserID
 			client.pairedSenderID = params.SenderID
@@ -259,7 +287,7 @@ func (r *MethodRouter) sendConnectResponse(ctx context.Context, client *Client, 
 	// Build scoped ctx so store.IsMasterScope can check the role.
 	scopedCtx := ctx
 	if client.IsOwner() {
-		scopedCtx = store.WithRole(scopedCtx, store.RoleOwner)
+		scopedCtx = store.WithRole(scopedCtx, store.RoleRoot)
 	}
 	resp := map[string]any{
 		"protocol":        protocol.ProtocolVersion,

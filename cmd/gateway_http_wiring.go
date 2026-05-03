@@ -146,6 +146,16 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 		httpapi.InitAPIKeyCache(d.pgStores.APIKeys, d.msgBus)
 	}
 
+	// Phase 06: bootstrap + password-auth endpoints (JWT + opaque refresh).
+	// Fatal on misconfig at fresh install — without JWT keyset, /v1/bootstrap/init
+	// would not register, leaving the operator unable to bootstrap.
+	if d.pgStores != nil && d.pgStores.Users != nil && d.pgStores.UserSessions != nil {
+		if err := d.wireAuthBootstrap(context.Background()); err != nil {
+			slog.Error("auth.bootstrap_wiring_failed", "err", err)
+			panic(err)
+		}
+	}
+
 	// Allow browser-paired users to access HTTP APIs
 	if d.pgStores.Pairing != nil {
 		httpapi.InitPairingAuth(d.pgStores.Pairing)

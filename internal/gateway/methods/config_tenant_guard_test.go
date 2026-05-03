@@ -12,7 +12,7 @@ import (
 // ---- Tests: store.IsMasterScope helper ----
 
 func TestIsMasterScopeContext_OwnerRole_Allowed(t *testing.T) {
-	ctx := store.WithRole(context.Background(), store.RoleOwner)
+	ctx := store.WithRole(context.Background(), store.RoleRoot)
 	// Tenant set to a non-master tenant — owner role must still pass
 	if !store.IsMasterScope(ctx) {
 		t.Fatalf("owner role with non-master tenant should be allowed")
@@ -44,7 +44,7 @@ func TestIsMasterScopeContext_NonMasterTenantNoOwner_Denied(t *testing.T) {
 func TestIsMasterScopeContext_NonMasterTenantWithOwnerRole_Allowed(t *testing.T) {
 	// A system owner visiting a tenant dashboard — bypass-all allows through
 	ctx := context.Background()
-	ctx = store.WithRole(ctx, store.RoleOwner)
+	ctx = store.WithRole(ctx, store.RoleRoot)
 	if !store.IsMasterScope(ctx) {
 		t.Fatalf("owner role must bypass tenant scope check")
 	}
@@ -99,7 +99,7 @@ func TestRequireMasterScope_OwnerRole_CallsNext(t *testing.T) {
 
 	// System owner visiting a non-master tenant ctx — must pass
 	ctx := context.Background()
-	ctx = store.WithRole(ctx, store.RoleOwner)
+	ctx = store.WithRole(ctx, store.RoleRoot)
 	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigApply))
 
 	if !called {

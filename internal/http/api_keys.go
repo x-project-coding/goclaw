@@ -96,7 +96,7 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve tenant_id based on caller type.
 	var tenantID uuid.UUID // uuid.Nil = system-level (NULL in DB)
-	if store.IsOwnerRole(r.Context()) {
+	if store.IsRootRole(r.Context()) {
 		if input.TenantID != "" {
 			tid, err := uuid.Parse(input.TenantID)
 			if err != nil {
@@ -178,7 +178,7 @@ func (h *APIKeysHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	//   - System owner (bypass-all)      → may revoke any key
 	//   - Tenant admin in caller's tenant → may revoke only keys owned by that tenant (strict match)
 	//   - NULL-tenant (system) keys       → revocable only by system owners
-	if !store.IsOwnerRole(ctx) {
+	if !store.IsRootRole(ctx) {
 		callerTID := store.MasterTenantID
 		if key.TenantID == uuid.Nil || key.TenantID != callerTID {
 			slog.Warn("security.api_key_revoke_forbidden",

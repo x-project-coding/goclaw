@@ -57,7 +57,7 @@ func NewVaultHandler(s store.VaultStore, ta store.TeamAccessStore, workspace str
 // validateTeamMembership checks that the requesting user belongs to the given team.
 // Owner role bypasses this check. Returns false and writes 403 if unauthorized.
 func (h *VaultHandler) validateTeamMembership(ctx context.Context, w http.ResponseWriter, teamID string) bool {
-	if store.IsOwnerRole(ctx) {
+	if store.IsRootRole(ctx) {
 		return true
 	}
 	if h.teamAccess == nil {

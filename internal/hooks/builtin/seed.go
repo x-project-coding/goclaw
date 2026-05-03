@@ -21,7 +21,7 @@ import (
 //   - DB version > embed version → WARN + keep DB (no rollback).
 //
 // Runs AFTER migrations and BEFORE dispatcher handler registration. Uses
-// store.RoleOwner + hooks.WithSeedBypass to traverse the tenant-scope guard
+// store.RoleRoot + hooks.WithSeedBypass to traverse the tenant-scope guard
 // and the builtin-readonly Update protection; both markers are process-local.
 func Seed(ctx context.Context, hookStore hooks.HookStore, cfg config.HooksConfig) error {
 	regMu.RLock()
@@ -34,7 +34,7 @@ func Seed(ctx context.Context, hookStore hooks.HookStore, cfg config.HooksConfig
 		disabled[d] = struct{}{}
 	}
 
-	ctx = store.WithRole(ctx, store.RoleOwner)
+	ctx = store.WithRole(ctx, store.RoleRoot)
 	ctx = hooks.WithSeedBypass(ctx)
 
 	for i := range all {

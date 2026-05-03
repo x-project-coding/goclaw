@@ -30,7 +30,7 @@ func (h *VaultHandler) handleVaultTree(w http.ResponseWriter, r *http.Request) {
 		opts.TeamID = &teamID
 	}
 
-	if opts.TeamID == nil && !store.IsOwnerRole(r.Context()) {
+	if opts.TeamID == nil && !store.IsRootRole(r.Context()) {
 		if ids := h.userAccessibleTeamIDs(r.Context()); len(ids) > 0 {
 			opts.TeamIDs = ids
 		} else {

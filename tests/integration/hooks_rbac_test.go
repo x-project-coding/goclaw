@@ -228,14 +228,14 @@ func TestHooksRBAC_HasMinRole_Matrix(t *testing.T) {
 		"hooks.update":  permissions.RoleAdmin,
 		"hooks.delete":  permissions.RoleAdmin,
 		"hooks.toggle":  permissions.RoleAdmin,
-		"hooks.test":    permissions.RoleOperator,
+		"hooks.test":    permissions.RoleMember,
 		"hooks.history": permissions.RoleViewer,
 	}
 
 	actors := []permissions.Role{
-		permissions.RoleOwner,
+		permissions.RoleRoot,
 		permissions.RoleAdmin,
-		permissions.RoleOperator,
+		permissions.RoleMember,
 		permissions.RoleViewer,
 		"",
 	}
@@ -249,7 +249,7 @@ func TestHooksRBAC_HasMinRole_Matrix(t *testing.T) {
 				t.Errorf("actor=%q method=%s got=%v want=%v", actor, method, got, want)
 			}
 			// Also assert the role ordering invariant: owner > admin > operator > viewer.
-			if actor == permissions.RoleOwner && !got {
+			if actor == permissions.RoleRoot && !got {
 				t.Errorf("owner denied method=%s min=%s", method, min)
 			}
 			if actor == "" && min != "" && got {

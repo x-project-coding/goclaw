@@ -20,9 +20,9 @@ func TestRoleLevel_Ordering(t *testing.T) {
 		role  Role
 		level int
 	}{
-		{RoleOwner, 4},
+		{RoleRoot, 4},
 		{RoleAdmin, 3},
-		{RoleOperator, 2},
+		{RoleMember, 2},
 		{RoleViewer, 1},
 		{Role("unknown"), 0},
 		{Role(""), 0},
@@ -44,11 +44,11 @@ func TestHasMinRole(t *testing.T) {
 		required Role
 		want     bool
 	}{
-		{"owner_meets_admin", RoleOwner, RoleAdmin, true},
+		{"owner_meets_admin", RoleRoot, RoleAdmin, true},
 		{"admin_meets_admin", RoleAdmin, RoleAdmin, true},
-		{"operator_fails_admin", RoleOperator, RoleAdmin, false},
-		{"viewer_fails_operator", RoleViewer, RoleOperator, false},
-		{"operator_meets_viewer", RoleOperator, RoleViewer, true},
+		{"operator_fails_admin", RoleMember, RoleAdmin, false},
+		{"viewer_fails_operator", RoleViewer, RoleMember, false},
+		{"operator_meets_viewer", RoleMember, RoleViewer, true},
 		{"admin_meets_viewer", RoleAdmin, RoleViewer, true},
 		{"viewer_meets_viewer", RoleViewer, RoleViewer, true},
 	}
@@ -72,14 +72,14 @@ func TestRoleFromScopes(t *testing.T) {
 	}{
 		{"admin_scope", []Scope{ScopeAdmin}, RoleAdmin},
 		{"admin_overrides_read", []Scope{ScopeRead, ScopeAdmin}, RoleAdmin},
-		{"write_is_operator", []Scope{ScopeWrite}, RoleOperator},
-		{"approvals_is_operator", []Scope{ScopeApprovals}, RoleOperator},
-		{"pairing_is_operator", []Scope{ScopePairing}, RoleOperator},
+		{"write_is_operator", []Scope{ScopeWrite}, RoleMember},
+		{"approvals_is_operator", []Scope{ScopeApprovals}, RoleMember},
+		{"pairing_is_operator", []Scope{ScopePairing}, RoleMember},
 		{"read_is_viewer", []Scope{ScopeRead}, RoleViewer},
 		{"empty_scopes", []Scope{}, RoleViewer},
 		{"nil_scopes", nil, RoleViewer},
 		{"provision_only_is_viewer", []Scope{ScopeProvision}, RoleViewer},
-		{"read_and_write", []Scope{ScopeRead, ScopeWrite}, RoleOperator},
+		{"read_and_write", []Scope{ScopeRead, ScopeWrite}, RoleMember},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,10 +107,10 @@ func TestCanAccess_AdminMethods(t *testing.T) {
 			if !pe.CanAccess(RoleAdmin, method) {
 				t.Fatalf("admin should access %s", method)
 			}
-			if !pe.CanAccess(RoleOwner, method) {
+			if !pe.CanAccess(RoleRoot, method) {
 				t.Fatalf("owner should access %s", method)
 			}
-			if pe.CanAccess(RoleOperator, method) {
+			if pe.CanAccess(RoleMember, method) {
 				t.Fatalf("operator should NOT access %s", method)
 			}
 			if pe.CanAccess(RoleViewer, method) {
@@ -130,7 +130,7 @@ func TestCanAccess_WriteMethods(t *testing.T) {
 	}
 	for _, method := range writeMethods {
 		t.Run(method, func(t *testing.T) {
-			if !pe.CanAccess(RoleOperator, method) {
+			if !pe.CanAccess(RoleMember, method) {
 				t.Fatalf("operator should access %s", method)
 			}
 			if !pe.CanAccess(RoleAdmin, method) {
@@ -147,7 +147,7 @@ func TestCanAccess_ReadMethods_AnyRole(t *testing.T) {
 	pe := NewPolicyEngine(nil)
 	// A method not in admin or write lists → defaults to viewer
 	readMethod := "sessions.list" // not in admin/write lists
-	for _, role := range []Role{RoleViewer, RoleOperator, RoleAdmin, RoleOwner} {
+	for _, role := range []Role{RoleViewer, RoleMember, RoleAdmin, RoleRoot} {
 		if !pe.CanAccess(role, readMethod) {
 			t.Fatalf("%s should access read method %s", role, readMethod)
 		}
@@ -161,7 +161,7 @@ func TestCanAccess_ReadMethods_AnyRole(t *testing.T) {
 func TestCanAccess_UnknownMethod_DeniedForAll(t *testing.T) {
 	pe := NewPolicyEngine(nil)
 	unknown := "totally.unknown.method"
-	for _, role := range []Role{RoleViewer, RoleOperator, RoleAdmin, RoleOwner} {
+	for _, role := range []Role{RoleViewer, RoleMember, RoleAdmin, RoleRoot} {
 		if pe.CanAccess(role, unknown) {
 			t.Fatalf("%s must NOT access unclassified method %q (fail-closed)", role, unknown)
 		}
@@ -187,13 +187,13 @@ func TestCanAccess_CVE866_HeartbeatAndLogs(t *testing.T) {
 			if pe.CanAccess(RoleViewer, method) {
 				t.Fatalf("viewer must NOT access %s (CVE #866)", method)
 			}
-			if pe.CanAccess(RoleOperator, method) {
+			if pe.CanAccess(RoleMember, method) {
 				t.Fatalf("operator must NOT access %s (CVE #866)", method)
 			}
 			if !pe.CanAccess(RoleAdmin, method) {
 				t.Fatalf("admin should access %s", method)
 			}
-			if !pe.CanAccess(RoleOwner, method) {
+			if !pe.CanAccess(RoleRoot, method) {
 				t.Fatalf("owner should access %s", method)
 			}
 		})
@@ -213,7 +213,7 @@ func TestCanAccess_PublicMethods(t *testing.T) {
 	}
 	for _, method := range public {
 		t.Run(method, func(t *testing.T) {
-			for _, role := range []Role{RoleViewer, RoleOperator, RoleAdmin, RoleOwner} {
+			for _, role := range []Role{RoleViewer, RoleMember, RoleAdmin, RoleRoot} {
 				if !pe.CanAccess(role, method) {
 					t.Fatalf("%s must access public method %s", role, method)
 				}
@@ -311,18 +311,18 @@ func TestValidScope(t *testing.T) {
 // --- MethodApprovalsList: locks in fix for writePrefixes shadowing bug.
 // Before the fix, the "exec.approval." prefix in isWriteMethod's writePrefixes
 // short-circuited the public→admin→write→read ordering in MethodRole,
-// wrongly classifying exec.approval.list as RoleOperator. exec.approval.list
+// wrongly classifying exec.approval.list as RoleMember. exec.approval.list
 // is an explicit entry in isReadMethod and must resolve to RoleViewer.
 
 func TestMethodRole_ApprovalsList_IsViewer(t *testing.T) {
 	if got := MethodRole(protocol.MethodApprovalsList); got != RoleViewer {
 		t.Fatalf("exec.approval.list must be RoleViewer (listed in isReadMethod); got %q", got)
 	}
-	if got := MethodRole(protocol.MethodApprovalsApprove); got != RoleOperator {
-		t.Fatalf("exec.approval.approve must be RoleOperator; got %q", got)
+	if got := MethodRole(protocol.MethodApprovalsApprove); got != RoleMember {
+		t.Fatalf("exec.approval.approve must be RoleMember; got %q", got)
 	}
-	if got := MethodRole(protocol.MethodApprovalsDeny); got != RoleOperator {
-		t.Fatalf("exec.approval.deny must be RoleOperator; got %q", got)
+	if got := MethodRole(protocol.MethodApprovalsDeny); got != RoleMember {
+		t.Fatalf("exec.approval.deny must be RoleMember; got %q", got)
 	}
 }
 

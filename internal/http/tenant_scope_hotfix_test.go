@@ -39,7 +39,7 @@ func newMasterScopeReq(method, path string, tid uuid.UUID, role string) *http.Re
 
 func TestRequireMasterScope_SystemOwner_Allows(t *testing.T) {
 	// Owner role on arbitrary tenant must pass.
-	r := newMasterScopeReq(http.MethodPut, "/test", uuid.New(), store.RoleOwner)
+	r := newMasterScopeReq(http.MethodPut, "/test", uuid.New(), store.RoleRoot)
 	w := httptest.NewRecorder()
 	if !requireMasterScope(w, r) {
 		t.Fatalf("system owner must be allowed, got %d: %s", w.Code, w.Body.String())
@@ -256,7 +256,7 @@ func TestAPIKeyRevoke_AllowsSystemOwnerOnSystemKey(t *testing.T) {
 	mux.HandleFunc("POST /v1/api-keys/{id}/revoke", h.handleRevoke)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/api-keys/"+keyID.String()+"/revoke", nil)
-	ctx := store.WithRole(req.Context(), store.RoleOwner)
+	ctx := store.WithRole(req.Context(), store.RoleRoot)
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()

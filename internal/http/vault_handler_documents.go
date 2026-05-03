@@ -22,7 +22,7 @@ func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Req
 		}
 	}
 	// Non-owner without team_id filter: show personal + user's teams.
-	if opts.TeamID == nil && !store.IsOwnerRole(r.Context()) {
+	if opts.TeamID == nil && !store.IsRootRole(r.Context()) {
 		h.applyNonOwnerTeamScope(r.Context(), &opts)
 	}
 
@@ -53,7 +53,7 @@ func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	if opts.TeamID == nil && !store.IsOwnerRole(r.Context()) {
+	if opts.TeamID == nil && !store.IsRootRole(r.Context()) {
 		h.applyNonOwnerTeamScope(r.Context(), &opts)
 	}
 
@@ -90,7 +90,7 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Verify team boundary — non-owner must be team member to view team docs.
-	if doc.TeamID != nil && *doc.TeamID != "" && !store.IsOwnerRole(r.Context()) {
+	if doc.TeamID != nil && *doc.TeamID != "" && !store.IsRootRole(r.Context()) {
 		if !h.validateTeamMembership(r.Context(), w, *doc.TeamID) {
 			return
 		}
@@ -209,7 +209,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 	}
 	if body.TeamID != nil {
 		// Only owner/admin can change team assignment.
-		if !store.IsOwnerRole(r.Context()) {
+		if !store.IsRootRole(r.Context()) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "only owner can change document team assignment"})
 			return
 		}
@@ -251,7 +251,7 @@ func (h *VaultHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Verify team boundary before deletion.
-	if existing.TeamID != nil && *existing.TeamID != "" && !store.IsOwnerRole(r.Context()) {
+	if existing.TeamID != nil && *existing.TeamID != "" && !store.IsRootRole(r.Context()) {
 		if !h.validateTeamMembership(r.Context(), w, *existing.TeamID) {
 			return
 		}

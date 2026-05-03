@@ -226,5 +226,17 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
+
+		// Auth + Bootstrap (Phase 06)
+		MsgBootstrapRequired:    "gateway not bootstrapped — POST /v1/bootstrap/init first",
+		MsgBootstrapAlreadyDone: "bootstrap already completed",
+		MsgInvalidEmail:         "invalid email address",
+		MsgWeakPassword:         "password must be at least 12 chars and contain a letter, digit, and symbol",
+		MsgInvalidCredentials:   "invalid email or password",
+		MsgRefreshTokenInvalid:  "refresh token invalid",
+		MsgRefreshTokenExpired:  "refresh token expired",
+		MsgRefreshTokenRevoked:  "refresh token revoked",
+		MsgAccessTokenExpired:   "access token expired",
+		MsgAccessTokenInvalid:   "access token invalid",
 	})
 }

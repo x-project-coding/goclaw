@@ -90,7 +90,7 @@ func pollAuditDecision(t *testing.T, db *sql.DB, hookID uuid.UUID, decision stri
 // every tenant's enabled rows).
 func crossTenantOwnerCtx() context.Context {
 	ctx := context.Background()
-	ctx = store.WithRole(ctx, store.RoleOwner)
+	ctx = store.WithRole(ctx, store.RoleRoot)
 	return ctx
 }
 

@@ -60,7 +60,7 @@ func (h *VaultGraphHandler) handleVaultGraph(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		opts.TeamID = &teamID
-	} else if !store.IsOwnerRole(ctx) {
+	} else if !store.IsRootRole(ctx) {
 		h.applyNonOwnerTeamScope(ctx, &opts)
 	}
 
@@ -151,7 +151,7 @@ func parseGraphLimit(s string) int {
 
 // validateTeamMembership checks team membership for non-owner users.
 func (h *VaultGraphHandler) validateTeamMembership(ctx context.Context, w http.ResponseWriter, teamID string) bool {
-	if store.IsOwnerRole(ctx) {
+	if store.IsRootRole(ctx) {
 		return true
 	}
 	if h.teamAccess == nil {
