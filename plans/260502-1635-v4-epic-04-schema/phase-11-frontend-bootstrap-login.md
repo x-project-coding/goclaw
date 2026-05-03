@@ -319,9 +319,15 @@ Refresh interceptor (single-flight):
 - [x] pnpm test green (23 files / 263 tests)
 - [x] pnpm build clean
 
-### Sub-11D
-- [ ] e2e browser test (rod)
-- [ ] E2E green
+### Sub-11D [DONE 2026-05-03]
+- [x] HTTP-flow auth lifecycle e2e: `tests/e2e/auth/11_auth_lifecycle_test.go`
+  - bootstrap_status → login → me → refresh (rotate-on-use + old refresh revoked) → PATCH users/me → change-password (correct + wrong) → refresh-after-change-revoked → relogin (old pass rejected) → logout → refresh-after-logout-revoked
+  - Run: `go test -tags e2e ./tests/e2e/auth/` (requires pgvector pg18 on :5435 + env.e2e-tests/.env)
+  - Wall-time ~7s (Argon2id login is the heavy step)
+- [x] helpers/reset_db.go: real Argon2id hash for root user; placeholder kept for non-login fixtures
+- [x] helpers/gateway.go: bridge GOCLAW_POSTGRES_DSN/GOCLAW_JWT_SECRET/GOCLAW_ENCRYPTION_KEY from e2e env file
+- [x] Bug fix in handleUpdateMe: stop delegating to handleMe (which is GET-only)
+- **Browser-driven test DEFERRED to Phase 14** (decision 2026-05-03): gateway does not serve FE bundle statically; spinning up vite dev process for route-guard/redirect tests adds 2+ days of harness work for marginal value over the HTTP-contract test above. Phase 14 will handle full e2e + RBAC matrix and is the natural home for browser e2e.
 
 ## Success Criteria
 
