@@ -43,7 +43,6 @@ func TestResolveCodexPoolRoutingUsesProviderDefaults(t *testing.T) {
 	}
 
 	agent := &store.AgentData{
-		TenantID: tenantID,
 		Provider: "openai-codex",
 	}
 
@@ -85,7 +84,6 @@ func TestResolveCodexPoolRoutingHonorsInheritOverride(t *testing.T) {
 	}
 
 	agent := &store.AgentData{
-		TenantID: tenantID,
 		Provider: "openai-codex",
 		ChatGPTOAuthRouting: json.RawMessage(`{
 			"override_mode": "inherit",
@@ -123,7 +121,6 @@ func TestResolveCodexPoolRoutingIgnoresNonCodexBaseProvider(t *testing.T) {
 	}
 
 	agent := &store.AgentData{
-		TenantID: tenantID,
 		Provider: "anthropic",
 		ChatGPTOAuthRouting: json.RawMessage(`{
 			"strategy": "round_robin",

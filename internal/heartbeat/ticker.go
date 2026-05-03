@@ -169,13 +169,7 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	}
 	agentKey = ag.AgentKey
 
-	// Inject agent's tenant into context so all store operations
-	// (context files, sessions, etc.) are tenant-scoped.
-	if ag.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, ag.TenantID)
-	} else {
-		ctx = store.WithTenantID(ctx, store.MasterTenantID)
-	}
+	ctx = store.WithTenantID(ctx, store.MasterTenantID)
 
 	// [1] Active hours filter.
 	if !isWithinActiveHours(hb) {

@@ -56,7 +56,6 @@ type SessionListOpts struct {
 	AgentID  string    `db:"-"`
 	Channel  string    `db:"-"` // optional: filter by channel prefix ("ws", "telegram", etc.)
 	UserID   string    `db:"-"` // optional: filter by user_id
-	TenantID uuid.UUID `db:"-"` // optional: filter by tenant (uuid.Nil = no filter)
 	Limit    int       `db:"-"`
 	Offset   int       `db:"-"`
 }

@@ -51,11 +51,10 @@ func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client
 	}
 
 	opts := store.SessionListOpts{
-		AgentID:  params.AgentID,
-		Channel:  params.Channel,
-		Limit:    params.Limit,
-		Offset:   params.Offset,
-		TenantID: store.TenantIDFromContext(ctx),
+		AgentID: params.AgentID,
+		Channel: params.Channel,
+		Limit:   params.Limit,
+		Offset:  params.Offset,
 	}
 	// Role-based filtering: admins/owners see all sessions; regular users see only their own.
 	// Tenant scope is always applied above — admin sees all sessions within the tenant.

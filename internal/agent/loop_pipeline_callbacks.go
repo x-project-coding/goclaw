@@ -33,7 +33,7 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		event.Channel = req.Channel
 		event.ChatID = req.ChatID
 		event.SessionKey = req.SessionKey
-		event.TenantID = l.tenantID
+		event.TenantID = store.MasterTenantID
 		l.emit(event)
 	}
 	return pipelineCallbackSet{
@@ -102,7 +102,7 @@ func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, i
 			AgentType: l.agentType,
 			UserID:    input.UserID,
 			ChatID:    input.ChatID,
-			TenantID:  l.tenantID.String(),
+			TenantID:  store.MasterTenantID.String(),
 			PeerKind:  input.PeerKind,
 			TeamID:    teamID,
 			BaseDir:   l.workspace,

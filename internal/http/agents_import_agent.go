@@ -81,7 +81,6 @@ func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, ag
 	ag := &store.AgentData{
 		AgentKey:    agentKey,
 		DisplayName: displayName,
-		TenantID:    tenantID,
 		OwnerID:     ownerID,
 		Status:      store.AgentStatusActive,
 	}

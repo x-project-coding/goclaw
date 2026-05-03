@@ -209,7 +209,7 @@ func (l *Loop) finalizeRun(
 	if l.domainBus != nil {
 		l.domainBus.Publish(eventbus.DomainEvent{
 			Type:     eventbus.EventSessionCompleted,
-			TenantID: l.tenantID.String(),
+			TenantID: store.MasterTenantID.String(),
 			AgentID:  l.agentUUID.String(),
 			UserID:   req.UserID,
 			SourceID: req.SessionKey,

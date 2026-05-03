@@ -44,13 +44,6 @@ const (
 type AgentData struct {
 	BaseModel
 
-	// TenantID is a transitional in-memory field; the v4 schema has no tenant_id
-	// column. The value is always uuid.Nil after L1 (PR-05B-1a). Existing readers
-	// (resolver, heartbeat, http handlers, provider routing) compile but receive
-	// the zero value; their tenant-aware code paths become no-ops. Field + callers
-	// removed together in L2 (PR-05B-1b) when TenantStore is torn down.
-	TenantID uuid.UUID `json:"-" db:"-"`
-
 	AgentKey    string `json:"agent_key" db:"agent_key"`
 	DisplayName string `json:"display_name,omitempty" db:"display_name"`
 	Frontmatter string `json:"frontmatter,omitempty" db:"frontmatter"` // short expertise summary (NOT other_config.description which is the summoning prompt)

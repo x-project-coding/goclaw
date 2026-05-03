@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
@@ -101,23 +99,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			ownerID = params.OwnerIDs[0]
 		}
 
-		// Resolve tenant_id: explicit param for cross-tenant; otherwise inherit from connection scope.
-		var tenantID uuid.UUID
-		if client.IsOwner() {
-			if params.TenantID != "" {
-				tid, err := uuid.Parse(params.TenantID)
-				if err != nil {
-					client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id")))
-					return
-				}
-				tenantID = tid
-			} else {
-				tenantID = client.TenantID()
-			}
-		} else {
-			tenantID = client.TenantID()
-		}
-
 		provider := params.Provider
 		if provider == "" {
 			provider = m.cfg.Agents.Defaults.Provider
@@ -131,7 +112,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			AgentKey:         agentID,
 			DisplayName:      params.Name,
 			OwnerID:          ownerID,
-			TenantID:         tenantID,
 			AgentType:        agentType,
 			Provider:         provider,
 			Model:            model,

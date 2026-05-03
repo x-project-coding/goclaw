@@ -238,15 +238,6 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	req.OwnerID = userID
 
-	// Resolve tenant_id: explicit body field for cross-tenant; otherwise inherit from auth context.
-	if store.IsOwnerRole(r.Context()) {
-		if req.TenantID == uuid.Nil {
-			req.TenantID = store.TenantIDFromContext(r.Context())
-		}
-	} else {
-		req.TenantID = store.TenantIDFromContext(r.Context())
-	}
-
 	if req.AgentType == "" || req.AgentType == store.AgentTypeOpen {
 		req.AgentType = store.AgentTypePredefined // v3: open agents deprecated, default to predefined
 	}
@@ -306,7 +297,7 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Start LLM summoning in background if applicable
 	if req.Status == store.AgentStatusSummoning {
-		go h.summoner.SummonAgent(req.ID, req.TenantID, req.Provider, req.Model, description)
+		go h.summoner.SummonAgent(req.ID, store.MasterTenantID, req.Provider, req.Model, description)
 	}
 
 	emitAudit(h.msgBus, r, "agent.created", "agent", req.ID.String())
@@ -381,11 +372,6 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Finding #12: explicit tenant-scope guard as defense-in-depth.
 	// GetByID already scopes by tenant_id from context, but if a future refactor
 	// swaps to an unscoped variant this guard prevents cross-tenant mutation.
-	if ag.TenantID != store.TenantIDFromContext(r.Context()) {
-		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", id.String()))
-		return
-	}
-
 	var updates map[string]any
 	if !bindJSON(w, r, locale, &updates) {
 		return
@@ -575,8 +561,6 @@ func (h *AgentsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 // Body: {"workspace": "E:\\project\\workspace"}
 // Requires admin role.
 func (h *AgentsHandler) handleSyncWorkspace(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.TenantIDFromContext(r.Context())
-
 	var req struct {
 		Workspace string `json:"workspace"`
 	}
@@ -606,10 +590,6 @@ func (h *AgentsHandler) handleSyncWorkspace(w http.ResponseWriter, r *http.Reque
 	newWorkspace := config.ExpandHome(req.Workspace)
 	var updated int
 	for _, ag := range agents {
-		// Skip agents from other tenants
-		if ag.TenantID != tenantID {
-			continue
-		}
 		// Build new workspace path: {newWorkspace}/{agentKey}
 		newPath := filepath.Join(newWorkspace, ag.AgentKey)
 		if ag.Workspace == newPath {

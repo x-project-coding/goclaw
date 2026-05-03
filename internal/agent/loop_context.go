@@ -34,10 +34,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if l.id != "" {
 		ctx = store.WithAgentKey(ctx, l.id)
 	}
-	// Inject tenant into context for tool-level tenant scoping (spawn, MCP, etc.)
-	if l.tenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, l.tenantID)
-	}
 	// Inject user ID into context for per-user scoping (memory, context files, etc.)
 	if req.UserID != "" {
 		ctx = store.WithUserID(ctx, req.UserID)
@@ -350,7 +346,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	rc := &store.RunContext{
 		AgentID:             l.agentUUID,
 		AgentKey:            l.id,
-		TenantID:            l.tenantID,
+		TenantID:            store.MasterTenantID,
 		UserID:              req.UserID,
 		CredentialUserID:    credUserID,
 		AgentType:           l.agentType,
