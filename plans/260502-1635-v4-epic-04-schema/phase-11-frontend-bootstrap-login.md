@@ -306,13 +306,18 @@ Refresh interceptor (single-flight):
 - [x] schemas/__tests__/auth.schema.test.ts: 17 tests
 - [x] pnpm tsc + test green (23 files / 263 tests) + build clean
 
-### Sub-11C
-- [ ] Tenant ref enumeration
-- [ ] 60+ files refactored (drop tenant)
-- [ ] tenants-admin/ deleted (if exists)
-- [ ] no-tenant-refs static test green
-- [ ] pnpm tsc --noEmit clean
-- [ ] pnpm build clean
+### Sub-11C [DONE 2026-05-03]
+- [x] Tenant ref enumeration: 67 files initially
+- [x] 25+ files DELETED: pages/tenants-admin/, login/{tenant-selector,token-form,pairing-form,login-tabs}, pages/setup/ (replaced by /bootstrap), backup-restore tenant-* + hooks, contacts/use-tenant-users-list, skills/skill-tenant-override, hooks/use-tenants, types/tenant, i18n/{en,vi,zh}/tenants.json, require-setup, setup-skip
+- [x] use-auth-store: dropped tenantId/tenantName/tenantSlug/isOwner/isMasterScope/availableTenants/tenantSelected
+- [x] http-client: X-GoClaw-Tenant-Id header dropped
+- [x] routes.tsx + lib/routes: dropped TENANTS/TENANT_DETAIL/SELECT_TENANT
+- [x] require-auth simplified ("no token → /login")
+- [x] ~30 pages/hooks/types/schemas cleaned
+- [x] Final grep: 8 legitimate hits remain (HookScope enum value, RequireCrossTenant alias, STT proxy field)
+- [x] pnpm tsc --noEmit clean
+- [x] pnpm test green (23 files / 263 tests)
+- [x] pnpm build clean
 
 ### Sub-11D
 - [ ] e2e browser test (rod)
