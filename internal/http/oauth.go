@@ -269,8 +269,7 @@ func (h *OAuthHandler) waitForCallback(ctx context.Context, flow *pendingOAuthFl
 		return
 	}
 
-	saveCtx := store.WithTenantID(context.Background(), flow.tenantID)
-	if _, err := h.saveAndRegister(saveCtx, flow.providerName, flow.displayName, flow.apiBase, tokenResp); err != nil {
+	if _, err := h.saveAndRegister(context.Background(), flow.providerName, flow.displayName, flow.apiBase, tokenResp); err != nil {
 		slog.Error("oauth.save_token", "error", err)
 		return
 	}

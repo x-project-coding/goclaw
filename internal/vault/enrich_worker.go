@@ -201,11 +201,6 @@ func (w *EnrichWorker) Handle(ctx context.Context, event eventbus.DomainEvent) e
 		return nil // another goroutine already processing this agent's queue
 	}
 
-	// Inject tenant context so store queries and bgalert scope correctly.
-	if tid, parseErr := uuid.Parse(payload.TenantID); parseErr == nil {
-		ctx = store.WithTenantID(ctx, tid)
-	}
-
 	// Create per-tenant cancel context for stop capability.
 	cancelCtx, cancel := context.WithCancel(ctx)
 	w.cancelFuncs.Store(payload.TenantID, cancel)

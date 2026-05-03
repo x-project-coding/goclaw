@@ -21,7 +21,7 @@ import (
 // Reads existing files, sends them + edit instructions to LLM, stores results.
 // Synchronous — caller should run in goroutine if needed.
 func (s *AgentSummoner) RegenerateAgent(agentID uuid.UUID, tenantID uuid.UUID, providerName, model, editPrompt string) {
-	ctx, cancel := context.WithTimeout(store.WithTenantID(context.Background(), tenantID), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
 	s.ensureBackfillFiles(ctx, agentID)
@@ -212,15 +212,7 @@ func (s *AgentSummoner) ensureBackfillFiles(ctx context.Context, agentID uuid.UU
 	}
 }
 
-func (s *AgentSummoner) setAgentStatus(ctx context.Context, tenantID, agentID uuid.UUID, status string) {
-	// Summoning frequently calls this after a timeout/cancel path with context.Background().
-	// Re-attach tenant scope so AgentStore.Update targets the right tenant row.
-	if store.TenantIDFromContext(ctx) == uuid.Nil && !store.IsCrossTenant(ctx) {
-		if tenantID == uuid.Nil {
-			tenantID = store.MasterTenantID
-		}
-		ctx = store.WithTenantID(ctx, tenantID)
-	}
+func (s *AgentSummoner) setAgentStatus(ctx context.Context, _ uuid.UUID, agentID uuid.UUID, status string) {
 	if err := s.agents.Update(ctx, agentID, map[string]any{"status": status}); err != nil {
 		slog.Warn("summoning: failed to update agent status", "agent", agentID, "status", status, "error", err)
 	}

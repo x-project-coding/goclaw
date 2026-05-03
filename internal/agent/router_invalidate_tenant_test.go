@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestInvalidateTenant_OnlyAffectsMatchingTenant verifies that
@@ -17,10 +15,9 @@ func TestInvalidateTenant_OnlyAffectsMatchingTenant(t *testing.T) {
 	r := NewRouter()
 
 	tenantA := uuid.New()
-	tenantB := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	// Entries for three scopes: tenantA, tenantB, bare (no tenant).
 	keyA1 := agentCacheKey(ctxA, "agent-1")
@@ -53,9 +50,8 @@ func TestInvalidateTenant_OnlyAffectsMatchingTenant(t *testing.T) {
 // must not wipe any entries (callers use InvalidateAll for global wipes).
 func TestInvalidateTenant_NilIsNoop(t *testing.T) {
 	r := NewRouter()
-	tenantA := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
+	ctxA := context.Background()
 	keyA := agentCacheKey(ctxA, "agent-1")
 	keyBare := agentCacheKey(context.Background(), "agent-1")
 
@@ -81,14 +77,13 @@ func TestInvalidateTenant_SubstringSafety(t *testing.T) {
 	// agent key. If the matcher incorrectly matched anywhere in the key,
 	// InvalidateTenant(tenantA) would wipe the second entry too.
 	tenantA := uuid.New()
-	tenantB := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	keyA := agentCacheKey(ctxA, "agent-1")
-	// Craft a pathological key under tenantB whose agent name contains
-	// tenantA's UUID. Should NOT be deleted.
+	// Craft a pathological key whose agent name contains tenantA's UUID.
+	// Should NOT be deleted.
 	keyB := agentCacheKey(ctxB, "agent-"+tenantA.String())
 
 	r.agents[keyA] = &agentEntry{}

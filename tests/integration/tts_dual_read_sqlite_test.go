@@ -36,7 +36,7 @@ func TestTTSConfig_Store_RoundTrip_LegacyKeys_SQLite(t *testing.T) {
 	db := testSQLiteDB(t)
 	tenantID := uuid.New()
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := sqlitestore.NewSQLiteSystemConfigStore(db)
 
@@ -76,7 +76,7 @@ func TestTTSConfig_Store_RoundTrip_ParamsBlob_SQLite(t *testing.T) {
 	db := testSQLiteDB(t)
 	tenantID := uuid.New()
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := sqlitestore.NewSQLiteSystemConfigStore(db)
 
@@ -107,7 +107,7 @@ func TestTTSConfig_Store_Dual_LegacyAndBlob_SQLite(t *testing.T) {
 	db := testSQLiteDB(t)
 	tenantID := uuid.New()
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := sqlitestore.NewSQLiteSystemConfigStore(db)
 
@@ -138,7 +138,7 @@ func TestTTSConfig_Store_DisjointUnion_SQLite(t *testing.T) {
 	db := testSQLiteDB(t)
 	tenantID := uuid.New()
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := sqlitestore.NewSQLiteSystemConfigStore(db)
 
@@ -170,8 +170,8 @@ func TestTTSConfig_Store_MultiTenant_SQLite(t *testing.T) {
 	tenantA := uuid.New()
 	tenantB := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	configStore := sqlitestore.NewSQLiteSystemConfigStore(db)
 

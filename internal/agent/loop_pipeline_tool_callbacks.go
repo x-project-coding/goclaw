@@ -198,7 +198,7 @@ func (l *Loop) recordToolMetric(ctx context.Context, sessionKey, toolName string
 	}
 	tenantID := store.TenantIDFromContext(ctx)
 	go func() {
-		bgCtx, cancel := context.WithTimeout(store.WithTenantID(context.Background(), tenantID), 5*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		value, _ := json.Marshal(map[string]any{
 			"success":     success,

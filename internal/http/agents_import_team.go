@@ -325,9 +325,7 @@ func (h *AgentsHandler) buildAgentKeyMap(ctx context.Context, tid uuid.UUID, arc
 		keyList = append(keyList, k)
 	}
 
-	// Ensure tenant-scoped context for GetByKeys (Red Team Fix #2).
-	scopedCtx := store.WithTenantID(ctx, tid)
-	agents, err := h.agents.GetByKeys(scopedCtx, keyList)
+	agents, err := h.agents.GetByKeys(ctx, keyList)
 	if err != nil {
 		slog.Warn("import.team: batch agent key lookup failed", "error", err)
 		return make(map[string]uuid.UUID)

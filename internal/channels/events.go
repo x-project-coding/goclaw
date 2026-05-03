@@ -6,10 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -31,12 +28,6 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	}
 
 	ctx := context.Background()
-	// Use RunContext's TenantID directly (set at RegisterRun time from channel instance)
-	// rather than querying the channel interface - more direct and future-proof for
-	// channels that might serve multiple tenants.
-	if rc.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, rc.TenantID)
-	}
 
 	// Forward to StreamingChannel (only when streaming is enabled for this run).
 	// Without this gate, channels that implement StreamingChannel but have streaming

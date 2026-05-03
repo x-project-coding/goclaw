@@ -8,13 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// ttsConfigDualReadCtx returns a context with a non-nil tenant ID for config handler tests.
+// ttsConfigDualReadCtx returns a context for config handler tests.
 func ttsConfigDualReadCtx() context.Context {
-	return store.WithTenantID(context.Background(), uuid.New())
+	return context.Background()
 }
 
 // buildConfigSaveBody marshals req to JSON and returns a request body reader.

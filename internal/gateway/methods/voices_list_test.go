@@ -11,7 +11,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestVoicesMethods_CacheHit verifies a warm cache entry is returned without
@@ -22,7 +21,7 @@ func TestVoicesMethods_CacheHit(t *testing.T) {
 	voices := []audio.Voice{{ID: "v1", Name: "Bella"}}
 	cache.Set(tid, voices)
 
-	ctx := store.WithTenantID(t.Context(), tid)
+	ctx := t.Context()
 	m := methods.NewVoicesMethods(cache, nil)
 
 	got, err := m.FetchVoices(ctx, tid)

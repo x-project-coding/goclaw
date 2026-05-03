@@ -166,22 +166,19 @@ func seedTenantAgent(t *testing.T, db *sql.DB) (tenantID, agentID uuid.UUID) {
 	return tenantID, agentID
 }
 
-// tenantCtx returns a context with tenant ID set for store scoping.
-func tenantCtx(tenantID uuid.UUID) context.Context {
-	return store.WithTenantID(context.Background(), tenantID)
+// tenantCtx returns a context for store scoping.
+func tenantCtx(_ uuid.UUID) context.Context {
+	return context.Background()
 }
 
-// userCtx returns a context with both tenant ID and user ID set.
-func userCtx(tenantID uuid.UUID, userID string) context.Context {
-	ctx := store.WithTenantID(context.Background(), tenantID)
-	return store.WithUserID(ctx, userID)
+// userCtx returns a context with user ID set.
+func userCtx(_ uuid.UUID, userID string) context.Context {
+	return store.WithUserID(context.Background(), userID)
 }
 
-// crossTenantCtx returns a context that bypasses tenant scoping.
+// crossTenantCtx returns a background context (cross-tenant removed in v4).
 func crossTenantCtx() context.Context {
-	return store.WithCrossTenant(
-		store.WithTenantID(context.Background(), store.MasterTenantID),
-	)
+	return context.Background()
 }
 
 func allowLoopbackForTest(t *testing.T) {

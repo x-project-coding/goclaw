@@ -310,7 +310,7 @@ func (c *Channel) WebhookHandler() (string, http.Handler) {
 	}
 
 	handler := NewWebhookHandler(c.cfg.VerificationToken, c.cfg.EncryptKey, func(event *MessageEvent) {
-		ctx := store.WithTenantID(context.Background(), c.TenantID())
+		ctx := context.Background()
 		c.handleMessageEvent(ctx, event)
 	})
 
@@ -331,7 +331,7 @@ func (c *Channel) startWebhook(ctx context.Context) error {
 	slog.Info("feishu: starting Webhook server", "port", port, "path", path)
 
 	handler := NewWebhookHandler(c.cfg.VerificationToken, c.cfg.EncryptKey, func(event *MessageEvent) {
-		ctx := store.WithTenantID(context.Background(), c.TenantID())
+		ctx := context.Background()
 		c.handleMessageEvent(ctx, event)
 	})
 

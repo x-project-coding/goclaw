@@ -148,18 +148,13 @@ func (ts *DBTokenSource) RouteEligibility(ctx context.Context) providers.RouteEl
 
 // refreshRouteEligibility fetches quota eligibility in the background and updates the cache.
 func (ts *DBTokenSource) refreshRouteEligibility() {
-	ctx := store.WithTenantID(context.Background(), ts.tenantID)
-	ts.fetchAndCacheEligibility(ctx)
+	ts.fetchAndCacheEligibility(context.Background())
 }
 
 func (ts *DBTokenSource) fetchAndCacheEligibility(ctx context.Context) providers.RouteEligibility {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if store.TenantIDFromContext(ctx) == uuid.Nil {
-		ctx = store.WithTenantID(ctx, ts.tenantID)
-	}
-
 	eligibility := providers.RouteEligibility{Class: providers.RouteEligibilityUnknown, Reason: "unavailable"}
 	provider, err := ts.loadOAuthProvider(ctx)
 	if err == nil {
@@ -202,10 +197,7 @@ func (ts *DBTokenSource) loadOAuthProvider(ctx context.Context) (*store.LLMProvi
 
 func (ts *DBTokenSource) withTenantContext(ctx context.Context) context.Context {
 	if ctx == nil {
-		ctx = context.Background()
-	}
-	if store.TenantIDFromContext(ctx) == uuid.Nil {
-		ctx = store.WithTenantID(ctx, ts.tenantID)
+		return context.Background()
 	}
 	return ctx
 }
@@ -294,7 +286,7 @@ func (ts *DBTokenSource) Token() (string, error) {
 		return ts.cachedToken, nil
 	}
 
-	ctx := store.WithTenantID(context.Background(), ts.tenantID)
+	ctx := context.Background()
 
 	// Load from DB if not cached
 	if ts.cachedToken == "" {

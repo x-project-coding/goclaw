@@ -116,7 +116,7 @@ func (a *pgAutoInjector) recordRetrievalMetric(params InjectParams, result *Inje
 		return
 	}
 	go func() {
-		bgCtx, cancel := context.WithTimeout(store.WithTenantID(context.Background(), tenantID), 5*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		value, _ := json.Marshal(map[string]any{
 			"result_count":  result.MatchCount,

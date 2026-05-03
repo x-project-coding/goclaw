@@ -130,7 +130,7 @@ func TestExec_UnregisteredBinary_FallsThrough(t *testing.T) {
 	tool := NewExecTool(t.TempDir(), false)
 	tool.SetSecureCLIStore(stub)
 
-	ctx := store.WithTenantID(store.WithAgentID(context.Background(), uuid.New()), uuid.New())
+	ctx := store.WithAgentID(context.Background(), uuid.New())
 	result := tool.Execute(ctx, map[string]any{"command": "echo hello"})
 
 	if result.IsError {
@@ -163,7 +163,7 @@ func TestExec_GrantedBinary_UsesCredentialedPath(t *testing.T) {
 	tool := NewExecTool(t.TempDir(), false)
 	tool.SetSecureCLIStore(stub)
 
-	ctx := store.WithTenantID(store.WithAgentID(context.Background(), uuid.New()), uuid.New())
+	ctx := store.WithAgentID(context.Background(), uuid.New())
 	result := tool.Execute(ctx, map[string]any{"command": sentinel + " --help"})
 
 	stub.mu.Lock()
@@ -191,7 +191,7 @@ func newGateTestTool(t *testing.T) (*ExecTool, *stubSecureCLIStore, context.Cont
 	stub := newStubSecureCLIStore()
 	tool := NewExecTool(t.TempDir(), false)
 	tool.SetSecureCLIStore(stub)
-	ctx := store.WithTenantID(store.WithAgentID(context.Background(), uuid.New()), uuid.New())
+	ctx := store.WithAgentID(context.Background(), uuid.New())
 	return tool, stub, ctx
 }
 

@@ -390,11 +390,7 @@ func (r *Router) forceMarkTraceAborted(runID string) {
 	if run.TraceID == uuid.Nil {
 		return
 	}
-	ctx := context.Background()
-	if run.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, run.TenantID)
-	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	r.traceCollector.FinishTrace(ctx, run.TraceID, "cancelled", "force-aborted (3s grace exceeded)", "")
 }

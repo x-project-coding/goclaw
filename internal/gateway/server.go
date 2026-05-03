@@ -236,7 +236,7 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 			// Verify HMAC signature over all context fields.
 			tenantIDStr := r.Header.Get("X-Tenant-ID")
 			sig := r.Header.Get("X-Bridge-Sig")
-			ok, tenantVerified := providers.VerifyBridgeContext(gatewayToken, agentIDStr, userID, channel, chatID, peerKind, workspace, tenantIDStr, sig, localKey, sessionKey)
+			ok, _ := providers.VerifyBridgeContext(gatewayToken, agentIDStr, userID, channel, chatID, peerKind, workspace, tenantIDStr, sig, localKey, sessionKey)
 			if !ok {
 				slog.Warn("security.mcp_bridge: invalid bridge context signature",
 					"agent_id", agentIDStr, "user_id", userID)
@@ -264,13 +264,7 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 			if userID != "" {
 				ctx = store.WithUserID(ctx, userID)
 			}
-			// Only inject tenant_id when HMAC actually covers it (level 1).
-			// Fallback levels (pre-tenantID sessions) must not trust unsigned tenant headers.
-			if tenantVerified && tenantIDStr != "" {
-				if tid, err := uuid.Parse(tenantIDStr); err == nil {
-					ctx = store.WithTenantID(ctx, tid)
-				}
-			}
+			// (tenant-ID header present but ignored in v4 single-tenant)
 		}
 
 		// Inject channel routing context for tools like message, cron, etc.

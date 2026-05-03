@@ -89,8 +89,7 @@ func pollAuditDecision(t *testing.T, db *sql.DB, hookID uuid.UUID, decision stri
 // (e.g. seed reconciliation, command-autodisable migration which lists
 // every tenant's enabled rows).
 func crossTenantOwnerCtx() context.Context {
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
-	ctx = store.WithCrossTenant(ctx)
+	ctx := context.Background()
 	ctx = store.WithRole(ctx, store.RoleOwner)
 	return ctx
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // stubAgent is a minimal Agent implementation for router tests.
@@ -49,7 +48,7 @@ func TestRouterGet_UUIDInputStoresCanonicalKey(t *testing.T) {
 	r.SetResolver(stubResolver("goctech-leader"))
 
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	agentUUID := uuid.New().String()
 
 	ag, err := r.Get(ctx, agentUUID)
@@ -88,7 +87,7 @@ func TestRouterGet_IdempotentCacheUnderKeyOrUUID(t *testing.T) {
 	})
 
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	if _, err := r.Get(ctx, "my-agent"); err != nil {
 		t.Fatalf("Get(agent_key): %v", err)
@@ -123,8 +122,7 @@ func TestRouterGet_UUIDCallerResolvesEveryTime(t *testing.T) {
 		return &stubAgent{id: "fixed-key"}, nil
 	})
 
-	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	uuidStr := uuid.New().String()
 	for range 3 {
@@ -150,8 +148,8 @@ func TestRouterGet_DualTenantSameAgentKey(t *testing.T) {
 
 	tenantA := uuid.New()
 	tenantB := uuid.New()
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	if _, err := r.Get(ctxA, "tieu-ho"); err != nil {
 		t.Fatalf("Get tenantA: %v", err)
@@ -194,7 +192,7 @@ func TestRouterGet_StaleRawUUIDEntryEvictedOnGet(t *testing.T) {
 	})
 
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	uuidStr := uuid.New().String()
 	rawKey := tenantID.String() + ":" + uuidStr
 	canonicalKey := tenantID.String() + ":fresh-agent"
@@ -247,7 +245,7 @@ func TestRouterGet_CanonicalDoubleCheckEvictsStaleEntry(t *testing.T) {
 	})
 
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	canonicalKey := tenantID.String() + ":goctech-leader"
 
 	// Prime canonical entry with agent_key caller.

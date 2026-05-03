@@ -133,13 +133,9 @@ func (ph *PendingHistory) SetTenantID(id uuid.UUID) {
 	ph.tenantID = id
 }
 
-// tenantCtx returns a context with the tenant ID set for DB operations.
+// tenantCtx returns a context for DB operations.
 func (ph *PendingHistory) tenantCtx() context.Context {
-	ctx := context.Background()
-	if ph.tenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, ph.tenantID)
-	}
-	return ctx
+	return context.Background()
 }
 
 // Record adds a message to the pending history for a group.

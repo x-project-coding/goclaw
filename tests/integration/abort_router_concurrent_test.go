@@ -144,7 +144,7 @@ func TestRouter_AbortRun_ForcesAfter3s(t *testing.T) {
 
 	// Use a tenant-scoped context so forceMarkTraceAborted carries the tenant to FinishTrace.
 	testTenantID := uuid.New()
-	tenantCtx := store.WithTenantID(context.Background(), testTenantID)
+	tenantCtx := context.Background()
 
 	// Register a run
 	_, cancel := context.WithCancel(tenantCtx)

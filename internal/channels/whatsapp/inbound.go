@@ -14,7 +14,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 const emptyMessageSentinel = "[empty message]"
@@ -22,7 +21,6 @@ const emptyMessageSentinel = "[empty message]"
 // handleIncomingMessage processes an incoming WhatsApp message.
 func (c *Channel) handleIncomingMessage(evt *events.Message) {
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, c.TenantID())
 
 	if evt.Info.IsFromMe {
 		return

@@ -114,7 +114,7 @@ func TestHooksRBAC_GlobalScope_VisibleToAllTenants(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	// Global hook — master scope required to create.
-	masterCtx := store.WithCrossTenant(store.WithTenantID(context.Background(), store.MasterTenantID))
+	masterCtx := context.Background()
 	globalHook, err := hs.Create(masterCtx, hooks.HookConfig{
 		TenantID:    hooks.SentinelTenantID,
 		Scope:       hooks.ScopeGlobal,
@@ -179,7 +179,7 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 		db.Exec("DELETE FROM hooks WHERE id = $1", hookT)
 	})
 
-	masterCtx := store.WithCrossTenant(store.WithTenantID(context.Background(), store.MasterTenantID))
+	masterCtx := context.Background()
 	hookG, err := hs.Create(masterCtx, hooks.HookConfig{
 		TenantID:    hooks.SentinelTenantID,
 		Scope:       hooks.ScopeGlobal,

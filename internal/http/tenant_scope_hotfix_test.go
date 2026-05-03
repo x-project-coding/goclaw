@@ -27,7 +27,7 @@ func newMasterScopeReq(method, path string, tid uuid.UUID, role string) *http.Re
 	r := httptest.NewRequest(method, path, strings.NewReader(""))
 	ctx := r.Context()
 	if tid != uuid.Nil {
-		ctx = store.WithTenantID(ctx, tid)
+	
 	}
 	if role != "" {
 		ctx = store.WithRole(ctx, role)
@@ -90,12 +90,10 @@ func TestBuiltinToolsUpdate_RejectsNonMasterAdmin(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("PUT /v1/tools/builtin/{name}", h.handleUpdate)
 
-	tid := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 	req := httptest.NewRequest(http.MethodPut, "/v1/tools/builtin/web_search",
 		strings.NewReader(`{"enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := store.WithTenantID(req.Context(), tid)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -120,12 +118,10 @@ func TestPackagesInstall_RejectsNonMasterAdmin(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/packages/install", h.handleInstall)
 
-	tid := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
 	req := httptest.NewRequest(http.MethodPost, "/v1/packages/install",
 		strings.NewReader(`{"package":"pip:malicious-pkg"}`))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := store.WithTenantID(req.Context(), tid)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -141,12 +137,10 @@ func TestPackagesUninstall_RejectsNonMasterAdmin(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/packages/uninstall", h.handleUninstall)
 
-	tid := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
 	req := httptest.NewRequest(http.MethodPost, "/v1/packages/uninstall",
 		strings.NewReader(`{"package":"pip:pandas"}`))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := store.WithTenantID(req.Context(), tid)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -165,7 +159,6 @@ func TestPackagesUninstall_RejectsNonMasterAdmin(t *testing.T) {
 // Revoke must never be called — mockAPIKeyStore flags when it is.
 func TestAPIKeyRevoke_RejectsCrossTenant(t *testing.T) {
 	ms := newMockAPIKeyStore()
-	callerTID := uuid.MustParse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
 	keyOwnerTID := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 	keyID := uuid.New()
 	ms.byID[keyID] = &store.APIKeyData{
@@ -179,8 +172,7 @@ func TestAPIKeyRevoke_RejectsCrossTenant(t *testing.T) {
 	mux.HandleFunc("POST /v1/api-keys/{id}/revoke", h.handleRevoke)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/api-keys/"+keyID.String()+"/revoke", nil)
-	ctx := store.WithTenantID(req.Context(), callerTID)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -196,7 +188,6 @@ func TestAPIKeyRevoke_RejectsCrossTenant(t *testing.T) {
 // vulnerability from the audit (store SQL `OR tenant_id IS NULL` arm).
 func TestAPIKeyRevoke_RejectsSystemKeyForTenantAdmin(t *testing.T) {
 	ms := newMockAPIKeyStore()
-	callerTID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	keyID := uuid.New()
 	// Key with TenantID == uuid.Nil represents a NULL-tenant system key.
 	ms.byID[keyID] = &store.APIKeyData{
@@ -210,8 +201,7 @@ func TestAPIKeyRevoke_RejectsSystemKeyForTenantAdmin(t *testing.T) {
 	mux.HandleFunc("POST /v1/api-keys/{id}/revoke", h.handleRevoke)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/api-keys/"+keyID.String()+"/revoke", nil)
-	ctx := store.WithTenantID(req.Context(), callerTID)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -239,8 +229,7 @@ func TestAPIKeyRevoke_AllowsOwnTenantKey(t *testing.T) {
 	mux.HandleFunc("POST /v1/api-keys/{id}/revoke", h.handleRevoke)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/api-keys/"+keyID.String()+"/revoke", nil)
-	ctx := store.WithTenantID(req.Context(), tid)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
@@ -323,8 +312,7 @@ func TestBuiltinToolsUpdate_AllowsMasterAdmin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/v1/tools/builtin/web_search",
 		strings.NewReader(`{"enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
-	ctx := store.WithTenantID(req.Context(), store.MasterTenantID)
-	ctx = store.WithRole(ctx, "admin")
+	ctx := store.WithRole(req.Context(), "admin")
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()

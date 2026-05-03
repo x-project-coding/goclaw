@@ -16,7 +16,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	sessions "github.com/nextlevelbuilder/goclaw/internal/agentsessions"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -27,14 +26,6 @@ func processNormalMessage(
 	msg bus.InboundMessage,
 	deps *ConsumerDeps,
 ) {
-	// Inject tenant from channel instance into context so all store operations
-	// (agent lookup, session creation, etc.) are tenant-scoped.
-	if msg.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, msg.TenantID)
-	} else {
-		ctx = store.WithTenantID(ctx, store.MasterTenantID)
-	}
-
 	// Determine target agent via bindings or explicit AgentID
 	agentID := msg.AgentID
 	if agentID == "" {
@@ -340,11 +331,6 @@ func processNormalMessage(
 					"session", sessionKey)
 			}
 		}
-	}
-
-	// Inject tenant context from channel instance so all store queries are tenant-scoped.
-	if msg.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, msg.TenantID)
 	}
 
 	// Inject post-turn dispatch tracker so team task creates are deferred.

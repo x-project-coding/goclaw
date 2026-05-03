@@ -211,7 +211,7 @@ func TestHooksA_ResolverIgnoresArbitraryTenant(t *testing.T) {
 	// A randomly-generated tenant must see nothing — proves the resolver does
 	// not leak rows across tenants under the OR (tenant_id = sentinel) branch.
 	random := uuid.New()
-	ctx := store.WithTenantID(context.Background(), random)
+	ctx := context.Background()
 	rows, err := hs.ResolveForEvent(ctx, hooks.Event{
 		TenantID:  random,
 		AgentID:   uuid.New(),

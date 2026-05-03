@@ -90,7 +90,6 @@ func (n noopAgentCRUD) ResetStuckSummoning(_ context.Context) (int64, error)    
 
 func makeDelegateCtx() context.Context {
 	ctx := store.WithAgentID(context.Background(), uuid.New())
-	ctx = store.WithTenantID(ctx, uuid.New())
 	ctx = store.WithAgentKey(ctx, "parent-agent")
 	return ctx
 }

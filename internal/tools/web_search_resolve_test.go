@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestResolveChain_CacheHit verifies that resolveChain returns cached chains.
@@ -20,9 +18,7 @@ func TestResolveChain_CacheHit(t *testing.T) {
 		chainCache: newTenantChainCache(),
 	}
 
-	tid := uuid.New()
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, tid)
 
 	// Set a provider key
 	fake.Set(ctx, "tools.web.brave.api_key", "test-key-brave")
@@ -59,17 +55,14 @@ func TestResolveChain_TenantIsolation(t *testing.T) {
 		chainCache: newTenantChainCache(),
 	}
 
-	tenantA := uuid.New()
-	tenantB := uuid.New()
-
 	// Setup tenant A: Brave key only
 	ctxA := context.Background()
-	ctxA = store.WithTenantID(ctxA, tenantA)
+
 	fake.Set(ctxA, "tools.web.brave.api_key", "test-key-brave-A")
 
 	// Setup tenant B: Exa key only
 	ctxB := context.Background()
-	ctxB = store.WithTenantID(ctxB, tenantB)
+
 	fake.Set(ctxB, "tools.web.exa.api_key", "test-key-exa-B")
 
 	// Resolve chains for each tenant
@@ -136,7 +129,7 @@ func TestResolveChain_CacheInvalidation(t *testing.T) {
 
 	tid := uuid.New()
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, tid)
+
 
 	// Initial state: only DDG
 	chain1 := tool.resolveChain(ctx)
@@ -177,7 +170,7 @@ func TestResolveChain_TTLCacheExpiry(t *testing.T) {
 
 	tid := uuid.New()
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, tid)
+
 
 	// Initial state: DDG only
 	chain1 := tool.resolveChain(ctx)

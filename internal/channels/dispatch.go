@@ -70,11 +70,7 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				}
 			}
 
-			// Add tenant context for per-tenant TTS auto-apply
 			sendCtx := ctx
-			if msg.TenantID != uuid.Nil {
-				sendCtx = store.WithTenantID(ctx, msg.TenantID)
-			}
 
 			// Add agent audio context for per-agent TTS voice override
 			if msg.AgentID != uuid.Nil && len(msg.AgentOtherConfig) > 0 {

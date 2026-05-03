@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bgalert"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -89,13 +88,6 @@ func (w *dreamingWorker) effectiveConfig(ctx context.Context, agentID string) re
 
 // Handle processes an episodic.created event for the dreaming pipeline.
 func (w *dreamingWorker) Handle(ctx context.Context, event eventbus.DomainEvent) error {
-	// Inject tenant context so store queries scope correctly
-	if event.TenantID != "" {
-		if tid, err := uuid.Parse(event.TenantID); err == nil {
-			ctx = store.WithTenantID(ctx, tid)
-		}
-	}
-
 	agentID := event.AgentID
 	userID := event.UserID
 

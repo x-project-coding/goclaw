@@ -28,7 +28,7 @@ func resolveEmbeddingProvider(
 	providerReg *providers.Registry,
 	sysConfigs store.SystemConfigStore,
 ) memory.EmbeddingProvider {
-	masterCtx := store.WithTenantID(context.Background(), store.MasterTenantID) // for system_configs (tenant-scoped)
+	masterCtx := context.Background()
 
 	// 1. System config: embedding.provider (set via UI / API)
 	if sysConfigs != nil {

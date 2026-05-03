@@ -72,11 +72,7 @@ func seedAgent(t *testing.T, db *sql.DB) uuid.UUID {
 }
 
 func masterCtx() context.Context {
-	return store.WithTenantID(context.Background(), store.MasterTenantID)
-}
-
-func tenantScopedCtx(tenantID uuid.UUID) context.Context {
-	return store.WithTenantID(context.Background(), tenantID)
+	return context.Background()
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

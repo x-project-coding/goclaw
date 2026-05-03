@@ -199,7 +199,7 @@ func TestOAuthHandlerSaveAndRegisterAppliesCodexPoolDefaults(t *testing.T) {
 	handler := NewOAuthHandler(provStore, secretStore, providerReg, nil)
 
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	if err := provStore.CreateProvider(ctx, &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
 		TenantID:     tenantID,

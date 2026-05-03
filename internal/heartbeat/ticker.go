@@ -169,8 +169,6 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	}
 	agentKey = ag.AgentKey
 
-	ctx = store.WithTenantID(ctx, store.MasterTenantID)
-
 	// [1] Active hours filter.
 	if !isWithinActiveHours(hb) {
 		t.logSkipped(ctx, hb, "active_hours", agentKey)

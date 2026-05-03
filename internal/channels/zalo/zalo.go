@@ -192,7 +192,6 @@ func (c *Channel) processUpdate(update zaloUpdate) {
 
 func (c *Channel) handleTextMessage(msg *zaloMessage) {
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, c.TenantID())
 	senderID := msg.From.ID
 	if senderID == "" {
 		slog.Warn("zalo: dropping text message with empty sender ID", "message_id", msg.MessageID)
@@ -229,7 +228,6 @@ func (c *Channel) handleTextMessage(msg *zaloMessage) {
 
 func (c *Channel) handleImageMessage(msg *zaloMessage) {
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, c.TenantID())
 	senderID := msg.From.ID
 	if senderID == "" {
 		slog.Warn("zalo: dropping image message with empty sender ID", "message_id", msg.MessageID)

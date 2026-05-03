@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -57,8 +56,8 @@ func handleSkillsInvalidate(router *Router, onBump func(), event bus.Event) {
 func seedTenantAgents(t *testing.T, tenantA, tenantB uuid.UUID) (*Router, [3]string) {
 	t.Helper()
 	r := NewRouter()
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 	keys := [3]string{
 		agentCacheKey(ctxA, "agent-1"),
 		agentCacheKey(ctxB, "agent-1"),

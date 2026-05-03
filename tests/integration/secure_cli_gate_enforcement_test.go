@@ -117,7 +117,7 @@ func seedGrant(t *testing.T, db *sql.DB, tenantID, binaryID, agentID uuid.UUID) 
 
 // gateCtx builds a ctx with tenant + agent set for gate enforcement.
 func gateCtx(tenantID, agentID uuid.UUID) context.Context {
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	return store.WithAgentID(ctx, agentID)
 }
 

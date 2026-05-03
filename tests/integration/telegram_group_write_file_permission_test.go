@@ -51,7 +51,7 @@ func TestTelegramGroupWriteFilePermission_GrantedSender(t *testing.T) {
 	}
 
 	// Build ctx matching gateway_consumer_normal.go:84-99 group branch.
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:"+chatID)
 	ctx = store.WithSenderID(ctx, senderNumID)
 	ctx = store.WithAgentID(ctx, agentID)
@@ -65,7 +65,7 @@ func TestTelegramGroupWriteFilePermission_GrantedSender(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_UngrantedSender(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, agentID := seedTenantAgent(t, db)
+	_, agentID := seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 	_ = permStore // no grant
@@ -75,7 +75,7 @@ func TestTelegramGroupWriteFilePermission_UngrantedSender(t *testing.T) {
 		uninvitedNum = "99" // never granted
 	)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:"+chatID)
 	ctx = store.WithSenderID(ctx, uninvitedNum)
 	ctx = store.WithAgentID(ctx, agentID)
@@ -97,11 +97,11 @@ func TestTelegramGroupWriteFilePermission_UngrantedSender(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_NoAgent_FailOpen(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, _ := seedTenantAgent(t, db)
+	_, _ = seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
 	ctx = store.WithSenderID(ctx, "42")
 	// Deliberately NO WithAgentID — exercises the fail-open branch.
@@ -159,7 +159,7 @@ func TestTelegramGroupWriteFilePermission_DelimitedSender(t *testing.T) {
 		t.Fatalf("Grant: %v", err)
 	}
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:"+chatID)
 	ctx = store.WithSenderID(ctx, senderNumID+"|displayname")
 	ctx = store.WithAgentID(ctx, agentID)
@@ -177,11 +177,11 @@ func TestTelegramGroupWriteFilePermission_DelimitedSender(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_EmptySenderDenied(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, agentID := seedTenantAgent(t, db)
+	_, agentID := seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
 	ctx = store.WithAgentID(ctx, agentID)
 	// Deliberately no WithSenderID.
@@ -201,7 +201,7 @@ func TestTelegramGroupWriteFilePermission_EmptySenderDenied(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_SyntheticSendersDenied(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, agentID := seedTenantAgent(t, db)
+	_, agentID := seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
@@ -216,7 +216,7 @@ func TestTelegramGroupWriteFilePermission_SyntheticSendersDenied(t *testing.T) {
 	}
 	for _, syntheticID := range cases {
 		t.Run(syntheticID, func(t *testing.T) {
-			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx := context.Background()
 			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
 			ctx = store.WithSenderID(ctx, syntheticID)
 			ctx = store.WithAgentID(ctx, agentID)
@@ -264,7 +264,7 @@ func TestTelegramGroupWriteFilePermission_PropagatedSenderAllowed(t *testing.T) 
 	// (per F2/F3). If propagation is intact, SenderID == real user's numeric.
 	// If a future change drops propagation, this test flips to the synthetic
 	// "subagent:<id>" branch and fails with "permission denied".
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithUserID(ctx, "group:telegram:"+chatID)
 	ctx = store.WithSenderID(ctx, realSenderID) // propagated from MetaOriginSenderID
 	ctx = store.WithAgentID(ctx, agentID)
@@ -300,14 +300,14 @@ func TestTelegramGroupWriteFilePermission_DMEmptySenderPasses(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, agentID := seedTenantAgent(t, db)
+	_, agentID := seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
 	cases := []string{"admin", "operator", "owner"}
 	for _, role := range cases {
 		t.Run(role, func(t *testing.T) {
-			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx := context.Background()
 			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
 			ctx = store.WithAgentID(ctx, agentID)
 			ctx = store.WithRole(ctx, role)
@@ -329,7 +329,7 @@ func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
 func TestTelegramGroupWriteFilePermission_ViewerRoleDoesNotBypass(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
-	tenantID, agentID := seedTenantAgent(t, db)
+	_, agentID := seedTenantAgent(t, db)
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
@@ -340,7 +340,7 @@ func TestTelegramGroupWriteFilePermission_ViewerRoleDoesNotBypass(t *testing.T) 
 			label = "empty"
 		}
 		t.Run(label, func(t *testing.T) {
-			ctx := store.WithTenantID(context.Background(), tenantID)
+			ctx := context.Background()
 			ctx = store.WithUserID(ctx, "group:telegram:-100987654321")
 			ctx = store.WithAgentID(ctx, agentID)
 			if role != "" {

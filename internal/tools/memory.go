@@ -211,7 +211,7 @@ func (t *MemorySearchTool) recordEpisodicRecall(ctx context.Context, episodic []
 		return
 	}
 	go func() {
-		bgCtx, cancel := context.WithTimeout(store.WithTenantID(context.Background(), tenantID), 5*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		for _, r := range hits {
 			if err := t.episodicStore.RecordRecall(bgCtx, r.EpisodicID, r.Score); err != nil {
@@ -238,7 +238,7 @@ func (t *MemorySearchTool) recordRetrievalMetric(ctx context.Context, resultCoun
 		}
 	}
 	go func() {
-		bgCtx, cancel := context.WithTimeout(store.WithTenantID(context.Background(), tenantID), 5*time.Second)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		value, _ := json.Marshal(map[string]any{
 			"result_count":  resultCount,

@@ -332,11 +332,7 @@ func (c *Collector) retryWorker() {
 			// attempt all pending updates
 			kept := pending[:0]
 			for _, p := range pending {
-				// Restore tenant scope so UpdateTrace and broadcast use correct tenant.
 				baseCtx := context.Background()
-				if p.TenantID != uuid.Nil {
-					baseCtx = store.WithTenantID(baseCtx, p.TenantID)
-				}
 				opCtx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
 				err := c.store.UpdateTrace(opCtx, p.TraceID, p.Updates)
 				cancel()

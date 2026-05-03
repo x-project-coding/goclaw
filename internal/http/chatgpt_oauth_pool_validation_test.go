@@ -13,7 +13,7 @@ import (
 func TestValidateChatGPTOAuthProviderCandidateRejectsMemberReuseAcrossPools(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	for _, provider := range []*store.LLMProviderData{
 		{
@@ -64,7 +64,7 @@ func TestValidateChatGPTOAuthProviderCandidateRejectsMemberReuseAcrossPools(t *t
 func TestValidateChatGPTOAuthProviderCandidateRejectsPoolOnMember(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	owner := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
@@ -110,7 +110,7 @@ func TestValidateChatGPTOAuthProviderCandidateRejectsPoolOnMember(t *testing.T) 
 func TestValidateChatGPTOAuthAgentRoutingRejectsCustomMembersWithoutProviderPool(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	if err := providerStore.CreateProvider(ctx, &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
@@ -136,7 +136,7 @@ func TestValidateChatGPTOAuthAgentRoutingRejectsCustomMembersWithoutProviderPool
 func TestValidateChatGPTOAuthAgentRoutingAllowsStrategyOnlyOverride(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	if err := providerStore.CreateProvider(ctx, &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
@@ -167,7 +167,7 @@ func TestValidateChatGPTOAuthAgentRoutingAllowsStrategyOnlyOverride(t *testing.T
 func TestValidateChatGPTOAuthAgentRoutingAllowsPriorityOrderWithoutProviderPool(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	if err := providerStore.CreateProvider(ctx, &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
@@ -194,7 +194,7 @@ func TestValidateChatGPTOAuthAgentRoutingAllowsPriorityOrderWithoutProviderPool(
 func TestValidatePoolGraphIgnoresDisabledProviders(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	// Disabled provider that previously owned "codex-work" in its pool.
 	for _, p := range []*store.LLMProviderData{
@@ -249,7 +249,7 @@ func TestValidatePoolGraphIgnoresDisabledProviders(t *testing.T) {
 func TestValidatePoolGraphRejectsConflictWithEnabledProviders(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	for _, p := range []*store.LLMProviderData{
 		{
@@ -302,7 +302,7 @@ func TestValidatePoolGraphRejectsConflictWithEnabledProviders(t *testing.T) {
 func TestValidatePoolGraphAllowsReassignAfterDisable(t *testing.T) {
 	providerStore := newMockProviderStore()
 	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	for _, p := range []*store.LLMProviderData{
 		{

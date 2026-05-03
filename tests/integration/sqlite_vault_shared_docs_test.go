@@ -51,7 +51,7 @@ func TestSQLiteVaultStore_Search_SharedDocsVisible(t *testing.T) {
 		 VALUES (?, 'srch-agt', 'A', 'active', ?, 'owner', 'gpt-4o', 'openai')`,
 		agentIDStr, tenantID.String())
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	// Personal doc (agent-owned).
 	personalDoc := &store.VaultDocument{
@@ -120,7 +120,7 @@ func TestSQLiteVaultStore_List_IncludesShared(t *testing.T) {
 		 VALUES (?, 'list-agt', 'A', 'active', ?, 'owner', 'gpt-4o', 'openai')`,
 		agentIDStr, tenantID.String())
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	// Personal doc.
 	personalDoc := &store.VaultDocument{

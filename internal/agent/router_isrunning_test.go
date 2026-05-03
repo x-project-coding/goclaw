@@ -4,10 +4,6 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestIsRunning_TenantScopedLookup asserts that Router.IsRunning accepts ctx
@@ -17,11 +13,9 @@ import (
 // agent as `isRunning: false`.
 func TestIsRunning_TenantScopedLookup(t *testing.T) {
 	r := NewRouter()
-	tenantA := uuid.New()
-	tenantB := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	// Directly populate cache under canonical tenant-scoped key with a
 	// running stub agent in tenant A.
@@ -62,11 +56,5 @@ func TestIsRunning_NoBareLookupLeak(t *testing.T) {
 		t.Error("IsRunning should find a bare entry when ctx has no tenant")
 	}
 
-	// WITH a tenant, the cache key becomes `tenant:bare-agent` which does
-	// NOT exist — must return false (no fallback to bare lookup).
-	tenantID := uuid.New()
-	ctxT := store.WithTenantID(context.Background(), tenantID)
-	if r.IsRunning(ctxT, "bare-agent") {
-		t.Error("IsRunning must NOT fall back to bare lookup when tenant scope is present — cross-tenant leak")
-	}
+	// v4 single-tenant: bare lookup is the only path; remove cross-tenant guard.
 }

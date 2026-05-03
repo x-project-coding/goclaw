@@ -56,9 +56,8 @@ func TestVaultSearch_OutputIncludesToolHint(t *testing.T) {
 	tool := NewVaultSearchTool()
 	tool.SetSearchService(svc)
 
-	tenantID := uuid.New()
 	agentID := uuid.New()
-	ctx := store.WithAgentID(store.WithTenantID(context.Background(), tenantID), agentID)
+	ctx := store.WithAgentID(context.Background(), agentID)
 
 	res := tool.Execute(ctx, map[string]any{"query": "something"})
 	if res.IsError {

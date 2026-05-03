@@ -316,10 +316,7 @@ func newTestUploadHandler(t *testing.T) (*SkillsHandler, *skillManageStoreStub, 
 	skillStore := newSkillManageStoreStub(baseDir)
 	handler := NewSkillsHandler(skillStore, baseDir, root, "", bus.New())
 	ctx := store.WithLocale(
-		store.WithTenantID(
-			store.WithUserID(context.Background(), "user-1"),
-			store.MasterTenantID,
-		),
+		store.WithUserID(context.Background(), "user-1"),
 		"en",
 	)
 	return handler, skillStore, ctx, root

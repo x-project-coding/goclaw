@@ -86,7 +86,7 @@ func (s *stubAPIKeyStore) wasRevoked(id uuid.UUID) bool {
 func wsCallCtx(client *gateway.Client) context.Context {
 	ctx := context.Background()
 	if tid := client.TenantID(); tid != uuid.Nil {
-		ctx = store.WithTenantID(ctx, tid)
+	
 	}
 	if role := client.Role(); role != "" {
 		ctx = store.WithRole(ctx, string(role))

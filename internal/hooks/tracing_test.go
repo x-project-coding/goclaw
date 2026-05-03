@@ -166,7 +166,7 @@ func TestEmitHookSpan_PropagatesTenantAndTrace(t *testing.T) {
 	ctx := tracing.WithCollector(context.Background(), c)
 	ctx = tracing.WithTraceID(ctx, traceID)
 	ctx = tracing.WithParentSpanID(ctx, parentSpanID)
-	ctx = store.WithTenantID(ctx, tenantID)
+
 
 	hooks.EmitHookSpan(ctx, hooks.EventPreToolUse, hooks.HandlerCommand,
 		time.Now().Add(-5*time.Millisecond), hooks.DecisionAllow, "")

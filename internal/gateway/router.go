@@ -8,7 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -89,12 +88,6 @@ func (r *MethodRouter) Handle(ctx context.Context, client *Client, req *protocol
 	// from WS handlers — without it, ctx-based permission helpers silently
 	// evaluate as non-owner. HTTP layer does the same via enrichContext.
 	ctx = store.WithLocale(ctx, i18n.Normalize(client.locale))
-	if client.TenantID() != uuid.Nil {
-		ctx = store.WithTenantID(ctx, client.TenantID())
-	}
-	if slug := client.TenantSlug(); slug != "" {
-		ctx = store.WithTenantSlug(ctx, slug)
-	}
 	if role := client.Role(); role != "" {
 		ctx = store.WithRole(ctx, string(role))
 	}
@@ -263,10 +256,8 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 }
 
 func (r *MethodRouter) sendConnectResponse(ctx context.Context, client *Client, reqID string) {
-	// Build scoped ctx that store.IsMasterScope expects: role + tenant.
-	// Owner role short-circuits regardless of tenant; non-owner relies on
-	// tenant_id == MasterTenantID. See store.IsMasterScope at context.go:346.
-	scopedCtx := store.WithTenantID(ctx, client.tenantID)
+	// Build scoped ctx so store.IsMasterScope can check the role.
+	scopedCtx := ctx
 	if client.IsOwner() {
 		scopedCtx = store.WithRole(scopedCtx, store.RoleOwner)
 	}

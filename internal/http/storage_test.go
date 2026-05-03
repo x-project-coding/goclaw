@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,9 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // writeStorageTestFile creates a file with the given content for testing.
@@ -32,7 +28,6 @@ func TestStorageListHidesTenantRootForMaster(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest("GET", "/v1/storage/files", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 	w := httptest.NewRecorder()
 
 	handler.handleList(w, req)
@@ -63,7 +58,6 @@ func TestStorageListSubpathTenantReturnsNotFound(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest("GET", "/v1/storage/files?path=tenants", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 	w := httptest.NewRecorder()
 
 	handler.handleList(w, req)
@@ -78,7 +72,6 @@ func TestStorageReadTenantRootReturnsNotFoundForMaster(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest("GET", "/v1/storage/files/tenants/tenant-a/secret.txt", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 	req.SetPathValue("path", "tenants/tenant-a/secret.txt")
 	w := httptest.NewRecorder()
 
@@ -95,7 +88,6 @@ func TestStorageSizeExcludesTenantRootForMaster(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest("GET", "/v1/storage/size", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 	w := httptest.NewRecorder()
 
 	handler.handleSize(w, req)
@@ -138,13 +130,9 @@ func TestStorageSizeExcludesTenantRootForMaster(t *testing.T) {
 // the master tenant and leaves non-master tenants unaffected.
 func TestIsHiddenPathOnlyAffectsMaster(t *testing.T) {
 	handler := NewStorageHandler(t.TempDir())
-	nonMasterID := uuid.MustParse("0193a5b0-7000-7000-8000-000000000099")
 
 	masterReq := httptest.NewRequest("GET", "/", nil)
-	masterReq = masterReq.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
-
 	otherReq := httptest.NewRequest("GET", "/", nil)
-	otherReq = otherReq.WithContext(store.WithTenantID(context.Background(), nonMasterID))
 
 	// Master tenant: tenants paths are hidden.
 	if !handler.isHiddenPath(masterReq, "tenants") {
@@ -185,7 +173,6 @@ func TestStorageDeleteInvalidatesSizeCache(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest(http.MethodDelete, "/v1/storage/files/tmp.txt", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 	req.SetPathValue("path", "tmp.txt")
 
 	sizeBase := handler.tenantBaseDir(req)
@@ -207,7 +194,6 @@ func TestStorageMoveInvalidatesSizeCache(t *testing.T) {
 
 	handler := NewStorageHandler(baseDir)
 	req := httptest.NewRequest(http.MethodPut, "/v1/storage/move?from=from.txt&to=to.txt", nil)
-	req = req.WithContext(store.WithTenantID(context.Background(), store.MasterTenantID))
 
 	sizeBase := handler.tenantBaseDir(req)
 	handler.sizeCache.Store(sizeBase, &sizeCacheEntry{total: 3, files: 1})

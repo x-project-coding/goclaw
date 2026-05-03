@@ -251,7 +251,7 @@ func wireChannelEventSubscribers(
 				disabled := 0
 				for _, inst := range all {
 					if inst.AgentID == agentID && inst.Enabled {
-						if err := ciStore.Update(store.WithTenantID(context.Background(), inst.TenantID), inst.ID, map[string]any{"enabled": false}); err != nil {
+						if err := ciStore.Update(context.Background(), inst.ID, map[string]any{"enabled": false}); err != nil {
 							slog.Warn("cascade disable: failed to disable channel instance", "name", inst.Name, "error", err)
 						} else {
 							disabled++

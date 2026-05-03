@@ -106,12 +106,9 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 
 		// Refresh in-memory config when system_configs change via HTTP API
 		d.msgBus.Subscribe(bus.TopicSystemConfigChanged, func(evt bus.Event) {
-			// Use tenant context from the request that triggered the change
 			ctx := context.Background()
 			if reqCtx, ok := evt.Payload.(context.Context); ok {
 				ctx = reqCtx
-			} else {
-				ctx = store.WithTenantID(ctx, store.MasterTenantID)
 			}
 			if sysConfigs, err := d.pgStores.SystemConfigs.List(ctx); err == nil && len(sysConfigs) > 0 {
 				d.cfg.ApplySystemConfigs(sysConfigs)

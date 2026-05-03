@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bgalert"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -25,13 +24,6 @@ func (w *semanticWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	payload, ok := event.Payload.(*eventbus.EpisodicCreatedPayload)
 	if !ok {
 		return fmt.Errorf("semantic: unexpected payload type %T", event.Payload)
-	}
-
-	// Inject tenant context so bgalert scopes correctly.
-	if event.TenantID != "" {
-		if tid, err := uuid.Parse(event.TenantID); err == nil {
-			ctx = store.WithTenantID(ctx, tid)
-		}
 	}
 
 	if w.extractor == nil || payload.Summary == "" {

@@ -133,7 +133,7 @@ func TestSQLiteVaultStore_VisibilityMatrix(t *testing.T) {
 	agentB := seedSQLiteAgent(t, stores, tenantID)
 	teamID, teamMember := seedSQLiteTeam(t, stores, tenantID, agentA)
 
-	ctx := store.WithTenantID(context.Background(), uuid.MustParse(tenantID))
+	ctx := context.Background()
 
 	const (
 		pathPersonal = "sqmatrix/personal.md"

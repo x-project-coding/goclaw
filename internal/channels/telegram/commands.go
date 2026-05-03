@@ -27,8 +27,6 @@ func (c *Channel) resolveAgentUUID(ctx context.Context) (uuid.UUID, error) {
 		return id, nil
 	}
 
-	// Inject tenant scope so the store can filter by tenant_id.
-	ctx = store.WithTenantID(ctx, c.TenantID())
 	agent, err := c.agentStore.GetByKey(ctx, key)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("agent %q not found: %w", key, err)
@@ -57,9 +55,6 @@ func (c *Channel) handleBotCommand(ctx context.Context, message *telego.Message,
 	}
 
 	cmd = strings.SplitN(cmd, "@", 2)[0]
-
-	// Inject tenant scope so all command handlers have tenant_id in context.
-	ctx = store.WithTenantID(ctx, c.TenantID())
 
 	chatIDObj := tu.ID(chatID)
 

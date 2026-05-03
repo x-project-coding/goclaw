@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // outsidePath returns an absolute path that is guaranteed to be outside the
@@ -309,7 +308,7 @@ func TestValidateChannelTenant(t *testing.T) {
 	tool := NewMessageTool("", true)
 
 	t.Run("no checker configured allows all", func(t *testing.T) {
-		ctx := store.WithTenantID(context.Background(), tenantA)
+		ctx := context.Background()
 		if err := tool.validateChannelTenant(ctx, "telegram", "123"); err != nil {
 			t.Errorf("expected nil, got error: %s", err.ForLLM)
 		}
@@ -326,14 +325,14 @@ func TestValidateChannelTenant(t *testing.T) {
 	})
 
 	t.Run("same tenant allows", func(t *testing.T) {
-		ctx := store.WithTenantID(context.Background(), tenantA)
+		ctx := context.Background()
 		if err := tool.validateChannelTenant(ctx, "telegram", "123"); err != nil {
 			t.Errorf("expected nil for same tenant, got: %s", err.ForLLM)
 		}
 	})
 
 	t.Run("cross tenant blocks", func(t *testing.T) {
-		ctx := store.WithTenantID(context.Background(), tenantA)
+		ctx := context.Background()
 		err := tool.validateChannelTenant(ctx, "tenant-b-tg", "456")
 		if err == nil {
 			t.Fatal("expected error for cross-tenant send, got nil")
@@ -344,7 +343,7 @@ func TestValidateChannelTenant(t *testing.T) {
 	})
 
 	t.Run("channel not found blocks", func(t *testing.T) {
-		ctx := store.WithTenantID(context.Background(), tenantA)
+		ctx := context.Background()
 		err := tool.validateChannelTenant(ctx, "nonexistent", "789")
 		if err == nil {
 			t.Fatal("expected error for missing channel, got nil")
@@ -353,7 +352,7 @@ func TestValidateChannelTenant(t *testing.T) {
 
 	t.Run("nil channel tenant allows (legacy)", func(t *testing.T) {
 		channels["legacy-ch"] = uuid.Nil
-		ctx := store.WithTenantID(context.Background(), tenantA)
+		ctx := context.Background()
 		if err := tool.validateChannelTenant(ctx, "legacy-ch", "123"); err != nil {
 			t.Errorf("expected nil for legacy channel, got: %s", err.ForLLM)
 		}

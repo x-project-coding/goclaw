@@ -113,8 +113,7 @@ func TestResolveAgentUUIDCached_CacheHitSkipsDBPath(t *testing.T) {
 	r.SetResolver(func(_ context.Context, _ string) (agent.Agent, error) {
 		return &cacheHitStubAgent{id: agentKey, uid: expectedUUID}, nil
 	})
-	tenantID := uuid.New()
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	if _, err := r.Get(ctx, agentKey); err != nil {
 		t.Fatalf("prime Router.Get: %v", err)
 	}

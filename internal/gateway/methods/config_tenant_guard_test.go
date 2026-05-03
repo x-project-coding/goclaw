@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
@@ -16,7 +14,6 @@ import (
 func TestIsMasterScopeContext_OwnerRole_Allowed(t *testing.T) {
 	ctx := store.WithRole(context.Background(), store.RoleOwner)
 	// Tenant set to a non-master tenant — owner role must still pass
-	ctx = store.WithTenantID(ctx, uuid.MustParse("11111111-1111-1111-1111-111111111111"))
 	if !store.IsMasterScope(ctx) {
 		t.Fatalf("owner role with non-master tenant should be allowed")
 	}
@@ -31,15 +28,14 @@ func TestIsMasterScopeContext_NilTenant_Allowed(t *testing.T) {
 }
 
 func TestIsMasterScopeContext_MasterTenant_Allowed(t *testing.T) {
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 	if !store.IsMasterScope(ctx) {
 		t.Fatalf("master tenant ctx should be allowed")
 	}
 }
 
 func TestIsMasterScopeContext_NonMasterTenantNoOwner_Denied(t *testing.T) {
-	tid := uuid.MustParse("22222222-2222-2222-2222-222222222222")
-	ctx := store.WithTenantID(context.Background(), tid)
+	ctx := context.Background()
 	if store.IsMasterScope(ctx) {
 		t.Fatalf("non-master tenant ctx without owner role must be denied")
 	}
@@ -47,8 +43,7 @@ func TestIsMasterScopeContext_NonMasterTenantNoOwner_Denied(t *testing.T) {
 
 func TestIsMasterScopeContext_NonMasterTenantWithOwnerRole_Allowed(t *testing.T) {
 	// A system owner visiting a tenant dashboard — bypass-all allows through
-	tid := uuid.MustParse("33333333-3333-3333-3333-333333333333")
-	ctx := store.WithTenantID(context.Background(), tid)
+	ctx := context.Background()
 	ctx = store.WithRole(ctx, store.RoleOwner)
 	if !store.IsMasterScope(ctx) {
 		t.Fatalf("owner role must bypass tenant scope check")
@@ -77,7 +72,7 @@ func TestRequireMasterScope_MasterTenant_CallsNext(t *testing.T) {
 	var called bool
 	h := m.requireMasterScope(nextCalledHandler(&called))
 
-	ctx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	ctx := context.Background()
 	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigPatch))
 
 	if !called {
@@ -103,7 +98,7 @@ func TestRequireMasterScope_OwnerRole_CallsNext(t *testing.T) {
 	h := m.requireMasterScope(nextCalledHandler(&called))
 
 	// System owner visiting a non-master tenant ctx — must pass
-	ctx := store.WithTenantID(context.Background(), uuid.MustParse("44444444-4444-4444-4444-444444444444"))
+	ctx := context.Background()
 	ctx = store.WithRole(ctx, store.RoleOwner)
 	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigApply))
 
@@ -118,7 +113,7 @@ func TestRequireMasterScope_NonMasterTenantNoOwner_BlocksNext(t *testing.T) {
 	h := m.requireMasterScope(nextCalledHandler(&called))
 
 	// Non-master tenant admin (non-owner role) — must be blocked
-	ctx := store.WithTenantID(context.Background(), uuid.MustParse("55555555-5555-5555-5555-555555555555"))
+	ctx := context.Background()
 	ctx = store.WithRole(ctx, "admin")
 	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigPatch))
 
@@ -140,7 +135,7 @@ func TestRequireMasterScope_ChainedWithRequireOwner(t *testing.T) {
 	chain := m.requireMasterScope(m.requireOwner(inner))
 
 	// Non-master tenant ctx → master-scope guard rejects first
-	ctx := store.WithTenantID(context.Background(), uuid.MustParse("66666666-6666-6666-6666-666666666666"))
+	ctx := context.Background()
 	ctx = store.WithRole(ctx, "admin")
 
 	// Must not panic (handler with nil m.cfg is never reached)

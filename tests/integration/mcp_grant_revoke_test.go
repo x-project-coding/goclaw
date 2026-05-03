@@ -33,7 +33,7 @@ func TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError(t *testing.T) {
 
 	// Create MCP store
 	mcpStore := pg.NewPGMCPServerStore(db, testEncryptionKey)
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithAgentID(ctx, agentID)
 	ctx = store.WithUserID(ctx, "test-user")
 
@@ -116,7 +116,7 @@ func TestBridgeTool_Execute_RevokeUserGrant_ReturnsError(t *testing.T) {
 
 	// Create MCP store
 	mcpStore := pg.NewPGMCPServerStore(db, testEncryptionKey)
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithAgentID(ctx, agentID)
 	ctx = store.WithUserID(ctx, userID)
 
@@ -183,7 +183,7 @@ func TestResolver_Rebuild_AfterRevoke_NoToolInPrompt(t *testing.T) {
 
 	// Create MCP store
 	mcpStore := pg.NewPGMCPServerStore(db, testEncryptionKey)
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	// Verify grant is active
 	accessible, err := mcpStore.ListAccessible(ctx, agentID, "test-user")

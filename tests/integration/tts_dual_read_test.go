@@ -16,7 +16,7 @@ func TestTTSConfig_Store_RoundTrip_LegacyKeys(t *testing.T) {
 	db := testDB(t)
 	tenantID, _ := seedTenantAgent(t, db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := pg.NewPGSystemConfigStore(db)
 
@@ -56,7 +56,7 @@ func TestTTSConfig_Store_RoundTrip_ParamsBlob(t *testing.T) {
 	db := testDB(t)
 	tenantID, _ := seedTenantAgent(t, db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := pg.NewPGSystemConfigStore(db)
 
@@ -87,7 +87,7 @@ func TestTTSConfig_Store_Dual_LegacyAndBlob(t *testing.T) {
 	db := testDB(t)
 	tenantID, _ := seedTenantAgent(t, db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := pg.NewPGSystemConfigStore(db)
 
@@ -118,7 +118,7 @@ func TestTTSConfig_Store_DisjointUnion(t *testing.T) {
 	db := testDB(t)
 	tenantID, _ := seedTenantAgent(t, db)
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	configStore := pg.NewPGSystemConfigStore(db)
 
@@ -150,8 +150,8 @@ func TestTTSConfig_Store_MultiTenant(t *testing.T) {
 	tenantA, _ := seedTenantAgent(t, db)
 	tenantB, _ := seedTenantAgent(t, db)
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	configStore := pg.NewPGSystemConfigStore(db)
 

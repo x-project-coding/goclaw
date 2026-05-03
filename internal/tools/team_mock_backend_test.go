@@ -883,7 +883,7 @@ func newTestTeamSetup() (*mockBackend, *TeamTasksTool, uuid.UUID, uuid.UUID, con
 	tool := NewTeamTasksTool(mb, FullTeamPolicy{})
 
 	ctx := context.Background()
-	ctx = store.WithTenantID(ctx, testTenantID)
+
 	ctx = store.WithAgentID(ctx, testLeadID)
 	ctx = WithToolChannel(ctx, ChannelDashboard)
 	ctx = WithToolChatID(ctx, testTeamID.String())

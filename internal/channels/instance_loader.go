@@ -250,12 +250,10 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 	}
 
 	// Resolve agent_key from UUID — the routing system (Router, session keys) uses agent_key, not UUID.
-	// Use the instance's tenant_id to scope the agent lookup.
-	instCtx := store.WithTenantID(ctx, inst.TenantID)
 	var ag *store.AgentData
 	if base, ok := ch.(interface{ SetAgentID(string) }); ok {
 		var err error
-		ag, err = l.agentStore.GetByID(instCtx, inst.AgentID)
+		ag, err = l.agentStore.GetByID(ctx, inst.AgentID)
 		if err != nil {
 			l.manager.RecordFailureForType(inst.Name, inst.ChannelType, "", fmt.Errorf("agent %s not found for channel %s: %w", inst.AgentID, inst.Name, err))
 			return fmt.Errorf("agent %s not found for channel %s: %w", inst.AgentID, inst.Name, err)

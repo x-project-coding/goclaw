@@ -130,20 +130,20 @@ func seedTwoTenants(t *testing.T, db *sql.DB) (tenantA, agentA, tenantB, agentB 
 	return
 }
 
-// tenantCtx returns a context with tenant ID set for store scoping.
-func tenantCtx(tenantID uuid.UUID) context.Context {
-	return store.WithTenantID(context.Background(), tenantID)
+// tenantCtx returns a background context (v4 single-tenant, no scoping needed).
+func tenantCtx(_ uuid.UUID) context.Context {
+	return context.Background()
 }
 
 // userCtx returns a context with both tenant ID and user ID set.
 func userCtx(tenantID uuid.UUID, userID string) context.Context {
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	return store.WithUserID(ctx, userID)
 }
 
 // agentCtx returns a context with tenant, agent type and agent ID set.
 func agentCtx(tenantID, agentID uuid.UUID, agentType string) context.Context {
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	ctx = store.WithAgentID(ctx, agentID)
 	ctx = store.WithAgentType(ctx, agentType)
 	return ctx

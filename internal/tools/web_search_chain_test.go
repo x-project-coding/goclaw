@@ -186,7 +186,7 @@ func TestBuildChainFromStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			ctx = store.WithTenantID(ctx, tt.tenantID)
+		
 
 			// Set up fake secrets
 			fake := newFakeSecretsStore()

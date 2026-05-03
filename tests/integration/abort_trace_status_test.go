@@ -49,7 +49,7 @@ func TestCollector_UpdateRetry_SucceedsAfterTwoFailures(t *testing.T) {
 	// Call SetTraceStatus — should fail twice inline, then succeed on retry
 	setCtx, setCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer setCancel()
-	setCtx = store.WithTenantID(setCtx, tenantID)
+
 	collector2.SetTraceStatus(setCtx, trace.ID, "completed")
 
 	// Give the retry worker time to process
@@ -94,7 +94,7 @@ func TestCollector_UpdateRetry_EnqueuesOnAllFailures(t *testing.T) {
 	// Do NOT call collector.Start() — we want the retry worker idle so items stay in queue.
 	collector := tracing.NewCollector(flaky)
 
-	setCtx := store.WithTenantID(context.Background(), tenantID)
+	setCtx := context.Background()
 	collector.SetTraceStatus(setCtx, traceID, "completed")
 
 	// After all 4 inline attempts fail, the update must be in the retry queue.
@@ -155,7 +155,7 @@ func TestCollector_BroadcastsStatusEvent(t *testing.T) {
 	// Call FinishTrace
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finishCancel()
-	finishCtx = store.WithTenantID(finishCtx, tenantID)
+
 	collector.FinishTrace(finishCtx, trace.ID, "completed", "", "test output")
 
 	// Give a moment for the broadcast

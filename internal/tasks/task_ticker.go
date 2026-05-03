@@ -209,13 +209,7 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 	leadCache := map[leadCacheKey]*store.AgentData{}
 
 	for scope, scopeTasks := range byScope {
-		// Inject tenant into ctx so store lookups (GetTeam, GetByID, GetTask) apply the
-		// correct tenant filter. Without this, PGTeamStore.GetTeam silently returns
-		// (nil, nil) when ctx has no tenant — causing a nil-deref panic on team.LeadAgentID.
 		scopeCtx := ctx
-		if scope.TenantID != uuid.Nil {
-			scopeCtx = store.WithTenantID(ctx, scope.TenantID)
-		}
 
 		teamKey := teamCacheKey{TeamID: scope.TeamID, TenantID: scope.TenantID}
 		team := teamCache[teamKey]
@@ -354,24 +348,19 @@ func (t *TaskTicker) processFollowups(ctx context.Context) {
 		if len(teamTasks) == 0 {
 			continue
 		}
-		tenantID := teamTasks[0].TenantID
-		scopeCtx := ctx
-		if tenantID != uuid.Nil {
-			scopeCtx = store.WithTenantID(ctx, tenantID)
-		}
-		team, err := t.teams.GetTeam(scopeCtx, teamID)
+		team, err := t.teams.GetTeam(ctx, teamID)
 		if err != nil {
 			slog.Warn("task_ticker: followups get team failed",
-				"team_id", teamID, "tenant_id", tenantID, "error", err)
+				"team_id", teamID, "error", err)
 			continue
 		}
 		if team == nil {
 			slog.Warn("task_ticker: followups team not found (nil)",
-				"team_id", teamID, "tenant_id", tenantID)
+				"team_id", teamID)
 			continue
 		}
 		interval := followupInterval(*team)
-		t.processTeamFollowups(scopeCtx, teamTasks, interval)
+		t.processTeamFollowups(ctx, teamTasks, interval)
 	}
 }
 

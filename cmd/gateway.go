@@ -185,7 +185,7 @@ func runGateway() {
 	// Read back system_configs from DB and overlay onto in-memory config.
 	if pgStores.SystemConfigs != nil {
 		if sysConfigs, err := pgStores.SystemConfigs.List(
-			store.WithTenantID(context.Background(), store.MasterTenantID),
+			context.Background(),
 		); err == nil && len(sysConfigs) > 0 {
 			cfg.ApplySystemConfigs(sysConfigs)
 			slog.Info("system_configs applied to in-memory config", "keys", len(sysConfigs))

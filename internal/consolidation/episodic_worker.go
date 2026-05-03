@@ -47,8 +47,6 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	if err != nil {
 		return fmt.Errorf("episodic: invalid tenant_id %q: %w", event.TenantID, err)
 	}
-	// Inject tenant context so store queries and bgalert scope correctly.
-	ctx = store.WithTenantID(ctx, tenantUUID)
 	agentUUID, err := uuid.Parse(event.AgentID)
 	if err != nil {
 		return fmt.Errorf("episodic: invalid agent_id %q: %w", event.AgentID, err)

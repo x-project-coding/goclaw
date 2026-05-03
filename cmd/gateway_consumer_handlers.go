@@ -33,13 +33,6 @@ func handleSubagentAnnounce(
 		return false
 	}
 
-	// Inject tenant scope — same as processNormalMessage.
-	if msg.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, msg.TenantID)
-	} else {
-		ctx = store.WithTenantID(ctx, store.MasterTenantID)
-	}
-
 	origChannel := msg.Metadata[tools.MetaOriginChannel]
 	origPeerKind := msg.Metadata[tools.MetaOriginPeerKind]
 	origLocalKey := msg.Metadata[tools.MetaOriginLocalKey]
@@ -161,13 +154,6 @@ func handleTeammateMessage(
 ) bool {
 	if !(msg.Channel == tools.ChannelSystem && strings.HasPrefix(msg.SenderID, "teammate:")) {
 		return false
-	}
-
-	// Inject tenant scope — same as processNormalMessage.
-	if msg.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, msg.TenantID)
-	} else {
-		ctx = store.WithTenantID(ctx, store.MasterTenantID)
 	}
 
 	origChannel := msg.Metadata[tools.MetaOriginChannel]
@@ -409,7 +395,7 @@ func handleResetCommand(
 			sessionKey = sessions.BuildGroupTopicSessionKey(agentID, msg.Channel, msg.ChatID, topicID)
 		}
 	}
-	ctx := store.WithTenantID(context.Background(), msg.TenantID)
+	ctx := context.Background()
 	deps.SessStore.Reset(ctx, sessionKey)
 	deps.SessStore.Save(ctx, sessionKey)
 	providers.ResetCLISession("", sessionKey)

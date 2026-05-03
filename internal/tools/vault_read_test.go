@@ -101,7 +101,7 @@ func writeBytes(t *testing.T, ws, rel string, b []byte) {
 func makeCtx(tenantID, agentID uuid.UUID) context.Context {
 	ctx := context.Background()
 	if tenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, tenantID)
+	
 	}
 	if agentID != uuid.Nil {
 		ctx = store.WithAgentID(ctx, agentID)

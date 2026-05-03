@@ -231,18 +231,9 @@ func enrichContext(ctx context.Context, r *http.Request, auth authResult) contex
 	if userID != "" {
 		ctx = store.WithUserID(ctx, userID)
 	}
-	tenantID := auth.TenantID
-	if tenantID == uuid.Nil {
-		tenantID = store.MasterTenantID
-	}
-	ctx = store.WithTenantID(ctx, tenantID)
-	if auth.TenantSlug != "" {
-		ctx = store.WithTenantSlug(ctx, auth.TenantSlug)
-	}
 	slog.Debug("security.http_auth_resolved",
 		"path", r.URL.Path,
 		"role", string(auth.Role),
-		"tenant_id", tenantID.String(),
 	)
 	return ctx
 }

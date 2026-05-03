@@ -91,13 +91,10 @@ func (h *SystemConfigsHandler) handleSet(w http.ResponseWriter, r *http.Request)
 		bgalert.ClearProviderError(r.Context(), h.store)
 	}
 
-	// Broadcast change with tenant context so in-memory config refreshes for the right tenant.
-	// Use fresh context with tenant ID — request context may be canceled before subscriber runs.
 	if h.msgBus != nil {
-		freshCtx := store.WithTenantID(context.Background(), store.TenantIDFromContext(r.Context()))
 		h.msgBus.Broadcast(bus.Event{
 			Name:    bus.TopicSystemConfigChanged,
-			Payload: freshCtx,
+			Payload: context.Background(),
 		})
 	}
 
@@ -112,10 +109,9 @@ func (h *SystemConfigsHandler) handleDelete(w http.ResponseWriter, r *http.Reque
 	}
 
 	if h.msgBus != nil {
-		freshCtx := store.WithTenantID(context.Background(), store.TenantIDFromContext(r.Context()))
 		h.msgBus.Broadcast(bus.Event{
 			Name:    bus.TopicSystemConfigChanged,
-			Payload: freshCtx,
+			Payload: context.Background(),
 		})
 	}
 

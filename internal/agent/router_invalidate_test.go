@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestInvalidateAgent_MatchesAgentKeyNotUUID documents the pre-Phase-2 state
@@ -22,10 +20,9 @@ func TestInvalidateAgent_MatchesAgentKeyNotUUID(t *testing.T) {
 	r := NewRouter()
 	agentKey := "my-agent"
 	agentUUID := uuid.New().String()
-	tenantID := uuid.New()
 
 	// Simulate chat path: cache entry keyed by agentKey
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 	chatKey := agentCacheKey(ctx, agentKey)
 	r.agents[chatKey] = &agentEntry{}
 
@@ -57,11 +54,9 @@ func TestInvalidateAgent_MatchesAgentKeyNotUUID(t *testing.T) {
 func TestInvalidateAgent_TenantScoped(t *testing.T) {
 	r := NewRouter()
 	agentKey := "default"
-	tenantA := uuid.New()
-	tenantB := uuid.New()
 
-	ctxA := store.WithTenantID(context.Background(), tenantA)
-	ctxB := store.WithTenantID(context.Background(), tenantB)
+	ctxA := context.Background()
+	ctxB := context.Background()
 
 	keyA := agentCacheKey(ctxA, agentKey)
 	keyB := agentCacheKey(ctxB, agentKey)

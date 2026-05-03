@@ -52,7 +52,6 @@ func (c *Channel) resolveAgentUUID(ctx context.Context) (uuid.UUID, error) {
 	if c.agentStore == nil {
 		return uuid.Nil, fmt.Errorf("agent store unavailable")
 	}
-	ctx = store.WithTenantID(ctx, c.TenantID())
 	agent, err := c.agentStore.GetByKey(ctx, key)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("agent %q not found: %w", key, err)

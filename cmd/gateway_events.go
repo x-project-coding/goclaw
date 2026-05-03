@@ -42,8 +42,7 @@ func (d *gatewayDeps) wireTeamTaskAuditSubscriber() {
 			return
 		}
 
-		// Propagate tenant from bus event to ensure correct tenant isolation.
-		auditCtx := store.WithTenantID(context.Background(), evt.TenantID)
+		auditCtx := context.Background()
 
 		// Populate data field with event-specific context for audit trail.
 		var data json.RawMessage
@@ -280,7 +279,7 @@ func (d *gatewayDeps) wireAuditSubscriber() chan bus.AuditEventPayload {
 	})
 	go func() {
 		for payload := range auditCh {
-			auditCtx := store.WithTenantID(context.Background(), payload.TenantID)
+			auditCtx := context.Background()
 			if err := d.pgStores.Activity.Log(auditCtx, &store.ActivityLog{
 				ActorType:  payload.ActorType,
 				ActorID:    payload.ActorID,

@@ -84,7 +84,7 @@ func TestSQLiteSmokeTest(t *testing.T) {
 		t.Fatalf("seed agent: %v", err)
 	}
 
-	ctx := store.WithTenantID(context.Background(), tenantID)
+	ctx := context.Background()
 
 	// --- SubagentTasks round-trip ---
 	t.Run("SubagentTasks", func(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	orch "github.com/nextlevelbuilder/goclaw/internal/orchestration"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -130,11 +129,6 @@ func processSubagentAnnounceLoop(
 	msgBus *bus.MessageBus,
 	cfg *config.Config,
 ) {
-	// Ensure tenant scope is always set for the scheduler.
-	if r.TenantID != uuid.Nil {
-		ctx = store.WithTenantID(ctx, r.TenantID)
-	}
-
 	for {
 		select {
 		case <-ctx.Done():

@@ -223,9 +223,7 @@ func (h *SkillsHandler) handleInstallDeps(w http.ResponseWriter, r *http.Request
 	if !h.requireMasterTenant(w, r) {
 		return
 	}
-	// Use explicit master tenant context for system skill operations,
-	// consistent with rescanAndUpdate() pattern.
-	masterCtx := store.WithTenantID(r.Context(), store.MasterTenantID)
+	masterCtx := r.Context()
 
 	dirs := h.skills.ListSystemSkillDirs(masterCtx)
 	if len(dirs) == 0 {
@@ -369,7 +367,7 @@ type depResult struct {
 // rescanAndUpdate re-checks system skills and updates their status + missing deps in DB.
 // Only system skills have filesystem dependencies that need rescanning.
 func (h *SkillsHandler) rescanAndUpdate() (updated int, results []depResult) {
-	masterCtx := store.WithTenantID(context.Background(), store.MasterTenantID)
+	masterCtx := context.Background()
 	allSkills := h.skills.ListAllSystemSkills(context.Background())
 
 	for _, sk := range allSkills {
