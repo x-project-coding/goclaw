@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
@@ -344,9 +345,8 @@ func (h *AgentsHandler) doTeamImport(ctx context.Context, r *http.Request, teamA
 		}
 
 		dedupedKey := h.dedupAgentKey(ctx, agentKey)
-		tenantID := store.MasterTenantID
 		userID := store.UserIDFromContext(ctx)
-		ag := h.buildAgentFromArchive(agArc.agentConfig, dedupedKey, "", tenantID, userID)
+		ag := h.buildAgentFromArchive(agArc.agentConfig, dedupedKey, "", uuid.Nil, userID)
 
 		if progressFn != nil {
 			progressFn(ProgressEvent{Phase: "agent", Status: "running", Detail: dedupedKey})

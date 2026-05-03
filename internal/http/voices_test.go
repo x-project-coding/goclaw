@@ -46,13 +46,13 @@ func TestVoicesHandler_Unauthenticated(t *testing.T) {
 
 // TestVoicesHandler_CachedResponse verifies that a cache hit skips the upstream call.
 func TestVoicesHandler_CachedResponse(t *testing.T) {
-	// No gateway token → dev mode, everyone is admin, MasterTenantID assigned.
+	// No gateway token → dev mode, everyone is admin, uuid.Nil tenant assigned.
 	httpapi.InitGatewayToken("")
 	t.Cleanup(func() { httpapi.InitGatewayToken("") })
 
 	cache := audio.NewVoiceCache(time.Hour)
 	voices := []audio.Voice{{ID: "v1", Name: "Bella", Category: "premade"}}
-	// Seed for MasterTenantID — that's what dev-mode auth injects.
+	// Seed with no tenant (uuid.Nil) — that's what dev-mode auth injects in v4.
 	cache.Set(voices)
 
 	called := false

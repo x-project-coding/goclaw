@@ -442,7 +442,7 @@ func (m *HeartbeatMethods) handleTargets(ctx context.Context, client *gateway.Cl
 		return
 	}
 
-	targets, err := m.hbStore.ListDeliveryTargets(ctx, store.MasterTenantID)
+	targets, err := m.hbStore.ListDeliveryTargets(ctx, uuid.Nil)
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, heartbeatInternalErr("targets", err)))
 		return

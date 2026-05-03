@@ -80,7 +80,6 @@ func (t *VaultSearchTool) Execute(ctx context.Context, args map[string]any) *Res
 	}
 
 	agentID := store.AgentIDFromContext(ctx)
-	tenantID := store.MasterTenantID
 	if t.searchSvc == nil || agentID == uuid.Nil {
 		return ErrorResult("vault search not available")
 	}
@@ -90,7 +89,7 @@ func (t *VaultSearchTool) Execute(ctx context.Context, args map[string]any) *Res
 		Query:    query,
 		AgentID:  agentID.String(),
 		UserID:   userID,
-		TenantID: tenantID.String(),
+		TenantID: uuid.Nil.String(),
 	}
 	// Team + chat context from RunContext — cannot be spoofed via tool args.
 	if rc := store.RunContextFromCtx(ctx); rc != nil && rc.TeamID != "" {

@@ -122,7 +122,7 @@ func (m *Manager) OpenTab(ctx context.Context, url string) (*TabInfo, error) {
 // evictOldestIfOverLimitLocked closes the oldest idle page for a tenant if at or over maxPages.
 // Must be called with mu held.
 func (m *Manager) evictOldestIfOverLimitLocked(tenantID string) {
-	isMaster := tenantID == "" || tenantID == MasterTenantID
+	isMaster := tenantID == ""
 
 	// Collect targetIDs belonging to this tenant
 	var owned []string
@@ -214,7 +214,7 @@ func (m *Manager) ConsoleMessages(ctx context.Context, targetID string) []Consol
 	defer m.mu.Unlock()
 
 	// Validate tenant ownership
-	if tenantID != "" && tenantID != MasterTenantID {
+	if tenantID != "" {
 		if owner, ok := m.pageTenants[targetID]; ok && owner != tenantID {
 			return []ConsoleMessage{}
 		}

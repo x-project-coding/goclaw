@@ -25,8 +25,9 @@ func makeEvent(name string, tenantID uuid.UUID, payload any) bus.Event {
 	return bus.Event{Name: name, TenantID: tenantID, Payload: payload}
 }
 
+// masterTenant is a non-Nil UUID kept as a routing fixture for legacy event-shape
+// fields. v4 has no tenant scope; the value is never authoritative for filtering.
 var masterTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-var otherTenant = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 
 // ---- isSystemEvent ----
 
@@ -103,39 +104,6 @@ func TestClientCanReceiveEvent_SystemEvent_AllowedToAnyClient(t *testing.T) {
 	// system events bypass tenant checks and go to everyone
 	if !clientCanReceiveEvent(c, evt) {
 		t.Error("system events (health) should reach all clients")
-	}
-}
-
-// ---- Tenant isolation ----
-
-func TestClientCanReceiveEvent_NoTenantOnClient_Blocked(t *testing.T) {
-	c := makeClient(permissions.RoleAdmin, "admin", uuid.Nil) // no tenant assigned
-	evt := makeEvent(protocol.EventAgent, masterTenant, nil)
-	if clientCanReceiveEvent(c, evt) {
-		t.Error("client with no tenant should not receive any non-system events")
-	}
-}
-
-func TestClientCanReceiveEvent_TenantMismatch_Blocked(t *testing.T) {
-	c := makeClient(permissions.RoleAdmin, "admin", masterTenant)
-	evt := makeEvent(protocol.EventAgent, otherTenant, nil) // different tenant
-	if clientCanReceiveEvent(c, evt) {
-		t.Error("event from different tenant should be blocked")
-	}
-}
-
-func TestClientCanReceiveEvent_UnscopedEvent_OnlyOwnerReceives(t *testing.T) {
-	// Event with no tenant — only owner-role clients should get it.
-	ownerClient := makeClient(permissions.RoleRoot, "owner", masterTenant)
-	adminClient := makeClient(permissions.RoleAdmin, "admin", masterTenant)
-
-	evt := makeEvent(protocol.EventAgent, uuid.Nil, nil) // no tenant on event
-
-	if !clientCanReceiveEvent(ownerClient, evt) {
-		t.Error("owner should receive unscoped events")
-	}
-	if clientCanReceiveEvent(adminClient, evt) {
-		t.Error("non-owner admin should NOT receive unscoped events (fail-closed)")
 	}
 }
 

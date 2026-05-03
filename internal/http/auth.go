@@ -164,7 +164,7 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 		if isOwner {
 			role = permissions.RoleRoot
 		}
-		res := authResult{Role: role, Authenticated: true, TenantID: store.MasterTenantID}
+		res := authResult{Role: role, Authenticated: true}
 		return res
 	}
 	// JWT access token → role from claims. Checked before API-key path so that
@@ -175,7 +175,7 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 	}
 	// API key → role from scopes
 	if keyData, role := ResolveAPIKey(r.Context(), bearer); role != "" {
-		return authResult{Role: role, Authenticated: true, KeyData: keyData, TenantID: store.MasterTenantID}
+		return authResult{Role: role, Authenticated: true, KeyData: keyData}
 	}
 	// Browser pairing → operator (via X-GoClaw-Sender-Id header)
 	if senderID := r.Header.Get("X-GoClaw-Sender-Id"); senderID != "" && pkgPairingStore != nil {
@@ -184,7 +184,6 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 			return authResult{
 				Role:          permissions.RoleMember,
 				Authenticated: true,
-				TenantID:      store.MasterTenantID,
 			}
 		}
 		if err != nil {
@@ -195,7 +194,7 @@ func resolveAuthWithBearer(r *http.Request, bearer string) authResult {
 	}
 	// No auth configured → admin (no token = dev/single-user mode, full access)
 	if pkgGatewayToken == "" {
-		return authResult{Role: permissions.RoleAdmin, Authenticated: true, TenantID: store.MasterTenantID}
+		return authResult{Role: permissions.RoleAdmin, Authenticated: true}
 	}
 	return authResult{}
 }

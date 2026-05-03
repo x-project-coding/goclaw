@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/elevenlabs"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/minimax"
@@ -124,7 +125,7 @@ func (h *VoicesHandler) resolveProvider(r *http.Request) (audio.VoiceListProvide
 			return nil, fmt.Errorf("MiniMax API key not found")
 		}
 		apiBase, _ := h.secretStore.Get(r.Context(), "tts.minimax.api_base")
-		return minimax.NewVoiceLister(apiKey, apiBase, 15000, store.MasterTenantID), nil
+		return minimax.NewVoiceLister(apiKey, apiBase, 15000, uuid.Nil), nil
 
 	case "elevenlabs":
 		apiKey, err := h.secretStore.Get(r.Context(), "tts.elevenlabs.api_key")

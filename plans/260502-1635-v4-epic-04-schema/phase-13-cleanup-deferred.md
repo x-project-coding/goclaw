@@ -11,7 +11,7 @@
 ## Overview
 
 - Priority: P1 (final polish — gates Phase 14)
-- Status: pending
+- Status: **completed 2026-05-03**
 - Effort: <!-- RED-TEAM Finding 15 --> 8-10 dev-days (was 4d; bumped due to corrected file count) <!-- /RED-TEAM Finding 15 -->
 - Description: Sweep remaining MasterTenantID references — store layer already cleaned in Phase 05; here finish providers, agent, http, gateway, oauth, hooks, tracing, vault, heartbeat, upgrade, workspace, browser. Delete dead code paths from dropped CLI commands. Polish env.e2e-tests README. Add ADR for vault custom scope (LOG-2). Clarify BE/FE sessions naming divergence (LOG-3).
 
@@ -302,7 +302,63 @@ Phase 13 sweep targets (REAL file count = 81 non-test, per Finding 15):
 
 - Phase 14 — full validation suite + RBAC matrix.
 
-## Session Handoff — 2026-05-03 21:08 (in-progress)
+## Post-review Fixes — 2026-05-03 22:30
+
+`code-reviewer` agent ran after the initial completion (report:
+`plans/reports/code-reviewer-260503-2213-phase-13-cleanup.md`). 4 findings
+addressed before commit:
+
+- **C1 (CRITICAL)** — `internal/gateway/event_filter.go` was fail-closing every
+  client because `c.tenantID == uuid.Nil` after Phase 13. Dropped the entire
+  tenant-isolation block (3 conditions); v4 relies on existing per-event-type
+  user/team/role gates. Deleted 3 v3-only tests in `event_filter_test.go`.
+- **H1 (HIGH)** — `internal/hooks/config.go` `validateScope()` rejected every
+  ScopeAgent / ScopeTenant hook because `SentinelTenantID` is now `uuid.Nil`.
+  Dropped the tenant-id requirement; ScopeTenant is now an alias of ScopeGlobal
+  (semantically meaningless in v4). Removed no-op stub block in
+  `internal/gateway/methods/hooks.go`. Deleted v3-only
+  `TestValidate_RejectsGlobalScopeWithNonSentinelTenant`.
+- **H3 (HIGH)** — Deleted `internal/upgrade/hook_web_search_migrate.go` (queried
+  non-existent `config_secrets.tenant_id` column / dropped table) +
+  registration in `internal/upgrade/hooks.go` + integration test
+  `tests/integration/web_search_migrate_hook_test.go`.
+- **H2 (HIGH, deferred)** — Hook prompt-handler budget enforcement was
+  pre-existing dead code (guard already always-false in v3). Documented
+  deferral in `docs/adr/2026-05-v4-hook-budget-deferred.md`; added TODO marker
+  in `internal/hooks/handlers/prompt.go`. v4.x rewire path: add
+  `Event.UserID`, populate at FireHook sites, swap `ev.TenantID` → `ev.UserID`.
+
+Plus M/L sweep: orphan comment in `api_keys.go` cleaned, dead local in
+`tts_config.go` removed (+ unused `uuid` import), homemade `itoa` replaced with
+`strconv.Itoa`, `gofmt -w` applied to 5 affected files.
+
+## Completion Note — 2026-05-03 21:55
+
+Phase 13 completed in single session continuing from the prior triage handoff
+(commit 96f3a8e6). Final state:
+
+- `grep -rln 'MasterTenantID' --include='*.go' | grep -v _test.go` → **0**
+- The only `_test.go` references are inside the 2 cleanup tests that enforce
+  the invariant (`tests/e2e/13_no_master_tenant_id_test.go` +
+  `tests/e2e/13_dead_code_purge_test.go`) — expected.
+- `go build ./...`, `go build -tags sqliteonly ./...`, `go vet ./...` — all clean.
+- Unit tests in the 5 previously-failing packages (`internal/{gateway/methods,
+  hooks, tasks, tools, http}`) — all pass.
+- ADRs landed: 4/4 (`vault-custom-scope-reserved`, `vault-no-encryption-defer`,
+  `sessions-naming-divergence`, `activity-logs-retention-defer`).
+- E2E cleanup tests: 4/4 (`13_no_master_tenant_id`, `13_no_tenant_id_in_schema`,
+  `13_dead_code_purge`, `13_adr_docs_present`).
+- `env.e2e-tests/README.md` polished with troubleshooting section.
+
+Files modified across the 5 sub-batches (A→E + Final): ~75 source files.
+The `internal/store/MasterTenantID` const itself + `pkg/browser/MasterTenantID`
+string const both deleted; `tests/invariants/tenant_isolation_test.go`,
+`internal/http/tenant_scope_hotfix_test.go`,
+`internal/gateway/methods/api_keys_tenant_guard_test.go` all removed.
+
+Next: Phase 14 — full e2e validation + RBAC matrix.
+
+## Session Handoff — 2026-05-03 21:08 (superseded — see Completion Note above)
 
 ### Done in triage commits (824d420b)
 

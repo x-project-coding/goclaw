@@ -115,12 +115,7 @@ func (t *VaultReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return ErrorResult(fmt.Sprintf("invalid doc_id: %v", err))
 	}
 
-	tenantID := store.MasterTenantID
-	if tenantID == uuid.Nil {
-		return ErrorResult("tenant not set in context")
-	}
-
-	doc, err := t.vaultStore.GetDocumentByID(ctx, tenantID.String(), docID.String())
+	doc, err := t.vaultStore.GetDocumentByID(ctx, uuid.Nil.String(), docID.String())
 	if err != nil || doc == nil {
 		// Namespace fallback: the id may belong to a knowledge-graph entity or
 		// an episodic summary. Return a redirect error instead of the generic
@@ -184,7 +179,7 @@ func (t *VaultReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 	if truncated {
 		fmt.Fprintf(&sb, "\n\n…[truncated, content exceeds %d bytes]", maxBytes)
 	}
-	sb.WriteString(t.buildOutlinksFooter(ctx, tenantID.String(), doc.ID))
+	sb.WriteString(t.buildOutlinksFooter(ctx, uuid.Nil.String(), doc.ID))
 	return NewResult(sb.String())
 }
 

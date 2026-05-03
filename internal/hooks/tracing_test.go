@@ -155,18 +155,16 @@ func TestEmitHookSpan_DecisionInMetadata(t *testing.T) {
 	}
 }
 
-// TestEmitHookSpan_PropagatesTenantAndTrace: ctx values flow through to the span.
-func TestEmitHookSpan_PropagatesTenantAndTrace(t *testing.T) {
+// TestEmitHookSpan_PropagatesTrace: trace and parent span ctx values flow through to the span.
+func TestEmitHookSpan_PropagatesTrace(t *testing.T) {
 	c, cs := newRunningCollector(t)
 
 	traceID := uuid.New()
 	parentSpanID := uuid.New()
-	tenantID := uuid.New()
 
 	ctx := tracing.WithCollector(context.Background(), c)
 	ctx = tracing.WithTraceID(ctx, traceID)
 	ctx = tracing.WithParentSpanID(ctx, parentSpanID)
-
 
 	hooks.EmitHookSpan(ctx, hooks.EventPreToolUse, hooks.HandlerCommand,
 		time.Now().Add(-5*time.Millisecond), hooks.DecisionAllow, "")
@@ -183,9 +181,6 @@ func TestEmitHookSpan_PropagatesTenantAndTrace(t *testing.T) {
 	}
 	if s.ParentSpanID == nil || *s.ParentSpanID != parentSpanID {
 		t.Errorf("parent_span_id = %v, want %v", s.ParentSpanID, parentSpanID)
-	}
-	if s.TenantID != tenantID {
-		t.Errorf("tenant_id = %v, want %v", s.TenantID, tenantID)
 	}
 	if !strings.HasPrefix(s.Name, "hook.") {
 		t.Errorf("span name %q must start with %q", s.Name, "hook.")

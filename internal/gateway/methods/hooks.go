@@ -145,13 +145,6 @@ func (m *HookMethods) handleCreate(ctx context.Context, client *gateway.Client, 
 			i18n.T(locale, i18n.MsgMasterScopeRequired)))
 		return
 	}
-	// For tenant/agent scope, fill TenantID from ctx if not provided.
-	if cfg.Scope != hooks.ScopeGlobal && cfg.TenantID == uuid.Nil {
-		cfg.TenantID = store.MasterTenantID
-	}
-	if cfg.Scope == hooks.ScopeGlobal {
-		cfg.TenantID = hooks.SentinelTenantID
-	}
 
 	if err := cfg.Validate(m.edition); err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, err.Error()))
@@ -371,9 +364,8 @@ func (m *HookMethods) handleTest(ctx context.Context, client *gateway.Client, re
 			i18n.T(locale, i18n.MsgInvalidRequest, err.Error())))
 		return
 	}
-	if cfg.Scope != hooks.ScopeGlobal && cfg.TenantID == uuid.Nil {
-		cfg.TenantID = store.MasterTenantID
-	}
+	// In v4 single-user world there is no tenant routing; tenant/agent scoped
+	// hooks leave TenantID as uuid.Nil.
 	if cfg.Scope == hooks.ScopeGlobal {
 		cfg.TenantID = hooks.SentinelTenantID
 	}

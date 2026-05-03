@@ -216,16 +216,6 @@ func TestValidate_RejectsUnknownEvent(t *testing.T) {
 	}
 }
 
-func TestValidate_RejectsGlobalScopeWithNonSentinelTenant(t *testing.T) {
-	h := baseValidCommandHook()
-	h.Scope = hooks.ScopeGlobal
-	h.TenantID = uuid.New() // must be sentinel for global
-	err := h.Validate(edition.Lite)
-	if err == nil {
-		t.Fatal("expected error for global scope with non-sentinel tenant")
-	}
-}
-
 func TestValidate_RejectsAgentScopeWithoutAgentID(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Scope = hooks.ScopeAgent

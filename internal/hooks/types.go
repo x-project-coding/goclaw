@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // ─── Enum types ─────────────────────────────────────────────────────────────
@@ -104,11 +102,9 @@ const (
 )
 
 // SentinelTenantID is the tenant_id value used for global-scope hooks.
-// Reuses store.MasterTenantID rather than introducing a separate all-zero
-// sentinel: the codebase already treats MasterTenantID as the "no specific
-// tenant" ID (see store.IsMasterScope), and there is a seeded tenants row
-// with this UUID, so the FK constraint is always satisfied.
-var SentinelTenantID = store.MasterTenantID
+// In v4 single-user world there is no multi-tenant routing; uuid.Nil is used
+// as the sentinel (no specific tenant).
+var SentinelTenantID = uuid.Nil
 
 // Decision is the outcome returned by a hook execution.
 type Decision string

@@ -94,20 +94,16 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve tenant_id based on caller type.
-	var tenantID uuid.UUID // uuid.Nil = system-level (NULL in DB)
-	if store.IsRootRole(r.Context()) {
-		if input.TenantID != "" {
-			tid, err := uuid.Parse(input.TenantID)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id"))
-				return
-			}
-			tenantID = tid
+	// Resolve tenant_id from input (root-only override). Default uuid.Nil =
+	// system-level key (NULL in DB) — the only path non-root callers can take.
+	var tenantID uuid.UUID
+	if store.IsRootRole(r.Context()) && input.TenantID != "" {
+		tid, err := uuid.Parse(input.TenantID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id"))
+			return
 		}
-		// else: uuid.Nil stays → system-level key
-	} else {
-		tenantID = store.MasterTenantID
+		tenantID = tid
 	}
 
 	now := time.Now()
@@ -174,23 +170,7 @@ func (h *APIKeysHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ownership rule:
-	//   - System owner (bypass-all)      → may revoke any key
-	//   - Tenant admin in caller's tenant → may revoke only keys owned by that tenant (strict match)
-	//   - NULL-tenant (system) keys       → revocable only by system owners
-	if !store.IsRootRole(ctx) {
-		callerTID := store.MasterTenantID
-		if key.TenantID == uuid.Nil || key.TenantID != callerTID {
-			slog.Warn("security.api_key_revoke_forbidden",
-				"key_id", idStr,
-				"caller_tenant", callerTID,
-				"key_tenant", key.TenantID,
-				"user_id", store.UserIDFromContext(ctx),
-			)
-			writeError(w, http.StatusForbidden, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "API key"))
-			return
-		}
-	}
+	// v4 single-user: all admin callers may revoke any key; no tenant scope check.
 
 	// HTTP revoke is admin-only (adminAuth middleware), so no owner filter needed.
 	if err := h.apiKeys.Revoke(ctx, id, ""); err != nil {

@@ -39,7 +39,6 @@ type pendingOAuthFlow struct {
 	login        *oauth.PendingLogin
 	cancel       context.CancelFunc
 	flowKey      string
-	tenantID     uuid.UUID
 	userID       string
 	providerName string
 	displayName  string
@@ -88,12 +87,11 @@ func oauthProviderName(r *http.Request) string {
 }
 
 func oauthFlowKey(ctx context.Context, providerName string) string {
-	return store.MasterTenantID.String() + ":" + store.UserIDFromContext(ctx) + ":" + providerName
+	return store.UserIDFromContext(ctx) + ":" + providerName
 }
 
 func (h *OAuthHandler) newTokenSource(ctx context.Context, providerName, displayName, apiBase string) *oauth.DBTokenSource {
 	return oauth.NewDBTokenSource(h.provStore, h.secretStore, providerName).
-		WithTenantID(store.MasterTenantID).
 		WithProviderMeta(displayName, apiBase)
 }
 
@@ -221,7 +219,6 @@ func (h *OAuthHandler) handleStart(w http.ResponseWriter, r *http.Request) {
 		login:        pending,
 		cancel:       cancel,
 		flowKey:      flowKey,
-		tenantID:     store.MasterTenantID,
 		userID:       store.UserIDFromContext(r.Context()),
 		providerName: providerName,
 		displayName:  body.DisplayName,
@@ -297,7 +294,7 @@ func (h *OAuthHandler) handleManualCallback(w http.ResponseWriter, r *http.Reque
 	pending := h.pending[oauthFlowKey(r.Context(), providerName)]
 	h.mu.Unlock()
 
-	if pending == nil || pending.providerName != providerName || pending.tenantID != store.MasterTenantID || pending.userID != store.UserIDFromContext(r.Context()) {
+	if pending == nil || pending.providerName != providerName || pending.userID != store.UserIDFromContext(r.Context()) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgNoPendingOAuth)})
 		return
 	}

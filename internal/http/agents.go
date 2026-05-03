@@ -297,7 +297,7 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Start LLM summoning in background if applicable
 	if req.Status == store.AgentStatusSummoning {
-		go h.summoner.SummonAgent(req.ID, store.MasterTenantID, req.Provider, req.Model, description)
+		go h.summoner.SummonAgent(req.ID, uuid.Nil, req.Provider, req.Model, description)
 	}
 
 	emitAudit(h.msgBus, r, "agent.created", "agent", req.ID.String())
@@ -451,8 +451,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.agents.Update(r.Context(), id, allowed); err != nil {
-		slog.Error("agents.update", "id", id, "user_id", userID,
-			"tenant_id", store.MasterTenantID, "error", err)
+		slog.Error("agents.update", "id", id, "user_id", userID, "error", err)
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToUpdate, "agent", err.Error()))
 		return
 	}
@@ -470,7 +469,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	if newStatus, ok := allowed["status"].(string); ok && newStatus != ag.Status {
 		if h.msgBus != nil {
 			bus.BroadcastForTenant(h.msgBus, bus.EventAgentStatusChanged,
-				store.MasterTenantID,
+				uuid.Nil,
 				bus.AgentStatusChangedPayload{
 					AgentID:   id.String(),
 					OldStatus: ag.Status,

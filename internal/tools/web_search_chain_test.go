@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // fakeSearchProvider implements SearchProvider for chain-resolution tests.
@@ -37,7 +35,7 @@ func newFakeSecretsStore() *fakeSecretsStore {
 }
 
 func (f *fakeSecretsStore) Get(_ context.Context, key string) (string, error) {
-	m, ok := f.data[store.MasterTenantID]
+	m, ok := f.data[uuid.Nil]
 	if !ok {
 		return "", sql.ErrNoRows
 	}
@@ -49,15 +47,15 @@ func (f *fakeSecretsStore) Get(_ context.Context, key string) (string, error) {
 }
 
 func (f *fakeSecretsStore) Set(_ context.Context, key, value string) error {
-	if _, ok := f.data[store.MasterTenantID]; !ok {
-		f.data[store.MasterTenantID] = make(map[string]string)
+	if _, ok := f.data[uuid.Nil]; !ok {
+		f.data[uuid.Nil] = make(map[string]string)
 	}
-	f.data[store.MasterTenantID][key] = value
+	f.data[uuid.Nil][key] = value
 	return nil
 }
 
 func (f *fakeSecretsStore) Delete(_ context.Context, key string) error {
-	m, ok := f.data[store.MasterTenantID]
+	m, ok := f.data[uuid.Nil]
 	if ok {
 		delete(m, key)
 	}
@@ -65,7 +63,7 @@ func (f *fakeSecretsStore) Delete(_ context.Context, key string) error {
 }
 
 func (f *fakeSecretsStore) GetAll(_ context.Context) (map[string]string, error) {
-	m, ok := f.data[store.MasterTenantID]
+	m, ok := f.data[uuid.Nil]
 	if !ok {
 		return make(map[string]string), nil
 	}

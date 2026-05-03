@@ -99,8 +99,8 @@ func (m *Manager) getPageForTenant(targetID, tenantID string) (*rod.Page, error)
 	if err != nil {
 		return nil, err
 	}
-	// If no tenant context or master tenant, allow access to all pages
-	if tenantID == "" || tenantID == MasterTenantID {
+	// If no tenant context, allow access to all pages
+	if tenantID == "" {
 		resolvedTID := targetID
 		if targetID == "" {
 			resolvedTID = string(page.TargetID)

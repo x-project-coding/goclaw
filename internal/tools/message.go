@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -251,19 +249,9 @@ func (t *MessageTool) validateChannelTenant(ctx context.Context, channel, target
 	if t.tenantChecker == nil {
 		return nil
 	}
-	chTenant, chExists := t.tenantChecker(channel)
+	_, chExists := t.tenantChecker(channel)
 	if !chExists {
 		return ErrorResult(fmt.Sprintf("channel %q not found", channel))
-	}
-	// Allow: legacy/config-based channels (zero tenant).
-	if chTenant == uuid.Nil {
-		return nil
-	}
-	if chTenant != store.MasterTenantID {
-		slog.Warn("security.cross_tenant_send_blocked",
-			"channel", channel, "target", target,
-			"ctx_tenant", store.MasterTenantID, "ch_tenant", chTenant)
-		return ErrorResult("channel not accessible from this tenant")
 	}
 	return nil
 }

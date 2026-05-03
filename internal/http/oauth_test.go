@@ -420,7 +420,7 @@ func TestProvidersHandlerRequiresAdmin(t *testing.T) {
 		crypto.HashAPIKey(token): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: store.MasterTenantID,
+			TenantID: uuid.Nil,
 		},
 	})
 
@@ -444,7 +444,7 @@ func TestOAuthHandlerRequiresAdmin(t *testing.T) {
 		crypto.HashAPIKey(token): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: store.MasterTenantID,
+			TenantID: uuid.Nil,
 		},
 	})
 	h := newTestOAuthHandler(t, "")

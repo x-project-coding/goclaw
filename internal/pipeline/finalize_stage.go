@@ -163,7 +163,6 @@ func (s *FinalizeStage) Execute(ctx context.Context, state *RunState) error {
 		go s.deps.FireHook(detached, hooks.Event{ //nolint:errcheck
 			EventID:   uuid.NewString(),
 			SessionID: state.Input.SessionKey,
-			TenantID:  store.MasterTenantID,
 			AgentID:   store.AgentIDFromContext(ctx),
 			HookEvent: hooks.EventStop,
 		})

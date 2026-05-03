@@ -8,10 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// MasterTenantID is the well-known UUID used for event scoping and DB queries.
-// Every WS client is assigned this ID at connect time so event routing works correctly.
-var MasterTenantID = uuid.MustParse("0193a5b0-7000-7000-8000-000000000001")
-
 type contextKey string
 
 const (

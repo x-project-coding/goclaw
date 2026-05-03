@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
@@ -224,4 +223,3 @@ func TestHooksStore_CanonicalInputHashDeterministic(t *testing.T) {
 // ensure test compiles against the live store package even if a refactor moves
 // context helpers around.
 var _ context.Context = tenantCtx(uuid.Nil)
-var _ = store.MasterTenantID

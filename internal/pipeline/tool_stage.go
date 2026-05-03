@@ -54,7 +54,6 @@ func (s *ToolStage) Execute(ctx context.Context, state *RunState) error {
 		if r, _ := s.deps.FireHook(ctx, hooks.Event{
 			EventID:   uuid.NewString(),
 			SessionID: state.Input.SessionKey,
-			TenantID:  store.MasterTenantID,
 			AgentID:   store.AgentIDFromContext(ctx),
 			ToolName:  tc.Name,
 			ToolInput: tc.Arguments,
@@ -87,7 +86,6 @@ func (s *ToolStage) Execute(ctx context.Context, state *RunState) error {
 			go s.deps.FireHook(detached, hooks.Event{ //nolint:errcheck
 				EventID:   uuid.NewString(),
 				SessionID: state.Input.SessionKey,
-				TenantID:  store.MasterTenantID,
 				AgentID:   store.AgentIDFromContext(ctx),
 				ToolName:  tc.Name,
 				ToolInput: tc.Arguments,
@@ -145,7 +143,6 @@ func (s *ToolStage) executeParallel(ctx context.Context, state *RunState, toolCa
 			go s.deps.FireHook(detached, hooks.Event{ //nolint:errcheck
 				EventID:   uuid.NewString(),
 				SessionID: state.Input.SessionKey,
-				TenantID:  store.MasterTenantID,
 				AgentID:   store.AgentIDFromContext(ctx),
 				ToolName:  r.tc.Name,
 				ToolInput: r.tc.Arguments,

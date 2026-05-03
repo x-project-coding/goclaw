@@ -13,7 +13,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/auth"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // --- JWT keyset (package-level, initialized at startup via InitJWTKeyset) ---
@@ -262,7 +261,6 @@ func buildJWTAuthResult(claims *auth.Claims) authResult {
 	return authResult{
 		Role:          permissions.Role(claims.Role),
 		Authenticated: true,
-		TenantID:      store.MasterTenantID,
 		JWTSub:        claims.Sub,
 	}
 }

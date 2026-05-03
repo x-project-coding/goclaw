@@ -17,42 +17,43 @@ import (
 // fakeVaultStore embeds store.VaultStore (nil) so the struct satisfies the
 // interface at compile time. Methods used by vault_read.Execute are
 // implemented; others would nil-panic if called.
+// v4: single-tenant universe — keys by docID only (no tenantID prefix).
 type fakeVaultStore struct {
 	store.VaultStore
-	byID       map[string]*store.VaultDocument // key: tenantID + ":" + docID
-	outlinks   map[string][]store.VaultLink    // key: tenantID + ":" + docID
+	byID       map[string]*store.VaultDocument // key: docID
+	outlinks   map[string][]store.VaultLink    // key: docID
 	outLinkErr error                           // injected error for GetOutLinks
 	targetsErr error                           // injected error for GetDocumentsByIDs
 }
 
-func (f *fakeVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string) (*store.VaultDocument, error) {
+func (f *fakeVaultStore) GetDocumentByID(_ context.Context, _ string, id string) (*store.VaultDocument, error) {
 	if f.byID == nil {
 		return nil, os.ErrNotExist
 	}
-	doc, ok := f.byID[tenantID+":"+id]
+	doc, ok := f.byID[id]
 	if !ok {
 		return nil, os.ErrNotExist
 	}
 	return doc, nil
 }
 
-func (f *fakeVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) ([]store.VaultLink, error) {
+func (f *fakeVaultStore) GetOutLinks(_ context.Context, _, docID string) ([]store.VaultLink, error) {
 	if f.outLinkErr != nil {
 		return nil, f.outLinkErr
 	}
 	if f.outlinks == nil {
 		return nil, nil
 	}
-	return f.outlinks[tenantID+":"+docID], nil
+	return f.outlinks[docID], nil
 }
 
-func (f *fakeVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID string, docIDs []string) ([]store.VaultDocument, error) {
+func (f *fakeVaultStore) GetDocumentsByIDs(_ context.Context, _ string, docIDs []string) ([]store.VaultDocument, error) {
 	if f.targetsErr != nil {
 		return nil, f.targetsErr
 	}
 	out := make([]store.VaultDocument, 0, len(docIDs))
 	for _, id := range docIDs {
-		if d, ok := f.byID[tenantID+":"+id]; ok {
+		if d, ok := f.byID[id]; ok {
 			out = append(out, *d)
 		}
 	}
@@ -66,7 +67,7 @@ func newVaultReadTestTool(t *testing.T, docs ...*store.VaultDocument) (*VaultRea
 	ws := t.TempDir()
 	fake := &fakeVaultStore{byID: make(map[string]*store.VaultDocument)}
 	for _, d := range docs {
-		fake.byID[d.TenantID+":"+d.ID] = d
+		fake.byID[d.ID] = d
 	}
 	tool := NewVaultReadTool()
 	tool.SetVaultStore(fake)
@@ -331,25 +332,6 @@ func TestVaultRead_TeamScope_IsolatedTeamWide_Allow(t *testing.T) {
 	}
 }
 
-// --- 6. cross-tenant (different tenant in ctx) → not-found. ---
-func TestVaultRead_CrossTenant_NotFound(t *testing.T) {
-	tenantA := uuid.New()
-	tenantB := uuid.New()
-	agentID := uuid.New()
-	docID := uuid.New()
-	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantA.String(),
-		Scope: "shared", Path: "a.md", Title: "A", DocType: "note",
-	}
-	tool, ws := newVaultReadTestTool(t, doc)
-	writeFile(t, ws, "a.md", "body")
-
-	res := tool.Execute(makeCtx(tenantB, agentID),
-		map[string]any{"doc_id": docID.String()})
-	if !res.IsError || !strings.Contains(res.ForLLM, "not found") {
-		t.Fatalf("expected not found, got: %s", res.ForLLM)
-	}
-}
 
 // --- 7. missing doc id → not-found. ---
 func TestVaultRead_MissingDoc_NotFound(t *testing.T) {
@@ -516,13 +498,13 @@ func teamDoc(tenantID uuid.UUID, teamID, title, path string) *store.VaultDocumen
 	}
 }
 
-// seedWithLinks extends the fake store's outlinks map.
-func seedLinks(tool *VaultReadTool, tenantID, fromID string, links []store.VaultLink) {
+// seedLinks extends the fake store's outlinks map. tenantID ignored in v4 (single tenant).
+func seedLinks(tool *VaultReadTool, _ string, fromID string, links []store.VaultLink) {
 	f := tool.vaultStore.(*fakeVaultStore)
 	if f.outlinks == nil {
 		f.outlinks = make(map[string][]store.VaultLink)
 	}
-	f.outlinks[tenantID+":"+fromID] = links
+	f.outlinks[fromID] = links
 }
 
 // --- Case 1: outlinks present, all in scope → listed in order. ---

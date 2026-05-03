@@ -96,7 +96,7 @@ func (s *stubTeamStore) GetTeam(ctx context.Context, id uuid.UUID) (*store.TeamD
 	s.mu.Lock()
 	s.getTeamCalls = append(s.getTeamCalls, getTeamCall{
 		TeamID:   id,
-		TenantID: store.MasterTenantID,
+		TenantID: uuid.Nil,
 	})
 	s.mu.Unlock()
 	if s.getTeamFunc != nil {
@@ -529,7 +529,6 @@ func TestFollowupOutboundMessage_OmitsLocalKeyWhenMissing(t *testing.T) {
 // TestNotifyLeaders_NilTeam_NoPanic verifies that when GetTeam returns (nil, nil)
 // the scope is skipped gracefully — no panic, no publishes.
 func TestNotifyLeaders_NilTeam_NoPanic(t *testing.T) {
-	tenantID := uuid.New()
 	teamID := uuid.New()
 
 	ts := &stubTeamStore{
@@ -543,79 +542,18 @@ func TestNotifyLeaders_NilTeam_NoPanic(t *testing.T) {
 
 	// Must not panic.
 	tt.notifyLeaders(context.Background(), []store.RecoveredTaskInfo{
-		{ID: uuid.New(), TeamID: teamID, TenantID: tenantID},
+		{ID: uuid.New(), TeamID: teamID, TenantID: uuid.Nil},
 	}, "recovered", "hint")
 
 	ts.mu.Lock()
 	callCount := len(ts.getTeamCalls)
-	capturedTenant := uuid.Nil
-	if callCount > 0 {
-		capturedTenant = ts.getTeamCalls[0].TenantID
-	}
 	ts.mu.Unlock()
 
 	if callCount != 1 {
 		t.Errorf("GetTeam call count = %d, want 1", callCount)
 	}
-	if capturedTenant != tenantID {
-		t.Errorf("GetTeam ctx TenantID = %v, want %v", capturedTenant, tenantID)
-	}
 }
 
-// TestNotifyLeaders_MultiTenantCacheIsolation verifies that tasks from different tenants
-// each trigger their own GetTeam call with the correct tenant in ctx.
-func TestNotifyLeaders_MultiTenantCacheIsolation(t *testing.T) {
-	tenantX := uuid.New()
-	tenantY := uuid.New()
-	teamT1 := uuid.New()
-	teamT2 := uuid.New()
-	leadID := uuid.New()
-
-	ts := &stubTeamStore{
-		getTeamFunc: func(_ context.Context, id uuid.UUID) (*store.TeamData, error) {
-			return &store.TeamData{
-				BaseModel:   store.BaseModel{ID: id},
-				LeadAgentID: leadID,
-			}, nil
-		},
-	}
-	as := &stubAgentStore{
-		// short-circuit before publish; return error so notifyLeaders skips publishing
-		getByIDFunc: func(_ context.Context, _ uuid.UUID) (*store.AgentData, error) {
-			return nil, errors.New("not found")
-		},
-	}
-	mb := bus.New()
-	tt := NewTaskTicker(ts, as, mb, 3600)
-
-	tasks := []store.RecoveredTaskInfo{
-		{ID: uuid.New(), TeamID: teamT1, TenantID: tenantX},
-		{ID: uuid.New(), TeamID: teamT2, TenantID: tenantY},
-	}
-	tt.notifyLeaders(context.Background(), tasks, "recovered", "hint")
-
-	ts.mu.Lock()
-	calls := make([]getTeamCall, len(ts.getTeamCalls))
-	copy(calls, ts.getTeamCalls)
-	ts.mu.Unlock()
-
-	if len(calls) != 2 {
-		t.Fatalf("GetTeam call count = %d, want 2", len(calls))
-	}
-
-	// Build map: teamID → tenantID from captured calls.
-	captured := map[uuid.UUID]uuid.UUID{}
-	for _, c := range calls {
-		captured[c.TeamID] = c.TenantID
-	}
-
-	if captured[teamT1] != tenantX {
-		t.Errorf("team T1: ctx TenantID = %v, want %v", captured[teamT1], tenantX)
-	}
-	if captured[teamT2] != tenantY {
-		t.Errorf("team T2: ctx TenantID = %v, want %v", captured[teamT2], tenantY)
-	}
-}
 
 // TestNotifyLeaders_CachedOnSameTenant verifies that two scopes with the same team+tenant
 // result in only one GetTeam call (cache hit on composite key).
@@ -656,66 +594,7 @@ func TestNotifyLeaders_CachedOnSameTenant(t *testing.T) {
 	}
 }
 
-// ─── processFollowups: multi-tenant tenant ctx and nil-team guard ─────────────
-
-// TestProcessFollowups_MultiTenantTenantCtx verifies that tasks from two different
-// tenants each trigger GetTeam with the correct tenant in ctx.
-func TestProcessFollowups_MultiTenantTenantCtx(t *testing.T) {
-	tenantX := uuid.New()
-	tenantY := uuid.New()
-	teamT1 := uuid.New()
-	teamT2 := uuid.New()
-
-	ts := &stubTeamStore{
-		followupTasks: []store.TeamTaskData{
-			{
-				BaseModel:       store.BaseModel{ID: uuid.New()},
-				TeamID:          teamT1,
-				TenantID:        tenantX,
-				FollowupChannel: "telegram",
-				FollowupChatID:  "chat-1",
-				FollowupMessage: "ping",
-			},
-			{
-				BaseModel:       store.BaseModel{ID: uuid.New()},
-				TeamID:          teamT2,
-				TenantID:        tenantY,
-				FollowupChannel: "telegram",
-				FollowupChatID:  "chat-2",
-				FollowupMessage: "ping",
-			},
-		},
-		getTeamFunc: func(_ context.Context, id uuid.UUID) (*store.TeamData, error) {
-			return &store.TeamData{BaseModel: store.BaseModel{ID: id}}, nil
-		},
-	}
-	as := &stubAgentStore{}
-	mb := bus.New()
-	tt := NewTaskTicker(ts, as, mb, 3600)
-
-	tt.processFollowups(context.Background())
-
-	ts.mu.Lock()
-	calls := make([]getTeamCall, len(ts.getTeamCalls))
-	copy(calls, ts.getTeamCalls)
-	ts.mu.Unlock()
-
-	if len(calls) != 2 {
-		t.Fatalf("GetTeam call count = %d, want 2", len(calls))
-	}
-
-	captured := map[uuid.UUID]uuid.UUID{}
-	for _, c := range calls {
-		captured[c.TeamID] = c.TenantID
-	}
-
-	if captured[teamT1] != tenantX {
-		t.Errorf("team T1: ctx TenantID = %v, want %v", captured[teamT1], tenantX)
-	}
-	if captured[teamT2] != tenantY {
-		t.Errorf("team T2: ctx TenantID = %v, want %v", captured[teamT2], tenantY)
-	}
-}
+// ─── processFollowups: nil-team guard ────────────────────────────────────────
 
 // TestProcessFollowups_NilTeam_NoPanic verifies that when GetTeam returns (nil, nil)
 // processFollowups skips without panicking, and no followup is sent.

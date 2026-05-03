@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
@@ -60,18 +58,13 @@ type ttsProviderConfigResponse struct {
 	GroupID  string         `json:"group_id,omitempty"`
 	Enabled  *bool          `json:"enabled,omitempty"`
 	Rate     string         `json:"rate,omitempty"`
-	Speakers string         `json:"speakers,omitempty"`  // JSON-encoded []SpeakerVoice (Gemini multi-speaker)
-	Params   map[string]any `json:"params,omitempty"`    // provider-specific params blob
+	Speakers string         `json:"speakers,omitempty"` // JSON-encoded []SpeakerVoice (Gemini multi-speaker)
+	Params   map[string]any `json:"params,omitempty"`   // provider-specific params blob
 }
 
-// handleGet returns TTS config for the current tenant.
+// handleGet returns TTS config.
 func (h *TTSConfigHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tid := store.MasterTenantID
-	if tid == uuid.Nil {
-		http.Error(w, `{"error":"tenant context required"}`, http.StatusBadRequest)
-		return
-	}
 
 	resp := ttsConfigResponse{
 		Auto:      "off",
@@ -229,15 +222,9 @@ type ttsProviderSaveRequest struct {
 	Params   map[string]any `json:"params,omitempty"`   // provider-specific params blob
 }
 
-// handleSave saves TTS config for the current tenant.
+// handleSave saves TTS config.
 func (h *TTSConfigHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tid := store.MasterTenantID
-	if tid == uuid.Nil {
-		http.Error(w, `{"error":"tenant context required"}`, http.StatusBadRequest)
-		return
-	}
-
 	locale := store.LocaleFromContext(ctx)
 
 	var req ttsConfigSaveRequest
@@ -389,7 +376,7 @@ func (h *TTSConfigHandler) handleSave(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slog.Info("tts.config: saved", "tenant", tid, "provider", req.Provider)
+	slog.Info("tts.config: saved", "provider", req.Provider)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }

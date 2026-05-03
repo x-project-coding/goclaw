@@ -314,7 +314,7 @@ func (h *TTSHandler) resolveTenantProvider(ctx context.Context, explicitProvider
 		return nil, "", nil, err
 	}
 
-	slog.Debug("tts: using tenant provider", "provider", providerName, "tenant", store.MasterTenantID)
+	slog.Debug("tts: using provider", "provider", providerName)
 	return provider, providerName, req.Params, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -138,8 +137,8 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 		return tools.ErrorResult("action is required")
 	}
 
-	// Propagate tenant ID from store context to browser context for page isolation.
-	ctx = WithTenantID(ctx, store.MasterTenantID.String())
+	// In v4 single-user, no tenant ID needed for browser context.
+	ctx = WithTenantID(ctx, "")
 
 	// Auto-start browser for actions that need it
 	switch action {

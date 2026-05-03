@@ -31,7 +31,6 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		event.Channel = req.Channel
 		event.ChatID = req.ChatID
 		event.SessionKey = req.SessionKey
-		event.TenantID = store.MasterTenantID
 		l.emit(event)
 	}
 	return pipelineCallbackSet{
@@ -100,7 +99,6 @@ func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, i
 			AgentType: l.agentType,
 			UserID:    input.UserID,
 			ChatID:    input.ChatID,
-			TenantID:  store.MasterTenantID.String(),
 			PeerKind:  input.PeerKind,
 			TeamID:    teamID,
 			BaseDir:   l.workspace,
@@ -234,8 +232,6 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		chatReq.Options[providers.OptPeerKind] = req.PeerKind
 		chatReq.Options[providers.OptLocalKey] = req.LocalKey
 		chatReq.Options[providers.OptWorkspace] = tools.ToolWorkspaceFromCtx(ctx)
-		chatReq.Options[providers.OptTenantID] = store.MasterTenantID.String()
-
 		// Reasoning decision: resolve effort level for thinking models (o3, DeepSeek-R1, Kimi).
 		reasoningDecision := providers.ResolveReasoningDecision(
 			provider, model,

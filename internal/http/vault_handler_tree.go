@@ -5,13 +5,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // handleVaultTree returns immediate children (files + virtual folders) under
 // a given path prefix for lazy-loading the vault sidebar tree.
 func (h *VaultHandler) handleVaultTree(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.MasterTenantID
+	tenantID := uuid.Nil
 	path := r.URL.Query().Get("path")
 
 	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") {

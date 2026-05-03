@@ -40,7 +40,7 @@ Each impl phase MUST follow: **(1) write failing tests → (2) impl → (3) veri
 | 10 | Skills + skill_versions + curator | **completed 2026-05-03** | 6d | 05 (S9 prep, can run after 09) |
 | 11 | Frontend bootstrap + login + refresh | **completed 2026-05-03** (Sub-11A+B+C+D done; browser e2e → Phase 14) | 15-18d (re-scouted) | 06 + 09 |
 | ~~12~~ | ~~Desktop edition first-run (sqliteonly)~~ | **DEFERRED → EPIC-05-desktop** | ~~6d~~ | — |
-| 13 | Cleanup deferred (MasterTenantID purge, dead code) | **in-progress 2026-05-03** (triage done; 63 files + ~40 tests remain — see phase-13 § "Session Handoff") | 8-10d | 09+10 |
+| 13 | Cleanup deferred (MasterTenantID purge, dead code) | **completed 2026-05-03** (5 batches A-E + Final: 73 files purged, 4 ADRs, 4 e2e tests, README polished) | 8-10d | 09+10 |
 | 14 | Validation final (full e2e + RBAC) | pending | 6d | all phases |
 
 **Total:** 122-124 dev-days (Phase 12 → EPIC-05; Phase 13 bumped per F15 audit).

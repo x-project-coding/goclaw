@@ -195,10 +195,6 @@ func (t *MemorySearchTool) recordEpisodicRecall(ctx context.Context, episodic []
 	if t.episodicStore == nil || len(episodic) == 0 {
 		return
 	}
-	tenantID := store.MasterTenantID
-	if tenantID == uuid.Nil {
-		return
-	}
 	// Snapshot hits so the goroutine doesn't observe caller mutations.
 	hits := make([]store.EpisodicSearchResult, 0, len(episodic))
 	for _, r := range episodic {
@@ -226,10 +222,6 @@ func (t *MemorySearchTool) recordRetrievalMetric(ctx context.Context, resultCoun
 	if t.metricsStore == nil {
 		return
 	}
-	tenantID := store.MasterTenantID
-	if tenantID == uuid.Nil {
-		return
-	}
 	agentID := store.AgentIDFromContext(ctx)
 	var topScore float64
 	for _, r := range episodic {
@@ -247,7 +239,7 @@ func (t *MemorySearchTool) recordRetrievalMetric(ctx context.Context, resultCoun
 		})
 		if err := t.metricsStore.RecordMetric(bgCtx, store.EvolutionMetric{
 			ID:         uuid.New(),
-			TenantID:   tenantID,
+			TenantID:   uuid.Nil,
 			AgentID:    agentID,
 			MetricType: store.MetricRetrieval,
 			MetricKey:  "memory_search",

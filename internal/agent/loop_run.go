@@ -31,7 +31,6 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		event.Channel = req.Channel
 		event.ChatID = req.ChatID
 		event.SessionKey = req.SessionKey
-		event.TenantID = store.MasterTenantID
 		l.emit(event)
 	}
 

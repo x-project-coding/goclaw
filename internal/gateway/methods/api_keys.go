@@ -211,11 +211,11 @@ func (m *APIKeysMethods) handleRevoke(ctx context.Context, client *gateway.Clien
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "API key", params.ID)))
 			return
 		}
-		callerTID := store.MasterTenantID
-		if key.TenantID == uuid.Nil || key.TenantID != callerTID {
+		// In v4 single-user, all keys are system-level (uuid.Nil tenant).
+		// Non-owner admins may only revoke keys without a tenant binding.
+		if key.TenantID != uuid.Nil {
 			slog.Warn("security.api_key_revoke_forbidden",
 				"key_id", params.ID,
-				"caller_tenant", callerTID,
 				"key_tenant", key.TenantID,
 				"user_id", client.UserID(),
 			)

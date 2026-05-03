@@ -166,7 +166,7 @@ func (h *VaultHandler) parseListOpts(r *http.Request) store.VaultListOptions {
 // handleRescan walks the entire tenant workspace and registers missing/changed files in vault.
 // Infers agent/team ownership from directory structure: agents/{key}/, teams/{uuid}/, or root shared.
 func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
-	tenantID := store.MasterTenantID.String()
+	tenantID := uuid.Nil.String()
 
 	// Per-tenant concurrency guard.
 	if _, loaded := h.rescanMu.LoadOrStore(tenantID, struct{}{}); loaded {
@@ -218,7 +218,7 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.enrichProgress != nil && total > 0 {
-		h.enrichProgress.Start(total, store.MasterTenantID)
+		h.enrichProgress.Start(total, uuid.Nil)
 	}
 
 	// Now publish enrichment events — workers will call AddDone after Start.
@@ -273,7 +273,7 @@ func (h *VaultHandler) handleEnrichmentStop(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "enrichment worker not available"})
 		return
 	}
-	tenantID := store.MasterTenantID.String()
+	tenantID := uuid.Nil.String()
 	if !h.enrichWorker.IsRunning(tenantID) {
 		writeJSON(w, http.StatusOK, map[string]any{"stopped": false, "message": "no enrichment running"})
 		return

@@ -152,7 +152,7 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]any) *Result
 		UserID:       actorID,
 		SenderID:     store.SenderIDFromContext(ctx),
 		Role:         store.RoleFromContext(ctx),
-		TenantID:     store.MasterTenantID.String(),
+		TenantID:     uuid.Nil.String(),
 		Channel:      ToolChannelFromCtx(ctx),
 		ChatID:       ToolChatIDFromCtx(ctx),
 		PeerKind:     ToolPeerKindFromCtx(ctx),
@@ -333,7 +333,7 @@ func (t *DelegateTool) emitEvent(ctx context.Context, eventType eventbus.EventTy
 	t.eventBus.Publish(eventbus.DomainEvent{
 		ID:        uuid.New().String(),
 		Type:      eventType,
-		TenantID:  store.MasterTenantID.String(),
+		TenantID:  uuid.Nil.String(),
 		AgentID:   store.AgentIDFromContext(ctx).String(),
 		UserID:    store.ActorIDFromContext(ctx), // audit actor, not scope (#915)
 		Timestamp: time.Now().UTC(),

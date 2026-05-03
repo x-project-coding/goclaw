@@ -200,7 +200,7 @@ func TestCollector_StaleRecovery_MarksOldRunningAsError(t *testing.T) {
 		context.Background(),
 		`INSERT INTO traces (id, tenant_id, status, start_time)
 		 VALUES ($1, $2, $3, $4)`,
-		traceID, store.MasterTenantID, "running", oldStartTime,
+		traceID, uuid.Nil, "running", oldStartTime,
 	)
 	if err != nil {
 		t.Fatalf("insert stale trace failed: %v", err)

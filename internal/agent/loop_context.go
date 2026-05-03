@@ -262,7 +262,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			AgentType:  l.agentType,
 			UserID:     req.UserID,
 			ChatID:     req.ChatID,
-			TenantID:   store.MasterTenantID.String(),
 			TenantSlug: "",
 			PeerKind:   req.PeerKind,
 			TeamID:     teamIDPtr,
@@ -343,7 +342,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	rc := &store.RunContext{
 		AgentID:             l.agentUUID,
 		AgentKey:            l.id,
-		TenantID:            store.MasterTenantID,
 		UserID:              req.UserID,
 		CredentialUserID:    credUserID,
 		AgentType:           l.agentType,

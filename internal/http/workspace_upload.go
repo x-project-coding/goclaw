@@ -109,7 +109,7 @@ func (h *WorkspaceUploadHandler) handleUpload(w http.ResponseWriter, r *http.Req
 	}
 
 	// Resolve workspace directory. v4 single-tenant: teams/{teamID} under dataDir.
-	tenantID := store.MasterTenantID // used for bus.BroadcastForTenant below
+	tenantID := uuid.Nil // used for bus.BroadcastForTenant below
 	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)
@@ -239,7 +239,7 @@ func (h *WorkspaceUploadHandler) handleMove(w http.ResponseWriter, r *http.Reque
 		chatID = ""
 	}
 
-	tenantID := store.MasterTenantID // used for bus.BroadcastForTenant below
+	tenantID := uuid.Nil // used for bus.BroadcastForTenant below
 	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)

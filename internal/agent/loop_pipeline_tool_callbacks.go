@@ -205,7 +205,6 @@ func (l *Loop) recordToolMetric(ctx context.Context, sessionKey, toolName string
 		})
 		if err := l.evolutionMetricsStore.RecordMetric(bgCtx, store.EvolutionMetric{
 			ID:         uuid.New(),
-			TenantID:   store.MasterTenantID,
 			AgentID:    l.agentUUID,
 			SessionKey: sessionKey,
 			MetricType: store.MetricTool,

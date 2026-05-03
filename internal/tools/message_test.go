@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 )
 
@@ -301,70 +299,6 @@ func TestMimeFromPath(t *testing.T) {
 	}
 }
 
-func TestValidateChannelTenant(t *testing.T) {
-	tenantA := uuid.MustParse("0193a5b0-7000-7000-8000-000000000001")
-	tenantB := uuid.MustParse("019d1135-7087-7aa9-a2c7-cdaf7af851b1")
-
-	tool := NewMessageTool("", true)
-
-	t.Run("no checker configured allows all", func(t *testing.T) {
-		ctx := context.Background()
-		if err := tool.validateChannelTenant(ctx, "telegram", "123"); err != nil {
-			t.Errorf("expected nil, got error: %s", err.ForLLM)
-		}
-	})
-
-	// Wire a mock checker.
-	channels := map[string]uuid.UUID{
-		"telegram":       tenantA,
-		"tenant-b-tg":   tenantB,
-	}
-	tool.SetChannelTenantChecker(func(name string) (uuid.UUID, bool) {
-		tid, ok := channels[name]
-		return tid, ok
-	})
-
-	t.Run("same tenant allows", func(t *testing.T) {
-		ctx := context.Background()
-		if err := tool.validateChannelTenant(ctx, "telegram", "123"); err != nil {
-			t.Errorf("expected nil for same tenant, got: %s", err.ForLLM)
-		}
-	})
-
-	t.Run("cross tenant blocks", func(t *testing.T) {
-		ctx := context.Background()
-		err := tool.validateChannelTenant(ctx, "tenant-b-tg", "456")
-		if err == nil {
-			t.Fatal("expected error for cross-tenant send, got nil")
-		}
-		if !err.IsError {
-			t.Error("expected IsError=true")
-		}
-	})
-
-	t.Run("channel not found blocks", func(t *testing.T) {
-		ctx := context.Background()
-		err := tool.validateChannelTenant(ctx, "nonexistent", "789")
-		if err == nil {
-			t.Fatal("expected error for missing channel, got nil")
-		}
-	})
-
-	t.Run("nil channel tenant allows (legacy)", func(t *testing.T) {
-		channels["legacy-ch"] = uuid.Nil
-		ctx := context.Background()
-		if err := tool.validateChannelTenant(ctx, "legacy-ch", "123"); err != nil {
-			t.Errorf("expected nil for legacy channel, got: %s", err.ForLLM)
-		}
-	})
-
-	t.Run("nil context tenant allows (master/system)", func(t *testing.T) {
-		ctx := context.Background() // no tenant in context
-		if err := tool.validateChannelTenant(ctx, "tenant-b-tg", "456"); err != nil {
-			t.Errorf("expected nil for master context, got: %s", err.ForLLM)
-		}
-	})
-}
 
 func TestSelfSendGuard(t *testing.T) {
 	workspace := t.TempDir()

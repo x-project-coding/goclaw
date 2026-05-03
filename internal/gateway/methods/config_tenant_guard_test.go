@@ -19,20 +19,6 @@ func TestIsMasterScopeContext_OwnerRole_Allowed(t *testing.T) {
 	}
 }
 
-func TestIsMasterScopeContext_NilTenant_Allowed(t *testing.T) {
-	// Legacy / system callers without tenant scope → treated as master
-	ctx := context.Background()
-	if !store.IsMasterScope(ctx) {
-		t.Fatalf("nil tenant ctx should be allowed (master-scope fallback)")
-	}
-}
-
-func TestIsMasterScopeContext_MasterTenant_Allowed(t *testing.T) {
-	ctx := context.Background()
-	if !store.IsMasterScope(ctx) {
-		t.Fatalf("master tenant ctx should be allowed")
-	}
-}
 
 func TestIsMasterScopeContext_NonMasterTenantNoOwner_Denied(t *testing.T) {
 	ctx := context.Background()
@@ -67,30 +53,6 @@ func nextCalledHandler(called *bool) gateway.MethodHandler {
 	}
 }
 
-func TestRequireMasterScope_MasterTenant_CallsNext(t *testing.T) {
-	m := &ConfigMethods{}
-	var called bool
-	h := m.requireMasterScope(nextCalledHandler(&called))
-
-	ctx := context.Background()
-	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigPatch))
-
-	if !called {
-		t.Fatalf("expected next handler to be called for master tenant ctx")
-	}
-}
-
-func TestRequireMasterScope_NilTenant_CallsNext(t *testing.T) {
-	m := &ConfigMethods{}
-	var called bool
-	h := m.requireMasterScope(nextCalledHandler(&called))
-
-	h(context.Background(), nullClient(), configGuardRequest(protocol.MethodConfigGet))
-
-	if !called {
-		t.Fatalf("expected next handler to be called for nil tenant ctx (legacy compat)")
-	}
-}
 
 func TestRequireMasterScope_OwnerRole_CallsNext(t *testing.T) {
 	m := &ConfigMethods{}
@@ -107,20 +69,6 @@ func TestRequireMasterScope_OwnerRole_CallsNext(t *testing.T) {
 	}
 }
 
-func TestRequireMasterScope_NonMasterTenantNoOwner_BlocksNext(t *testing.T) {
-	m := &ConfigMethods{}
-	var called bool
-	h := m.requireMasterScope(nextCalledHandler(&called))
-
-	// Non-master tenant admin (non-owner role) — must be blocked
-	ctx := context.Background()
-	ctx = store.WithRole(ctx, "admin")
-	h(ctx, nullClient(), configGuardRequest(protocol.MethodConfigPatch))
-
-	if called {
-		t.Fatalf("non-master tenant non-owner ctx must NOT reach next handler")
-	}
-}
 
 // ---- Test: middleware chain (requireMasterScope → requireOwner → handler) ----
 

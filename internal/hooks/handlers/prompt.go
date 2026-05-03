@@ -137,6 +137,8 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	}
 
 	// 3. Budget pre-check (estimate) — cost is counted post-call with real usage.
+	// TODO(v4.x): rewire to ev.UserID — see docs/adr/2026-05-v4-hook-budget-deferred.md.
+	// In v4 ev.TenantID is always uuid.Nil so this branch is unreachable; kept as scaffolding.
 	if h.Budget != nil && ev.TenantID != uuid.Nil {
 		if _, _, err := h.Budget.Deduct(ctx, ev.TenantID, 0); err != nil && !errors.Is(err, budget.ErrBudgetExceeded) {
 			slog.Warn("security.hook.budget_precheck_failed", "err", err, "tenant", ev.TenantID)

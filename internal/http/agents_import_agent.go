@@ -15,7 +15,6 @@ import (
 
 // doImportNewAgent creates a new agent from the archive, returning import summary.
 func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, arc *importArchive, progressFn func(ProgressEvent)) (*ImportSummary, error) {
-	tenantID := store.MasterTenantID
 	userID := store.UserIDFromContext(ctx)
 
 	// Build agent record from archive config + optional overrides
@@ -38,7 +37,7 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 	// Dedup: suffix with -N if key already exists
 	agentKey = h.dedupAgentKey(ctx, agentKey)
 
-	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, tenantID, userID)
+	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, uuid.Nil, userID)
 
 	if progressFn != nil {
 		progressFn(ProgressEvent{Phase: "config", Status: "running"})

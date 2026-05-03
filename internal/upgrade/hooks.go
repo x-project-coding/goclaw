@@ -1,10 +1,5 @@
 package upgrade
 
-import (
-	"context"
-	"database/sql"
-)
-
 // Data migration hooks are registered here.
 // Add new hooks when a schema migration requires Go-based data transformation.
 //
@@ -16,9 +11,3 @@ import (
 //			return nil
 //		})
 //	}
-
-func init() {
-	RegisterDataHook(55, webSearchMigrateHookName, func(ctx context.Context, db *sql.DB) error {
-		return migrateWebSearchInlineKeys(ctx, db)
-	})
-}

@@ -45,7 +45,7 @@ type vaultGraphResponse struct {
 
 func (h *VaultGraphHandler) handleVaultGraph(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := store.MasterTenantID.String()
+	tenantID := uuid.Nil.String()
 
 	agentID := r.URL.Query().Get("agent_id")
 	teamID := r.URL.Query().Get("team_id")

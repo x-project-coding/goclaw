@@ -78,24 +78,15 @@ func (h *HookConfig) Validate(ed edition.Edition) error {
 	return nil
 }
 
-// validateScope enforces (scope, tenant_id, agent_id) invariants:
-//   - global → tenant_id MUST be the sentinel UUID.
-//   - tenant → tenant_id MUST be non-sentinel.
-//   - agent  → tenant_id MUST be non-sentinel AND agent_id non-nil.
+// validateScope enforces scope-shape invariants in v4 single-user world:
+//   - global → applies to every agent, no extra targeting fields required.
+//   - tenant → semantically meaningless in v4; accepted as alias for global.
+//   - agent  → must specify at least one agent_id.
 func (h *HookConfig) validateScope() error {
 	switch h.Scope {
-	case ScopeGlobal:
-		if h.TenantID != SentinelTenantID {
-			return fmt.Errorf("hook: global scope requires sentinel tenant_id, got %s", h.TenantID)
-		}
-	case ScopeTenant:
-		if h.TenantID == SentinelTenantID || h.TenantID == uuid.Nil {
-			return fmt.Errorf("hook: tenant scope requires a real tenant_id")
-		}
+	case ScopeGlobal, ScopeTenant:
+		// nothing further to check — both target every agent in v4
 	case ScopeAgent:
-		if h.TenantID == SentinelTenantID || h.TenantID == uuid.Nil {
-			return fmt.Errorf("hook: agent scope requires a real tenant_id")
-		}
 		if len(h.AgentIDs) == 0 {
 			if h.AgentID != nil && *h.AgentID != uuid.Nil {
 				h.AgentIDs = []uuid.UUID{*h.AgentID}

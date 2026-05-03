@@ -287,7 +287,7 @@ func (c *Collector) updateTraceWithRetry(ctx context.Context, traceID uuid.UUID,
 func (c *Collector) enqueueRetry(ctx context.Context, traceID uuid.UUID, updates map[string]any) {
 	item := pendingUpdate{
 		TraceID:  traceID,
-		TenantID: store.MasterTenantID,
+		TenantID: uuid.Nil,
 		Updates:  updates,
 		Tries:    0,
 	}
@@ -539,7 +539,7 @@ func (c *Collector) emitStatusBroadcast(ctx context.Context, traceID uuid.UUID, 
 		TraceID: traceID.String(),
 		Status:  status,
 		EndedAt: endedAt,
-	}, store.MasterTenantID)
+	}, uuid.Nil)
 }
 
 // truncatePreviewStr sanitizes and truncates a string by removing the middle.

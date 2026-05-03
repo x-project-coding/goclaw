@@ -41,7 +41,6 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 		go s.deps.FireHook(ctx, hooks.Event{ //nolint:errcheck
 			EventID:   uuid.NewString(),
 			SessionID: state.Input.SessionKey,
-			TenantID:  store.MasterTenantID,
 			AgentID:   store.AgentIDFromContext(ctx),
 			RawInput:  state.Input.Message,
 			HookEvent: hooks.EventSessionStart,
@@ -54,7 +53,6 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 	if r, _ := s.deps.FireHook(ctx, hooks.Event{
 		EventID:   uuid.NewString(),
 		SessionID: state.Input.SessionKey,
-		TenantID:  store.MasterTenantID,
 		AgentID:   store.AgentIDFromContext(ctx),
 		RawInput:  state.Input.Message,
 		HookEvent: hooks.EventUserPromptSubmit,

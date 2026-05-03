@@ -244,26 +244,23 @@ func (m *Manager) cleanupDeadBrowserLocked() {
 	m.refs = NewRefStore()
 }
 
-// MasterTenantID is the well-known master tenant UUID string.
-// Pages opened without a tenant context or by the master tenant use the main browser directly.
-const MasterTenantID = "0193a5b0-7000-7000-8000-000000000001"
-
-// tenantBrowserLocked returns an isolated incognito browser context for the given tenant.
-// Master tenant and empty string use the main browser (no isolation needed).
+// tenantBrowserLocked returns the main browser for any tenant context.
+// In v4 single-user world there is no tenant isolation needed — all pages
+// share the same browser context.
 // Must be called with mu held.
 func (m *Manager) tenantBrowserLocked(tenantID string) (*rod.Browser, error) {
 	if m.browser == nil {
 		return nil, fmt.Errorf("browser not running")
 	}
-	// Master tenant or no tenant: use main browser
-	if tenantID == "" || tenantID == MasterTenantID {
+	// Single-user: always use main browser
+	if tenantID == "" {
 		return m.browser, nil
 	}
-	// Return existing incognito context
+	// Return existing incognito context if one was previously created
 	if ctx, ok := m.tenantCtxs[tenantID]; ok {
 		return ctx, nil
 	}
-	// Create new incognito context for this tenant
+	// Create new incognito context for this tenant ID
 	incognito, err := m.browser.Incognito()
 	if err != nil {
 		return nil, fmt.Errorf("create incognito context for tenant %s: %w", tenantID, err)

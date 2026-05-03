@@ -85,7 +85,7 @@ func NewDBTokenSource(provStore store.ProviderStore, secretsStore store.ConfigSe
 		providerStore: provStore,
 		secretsStore:  secretsStore,
 		providerName:  providerName,
-		tenantID:      store.MasterTenantID,
+		tenantID:      uuid.Nil,
 	}
 }
 

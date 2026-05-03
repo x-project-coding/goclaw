@@ -94,3 +94,44 @@ E2E tests verify:
 8. Multi-user isolation (memory, vault, cron, hooks)
 9. RBAC (root vs admin vs member vs viewer permissions)
 10. Backup/restore round-trip
+11. Phase 13 cleanup gates — `MasterTenantID` purged, no `tenant_id` columns, ADRs landed (`tests/e2e/13_*.go`)
+
+## Troubleshooting
+
+### Tests skipped with `pg_dump not in PATH`
+The schema round-trip test (`tests/e2e/schema/01_pg_migration_round_trip_test.go`)
+shells out to `pg_dump`. Install PostgreSQL client tools (`brew install postgresql`
+on macOS, `apt install postgresql-client` on Debian/Ubuntu) and re-run.
+
+### `dial tcp 127.0.0.1:5435: connect: connection refused`
+The dev pgvector container is not running. Bring it up with:
+```bash
+docker run -d --name dev-pgvector -p 5435:5432 \
+  -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=devpass \
+  -e POSTGRES_DB=goclaw_v4_e2e \
+  pgvector/pgvector:pg18
+```
+Then create the extensions:
+```bash
+PGPASSWORD=devpass psql -h 127.0.0.1 -p 5435 -U dev -d goclaw_v4_e2e \
+  -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+```
+
+### `env BAILIAN_API_KEY empty — check env.e2e-tests/.env`
+You forgot to copy `.env.example` → `.env` (or forgot to source it). The harness
+self-test (`tests/e2e/00_harness_self_test.go`) reports each missing key by name.
+
+### `--- FAIL: TestNoTenantIDColumnsAnywherePG`
+The Phase 13 cleanup invariant tripped. Either the schema regressed and a new
+migration introduced a `tenant_id` column (revert it — v4 is single-user) or a
+prior migration was not fully cleaned. Run `helpers.MustMigrateClean(t)` against
+a fresh DB and re-test.
+
+### Tests pass locally but fail in CI
+The e2e suite expects exclusive DB access — a leftover row from a previous run
+breaks downstream tests. Reset the DB (see "Reset DB between tests" above) and
+re-run.
+
+### `activity_logs` table growing unbounded
+Expected behaviour in v4.0; see `docs/adr/2026-05-v4-activity-logs-retention-defer.md`.
+Manual prune: `DELETE FROM activity_logs WHERE created_at < now() - interval '90 days';`

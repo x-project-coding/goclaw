@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
@@ -181,9 +180,9 @@ func rawOrNil(raw json.RawMessage) json.RawMessage {
 	return raw
 }
 
-// importTenantID returns MasterTenantID (v4 single-tenant).
+// importTenantID returns uuid.Nil (v4 single-tenant — no tenant concept).
 func importTenantID(_ context.Context) uuid.UUID {
-	return store.MasterTenantID
+	return uuid.Nil
 }
 
 // nullJSON returns nil if raw is empty (for JSONB nullable columns), otherwise returns raw.
