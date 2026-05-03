@@ -12,14 +12,13 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-func newTestAgent(tenantID uuid.UUID, suffix string) store.AgentData {
+func newTestAgent(_ uuid.UUID, suffix string) store.AgentData {
 	id := uuid.New()
 	if suffix == "" {
 		suffix = id.String()[:8]
 	}
 	return store.AgentData{
 		BaseModel: store.BaseModel{ID: id},
-		TenantID:  tenantID,
 		AgentKey:  "test-agent-" + suffix,
 		AgentType: "predefined",
 		Status:    "active",

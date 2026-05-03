@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestRouter_AbortRun_NotFound verifies that aborting a non-existent run
@@ -142,16 +141,14 @@ func TestRouter_AbortRun_ForcesAfter3s(t *testing.T) {
 	collector := &mockTraceCollector{}
 	router.SetTraceCollector(collector)
 
-	// Use a tenant-scoped context so forceMarkTraceAborted carries the tenant to FinishTrace.
-	testTenantID := uuid.New()
-	tenantCtx := context.Background()
+	ctx := context.Background()
 
 	// Register a run
-	_, cancel := context.WithCancel(tenantCtx)
+	_, cancel := context.WithCancel(ctx)
 	runID := "run-1"
 	sessionKey := "session-1"
 	agentID := "agent-1"
-	router.RegisterRun(tenantCtx, runID, sessionKey, agentID, cancel)
+	router.RegisterRun(ctx, runID, sessionKey, agentID, cancel)
 
 	// Set a trace ID
 	traceID := uuid.New()
@@ -192,10 +189,6 @@ func TestRouter_AbortRun_ForcesAfter3s(t *testing.T) {
 		}
 		if call.TraceID != traceID {
 			t.Errorf("expected traceID=%s, got %s", traceID, call.TraceID)
-		}
-		// Verify tenant was propagated to the FinishTrace ctx (FIX 1 regression check).
-		if call.TenantID != testTenantID {
-			t.Errorf("expected tenantID=%s in FinishTrace ctx, got %s", testTenantID, call.TenantID)
 		}
 	}
 }

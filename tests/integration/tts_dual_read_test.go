@@ -6,7 +6,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
@@ -14,7 +13,7 @@ import (
 // stored in system_configs can be read back (PG backend).
 func TestTTSConfig_Store_RoundTrip_LegacyKeys(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	_, _ = seedTenantAgent(t, db)
 
 	ctx := context.Background()
 
@@ -54,7 +53,7 @@ func TestTTSConfig_Store_RoundTrip_LegacyKeys(t *testing.T) {
 // stored in system_configs can be read back (PG backend).
 func TestTTSConfig_Store_RoundTrip_ParamsBlob(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	_, _ = seedTenantAgent(t, db)
 
 	ctx := context.Background()
 
@@ -85,7 +84,7 @@ func TestTTSConfig_Store_RoundTrip_ParamsBlob(t *testing.T) {
 // params blob can coexist in system_configs (PG backend).
 func TestTTSConfig_Store_Dual_LegacyAndBlob(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	_, _ = seedTenantAgent(t, db)
 
 	ctx := context.Background()
 
@@ -116,7 +115,7 @@ func TestTTSConfig_Store_Dual_LegacyAndBlob(t *testing.T) {
 // (legacy has only voice, blob has only params - PG backend).
 func TestTTSConfig_Store_DisjointUnion(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	_, _ = seedTenantAgent(t, db)
 
 	ctx := context.Background()
 
@@ -143,36 +142,4 @@ func TestTTSConfig_Store_DisjointUnion(t *testing.T) {
 	}
 }
 
-// TestTTSConfig_Store_MultiTenant verifies tenant isolation in system_configs
-// (PG backend).
-func TestTTSConfig_Store_MultiTenant(t *testing.T) {
-	db := testDB(t)
-	tenantA, _ := seedTenantAgent(t, db)
-	tenantB, _ := seedTenantAgent(t, db)
-
-	ctxA := context.Background()
-	ctxB := context.Background()
-
-	configStore := pg.NewPGSystemConfigStore(db)
-
-	t.Cleanup(func() {
-		db.Exec("DELETE FROM system_configs WHERE key LIKE 'tts.%'")
-	})
-
-	// Tenant A sets openai
-	configStore.Set(ctxA, "tts.provider", "openai")
-
-	// Tenant B sets elevenlabs
-	configStore.Set(ctxB, "tts.provider", "elevenlabs")
-
-	// Verify isolation
-	providerA, _ := configStore.Get(ctxA, "tts.provider")
-	if providerA != "openai" {
-		t.Errorf("tenant A: got %q, want openai", providerA)
-	}
-
-	providerB, _ := configStore.Get(ctxB, "tts.provider")
-	if providerB != "elevenlabs" {
-		t.Errorf("tenant B: got %q, want elevenlabs", providerB)
-	}
-}
+// v4 single-tenant: MultiTenant isolation test removed (no tenant scoping).

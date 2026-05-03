@@ -10,7 +10,6 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
