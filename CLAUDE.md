@@ -305,6 +305,35 @@ Rationale: plan headers change, get renumbered, or disappear between iterations;
 - Function/symbol names in the same codebase (e.g., "see ValidateAgentID").
 - Stable external identifiers: RFC numbers (RFC 6749 §10.4), PostgreSQL SQLSTATE codes, CVE IDs, linked issue numbers when the issue is durable.
 
+## [IMPORTANT] Deferral Discipline — Update Files When Deferring Plan/Phase Work
+
+When a plan item, sub-phase, finding, or scope element is deferred to a later phase / version (e.g., "defer to v4.0.1", "defer Finding 5", "skip Sub-11D this session"), the deferral MUST be reflected in the relevant files BEFORE proceeding with current work. A spoken/chat-only deferral is forgotten by future sessions and re-litigated.
+
+### Mandatory updates on every deferral
+
+1. **Phase file (`plans/.../phase-XX-*.md`)** — annotate the deferred section in-place with:
+   - `**DEFERRED to <target>** (decision YYYY-MM-DD): <one-line reason>`
+   - Move related todos under a `### Deferred` subsection so they don't read as in-scope.
+   - Update `## Overview > Effort` if the deferral materially changes the budget.
+2. **Overview plan (`plans/.../plan.md`)** — if the deferral spans multiple phases or shifts the roadmap (e.g., "Phase 12 → EPIC-05"), update the phase-list status/owner column.
+3. **ADR** (`docs/adr/YYYY-MM-<slug>.md`) — write a short ADR (~30-50 lines) when the deferral is a permanent architectural call (e.g., "localStorage tokens kept, HttpOnly cookies deferred"). Skip ADR for tactical reorder of work within the same release.
+4. **Roadmap / changelog** — if the deferral changes a public-facing release scope (`docs/development-roadmap.md` / `docs/project-changelog.md`), update there too.
+5. **Linked tickets / TODO comments in code** — if code references the deferred item (e.g., `// TODO: Finding 5 cookies`), keep the marker but update the date / target so it doesn't go stale.
+
+### When the rule kicks in
+- "defer to v4.0.1 / next phase / next session"
+- "skip this sub-phase, do later"
+- "leave for follow-up"
+- "out of scope this session"
+- Picking option B/C in a /cook gate that explicitly drops scope from a plan
+
+### Anti-patterns
+- ❌ Telling user "defer Finding 5 to v4.0.1" then implementing without touching the phase file → next session re-discovers Finding 5 as if untriaged.
+- ❌ Cutting Sub-11C/D from this session without updating todo list / status in plan → kanban / sync-back reads as "phase complete" prematurely.
+- ❌ Adding only a chat note ("decided 2026-05-03") with no file change → invisible to future LLMs.
+
+**Rule of thumb:** if the deferral wouldn't be obvious to a future agent reading the phase file cold, it isn't recorded yet.
+
 ## Post-Implementation Checklist
 
 After implementing or modifying Go code, run these checks:

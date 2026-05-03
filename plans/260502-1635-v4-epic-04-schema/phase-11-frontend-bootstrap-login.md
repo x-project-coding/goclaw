@@ -11,9 +11,25 @@
 ## Overview
 
 - Priority: P0 (UX-critical)
-- Status: pending
-- Effort: 25 dev-days
-- Description: New `/bootstrap` + `/login` + `/profile` pages. Refactor 65 ui/web/src/ files to drop tenant refs (~9226 LOC). Auth context with JWT refresh interceptor (rotate-on-use). 503 redirect to `/bootstrap`. Add ~30-40 i18n keys × 3 languages = ~90-120 entries. Drop `/tenants-admin/` (2 files).
+- Status: in-progress (Sub-11A active 2026-05-03)
+- Effort: 15-18 dev-days (re-scouted 2026-05-03; was 25d). Sub-11A=5d, 11B=8d, 11C=4-6d, 11D=2d.
+- Description: New `/bootstrap` + `/login` + `/profile` pages. Refactor 66 ui/web/src/ files to drop tenant refs (live grep 2026-05-03). Auth context with JWT refresh interceptor (rotate-on-use). 503 redirect to `/bootstrap`. Add ~30-40 i18n keys × 3 languages = ~90-120 entries. Drop `/tenants-admin/` (verified exists).
+
+**Day 0 re-scout (DONE 2026-05-03):**
+- Live tenant ref count = **66 files** (matches plan ~65 ✓).
+- `ui/web/src/auth/` does NOT yet exist — create from scratch in 11A.
+- Existing auth state in `ui/web/src/stores/use-auth-store.ts` (Zustand + persist), persists `token`/`userId`/`senderID` to localStorage.
+- Backend Phase 06 (`internal/http/auth_password.go`) returns tokens via **JSON body**, NOT HttpOnly cookies.
+- App entry: `App.tsx` → `BrowserRouter` → `routes.tsx` (NOT `App.tsx` per original plan).
+- Login page: `pages/login/login-page.tsx` (NOT `pages/login/index.tsx`).
+- Existing 39 i18n namespaces in `ui/web/src/i18n/locales/en/` (no `auth.json` yet).
+- Effort revised down to 15-18d based on real scope.
+
+**Finding 5 (HttpOnly cookies) DEFERRED to v4.0.1:**
+- Decision 2026-05-03: keep JSON body tokens (current Phase 06 mechanism). Switching to HttpOnly cookies requires backend ripple (auth.go already merged + tested) and adds 2-3d.
+- v3 already used localStorage tokens — no v4.0 security regression.
+- ADR follow-up: `docs/adr/2026-05-v4-localStorage-tokens-defer-cookies.md` (write at end of Phase 11).
+- Plan section "Token storage strategy (CRITICAL)" below kept for v4.0.1 reference but NOT implemented in v4.0.
 
 <!-- RED-TEAM Finding 11: Phase 11 file count 65 vs 693 — estimate basis questionable (CRITICAL — verify) -->
 **File count caveat:** "65 files" claim is based on tenant-ref grep. Real total non-test ts/tsx in `ui/web/src/` = 693 files (84,833 LOC). Tenant-ref grep yields 67 files (verified). If only tenant-ref files matter, the claim is correct. If broader Zustand/router/api-client cleanup is needed, scope expands.
@@ -65,10 +81,11 @@
   - email + password fields (drop tenant_slug if present).
   - On 503 from any API → redirect to `/bootstrap`.
   - Submit `POST /v1/auth/login` → store tokens → redirect to `/chat`.
-- `ui/web/src/pages/profile/index.tsx`:
-  - Display current user (from `/v1/auth/me`).
-  - Update display_name + password (`PATCH /v1/users/:id`).
-  - Logout button → `POST /v1/auth/logout` + clear tokens + redirect `/login`.
+- `ui/web/src/pages/profile/profile-page.tsx`:
+  - Display current user (from `/v1/auth/me` via auth-context).
+  - Logout button → `auth.logout()` (calls `POST /v1/auth/logout` + clears tokens + redirects `/login`).
+  - Display-name update via `ProfileForm` → `PATCH /v1/users/me` (Phase 06 ripple, added 2026-05-03).
+  - Password change via `ProfileForm` → `POST /v1/auth/change-password` (Phase 06 ripple, added 2026-05-03). Backend revokes all sessions; FE forces re-login on success.
 
 #### NEW auth module
 
@@ -194,18 +211,35 @@ Refresh interceptor (single-flight):
 
 ## Implementation Steps
 
-### Sub-phase 11A — Auth module foundation (5 days)
+### Sub-phase 11A — Auth module foundation (5 days) [ACTIVE 2026-05-03]
 
-1. Verify Phase 06 merged (auth endpoints + JWT/refresh live).
-2. Add 3 `auth.json` i18n locale files (en/vi/zh) with ~30 keys each.
-3. Init i18next namespace in `ui/web/src/main.tsx`.
+**Scope (Finding 5 deferred):** JSON body tokens (matches Phase 06 backend). HttpOnly cookie hardening = v4.0.1.
+
+1. ✅ Verify Phase 06 merged — DONE (`internal/http/auth_password.go` registers `/v1/auth/{login,refresh,logout,me}`).
+2. Add 3 `auth.json` i18n locale files (en/vi/zh) with ~25 keys each (login + bootstrap + profile + auth common).
+3. Init i18next namespace registration (search current i18n setup file: `ui/web/src/i18n/index.ts` or similar).
 4. Write FE auth tests (red).
-5. Write `ui/web/src/auth/jwt.ts` — decode + expiry helpers.
-6. Write `ui/web/src/auth/auth-context.tsx` — Zustand-backed context.
-7. Write `ui/web/src/auth/refresh-interceptor.ts` — single-flight refresh.
-8. Write `ui/web/src/auth/bootstrap-redirect.ts` — 503 redirect.
-9. Wire interceptors into `ui/web/src/api/client.ts`.
-10. `pnpm test` for auth module → green.
+5. Write `ui/web/src/auth/jwt.ts` — decode + expiry helpers (no signature verify; trust backend).
+6. Write `ui/web/src/auth/auth-context.tsx` — React context backed by `use-auth-store.ts`. Add `accessToken`, `refreshToken`, `user`, `login()`, `logout()`, `refresh()`.
+7. Write `ui/web/src/auth/refresh-interceptor.ts` — single-flight Promise dedup. POSTs `/v1/auth/refresh` with `{refresh_token}` JSON body.
+8. Write `ui/web/src/auth/bootstrap-redirect.ts` — global 503 + `bootstrap_required` flag → redirect.
+9. Wire interceptors into `ui/web/src/api/http-client.ts` (verified file name).
+10. `pnpm tsc --noEmit` clean + `pnpm test` for auth module → green.
+
+**Files to create (Sub-11A):**
+- `ui/web/src/auth/jwt.ts`
+- `ui/web/src/auth/auth-context.tsx`
+- `ui/web/src/auth/refresh-interceptor.ts`
+- `ui/web/src/auth/bootstrap-redirect.ts`
+- `ui/web/src/auth/__tests__/jwt.test.ts`
+- `ui/web/src/auth/__tests__/refresh-interceptor.test.tsx`
+- `ui/web/src/auth/__tests__/auth-context.test.tsx`
+- `ui/web/src/i18n/locales/{en,vi,zh}/auth.json` (3 files)
+
+**Files to modify (Sub-11A):**
+- `ui/web/src/api/http-client.ts` (wire 401 interceptor + 503 interceptor)
+- `ui/web/src/i18n/` namespace registration (locate config and add `auth`)
+- `ui/web/src/stores/use-auth-store.ts` (add `refreshToken` field; keep existing `token` field renamed or aliased to `accessToken`)
 
 ### Sub-phase 11B — Bootstrap + Login + Profile pages (8 days)
 
@@ -241,13 +275,17 @@ Refresh interceptor (single-flight):
 - [ ] (Finding 11) Adjust effort estimate; defer non-essentials to v4.0.1
 - [ ] (Finding 11) Update phase Overview > Effort line
 
-### Sub-11A
-- [ ] auth.json i18n × 3 languages
-- [ ] auth jwt.ts + tests
-- [ ] auth-context.tsx + tests
-- [ ] refresh-interceptor.ts + tests (single-flight)
-- [ ] bootstrap-redirect.ts
-- [ ] api/client.ts wiring
+### Sub-11A [DONE 2026-05-03]
+- [x] auth.json i18n × 3 languages (en/vi/zh registered in `i18n/index.ts`)
+- [x] auth/jwt.ts + tests (12 cases, decode + isExpired + isExpiringSoon)
+- [x] auth/auth-context.tsx (DOM tests deferred — no @testing-library/react in repo)
+- [x] auth/refresh-interceptor.ts + tests (8 cases incl. 5-parallel single-flight)
+- [x] auth/bootstrap-redirect.ts + tests (6 cases)
+- [x] use-auth-store.ts extended with `refreshToken` + `setTokens()` + `setAccessToken()`
+- [x] api/http-client.ts wired: `refreshTokens` callback + `onBootstrapRequired` callback + 401 single retry
+- [x] pnpm tsc --noEmit clean
+- [x] pnpm test green (22 files / 246 tests)
+- [x] pnpm build clean
 <!-- RED-TEAM Finding 5 todos -->
 - [ ] (Finding 5) Backend `/v1/auth/login` sets HttpOnly cookie (Phase 06 ripple)
 - [ ] (Finding 5) Backend `/v1/auth/refresh` reads cookie, rotates, sets new cookie
@@ -258,12 +296,15 @@ Refresh interceptor (single-flight):
 - [ ] (Finding 5) Trusted Types policy enabled
 - [ ] (Finding 5) DOMPurify wrapper for HTML-rendered user input
 
-### Sub-11B
-- [ ] login/index.tsx refactor
-- [ ] bootstrap/index.tsx + bootstrap-form.tsx
-- [ ] profile/index.tsx + profile-form.tsx
-- [ ] App.tsx routes
-- [ ] AuthContext provider wired
+### Sub-11B [DONE 2026-05-03]
+- [x] login/login-page.tsx refactored — drops token/pairing tabs, uses email+password via auth-context. Old token-form/pairing-form/login-tabs/tenant-selector kept for Sub-11C purge.
+- [x] bootstrap/bootstrap-page.tsx + bootstrap-form.tsx (X-Bootstrap-Token + email + password + displayName)
+- [x] profile/profile-page.tsx + profile-form.tsx — full editable. Backend ripple to Phase 06: `PATCH /v1/users/me` (display_name) + `POST /v1/auth/change-password` (revoke-all-sessions on success).
+- [x] routes.tsx: `/bootstrap` (public) + `/profile` (RequireAuth) registered
+- [x] AuthProvider wired into AppProviders (between ThemeProvider and WsProvider)
+- [x] schemas/auth.schema.ts: passwordLoginSchema, bootstrapSchema, profileUpdateSchema, passwordChangeSchema (last two staged for v4.0.1)
+- [x] schemas/__tests__/auth.schema.test.ts: 17 tests
+- [x] pnpm tsc + test green (23 files / 263 tests) + build clean
 
 ### Sub-11C
 - [ ] Tenant ref enumeration
