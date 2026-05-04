@@ -60,7 +60,6 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Name      string   `json:"name"`
 		Scopes    []string `json:"scopes"`
 		ExpiresIn *int     `json:"expires_in"` // seconds; nil = never
-		TenantID  string   `json:"tenant_id"`  // optional UUID; cross-tenant callers may specify or omit (NULL = system key)
 	}
 	if !bindJSON(w, r, locale, &input) {
 		return
@@ -94,18 +93,6 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve tenant_id from input (root-only override). Default uuid.Nil =
-	// system-level key (NULL in DB) — the only path non-root callers can take.
-	var tenantID uuid.UUID
-	if store.IsRootRole(r.Context()) && input.TenantID != "" {
-		tid, err := uuid.Parse(input.TenantID)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id"))
-			return
-		}
-		tenantID = tid
-	}
-
 	now := time.Now()
 	key := &store.APIKeyData{
 		ID:        store.GenNewID(),
@@ -113,7 +100,6 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		Prefix:    prefix,
 		KeyHash:   hash,
 		Scopes:    input.Scopes,
-		TenantID:  tenantID,
 		CreatedBy: extractUserID(r),
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -146,11 +132,10 @@ func (h *APIKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 // handleRevoke revokes an API key after verifying the caller owns it.
 //
-// Phase 0b hotfix: the store layer's Revoke SQL matches rows where
-// `tenant_id = $N OR tenant_id IS NULL`, which let tenant admins revoke
-// system-level (NULL-tenant) API keys belonging to CI/CD or integrations.
-// The fix pre-fetches the key and rejects any non-owner caller whose tenant
-// does not exactly match the key's tenant. System owners bypass.
+// The store layer's Revoke SQL previously matched rows by scope
+// condition, which let non-owner callers revoke system-level API keys.
+// The fix pre-fetches the key and rejects any non-owner caller who does
+// not own the key. System owners bypass.
 // See plans/reports/debugger-260412-0922-tenant-scope-audit.md HIGH finding.
 func (h *APIKeysHandler) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)

@@ -55,9 +55,8 @@ type MediaAttachment struct {
 
 // Event represents a server-side event to broadcast to WebSocket clients.
 type Event struct {
-	Name     string    `json:"name"`              // event name (e.g. "agent", "chat", "health")
-	Payload  any       `json:"payload,omitempty"`
-	TenantID uuid.UUID `json:"-"` // tenant scope for event filtering (not serialized to clients)
+	Name    string `json:"name"`              // event name (e.g. "agent", "chat", "health")
+	Payload any    `json:"payload,omitempty"`
 }
 
 // Cache invalidation kind constants.
@@ -127,9 +126,8 @@ type AgentStatusChangedPayload struct {
 
 // AgentDeletedPayload carries agent deletion info for async cleanup (e.g. orphaned provider removal).
 type AgentDeletedPayload struct {
-	AgentKey string    `json:"agent_key"`
-	Provider string    `json:"provider,omitempty"` // provider name for orphan cleanup
-	TenantID uuid.UUID `json:"tenant_id,omitempty"`
+	AgentKey string `json:"agent_key"`
+	Provider string `json:"provider,omitempty"` // provider name for orphan cleanup
 }
 
 // AuditEventPayload carries audit log data emitted by handlers.
@@ -142,20 +140,14 @@ type AuditEventPayload struct {
 	EntityID   string          `json:"entity_id"`
 	IPAddress  string          `json:"ip_address,omitempty"`
 	Details    json.RawMessage `json:"details,omitempty"`
-	TenantID   uuid.UUID       `json:"tenant_id,omitempty"` // for async subscriber tenant scoping
 }
 
 // CacheInvalidatePayload signals cache layers to evict stale entries.
 // Used with protocol.EventCacheInvalidate events. Events are delivered
-// in-process via MessageBus and never marshaled to the wire, so the json
-// tags are documentation-only (and omitempty on uuid.UUID is a no-op
-// because uuid.UUID is [16]byte — all-zero arrays don't count as empty).
+// in-process via MessageBus and never marshaled to the wire.
 type CacheInvalidatePayload struct {
 	Kind string `json:"kind"` // CacheKind* constants
 	Key  string `json:"key"`  // agent_key, agent_id, etc. Empty = invalidate all
-	// TenantID scopes the invalidation to a single tenant. uuid.Nil means
-	// global (master admin action) — subscribers treat it as "invalidate all".
-	TenantID uuid.UUID `json:"tenant_id"`
 }
 
 // MessageHandler handles an inbound message from a specific channel.

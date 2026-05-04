@@ -28,9 +28,6 @@ var allowedUploadExts = map[string]bool{
 // Files are written to the tenant workspace in the appropriate subfolder based on agent/team selection,
 // then UpsertDocument + EventVaultDocUpserted triggers the existing enrichment pipeline.
 func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
-	tenantIDStr := tenantID.String()
-
 	// 32 MB in-memory; remainder spills to disk.
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart form"})
@@ -189,7 +186,6 @@ func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 
 		doc := &store.VaultDocument{
-			TenantID:    tenantIDStr,
 			Path:        relPath,
 			Title:       vault.InferTitle(relPath),
 			DocType:     vault.InferDocType(relPath),
@@ -219,12 +215,10 @@ func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 				ID:        uuid.Must(uuid.NewV7()).String(),
 				Type:      eventbus.EventVaultDocUpserted,
 				SourceID:  doc.ID + ":" + hash,
-				TenantID:  tenantIDStr,
 				AgentID:   agentForEvent,
 				Timestamp: time.Now(),
 				Payload: eventbus.VaultDocUpsertedPayload{
 					DocID:       doc.ID,
-					TenantID:    tenantIDStr,
 					AgentID:     agentForEvent,
 					Path:        relPath,
 					ContentHash: hash,
@@ -239,13 +233,13 @@ func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Start progress BEFORE publishing events to avoid race with workers.
 	if h.enrichProgress != nil && created > 0 {
-		h.enrichProgress.Start(created, tenantID)
+		h.enrichProgress.Start(created, uuid.Nil)
 	}
 	for _, event := range pendingEvents {
 		h.eventBus.Publish(event)
 	}
 
-	slog.Info("vault.upload", "tenant", tenantIDStr, "uploaded", created, "errors", len(files)-created)
+	slog.Info("vault.upload", "uploaded", created, "errors", len(files)-created)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"documents": results,

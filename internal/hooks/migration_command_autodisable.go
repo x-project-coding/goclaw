@@ -57,12 +57,11 @@ func DisableLegacyCommandHooks(ctx context.Context, hs HookStore, ed edition.Edi
 		}
 		if err := hs.Update(ctx, r.ID, map[string]any{"enabled": false}); err != nil {
 			slog.Warn("hooks.command_hook_auto_disable_failed",
-				"hook_id", r.ID, "tenant_id", r.TenantID, "err", err)
+				"hook_id", r.ID, "err", err)
 			continue
 		}
 		slog.Warn("hooks.command_hook_auto_disabled",
 			"hook_id", r.ID,
-			"tenant_id", r.TenantID,
 			"reason", "command_handler_disabled_on_standard_edition")
 		n++
 	}

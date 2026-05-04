@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/crypto"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -140,8 +139,6 @@ type authResult struct {
 	Role          permissions.Role
 	Authenticated bool
 	KeyData       *store.APIKeyData // non-nil when authenticated via API key
-	TenantID      uuid.UUID         // resolved tenant; always concrete after resolution
-	TenantSlug    string            // resolved tenant slug for filesystem paths
 	JWTSub        string            // non-empty when authenticated via JWT (claims.Sub)
 }
 

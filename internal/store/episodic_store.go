@@ -10,9 +10,8 @@ import (
 // EpisodicSummary represents a Tier 2 episodic memory entry.
 // Created from session summaries via the consolidation pipeline.
 type EpisodicSummary struct {
-	ID         uuid.UUID  `json:"id" db:"id"`
-	TenantID   uuid.UUID  `json:"tenant_id" db:"tenant_id"`
-	AgentID    uuid.UUID  `json:"agent_id" db:"agent_id"`
+	ID      uuid.UUID `json:"id" db:"id"`
+	AgentID uuid.UUID `json:"agent_id" db:"agent_id"`
 	UserID     string     `json:"user_id" db:"user_id"` // string: chat-based IDs
 	SessionKey string     `json:"session_key" db:"session_key"`
 	Summary    string     `json:"summary" db:"summary"`

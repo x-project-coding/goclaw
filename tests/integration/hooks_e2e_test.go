@@ -51,7 +51,6 @@ func TestHooksE2E_AllEvents_AllowsDefault(t *testing.T) {
 		ev := ev
 		t.Run(string(ev), func(t *testing.T) {
 			cfg := hooks.HookConfig{
-				TenantID:    tenantID,
 				AgentID:     &agentID,
 				Scope:       hooks.ScopeAgent,
 				Event:       ev,
@@ -74,7 +73,7 @@ func TestHooksE2E_AllEvents_AllowsDefault(t *testing.T) {
 			})
 
 			r, err := d.Fire(ctx, hooks.Event{
-				EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID, HookEvent: ev,
+				EventID: uuid.NewString(), AgentID: agentID, HookEvent: ev,
 			})
 			if err != nil {
 				t.Fatalf("Fire %s: %v", ev, err)
@@ -101,8 +100,8 @@ func TestHooksE2E_CommandHandler_BlockOnExitTwo(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
-		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
+		AgentID:     &agentID,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Config:      map[string]any{"command": "exit 2"},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionBlock,
@@ -123,7 +122,7 @@ func TestHooksE2E_CommandHandler_BlockOnExitTwo(t *testing.T) {
 	})
 
 	r, err := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
@@ -154,8 +153,8 @@ func TestHooksE2E_ContextUpdateInjection(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
-		Scope: hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
+		AgentID:     &agentID,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -175,7 +174,7 @@ func TestHooksE2E_ContextUpdateInjection(t *testing.T) {
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: srv.Client()},
 	})
 	r, err := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	})
 	if err != nil || r.Decision != hooks.DecisionAllow {
@@ -202,8 +201,8 @@ func TestHooksE2E_TenantIsolation(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 	// Hook registered under tenantA only.
 	cfg := hooks.HookConfig{
-		TenantID: tenantA, AgentID: &agentA,
-		Scope: hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
+		AgentID:     &agentA,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -225,7 +224,7 @@ func TestHooksE2E_TenantIsolation(t *testing.T) {
 
 	// Fire on tenant B (should NOT hit hook).
 	if _, err := d.Fire(tenantCtx(tenantB), hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantB, AgentID: agentB,
+		EventID: uuid.NewString(), AgentID: agentB,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}); err != nil {
 		t.Fatalf("Fire tenantB: %v", err)
@@ -236,7 +235,7 @@ func TestHooksE2E_TenantIsolation(t *testing.T) {
 
 	// Fire on tenant A (should hit).
 	if _, err := d.Fire(tenantCtx(tenantA), hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantA, AgentID: agentA,
+		EventID: uuid.NewString(), AgentID: agentA,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}); err != nil {
 		t.Fatalf("Fire tenantA: %v", err)
@@ -255,8 +254,8 @@ func TestHooksE2E_EditionGate_CommandOnStandard(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
-		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
+		AgentID:     &agentID,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Config:      map[string]any{"command": "exit 0"},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionBlock,
@@ -277,7 +276,7 @@ func TestHooksE2E_EditionGate_CommandOnStandard(t *testing.T) {
 		hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Standard},
 	})
 	r, _ := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + handler error → fail-closed Block.

@@ -13,7 +13,7 @@ import (
 // the given source key (e.g. "task:{uuid}", "delegation:{uuid}"). Used by
 // cleanup paths (DetachFileFromTask, DeleteTask, bulk deletion) to surgically
 // remove auto-links without touching classify-owned links.
-func (s *PGVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, source string) (int64, error) {
+func (s *PGVaultStore) DeleteLinksBySource(ctx context.Context, source string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
 		WHERE metadata->>'source' = $1
@@ -32,7 +32,6 @@ func (s *PGVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, source
 // over the partial index idx_vault_docs_delegation.
 func (s *PGVaultStore) BatchFindByDelegationIDs(
 	ctx context.Context,
-	tenantID string,
 	delegationIDs []string,
 	limit int,
 	excludeDocIDs []string,

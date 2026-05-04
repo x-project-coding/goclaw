@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
@@ -271,7 +269,7 @@ func (h *SkillsHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	response["id"] = id
 
 	h.skills.BumpVersion()
-	h.emitCacheInvalidate(bus.CacheKindSkills, id.String(), uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkills, id.String())
 	emitAudit(h.msgBus, r, "skill.uploaded", "skill", slug)
 	slog.Info("skill uploaded", "id", id, "slug", slug, "version", version, "size", header.Size, "status", skill.Status)
 	depState.emit(h, slug)

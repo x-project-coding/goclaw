@@ -62,11 +62,10 @@ type spanUpdate struct {
 
 // pendingUpdate holds a trace update that failed to persist and is queued for retry.
 type pendingUpdate struct {
-	TraceID  uuid.UUID
-	TenantID uuid.UUID // captured from caller ctx at enqueue time for retryWorker broadcast
-	Updates  map[string]any
-	Tries    int
-	LastTry  time.Time
+	TraceID uuid.UUID
+	Updates map[string]any
+	Tries   int
+	LastTry time.Time
 }
 
 // Collector buffers spans in memory and periodically flushes them to the
@@ -286,10 +285,9 @@ func (c *Collector) updateTraceWithRetry(ctx context.Context, traceID uuid.UUID,
 // Drop-oldest behavior when the queue is full to prevent unbounded growth.
 func (c *Collector) enqueueRetry(ctx context.Context, traceID uuid.UUID, updates map[string]any) {
 	item := pendingUpdate{
-		TraceID:  traceID,
-		TenantID: uuid.Nil,
-		Updates:  updates,
-		Tries:    0,
+		TraceID: traceID,
+		Updates: updates,
+		Tries:   0,
 	}
 	select {
 	case c.retryCh <- item:

@@ -13,7 +13,7 @@ import (
 
 // DeleteLinksBySource removes vault_links rows whose metadata->>'source'
 // equals the given source key. SQLite DELETE lacks USING so we use a subquery.
-func (s *SQLiteVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, source string) (int64, error) {
+func (s *SQLiteVaultStore) DeleteLinksBySource(ctx context.Context, source string) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
 		WHERE json_extract(metadata, '$.source') = ?
@@ -29,7 +29,6 @@ func (s *SQLiteVaultStore) DeleteLinksBySource(ctx context.Context, tenantID, so
 // delegation_ids, grouped by delegation_id, capped per bucket at `limit`.
 func (s *SQLiteVaultStore) BatchFindByDelegationIDs(
 	ctx context.Context,
-	tenantID string,
 	delegationIDs []string,
 	limit int,
 	excludeDocIDs []string,

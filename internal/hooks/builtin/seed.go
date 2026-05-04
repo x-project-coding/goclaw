@@ -93,7 +93,6 @@ func reconcile(
 		enabled := !forceDisabled && !s.DefaultDisabled
 		cfg := hooks.HookConfig{
 			ID:          id,
-			TenantID:    hooks.SentinelTenantID,
 			Name:        s.ID,
 			Event:       hooks.HookEvent(event),
 			HandlerType: hooks.HandlerScript,

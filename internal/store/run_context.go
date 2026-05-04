@@ -23,7 +23,6 @@ type RunContext struct {
 	// Identity
 	AgentID          uuid.UUID
 	AgentKey         string
-	TenantID         uuid.UUID
 	UserID           string
 	CredentialUserID string // resolved tenant user for credential lookups (empty = use UserID)
 	AgentType        string

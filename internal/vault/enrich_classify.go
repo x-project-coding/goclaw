@@ -36,7 +36,7 @@ type candidatePair struct {
 }
 
 // classifyLinks orchestrates LLM-based link classification for enriched docs.
-func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Provider, model, tenantID, agentID string, results []enriched) {
+func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Provider, model, agentID string, results []enriched) {
 	if provider == nil {
 		return
 	}
@@ -47,7 +47,7 @@ func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Pro
 	}
 
 	// On SQLite (desktop/Lite), FindSimilarDocs returns nil (no pgvector) — classify is a no-op.
-	candidates := w.gatherCandidates(ctx, tenantID, agentID, capped)
+	candidates := w.gatherCandidates(ctx, capped)
 	if len(candidates) == 0 {
 		return
 	}
@@ -114,7 +114,7 @@ func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Pro
 
 		// Only replace old links if LLM produced valid replacements (avoid data loss on all-SKIP).
 		if len(newLinks) > 0 {
-			if err := w.vault.DeleteDocLinksByTypes(ctx, tenantID, sourceDocID, allTypes); err != nil {
+			if err := w.vault.DeleteDocLinksByTypes(ctx, sourceDocID, allTypes); err != nil {
 				slog.Warn("vault.classify: delete_old", "doc", sourceDocID, "err", err)
 			}
 			if err := w.vault.CreateLinks(ctx, newLinks); err != nil {
@@ -124,7 +124,7 @@ func (w *EnrichWorker) classifyLinks(ctx context.Context, provider providers.Pro
 	}
 }
 
-func (w *EnrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string, results []enriched) map[string][]candidatePair {
+func (w *EnrichWorker) gatherCandidates(ctx context.Context, results []enriched) map[string][]candidatePair {
 	seen := make(map[string]bool)
 	out := make(map[string][]candidatePair)
 
@@ -133,7 +133,7 @@ func (w *EnrichWorker) gatherCandidates(ctx context.Context, tenantID, _ string,
 		// Cross-agent links are created freely; access control is enforced at
 		// query time so agents only see their own docs. Pre-built cross-agent
 		// links enable future vault sharing without re-enrichment.
-		neighbors, err := w.vault.FindSimilarDocs(ctx, tenantID, "", r.payload.DocID, enrichSimilarityLimit)
+		neighbors, err := w.vault.FindSimilarDocs(ctx, "", r.payload.DocID, enrichSimilarityLimit)
 		if err != nil {
 			slog.Warn("vault.classify: find_similar", "doc", r.payload.DocID, "err", err)
 			continue

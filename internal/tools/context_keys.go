@@ -604,7 +604,7 @@ func PendingTeamDispatchFromCtx(ctx context.Context) *PendingTeamDispatch {
 func InjectTeamDispatch(ctx context.Context, postTurn PostTurnProcessor) (context.Context, func()) {
 	ptd := NewPendingTeamDispatch()
 	ctx = WithPendingTeamDispatch(ctx, ptd)
-	// Detach from caller's cancel/deadline but keep values (tenant_id, user_id, etc.)
+	// Detach from caller's cancel/deadline but keep values (user_id, agent_id, etc.)
 	// so post-turn dispatch isn't aborted when the HTTP request or WS handler returns.
 	detached := context.WithoutCancel(ctx)
 	drain := func() {

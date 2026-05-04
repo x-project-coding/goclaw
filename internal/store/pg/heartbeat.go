@@ -229,7 +229,7 @@ func (s *PGHeartbeatStore) ListLogs(ctx context.Context, agentID uuid.UUID, limi
 // ListDeliveryTargets returns known delivery targets (channel, chatID, title, kind) from channel_contacts.
 // Queries contacts with contact_type IN ('group','topic','user').
 // For topic contacts, chatID is built as senderID + ":topic:" + threadID.
-// tenantID param kept for interface compat; v4 schema has no tenant_id column.
+// Legacy UUID param kept for interface compat; ignored in v4 single-user schema.
 func (s *PGHeartbeatStore) ListDeliveryTargets(ctx context.Context, _ uuid.UUID) ([]store.DeliveryTarget, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT cc.sender_id,

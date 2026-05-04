@@ -167,7 +167,7 @@ func (s *PGVaultStore) CreateLink(ctx context.Context, link *store.VaultLink) er
 }
 
 // DeleteLink removes a vault link by ID.
-func (s *PGVaultStore) DeleteLink(ctx context.Context, tenantID, id string) error {
+func (s *PGVaultStore) DeleteLink(ctx context.Context, id string) error {
 	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("vault delete link: id: %w", err)
@@ -177,7 +177,7 @@ func (s *PGVaultStore) DeleteLink(ctx context.Context, tenantID, id string) erro
 }
 
 // GetOutLinks returns all links originating from a document.
-func (s *PGVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) ([]store.VaultLink, error) {
+func (s *PGVaultStore) GetOutLinks(ctx context.Context, docID string) ([]store.VaultLink, error) {
 	uid, err := parseUUID(docID)
 	if err != nil {
 		return nil, fmt.Errorf("vault get out links: doc: %w", err)
@@ -195,7 +195,7 @@ func (s *PGVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) 
 }
 
 // GetOutLinksBatch returns all outlinks for multiple doc IDs in a single query.
-func (s *PGVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string, docIDs []string) ([]store.VaultLink, error) {
+func (s *PGVaultStore) GetOutLinksBatch(ctx context.Context, docIDs []string) ([]store.VaultLink, error) {
 	if len(docIDs) == 0 {
 		return nil, nil
 	}
@@ -212,7 +212,7 @@ func (s *PGVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string, do
 }
 
 // GetBacklinks returns enriched backlinks pointing to a document (single JOIN, LIMIT 100).
-func (s *PGVaultStore) GetBacklinks(ctx context.Context, tenantID, docID string) ([]store.VaultBacklink, error) {
+func (s *PGVaultStore) GetBacklinks(ctx context.Context, docID string) ([]store.VaultBacklink, error) {
 	did, err := parseUUID(docID)
 	if err != nil {
 		return nil, fmt.Errorf("vault backlinks: doc: %w", err)
@@ -247,7 +247,7 @@ func (s *PGVaultStore) GetBacklinks(ctx context.Context, tenantID, docID string)
 }
 
 // DeleteDocLinks removes all links from or to a document.
-func (s *PGVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID string) error {
+func (s *PGVaultStore) DeleteDocLinks(ctx context.Context, docID string) error {
 	uid, err := parseUUID(docID)
 	if err != nil {
 		return fmt.Errorf("vault delete doc links: doc: %w", err)
@@ -259,7 +259,7 @@ func (s *PGVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID strin
 }
 
 // DeleteDocLinksByType removes outbound links of a specific type from a document.
-func (s *PGVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error {
+func (s *PGVaultStore) DeleteDocLinksByType(ctx context.Context, docID, linkType string) error {
 	uid, err := parseUUID(docID)
 	if err != nil {
 		return fmt.Errorf("vault delete doc links by type: doc: %w", err)
@@ -271,7 +271,7 @@ func (s *PGVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID
 }
 
 // DeleteDocLinksByTypes removes outbound links matching any of the given types from a document.
-func (s *PGVaultStore) DeleteDocLinksByTypes(ctx context.Context, tenantID, docID string, types []string) error {
+func (s *PGVaultStore) DeleteDocLinksByTypes(ctx context.Context, docID string, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}

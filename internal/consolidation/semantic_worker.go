@@ -66,7 +66,6 @@ func (w *semanticWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		w.eventBus.Publish(eventbus.DomainEvent{
 			Type:     eventbus.EventEntityUpserted,
 			SourceID: payload.EpisodicID,
-			TenantID: event.TenantID,
 			AgentID:  event.AgentID,
 			UserID:   event.UserID,
 			Payload:  &eventbus.EntityUpsertedPayload{EntityIDs: entityIDs},

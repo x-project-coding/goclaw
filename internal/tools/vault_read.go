@@ -115,7 +115,7 @@ func (t *VaultReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return ErrorResult(fmt.Sprintf("invalid doc_id: %v", err))
 	}
 
-	doc, err := t.vaultStore.GetDocumentByID(ctx, uuid.Nil.String(), docID.String())
+	doc, err := t.vaultStore.GetDocumentByID(ctx, docID.String())
 	if err != nil || doc == nil {
 		// Namespace fallback: the id may belong to a knowledge-graph entity or
 		// an episodic summary. Return a redirect error instead of the generic
@@ -179,7 +179,7 @@ func (t *VaultReadTool) Execute(ctx context.Context, args map[string]any) *Resul
 	if truncated {
 		fmt.Fprintf(&sb, "\n\n…[truncated, content exceeds %d bytes]", maxBytes)
 	}
-	sb.WriteString(t.buildOutlinksFooter(ctx, uuid.Nil.String(), doc.ID))
+	sb.WriteString(t.buildOutlinksFooter(ctx, doc.ID))
 	return NewResult(sb.String())
 }
 
@@ -210,8 +210,8 @@ func (t *VaultReadTool) namespaceRedirect(ctx context.Context, id string) string
 // outlinks (wikilink + reference only), deduped by target, capped at
 // vaultReadMaxOutlinks. Returns "" when no accessible links remain or on any
 // store error — footer is additive and must not break the read.
-func (t *VaultReadTool) buildOutlinksFooter(ctx context.Context, tenantID, docID string) string {
-	links, err := t.vaultStore.GetOutLinks(ctx, tenantID, docID)
+func (t *VaultReadTool) buildOutlinksFooter(ctx context.Context, docID string) string {
+	links, err := t.vaultStore.GetOutLinks(ctx, docID)
 	if err != nil {
 		slog.Warn("vault_read.outlinks.get_failed", "doc_id", docID, "error", err)
 		return ""
@@ -245,7 +245,7 @@ func (t *VaultReadTool) buildOutlinksFooter(ctx context.Context, tenantID, docID
 	for _, l := range filtered {
 		ids = append(ids, l.ToDocID)
 	}
-	targets, err := t.vaultStore.GetDocumentsByIDs(ctx, tenantID, ids)
+	targets, err := t.vaultStore.GetDocumentsByIDs(ctx, ids)
 	if err != nil {
 		slog.Warn("vault_read.outlinks.targets_failed", "doc_id", docID, "error", err)
 		return ""

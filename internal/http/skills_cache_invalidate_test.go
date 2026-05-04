@@ -9,9 +9,9 @@ import (
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
-// TestSkillsHandler_EmitCacheInvalidate_TenantScopedPropagatesTenantID
-// verifies tenant-config handlers emit payloads carrying the caller's tenant.
-func TestSkillsHandler_EmitCacheInvalidate_TenantScopedPropagatesTenantID(t *testing.T) {
+// TestSkillsHandler_EmitCacheInvalidate_CarriesKindAndKey verifies the emit
+// helper populates Kind and Key in the broadcast payload.
+func TestSkillsHandler_EmitCacheInvalidate_CarriesKindAndKey(t *testing.T) {
 	mb := bus.New()
 	defer mb.Close()
 
@@ -29,9 +29,8 @@ func TestSkillsHandler_EmitCacheInvalidate_TenantScopedPropagatesTenantID(t *tes
 		}
 	})
 
-	tid := uuid.New()
 	skillID := uuid.New().String()
-	h.emitCacheInvalidate(bus.CacheKindSkills, skillID, tid)
+	h.emitCacheInvalidate(bus.CacheKindSkills, skillID)
 
 	if !gotEvent {
 		t.Fatal("no cache invalidate event received")
@@ -42,13 +41,10 @@ func TestSkillsHandler_EmitCacheInvalidate_TenantScopedPropagatesTenantID(t *tes
 	if captured.Key != skillID {
 		t.Errorf("key = %q, want %q", captured.Key, skillID)
 	}
-	if captured.TenantID != tid {
-		t.Errorf("tenantID = %v, want %v", captured.TenantID, tid)
-	}
 }
 
 // TestSkillsHandler_EmitCacheInvalidate_GrantsGlobal verifies grant-change
-// callers pass uuid.Nil so subscribers treat the event as global.
+// callers emit with empty key (global invalidation).
 func TestSkillsHandler_EmitCacheInvalidate_GrantsGlobal(t *testing.T) {
 	mb := bus.New()
 	defer mb.Close()
@@ -62,13 +58,13 @@ func TestSkillsHandler_EmitCacheInvalidate_GrantsGlobal(t *testing.T) {
 		}
 	})
 
-	h.emitCacheInvalidate(bus.CacheKindSkillGrants, "", uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkillGrants, "")
 
 	if captured.Kind != bus.CacheKindSkillGrants {
 		t.Errorf("kind = %q, want %q", captured.Kind, bus.CacheKindSkillGrants)
 	}
-	if captured.TenantID != uuid.Nil {
-		t.Errorf("tenantID = %v, want uuid.Nil for grant-change global event", captured.TenantID)
+	if captured.Key != "" {
+		t.Errorf("key = %q, want empty (global)", captured.Key)
 	}
 }
 
@@ -77,5 +73,5 @@ func TestSkillsHandler_EmitCacheInvalidate_GrantsGlobal(t *testing.T) {
 func TestSkillsHandler_EmitCacheInvalidate_NilMsgBusNoop(t *testing.T) {
 	h := &SkillsHandler{msgBus: nil}
 	// Must not panic.
-	h.emitCacheInvalidate(bus.CacheKindSkills, "x", uuid.New())
+	h.emitCacheInvalidate(bus.CacheKindSkills, "x")
 }

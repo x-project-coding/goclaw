@@ -64,7 +64,6 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := uuid.Nil.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	if agentID == uuid.Nil.String() {
 		return
@@ -84,7 +83,6 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 	}
 
 	doc := &store.VaultDocument{
-		TenantID:    tenantID,
 		AgentID:     agentIDPtr,
 		TeamID:      teamID,
 		ChatID:      inferChatIDFromContext(ctx),
@@ -114,12 +112,10 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 			ID:        uuid.Must(uuid.NewV7()).String(),
 			Type:      eventbus.EventVaultDocUpserted,
 			SourceID:  doc.ID + ":" + hash,
-			TenantID:  tenantID,
 			AgentID:   eventAgentID,
 			Timestamp: time.Now(),
 			Payload: eventbus.VaultDocUpsertedPayload{
 				DocID:       doc.ID,
-				TenantID:    tenantID,
 				AgentID:     eventAgentID,
 				Path:        relPath,
 				ContentHash: hash,
@@ -143,7 +139,6 @@ func (v *VaultInterceptor) AfterWriteMedia(ctx context.Context, resolvedPath, su
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := uuid.Nil.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	if agentID == uuid.Nil.String() {
 		return
@@ -175,7 +170,6 @@ func (v *VaultInterceptor) AfterWriteMedia(ctx context.Context, resolvedPath, su
 		meta["created_in"] = "delegation"
 	}
 	doc := &store.VaultDocument{
-		TenantID:    tenantID,
 		AgentID:     agentIDPtr,
 		TeamID:      teamID,
 		ChatID:      inferChatIDFromContext(ctx),
@@ -198,12 +192,10 @@ func (v *VaultInterceptor) AfterWriteMedia(ctx context.Context, resolvedPath, su
 			ID:        uuid.Must(uuid.NewV7()).String(),
 			Type:      eventbus.EventVaultDocUpserted,
 			SourceID:  doc.ID + ":" + hash,
-			TenantID:  tenantID,
 			AgentID:   eventAgentID,
 			Timestamp: time.Now(),
 			Payload: eventbus.VaultDocUpsertedPayload{
 				DocID:       doc.ID,
-				TenantID:    tenantID,
 				AgentID:     eventAgentID,
 				Path:        relPath,
 				ContentHash: hash,
@@ -225,16 +217,15 @@ func (v *VaultInterceptor) BeforeRead(ctx context.Context, resolvedPath string) 
 	}
 	relPath = filepath.ToSlash(relPath)
 
-	tenantID := uuid.Nil.String()
 	agentID := store.AgentIDFromContext(ctx).String()
 	if agentID == uuid.Nil.String() {
 		return
 	}
 
 	// Try agent-scoped first, then tenant-wide (team/shared docs have no agent_id).
-	doc, err := v.vaultStore.GetDocument(ctx, tenantID, agentID, relPath)
+	doc, err := v.vaultStore.GetDocument(ctx, agentID, relPath)
 	if err != nil {
-		doc, err = v.vaultStore.GetDocument(ctx, tenantID, "", relPath)
+		doc, err = v.vaultStore.GetDocument(ctx, "", relPath)
 	}
 	if err != nil {
 		return // not registered yet — skip
@@ -245,7 +236,7 @@ func (v *VaultInterceptor) BeforeRead(ctx context.Context, resolvedPath string) 
 		return
 	}
 	if fsHash != doc.ContentHash {
-		if err := v.vaultStore.UpdateHash(ctx, tenantID, doc.ID, fsHash); err != nil {
+		if err := v.vaultStore.UpdateHash(ctx, doc.ID, fsHash); err != nil {
 			slog.Warn("vault.lazy_sync", "path", relPath, "err", err)
 		}
 	}

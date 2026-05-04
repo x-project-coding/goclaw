@@ -37,9 +37,9 @@ func writeTempAudio(t *testing.T, content string) string {
 
 func newProvider(proxyURL, apiKey, tenantID string) *Provider {
 	return NewProvider(media.STTConfig{
-		ProxyURL: proxyURL,
-		APIKey:   apiKey,
-		TenantID: tenantID,
+		ProxyURL:    proxyURL,
+		APIKey:      apiKey,
+		STTTenantID: tenantID,
 	})
 }
 

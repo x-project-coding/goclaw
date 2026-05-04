@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
@@ -57,18 +55,13 @@ func (h *BuiltinToolsHandler) adminAuth(next http.HandlerFunc) http.HandlerFunc 
 }
 
 // emitCacheInvalidate broadcasts a cache invalidation event for a builtin tool.
-// tenantID == uuid.Nil means global invalidation (master admin path).
-func (h *BuiltinToolsHandler) emitCacheInvalidate(key string, tenantID uuid.UUID) {
+func (h *BuiltinToolsHandler) emitCacheInvalidate(key string) {
 	if h.msgBus == nil {
 		return
 	}
 	h.msgBus.Broadcast(bus.Event{
-		Name: protocol.EventCacheInvalidate,
-		Payload: bus.CacheInvalidatePayload{
-			Kind:     bus.CacheKindBuiltinTools,
-			Key:      key,
-			TenantID: tenantID,
-		},
+		Name:    protocol.EventCacheInvalidate,
+		Payload: bus.CacheInvalidatePayload{Kind: bus.CacheKindBuiltinTools, Key: key},
 	})
 }
 
@@ -203,9 +196,8 @@ func (h *BuiltinToolsHandler) handleGet(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *BuiltinToolsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
-	// Phase 0b hotfix: builtin_tools is a global table with no tenant_id column,
-	// so this write must be restricted to master-scope callers. Non-master tenant
-	// admins must go through PUT /v1/tools/builtin/{name}/tenant-config instead.
+	// builtin_tools is a global table; writes must be restricted to master-scope callers.
+	// Non-owner users must go through PUT /v1/tools/builtin/{name}/tenant-config instead.
 	// See plans/reports/debugger-260412-0922-tenant-scope-audit.md CRITICAL-1.
 	if !requireMasterScope(w, r) {
 		return
@@ -255,7 +247,7 @@ func (h *BuiltinToolsHandler) handleUpdate(w http.ResponseWriter, r *http.Reques
 	}
 
 	emitAudit(h.msgBus, r, "builtin_tool.updated", "builtin_tool", name)
-	h.emitCacheInvalidate(name, uuid.Nil)
+	h.emitCacheInvalidate(name)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 

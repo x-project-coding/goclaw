@@ -275,9 +275,8 @@ func wireExtras(
 				}
 			}
 			msgBus.Broadcast(bus.Event{
-				Name:     protocol.EventAgent,
-				Payload:  event,
-				TenantID: event.TenantID,
+				Name:    protocol.EventAgent,
+				Payload: event,
 			})
 		},
 	})

@@ -96,7 +96,6 @@ func captureBusEvent(t *testing.T, msgBus *bus.MessageBus, eventName string) <-c
 type mockTraceCollector struct {
 	finishCalls []struct {
 		TraceID       uuid.UUID
-		TenantID      uuid.UUID // tenant extracted from ctx at call time
 		Status        string
 		ErrMsg        string
 		OutputPreview string
@@ -107,17 +106,15 @@ type mockTraceCollector struct {
 func (m *mockTraceCollector) FinishTrace(ctx context.Context, traceID uuid.UUID, status, errMsg, outputPreview string) {
 	m.finishCalls = append(m.finishCalls, struct {
 		TraceID       uuid.UUID
-		TenantID      uuid.UUID
 		Status        string
 		ErrMsg        string
 		OutputPreview string
-	}{traceID, uuid.Nil, status, errMsg, outputPreview})
+	}{TraceID: traceID, Status: status, ErrMsg: errMsg, OutputPreview: outputPreview})
 }
 
 // LastFinishTrace returns the most recent FinishTrace call, or nil if none.
 func (m *mockTraceCollector) LastFinishTrace() *struct {
 	TraceID       uuid.UUID
-	TenantID      uuid.UUID
 	Status        string
 	ErrMsg        string
 	OutputPreview string

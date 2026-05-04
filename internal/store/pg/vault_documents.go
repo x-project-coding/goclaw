@@ -162,7 +162,7 @@ func (s *PGVaultStore) UpsertDocument(ctx context.Context, doc *store.VaultDocum
 // GetDocument retrieves a vault document by agent and path.
 // Empty agentID means no agent filter (match any agent).
 // Team scoping via RunContext: present+TeamID → filter; present+empty → personal; nil → any match.
-func (s *PGVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path string) (*store.VaultDocument, error) {
+func (s *PGVaultStore) GetDocument(ctx context.Context, agentID, path string) (*store.VaultDocument, error) {
 	q := `SELECT ` + vaultDocSelectCols + ` FROM vault_documents WHERE path = $1`
 	args := []any{path}
 	p := 2
@@ -203,7 +203,7 @@ func (s *PGVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path 
 }
 
 // GetDocumentByID retrieves a vault document by ID.
-func (s *PGVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string) (*store.VaultDocument, error) {
+func (s *PGVaultStore) GetDocumentByID(ctx context.Context, id string) (*store.VaultDocument, error) {
 	uid, err := parseUUID(id)
 	if err != nil {
 		return nil, fmt.Errorf("vault get document by id: id: %w", err)
@@ -223,7 +223,7 @@ func (s *PGVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string)
 
 // GetDocumentsByIDs returns documents matching the given IDs.
 // Chunks by 500 to stay within PG param limits.
-func (s *PGVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID string, docIDs []string) ([]store.VaultDocument, error) {
+func (s *PGVaultStore) GetDocumentsByIDs(ctx context.Context, docIDs []string) ([]store.VaultDocument, error) {
 	if len(docIDs) == 0 {
 		return nil, nil
 	}
@@ -246,7 +246,7 @@ func (s *PGVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID string, d
 
 // GetDocumentByBasename finds a document by path basename (case-insensitive).
 // Uses the stored generated column path_basename + index for fast lookup.
-func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agentID, basename string) (*store.VaultDocument, error) {
+func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, agentID, basename string) (*store.VaultDocument, error) {
 	q := `SELECT ` + vaultDocSelectCols + `
 		FROM vault_documents
 		WHERE path_basename = lower($1)`
@@ -276,7 +276,7 @@ func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agen
 // DeleteDocument removes a vault document by agent and path.
 // Empty agentID means no agent filter.
 // Team scoping via RunContext (same rules as GetDocument).
-func (s *PGVaultStore) DeleteDocument(ctx context.Context, tenantID, agentID, path string) error {
+func (s *PGVaultStore) DeleteDocument(ctx context.Context, agentID, path string) error {
 	q := `DELETE FROM vault_documents WHERE path = $1`
 	args := []any{path}
 	p := 2
@@ -309,7 +309,7 @@ func (s *PGVaultStore) DeleteDocument(ctx context.Context, tenantID, agentID, pa
 }
 
 // ListDocuments returns vault documents for an agent with optional filters.
-func (s *PGVaultStore) ListDocuments(ctx context.Context, tenantID, agentID string, opts store.VaultListOptions) ([]store.VaultDocument, error) {
+func (s *PGVaultStore) ListDocuments(ctx context.Context, agentID string, opts store.VaultListOptions) ([]store.VaultDocument, error) {
 	q := `SELECT ` + vaultDocSelectCols + ` FROM vault_documents WHERE true`
 	var args []any
 	p := 1
@@ -364,7 +364,7 @@ func (s *PGVaultStore) ListDocuments(ctx context.Context, tenantID, agentID stri
 }
 
 // CountDocuments returns the total number of vault documents matching the given filters.
-func (s *PGVaultStore) CountDocuments(ctx context.Context, tenantID, agentID string, opts store.VaultListOptions) (int, error) {
+func (s *PGVaultStore) CountDocuments(ctx context.Context, agentID string, opts store.VaultListOptions) (int, error) {
 	q := `SELECT COUNT(*) FROM vault_documents WHERE true`
 	var args []any
 	p := 1
@@ -397,7 +397,7 @@ func (s *PGVaultStore) CountDocuments(ctx context.Context, tenantID, agentID str
 }
 
 // UpdateHash updates the content hash for a vault document.
-func (s *PGVaultStore) UpdateHash(ctx context.Context, tenantID, id, newHash string) error {
+func (s *PGVaultStore) UpdateHash(ctx context.Context, id, newHash string) error {
 	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("vault update hash: id: %w", err)
@@ -677,7 +677,7 @@ func (s *PGVaultStore) mergeResults(fts, vec []store.VaultSearchResult, ftsW, ve
 }
 
 // ListTreeEntries returns immediate children (files + virtual folders) under the given path prefix.
-func (s *PGVaultStore) ListTreeEntries(ctx context.Context, tenantID string, opts store.VaultTreeOptions) ([]store.VaultTreeEntry, error) {
+func (s *PGVaultStore) ListTreeEntries(ctx context.Context, opts store.VaultTreeOptions) ([]store.VaultTreeEntry, error) {
 	prefix := opts.Path
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"

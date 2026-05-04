@@ -31,16 +31,15 @@ const (
 
 // DomainEvent is a typed event with metadata for the consolidation pipeline.
 //
-// Identity invariant: TenantID and AgentID are string fields for legacy wire
-// compatibility, but consumers parse them as UUIDs before touching the DB.
-// Publishers MUST supply valid UUID strings — never agent_key or tenant_slug.
+// Identity invariant: AgentID is a string field for wire compatibility,
+// consumers parse it as UUID before touching the DB.
+// Publishers MUST supply valid UUID strings — never agent_key.
 // The publish-time observer in validate_agent_id.go warns on drift.
 // See docs/agent-identity-conventions.md.
 type DomainEvent struct {
 	ID        string // UUID v7 for ordering
 	Type      EventType
 	SourceID  string // dedup key (e.g. session key, run ID)
-	TenantID  string // MUST be a valid UUID string — never tenant_slug
 	AgentID   string // MUST be a valid UUID string — never agent_key
 	UserID    string
 	Timestamp time.Time
@@ -130,7 +129,6 @@ type ContextPrunedPayload struct {
 // VaultDocUpsertedPayload is emitted after a vault document is registered/updated.
 type VaultDocUpsertedPayload struct {
 	DocID       string // vault_documents.id (UUID)
-	TenantID    string // tenant context (per-item for batch safety)
 	AgentID     string // agent that wrote the file
 	Path        string // workspace-relative file path
 	ContentHash string // SHA-256 of content at write time

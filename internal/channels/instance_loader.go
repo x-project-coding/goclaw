@@ -264,14 +264,13 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 	if base, ok := ch.(interface{ SetType(string) }); ok {
 		base.SetType(inst.ChannelType)
 	}
-	// Propagate tenant_id from DB instance to channel for tenant-scoped message handling.
+	// v4 single-user: no tenant scoping; SetTenantID / SetPendingHistoryTenantID
+	// retain their signatures for interface compatibility but always receive uuid.Nil.
 	if base, ok := ch.(interface{ SetTenantID(uuid.UUID) }); ok {
-		base.SetTenantID(inst.TenantID)
+		base.SetTenantID(uuid.Nil)
 	}
-	// Propagate tenant_id to pending history for compaction/sweep DB operations.
-	// Factory creates PendingHistory before SetTenantID is called, so tenantID is uuid.Nil at construction.
 	if ph, ok := ch.(interface{ SetPendingHistoryTenantID(uuid.UUID) }); ok {
-		ph.SetPendingHistoryTenantID(inst.TenantID)
+		ph.SetPendingHistoryTenantID(uuid.Nil)
 	}
 
 	// Wire pending message auto-compaction.

@@ -29,7 +29,6 @@ func runCorpus(t *testing.T, h *ScriptHandler, src string, perCaseTimeout time.D
 	t.Helper()
 	cfg := hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeTenant,
@@ -40,7 +39,6 @@ func runCorpus(t *testing.T, h *ScriptHandler, src string, perCaseTimeout time.D
 	ev := hooks.Event{
 		EventID:   "corpus",
 		SessionID: "s",
-		TenantID:  uuid.New(),
 		AgentID:   uuid.New(),
 		ToolName:  "t",
 		ToolInput: map[string]any{"secret": "shh"},
@@ -299,7 +297,6 @@ func TestCorpus_MutationOnToolInputFrozen(t *testing.T) {
 	h := newTestHandler()
 	cfg := hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeTenant,
@@ -309,7 +306,6 @@ func TestCorpus_MutationOnToolInputFrozen(t *testing.T) {
 	ev := hooks.Event{
 		EventID:   "mut",
 		SessionID: "s",
-		TenantID:  uuid.New(),
 		AgentID:   uuid.New(),
 		ToolName:  "t",
 		ToolInput: map[string]any{"secret": "original"},
@@ -341,7 +337,6 @@ func TestCorpus_MutationOnRawInputFrozen(t *testing.T) {
 	h := newTestHandler()
 	cfg := hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeTenant,
@@ -351,7 +346,6 @@ func TestCorpus_MutationOnRawInputFrozen(t *testing.T) {
 	ev := hooks.Event{
 		EventID:   "mut2",
 		SessionID: "s",
-		TenantID:  uuid.New(),
 		AgentID:   uuid.New(),
 		ToolName:  "t",
 		RawInput:  "untouched",

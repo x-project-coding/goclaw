@@ -96,30 +96,35 @@ func (w *EnrichWorker) resolveProvider(ctx context.Context) (providers.Provider,
 	return providerresolve.ResolveBackgroundProvider(ctx, w.registry, w.systemConfigs)
 }
 
-// Stop cancels in-flight enrichment for the given tenant.
+// Stop cancels all in-flight enrichment.
 // Safe to call even if no enrichment is running.
-func (w *EnrichWorker) Stop(tenantID string) {
-	if cancel, ok := w.cancelFuncs.LoadAndDelete(tenantID); ok {
-		cancel.(context.CancelFunc)()
-	}
+func (w *EnrichWorker) Stop() {
+	w.cancelFuncs.Range(func(k, v any) bool {
+		if cancel, ok := v.(context.CancelFunc); ok {
+			cancel()
+		}
+		return true
+	})
 	// Always finish progress — ensures UI resets even if cancelFuncs was empty.
 	w.progress.Finish()
-	slog.Info("vault.enrich: stopped by user", "tenant", tenantID)
+	slog.Info("vault.enrich: stopped by user")
 }
 
-// IsRunning returns true if enrichment is in progress for the tenant.
-func (w *EnrichWorker) IsRunning(tenantID string) bool {
-	if _, ok := w.cancelFuncs.Load(tenantID); ok {
-		return true
-	}
-	return w.progress.Status().Running
+// IsRunning returns true if enrichment is in progress.
+func (w *EnrichWorker) IsRunning() bool {
+	running := false
+	w.cancelFuncs.Range(func(k, v any) bool {
+		running = true
+		return false
+	})
+	return running || w.progress.Status().Running
 }
 
 // EnqueueUnenriched fetches documents with empty summary and emits enrichment events.
 // Called after rescan when all files are unchanged but some still need enrichment.
 // Returns the number of documents enqueued.
-func (w *EnrichWorker) EnqueueUnenriched(ctx context.Context, tenantID, workspace string, bus eventbus.DomainEventBus, limit int) (int, error) {
-	docs, err := w.vault.ListUnenrichedDocs(ctx, tenantID, limit)
+func (w *EnrichWorker) EnqueueUnenriched(ctx context.Context, workspace string, bus eventbus.DomainEventBus, limit int) (int, error) {
+	docs, err := w.vault.ListUnenrichedDocs(ctx, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -141,12 +146,10 @@ func (w *EnrichWorker) EnqueueUnenriched(ctx context.Context, tenantID, workspac
 			ID:        uuid.Must(uuid.NewV7()).String(),
 			Type:      eventbus.EventVaultDocUpserted,
 			SourceID:  doc.ID + ":" + doc.ContentHash,
-			TenantID:  tenantID,
 			AgentID:   agentID,
 			Timestamp: time.Now(),
 			Payload: eventbus.VaultDocUpsertedPayload{
 				DocID:       doc.ID,
-				TenantID:    tenantID,
 				AgentID:     agentID,
 				Path:        doc.Path,
 				ContentHash: doc.ContentHash,
@@ -157,7 +160,7 @@ func (w *EnrichWorker) EnqueueUnenriched(ctx context.Context, tenantID, workspac
 		count++
 	}
 
-	slog.Info("vault.enrich: enqueued unenriched", "tenant", tenantID, "count", count)
+	slog.Info("vault.enrich: enqueued unenriched", "count", count)
 	return count, nil
 }
 
@@ -193,20 +196,19 @@ func (w *EnrichWorker) Handle(ctx context.Context, event eventbus.DomainEvent) e
 	}
 	w.dedupMu.Unlock()
 
-	// Batch key: tenant-only. All docs for the same tenant share one queue
+	// Batch key: per-agent. All docs for the same agent share one queue
 	// so a single processBatch goroutine drains everything in order.
-	// Agent/team scope is carried in the payload for classify phase.
-	key := payload.TenantID
+	key := payload.AgentID
 	if !w.queue.Enqueue(key, payload) {
 		return nil // another goroutine already processing this agent's queue
 	}
 
-	// Create per-tenant cancel context for stop capability.
+	// Create per-agent cancel context for stop capability.
 	cancelCtx, cancel := context.WithCancel(ctx)
-	w.cancelFuncs.Store(payload.TenantID, cancel)
+	w.cancelFuncs.Store(key, cancel)
 	w.processBatch(cancelCtx, key)
 	// Clean up after batch completes naturally.
-	w.cancelFuncs.Delete(payload.TenantID)
+	w.cancelFuncs.Delete(key)
 	return nil
 }
 
@@ -285,20 +287,17 @@ func (w *EnrichWorker) processChunk(ctx context.Context, items []eventbus.VaultD
 		return
 	}
 
-	// Batch-fetch all existing docs in a single query.
-	tenantID := pending[0].TenantID
-
-	// Resolve provider once per chunk (all items share tenantID)
+	// Resolve provider once per chunk.
 	provider, model := w.resolveProvider(ctx)
 	if provider == nil {
-		slog.Warn("vault.enrich: no provider available", "tenant", tenantID)
+		slog.Warn("vault.enrich: no provider available")
 		return
 	}
 	docIDs := make([]string, len(pending))
 	for i, item := range pending {
 		docIDs[i] = item.DocID
 	}
-	existingDocs, err := w.vault.GetDocumentsByIDs(ctx, tenantID, docIDs)
+	existingDocs, err := w.vault.GetDocumentsByIDs(ctx, docIDs)
 	if err != nil {
 		slog.Warn("vault.enrich: batch_fetch_docs", "count", len(docIDs), "err", err)
 		return
@@ -398,7 +397,7 @@ func (w *EnrichWorker) processChunk(ctx context.Context, items []eventbus.VaultD
 			embedded = append(embedded, r)
 			continue
 		}
-		if err := w.vault.UpdateSummaryAndReembed(ctx, r.payload.TenantID, r.payload.DocID, r.summary); err != nil {
+		if err := w.vault.UpdateSummaryAndReembed(ctx, r.payload.DocID, r.summary); err != nil {
 			slog.Warn("vault.enrich: update_summary", "doc", r.payload.DocID, "err", err)
 			continue
 		}
@@ -420,7 +419,7 @@ func (w *EnrichWorker) processChunk(ctx context.Context, items []eventbus.VaultD
 	// Phase 3 — Classify links for this chunk.
 	if len(embedded) > 0 {
 		first := embedded[0].payload
-		w.classifyLinks(ctx, provider, model, first.TenantID, first.AgentID, embedded)
+		w.classifyLinks(ctx, provider, model, first.AgentID, embedded)
 	}
 
 	// Phase 4 — Record dedup + wikilinks.
@@ -527,7 +526,7 @@ func (w *EnrichWorker) chatWithRetry(ctx context.Context, provider providers.Pro
 // (PDFs and office docs are binary and would produce garbage [[...]] matches
 // while wasting a 4MB read buffer).
 func (w *EnrichWorker) syncWikilinks(ctx context.Context, p eventbus.VaultDocUpsertedPayload) {
-	doc, err := w.vault.GetDocumentByID(ctx, p.TenantID, p.DocID)
+	doc, err := w.vault.GetDocumentByID(ctx, p.DocID)
 	if err != nil || doc == nil {
 		return
 	}
@@ -549,7 +548,7 @@ func (w *EnrichWorker) syncWikilinks(ctx context.Context, p eventbus.VaultDocUps
 	}
 	content := buf[:n]
 
-	if err := SyncDocLinks(ctx, w.vault, doc, string(content), p.TenantID, p.AgentID); err != nil {
+	if err := SyncDocLinks(ctx, w.vault, doc, string(content), p.AgentID); err != nil {
 		slog.Warn("vault.enrich: sync_wikilinks", "path", p.Path, "err", err)
 	}
 }

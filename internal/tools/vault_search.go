@@ -86,10 +86,9 @@ func (t *VaultSearchTool) Execute(ctx context.Context, args map[string]any) *Res
 
 	userID := store.MemoryUserID(ctx)
 	opts := vault.UnifiedSearchOptions{
-		Query:    query,
-		AgentID:  agentID.String(),
-		UserID:   userID,
-		TenantID: uuid.Nil.String(),
+		Query:   query,
+		AgentID: agentID.String(),
+		UserID:  userID,
 	}
 	// Team + chat context from RunContext — cannot be spoofed via tool args.
 	if rc := store.RunContextFromCtx(ctx); rc != nil && rc.TeamID != "" {

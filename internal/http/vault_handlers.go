@@ -166,14 +166,13 @@ func (h *VaultHandler) parseListOpts(r *http.Request) store.VaultListOptions {
 // handleRescan walks the entire tenant workspace and registers missing/changed files in vault.
 // Infers agent/team ownership from directory structure: agents/{key}/, teams/{uuid}/, or root shared.
 func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil.String()
-
-	// Per-tenant concurrency guard.
-	if _, loaded := h.rescanMu.LoadOrStore(tenantID, struct{}{}); loaded {
+	// Rescan concurrency guard — only one rescan at a time.
+	const rescanKey = "rescan"
+	if _, loaded := h.rescanMu.LoadOrStore(rescanKey, struct{}{}); loaded {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "rescan already in progress"})
 		return
 	}
-	defer h.rescanMu.Delete(tenantID)
+	defer h.rescanMu.Delete(rescanKey)
 
 	wsPath := h.resolveTenantWorkspace(r.Context())
 	if wsPath == "" {
@@ -188,13 +187,12 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	result, err := vault.RescanWorkspace(ctx, vault.RescanParams{
-		TenantID:  tenantID,
 		Workspace: wsPath,
 		AgentMap:  agentMap,
 		TeamSet:   teamSet,
 	}, h.store, h.eventBus)
 	if err != nil {
-		slog.Warn("vault.rescan failed", "tenant", tenantID, "error", err)
+		slog.Warn("vault.rescan failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -207,13 +205,13 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 	// Worker-level dedup (DocID+ContentHash) prevents double-processing docs
 	// that are also in PendingEvents from the current scan.
 	if h.enrichWorker != nil {
-		enqueued, err := h.enrichWorker.EnqueueUnenriched(ctx, tenantID, wsPath, h.eventBus, 0)
+		enqueued, err := h.enrichWorker.EnqueueUnenriched(ctx, wsPath, h.eventBus, 0)
 		if err != nil {
-			slog.Warn("vault.rescan: enqueue_unenriched failed", "tenant", tenantID, "error", err)
+			slog.Warn("vault.rescan: enqueue_unenriched failed", "error", err)
 		} else if enqueued > 0 {
 			total += enqueued
 			result.Reenqueued = enqueued
-			slog.Info("vault.rescan: re-enqueued unenriched docs", "tenant", tenantID, "count", enqueued)
+			slog.Info("vault.rescan: re-enqueued unenriched docs", "count", enqueued)
 		}
 	}
 
@@ -273,12 +271,11 @@ func (h *VaultHandler) handleEnrichmentStop(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "enrichment worker not available"})
 		return
 	}
-	tenantID := uuid.Nil.String()
-	if !h.enrichWorker.IsRunning(tenantID) {
+	if !h.enrichWorker.IsRunning() {
 		writeJSON(w, http.StatusOK, map[string]any{"stopped": false, "message": "no enrichment running"})
 		return
 	}
-	h.enrichWorker.Stop(tenantID)
+	h.enrichWorker.Stop()
 	writeJSON(w, http.StatusOK, map[string]any{"stopped": true})
 }
 

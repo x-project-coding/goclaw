@@ -336,7 +336,7 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 		}
 		switch p.ProviderType {
 		case store.ProviderChatGPTOAuth:
-			ts := oauth.NewDBTokenSource(provStore, secretStore, p.Name).WithTenantID(p.TenantID)
+			ts := oauth.NewDBTokenSource(provStore, secretStore, p.Name)
 			codex := providers.NewCodexProvider(p.Name, ts, p.APIBase, "")
 			if oauthSettings := store.ParseChatGPTOAuthProviderSettings(p.Settings); oauthSettings != nil {
 				codex.WithRoutingDefaults(oauthSettings.CodexPool.Strategy, oauthSettings.CodexPool.ExtraProviderNames)

@@ -62,7 +62,7 @@ func makeDelegateAnnounceCallback(
 		}
 		// Notify clients that leader is processing team results
 		// (bridges UI gap between last task.completed and announce run.started).
-		bus.BroadcastForTenant(msgBus, protocol.EventTeamLeaderProcessing, meta.OriginTenantID, map[string]any{
+		bus.BroadcastForTenant(msgBus, protocol.EventTeamLeaderProcessing, uuid.Nil, map[string]any{
 			"agentId": meta.ParentAgent,
 			"tasks":   len(items),
 		})
@@ -93,9 +93,8 @@ type subagentAnnounceEntry struct {
 
 // subagentAnnounceRouting holds shared routing info captured by the first enqueue.
 type subagentAnnounceRouting struct {
-	QueueKey         string    // tenant-scoped key for sync.Map (tenantID:sessionKey)
-	SessionKey       string    // original session key (no tenant prefix) for RunRequest
-	TenantID         uuid.UUID // preserved for tenant-scoped scheduling
+	QueueKey         string // key for sync.Map
+	SessionKey       string // original session key for RunRequest
 	OrigChannel      string
 	OrigChannelType  string
 	OrigChatID       string

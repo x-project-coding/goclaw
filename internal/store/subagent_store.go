@@ -10,7 +10,6 @@ import (
 // SubagentTaskData represents a persisted subagent task for audit trail and cost attribution.
 type SubagentTaskData struct {
 	BaseModel
-	TenantID       uuid.UUID      `json:"tenant_id" db:"tenant_id"`
 	ParentAgentKey string         `json:"parent_agent_key" db:"parent_agent_key"`
 	SessionKey     *string        `json:"session_key,omitempty" db:"session_key"`
 	Subject        string         `json:"subject" db:"subject"`

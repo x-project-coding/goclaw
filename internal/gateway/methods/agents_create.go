@@ -30,7 +30,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		Model             string   `json:"model"`
 		AgentType         string   `json:"agent_type"`          // "open" (default) or "predefined"
 		OwnerIDs          []string `json:"owner_ids,omitempty"` // first entry used as DB owner_id; falls back to "system"
-		TenantID          string   `json:"tenant_id"`           // required for cross-tenant callers; ignored otherwise
 		ContextWindow     int      `json:"context_window"`
 		MaxToolIterations int      `json:"max_tool_iterations"`
 		BudgetCents       *int     `json:"budget_monthly_cents"`

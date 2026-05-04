@@ -75,7 +75,6 @@ func TestSearch_TypesFilterExcludesKG(t *testing.T) {
 	res, err := svc.Search(context.Background(), UnifiedSearchOptions{
 		Query:      "q",
 		AgentID:    "a",
-		TenantID:   "t",
 		DocTypes:   []string{"context"},
 		MaxResults: 10,
 	})
@@ -109,7 +108,6 @@ func TestSearch_TypesEmptyIncludesAll(t *testing.T) {
 	res, err := svc.Search(context.Background(), UnifiedSearchOptions{
 		Query:      "q",
 		AgentID:    "a",
-		TenantID:   "t",
 		MaxResults: 10,
 	})
 	if err != nil {
@@ -137,7 +135,6 @@ func TestSearch_TypesIncludesKG(t *testing.T) {
 	res, err := svc.Search(context.Background(), UnifiedSearchOptions{
 		Query:      "q",
 		AgentID:    "a",
-		TenantID:   "t",
 		DocTypes:   []string{"kg"},
 		MaxResults: 10,
 	})

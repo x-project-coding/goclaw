@@ -36,7 +36,7 @@ func TestHooksChaos_HTTPHandler_ProviderDown(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
+		AgentID: &agentID,
 		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": badURL},
@@ -57,7 +57,7 @@ func TestHooksChaos_HTTPHandler_ProviderDown(t *testing.T) {
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: &http.Client{Timeout: 1 * time.Second}},
 	})
 	r, _ := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + unexpected error → fail-closed Block.
@@ -83,7 +83,7 @@ func TestHooksChaos_PerHookTimeout(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
+		AgentID: &agentID,
 		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
@@ -105,7 +105,7 @@ func TestHooksChaos_PerHookTimeout(t *testing.T) {
 	})
 	start := time.Now()
 	r, _ := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	elapsed := time.Since(start)
@@ -136,7 +136,7 @@ func TestHooksChaos_CircuitBreaker_AutoDisables(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
+		AgentID: &agentID,
 		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
@@ -167,7 +167,7 @@ func TestHooksChaos_CircuitBreaker_AutoDisables(t *testing.T) {
 	// Fire 4 times — last should short-circuit via tripped breaker.
 	for i := 0; i < 4; i++ {
 		d.Fire(ctx, hooks.Event{
-			EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+			EventID: uuid.NewString(), AgentID: agentID,
 			HookEvent: hooks.EventPreToolUse,
 		})
 	}
@@ -194,7 +194,7 @@ func TestHooksChaos_LoopDepthExceeded(t *testing.T) {
 	// Wrap ctx with depth > MaxLoopDepth.
 	ctx := hooks.WithDepth(tenantCtx(tenantID), hooks.MaxLoopDepth+1)
 	r, err := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	if !errors.Is(err, hooks.ErrLoopDepthExceeded) {
@@ -214,7 +214,7 @@ func TestHooksChaos_RetryDedup_SuppressesDoubleAudit(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
+		AgentID: &agentID,
 		Scope: hooks.ScopeAgent, Event: hooks.EventPostToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": "http://127.0.0.1:1/ignored"}, // unused
@@ -275,7 +275,7 @@ func TestHooksChaos_HTTPHandler_5xxRetriesThenErrors(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
+		AgentID: &agentID,
 		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
@@ -296,7 +296,7 @@ func TestHooksChaos_HTTPHandler_5xxRetriesThenErrors(t *testing.T) {
 		hooks.HandlerHTTP: &hookhandlers.HTTPHandler{Client: srv.Client()},
 	})
 	r, _ := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	})
 	// Blocking event + repeated 5xx → fail-closed Block.

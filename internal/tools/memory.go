@@ -239,7 +239,6 @@ func (t *MemorySearchTool) recordRetrievalMetric(ctx context.Context, resultCoun
 		})
 		if err := t.metricsStore.RecordMetric(bgCtx, store.EvolutionMetric{
 			ID:         uuid.New(),
-			TenantID:   uuid.Nil,
 			AgentID:    agentID,
 			MetricType: store.MetricRetrieval,
 			MetricKey:  "memory_search",

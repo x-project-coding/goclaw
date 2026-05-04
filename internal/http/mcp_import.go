@@ -100,7 +100,6 @@ func (h *MCPHandler) doMCPImport(ctx context.Context, r io.Reader, userID string
 	}
 
 	// Import servers — build name → uuid.UUID map for grant wiring
-	tid := importTenantID(ctx)
 	serverNameToUUID := make(map[string]uuid.UUID, len(servers))
 
 	for i, srv := range servers {
@@ -148,9 +147,9 @@ func (h *MCPHandler) doMCPImport(ctx context.Context, r io.Reader, userID string
 
 		serverID, ok := serverNameToUUID[g.ServerName]
 		if !ok {
-			// Server may have pre-existed — look it up (tenant-scoped)
+			// Server may have pre-existed — look it up.
 			if err := h.db.QueryRowContext(ctx,
-				"SELECT id FROM mcp_servers WHERE name = $1 AND tenant_id = $2", g.ServerName, tid,
+				"SELECT id FROM mcp_servers WHERE name = $1", g.ServerName,
 			).Scan(&serverID); err != nil {
 				slog.Warn("mcp.import.grant: server not found", "server", g.ServerName)
 				continue
@@ -159,7 +158,7 @@ func (h *MCPHandler) doMCPImport(ctx context.Context, r io.Reader, userID string
 
 		var agentID uuid.UUID
 		if err := h.db.QueryRowContext(ctx,
-			"SELECT id FROM agents WHERE agent_key = $1 AND tenant_id = $2", g.AgentKey, tid,
+			"SELECT id FROM agents WHERE agent_key = $1", g.AgentKey,
 		).Scan(&agentID); err != nil {
 			slog.Warn("mcp.import.grant: agent not found", "key", g.AgentKey)
 			continue

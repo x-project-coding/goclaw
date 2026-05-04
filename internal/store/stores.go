@@ -35,7 +35,7 @@ type Stores struct {
 	Episodic               EpisodicStore
 	EvolutionMetrics       EvolutionMetricsStore
 	EvolutionSuggestions   EvolutionSuggestionStore
-	// User-scoped stores (no tenant_id).
+	// User-scoped stores.
 	Users           UsersStore
 	UserSessions    UserSessionsStore
 	SkillVersions   SkillVersionsStore

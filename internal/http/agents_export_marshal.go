@@ -94,7 +94,7 @@ func marshalJSONL[T any](items []T) ([]byte, error) {
 	return []byte(sb.String()), nil
 }
 
-// marshalAgentConfig serializes an agent with sensitive fields (tenant_id, owner_id) stripped.
+// marshalAgentConfig serializes an agent with sensitive fields (owner_id, api keys) stripped.
 func marshalAgentConfig(ag *store.AgentData) ([]byte, error) {
 	type exportableAgent struct {
 		AgentKey          string          `json:"agent_key"`

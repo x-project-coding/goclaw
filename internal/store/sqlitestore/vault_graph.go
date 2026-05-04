@@ -22,7 +22,7 @@ func NewSQLiteVaultGraphStore(db *sql.DB) *SQLiteVaultGraphStore {
 }
 
 // ListGraphNodes returns lightweight vault nodes with pre-computed degree.
-func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphNode, int, error) {
+func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, agentID string, opts store.VaultGraphListOptions) ([]store.GraphNode, int, error) {
 	q := `SELECT vd.id, vd.title, vd.path, vd.doc_type,
 		COALESCE(deg.cnt, 0) AS degree
 		FROM vault_documents vd
@@ -73,7 +73,7 @@ func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, ag
 		return nil, 0, fmt.Errorf("vault graph nodes rows: %w", err)
 	}
 
-	total, err := s.countGraphNodes(ctx, tenantID, agentID, opts)
+	total, err := s.countGraphNodes(ctx, agentID, opts)
 	if err != nil {
 		return nodes, len(nodes), nil
 	}
@@ -81,7 +81,7 @@ func (s *SQLiteVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, ag
 }
 
 // ListGraphEdges returns lightweight vault edges for nodes in scope.
-func (s *SQLiteVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
+func (s *SQLiteVaultGraphStore) ListGraphEdges(ctx context.Context, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
 	// Build subquery for doc IDs in scope.
 	subQ := `SELECT id FROM vault_documents WHERE 1=1`
 	var subArgs []any
@@ -132,7 +132,7 @@ func (s *SQLiteVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, ag
 	return edges, len(edges), nil
 }
 
-func (s *SQLiteVaultGraphStore) countGraphNodes(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) (int, error) {
+func (s *SQLiteVaultGraphStore) countGraphNodes(ctx context.Context, agentID string, opts store.VaultGraphListOptions) (int, error) {
 	q := `SELECT COUNT(*) FROM vault_documents WHERE 1=1`
 	var args []any
 

@@ -31,10 +31,6 @@ const OptPeerKind = "peer_kind"
 // OptWorkspace passes the agent workspace path so MCP bridge tools can resolve file paths.
 const OptWorkspace = "workspace"
 
-// OptTenantID passes the tenant UUID string for per-session MCP config.
-// Required for memory indexing and tenant-scoped queries via bridge tools.
-const OptTenantID = "tenant_id"
-
 // OptLocalKey passes the composite local key (e.g. "-100123:topic:42") for forum topic routing.
 const OptLocalKey = "local_key"
 

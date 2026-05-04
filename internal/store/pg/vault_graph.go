@@ -20,7 +20,7 @@ func NewPGVaultGraphStore(db *sql.DB) *PGVaultGraphStore {
 }
 
 // ListGraphNodes returns lightweight vault nodes with pre-computed degree.
-func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphNode, int, error) {
+func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, agentID string, opts store.VaultGraphListOptions) ([]store.GraphNode, int, error) {
 	q := `SELECT vd.id, vd.title, vd.path, vd.doc_type,
 		COALESCE(deg.cnt, 0) AS degree
 		FROM vault_documents vd
@@ -83,7 +83,7 @@ func (s *PGVaultGraphStore) ListGraphNodes(ctx context.Context, tenantID, agentI
 }
 
 // ListGraphEdges returns lightweight vault edges for nodes in scope.
-func (s *PGVaultGraphStore) ListGraphEdges(ctx context.Context, tenantID, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
+func (s *PGVaultGraphStore) ListGraphEdges(ctx context.Context, agentID string, opts store.VaultGraphListOptions) ([]store.GraphEdge, int, error) {
 	// Subquery selects doc IDs in scope (same filters as ListGraphNodes).
 	subQ := `SELECT id FROM vault_documents WHERE true`
 	var args []any

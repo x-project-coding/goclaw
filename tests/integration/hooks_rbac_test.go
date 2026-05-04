@@ -25,8 +25,8 @@ func TestHooksRBAC_StoreTenantIsolation(t *testing.T) {
 
 	// Seed one hook per tenant.
 	hookA, err := hs.Create(tenantCtx(tenantA), hooks.HookConfig{
-		TenantID: tenantA, AgentID: &agentA,
-		Scope: hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
+		AgentID:     &agentA,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": "https://a.example.test"},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -42,8 +42,8 @@ func TestHooksRBAC_StoreTenantIsolation(t *testing.T) {
 	})
 
 	hookB, err := hs.Create(tenantCtx(tenantB), hooks.HookConfig{
-		TenantID: tenantB, AgentID: &agentB,
-		Scope: hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
+		AgentID:     &agentB,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": "https://b.example.test"},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -115,7 +115,6 @@ func TestHooksRBAC_GlobalScope_VisibleToAllTenants(t *testing.T) {
 	// Global hook — master scope required to create.
 	masterCtx := context.Background()
 	globalHook, err := hs.Create(masterCtx, hooks.HookConfig{
-		TenantID:    hooks.SentinelTenantID,
 		Scope:       hooks.ScopeGlobal,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
@@ -162,8 +161,8 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 
 	// Tenant-scoped.
 	hookT, err := hs.Create(tenantCtx(tenantA), hooks.HookConfig{
-		TenantID: tenantA, AgentID: &agentA,
-		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
+		AgentID:     &agentA,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": "https://t.example.test"},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -180,7 +179,6 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 
 	masterCtx := context.Background()
 	hookG, err := hs.Create(masterCtx, hooks.HookConfig{
-		TenantID:    hooks.SentinelTenantID,
 		Scope:       hooks.ScopeGlobal,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
@@ -198,7 +196,7 @@ func TestHooksRBAC_ResolveForEvent_IncludesGlobalAndTenant(t *testing.T) {
 	})
 
 	got, err := hs.ResolveForEvent(tenantCtx(tenantA), hooks.Event{
-		TenantID: tenantA, AgentID: agentA, HookEvent: hooks.EventPreToolUse,
+		AgentID: agentA, HookEvent: hooks.EventPreToolUse,
 	})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)

@@ -15,7 +15,6 @@ import (
 func baseValidCommandHook() hooks.HookConfig {
 	return hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    hooks.SentinelTenantID,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Scope:       hooks.ScopeGlobal,
@@ -106,7 +105,6 @@ func TestValidate_RejectsMalformedCEL(t *testing.T) {
 func TestValidate_RejectsCommandOnStandardTenant(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Scope = hooks.ScopeTenant
-	h.TenantID = uuid.New()
 	err := h.Validate(edition.Standard)
 	if err == nil {
 		t.Fatal("expected error for command on Standard+tenant")
@@ -119,7 +117,6 @@ func TestValidate_RejectsCommandOnStandardTenant(t *testing.T) {
 func TestValidate_RejectsCommandOnStandardAgent(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Scope = hooks.ScopeAgent
-	h.TenantID = uuid.New()
 	agentID := uuid.New()
 	h.AgentID = &agentID
 	err := h.Validate(edition.Standard)
@@ -133,8 +130,7 @@ func TestValidate_AcceptsCommandOnLiteAnyScope(t *testing.T) {
 		h := baseValidCommandHook()
 		h.Scope = scope
 		if scope != hooks.ScopeGlobal {
-			h.TenantID = uuid.New()
-		}
+				}
 		if scope == hooks.ScopeAgent {
 			agentID := uuid.New()
 			h.AgentID = &agentID
@@ -218,7 +214,6 @@ func TestValidate_RejectsUnknownEvent(t *testing.T) {
 func TestValidate_RejectsAgentScopeWithoutAgentID(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Scope = hooks.ScopeAgent
-	h.TenantID = uuid.New()
 	h.AgentID = nil
 	err := h.Validate(edition.Lite)
 	if err == nil {

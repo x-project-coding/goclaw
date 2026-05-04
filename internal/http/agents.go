@@ -391,8 +391,8 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Finding #12: explicit tenant-scope guard as defense-in-depth.
-	// GetByID already scopes by tenant_id from context, but if a future refactor
-	// swaps to an unscoped variant this guard prevents cross-tenant mutation.
+	// GetByID already applies context scope, but if a future refactor
+	// swaps to an unscoped variant this guard prevents cross-user mutation.
 	var updates map[string]any
 	if !bindJSON(w, r, locale, &updates) {
 		return

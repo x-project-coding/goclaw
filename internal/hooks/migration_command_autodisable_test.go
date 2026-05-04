@@ -78,7 +78,6 @@ func fixtureRows() []hooks.HookConfig {
 	mk := func(ht hooks.HandlerType, src string, enabled bool) hooks.HookConfig {
 		return hooks.HookConfig{
 			ID:          uuid.New(),
-			TenantID:    uuid.New(),
 			Event:       hooks.EventPreToolUse,
 			HandlerType: ht,
 			Scope:       hooks.ScopeTenant,

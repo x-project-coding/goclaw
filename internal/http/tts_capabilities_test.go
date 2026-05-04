@@ -141,18 +141,14 @@ func TestCapabilitiesHandler_TenantIsolation(t *testing.T) {
 
 	tenant1Key := "tenant1-caps-key"
 	tenant2Key := "tenant2-caps-key"
-	tid1 := uuid.New()
-	tid2 := uuid.New()
 	setupTestCache(t, map[string]*store.APIKeyData{
 		crypto.HashAPIKey(tenant1Key): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: tid1,
 		},
 		crypto.HashAPIKey(tenant2Key): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: tid2,
 		},
 	})
 

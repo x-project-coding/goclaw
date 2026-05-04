@@ -21,8 +21,8 @@ func makeClient(role permissions.Role, userID string, tenantID uuid.UUID) *Clien
 }
 
 // makeEvent builds a bus.Event for testing.
-func makeEvent(name string, tenantID uuid.UUID, payload any) bus.Event {
-	return bus.Event{Name: name, TenantID: tenantID, Payload: payload}
+func makeEvent(name string, _ uuid.UUID, payload any) bus.Event {
+	return bus.Event{Name: name, Payload: payload}
 }
 
 // masterTenant is a non-Nil UUID kept as a routing fixture for legacy event-shape

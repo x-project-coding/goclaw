@@ -98,9 +98,6 @@ func (w *EnrichWorker) phase26DelegationLinking(ctx context.Context, embedded []
 	if len(embedded) == 0 {
 		return
 	}
-	first := embedded[0].payload
-	tenant := first.TenantID
-
 	delegIDs := make([]string, 0, len(embedded))
 	docsByDelegID := make(map[string][]*store.VaultDocument, len(embedded))
 	excludeDocIDs := make([]string, 0, len(embedded))
@@ -127,7 +124,7 @@ func (w *EnrichWorker) phase26DelegationLinking(ctx context.Context, embedded []
 	}
 
 	siblingsByDeleg, err := w.vault.BatchFindByDelegationIDs(
-		ctx, tenant, delegIDs, enrichTaskSiblingCap, excludeDocIDs,
+		ctx, delegIDs, enrichTaskSiblingCap, excludeDocIDs,
 	)
 	if err != nil {
 		slog.Debug("vault.enrich.phase2_6: delegation_siblings_batch", "err", err)

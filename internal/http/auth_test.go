@@ -193,9 +193,6 @@ func TestResolveAuth_SystemAPIKeyKeepsScopeDerivedRole(t *testing.T) {
 	if auth.Role != permissions.RoleAdmin {
 		t.Fatalf("role = %v, want admin", auth.Role)
 	}
-	if auth.TenantID != uuid.Nil {
-		t.Fatalf("tenantID = %v, want uuid.Nil (v4 single-tenant)", auth.TenantID)
-	}
 }
 
 func TestHttpMinRole(t *testing.T) {

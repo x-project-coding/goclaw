@@ -100,8 +100,8 @@ func TestHooksTracing_DispatcherEmitsSpan(t *testing.T) {
 
 	hs := pg.NewPGHookStore(db)
 	cfg := hooks.HookConfig{
-		TenantID: tenantID, AgentID: &agentID,
-		Scope: hooks.ScopeAgent, Event: hooks.EventPreToolUse,
+		AgentID:     &agentID,
+		Scope:       hooks.ScopeAgent, Event: hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerHTTP,
 		Config:      map[string]any{"url": srv.URL},
 		TimeoutMS:   5000, OnTimeout: hooks.DecisionAllow,
@@ -126,7 +126,7 @@ func TestHooksTracing_DispatcherEmitsSpan(t *testing.T) {
 	})
 
 	if _, err := d.Fire(ctx, hooks.Event{
-		EventID: uuid.NewString(), TenantID: tenantID, AgentID: agentID,
+		EventID: uuid.NewString(), AgentID: agentID,
 		HookEvent: hooks.EventPreToolUse,
 	}); err != nil {
 		t.Fatalf("Fire: %v", err)

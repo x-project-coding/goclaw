@@ -61,7 +61,6 @@ type SubagentTask struct {
 	CreatedAt        int64  `json:"createdAt"`
 	CompletedAt      int64  `json:"completedAt,omitempty"`
 	Media            []bus.MediaFile `json:"-"` // media files from tool results
-	OriginTenantID   uuid.UUID `json:"-"` // parent's tenant for announce routing
 	OriginTraceID    uuid.UUID `json:"-"` // parent trace for announce linking
 	OriginRootSpanID uuid.UUID `json:"-"` // parent agent's root span ID
 	cancelFunc       context.CancelFunc `json:"-"` // per-task context cancel

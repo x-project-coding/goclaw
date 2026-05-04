@@ -38,7 +38,6 @@ type UnifiedSearchOptions struct {
 	Query        string
 	AgentID      string
 	UserID       string
-	TenantID     string
 	TeamID       *string // nil = no filter (owner), ptr-to-empty = personal, ptr-to-uuid = team
 	ChatID       *string // isolated-team scope: filter docs to (chat_id = ChatID OR chat_id IS NULL)
 	TeamIsolated bool    // true = apply ChatID filter; false = shared/personal (ignore ChatID)
@@ -95,7 +94,6 @@ func (s *VaultSearchService) Search(ctx context.Context, opts UnifiedSearchOptio
 			results, err := s.vaultStore.Search(ctx, store.VaultSearchOptions{
 				Query:        opts.Query,
 				AgentID:      opts.AgentID,
-				TenantID:     opts.TenantID,
 				TeamID:       opts.TeamID,
 				ChatID:       opts.ChatID,
 				TeamIsolated: opts.TeamIsolated,

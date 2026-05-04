@@ -25,10 +25,8 @@ func (s *testTokenSource) RouteEligibility(context.Context) providers.RouteEligi
 
 func TestResolveCodexPoolRoutingUsesProviderDefaults(t *testing.T) {
 	providers := newMockProviderStore()
-	tenantID := uuid.New()
 	if err := providers.CreateProvider(context.Background(), &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     tenantID,
 		Name:         "openai-codex",
 		ProviderType: store.ProviderChatGPTOAuth,
 		Enabled:      true,
@@ -66,10 +64,8 @@ func TestResolveCodexPoolRoutingUsesProviderDefaults(t *testing.T) {
 
 func TestResolveCodexPoolRoutingHonorsInheritOverride(t *testing.T) {
 	providers := newMockProviderStore()
-	tenantID := uuid.New()
 	if err := providers.CreateProvider(context.Background(), &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     tenantID,
 		Name:         "openai-codex",
 		ProviderType: store.ProviderChatGPTOAuth,
 		Enabled:      true,
@@ -109,10 +105,8 @@ func TestResolveCodexPoolRoutingHonorsInheritOverride(t *testing.T) {
 
 func TestResolveCodexPoolRoutingIgnoresNonCodexBaseProvider(t *testing.T) {
 	providers := newMockProviderStore()
-	tenantID := uuid.New()
 	if err := providers.CreateProvider(context.Background(), &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     tenantID,
 		Name:         "anthropic",
 		ProviderType: store.ProviderAnthropicNative,
 		Enabled:      true,

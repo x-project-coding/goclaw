@@ -117,7 +117,6 @@ func TestHooksTenantAdminCreatesScriptHook(t *testing.T) {
 	})
 	res := runner.RunTest(context.Background(), cfg, hooks.Event{
 		EventID:   "tenant-admin-create",
-		TenantID:  tenantA,
 		AgentID:   agentA,
 		HookEvent: hooks.EventUserPromptSubmit,
 	})
@@ -130,11 +129,8 @@ func TestHooksTenantAdminCreatesScriptHook(t *testing.T) {
 // Mirrors the WS handler's pre-Create gate.
 func TestHooksCommandHandlerRejectedOnStandard(t *testing.T) {
 	withEdition(t, edition.Standard)
-	db := testDB(t)
-	tenantA, _ := seedTenantAgent(t, db)
 
 	cfg := hooks.HookConfig{
-		TenantID:    tenantA,
 		Scope:       hooks.ScopeTenant,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
@@ -171,7 +167,7 @@ func TestHooksPIIRedactorTestPanel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Source: %v", err)
 	}
-	cfg := hookCfgScript(hooks.SentinelTenantID, hooks.EventUserPromptSubmit,
+	cfg := hookCfgScript(uuid.Nil, hooks.EventUserPromptSubmit,
 		hooks.SourceBuiltin, string(src))
 	cfg.Scope = hooks.ScopeGlobal
 	cfg.ID = builtin.BuiltinEventID("pii-redactor", string(hooks.EventUserPromptSubmit))
@@ -193,7 +189,6 @@ func TestHooksPIIRedactorTestPanel(t *testing.T) {
 	// as decision=error here).
 	res := runner.RunTest(context.Background(), cfg, hooks.Event{
 		EventID:   "pii-redactor-panel",
-		TenantID:  hooks.SentinelTenantID,
 		AgentID:   uuid.New(),
 		HookEvent: hooks.EventUserPromptSubmit,
 		RawInput:  "ping me at user@example.com",

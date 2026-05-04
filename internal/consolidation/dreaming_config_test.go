@@ -120,7 +120,6 @@ func TestDreamingWorkerHandleHonoursCustomThreshold(t *testing.T) {
 
 	err := worker.Handle(context.Background(), eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: uuid.New().String(),
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -152,7 +151,6 @@ func TestDreamingWorkerHandleDisabledSkips(t *testing.T) {
 
 	err := worker.Handle(context.Background(), eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: uuid.New().String(),
 		AgentID:  "agent-disabled",
 		UserID:   "user-123",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -182,7 +180,6 @@ func TestDreamingWorkerHandleNilResolverUsesDefaults(t *testing.T) {
 	}
 	err := worker.Handle(context.Background(), eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: uuid.New().String(),
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload:  &eventbus.EpisodicCreatedPayload{},

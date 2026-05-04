@@ -24,7 +24,6 @@ func piiHook(t *testing.T, event hooks.HookEvent) hooks.HookConfig {
 	}
 	return hooks.HookConfig{
 		ID:          builtin.BuiltinEventID("pii-redactor", string(event)),
-		TenantID:    hooks.SentinelTenantID,
 		Event:       event,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeGlobal,
@@ -58,7 +57,6 @@ func runPII(t *testing.T, ev hooks.Event) *hooks.ScriptResult {
 func TestPIIRedactor_RawInputEmail(t *testing.T) {
 	ev := hooks.Event{
 		EventID:   "e",
-		TenantID:  uuid.New(),
 		AgentID:   uuid.New(),
 		HookEvent: hooks.EventUserPromptSubmit,
 		RawInput:  "email me at user@example.com please",
@@ -153,7 +151,6 @@ func BenchmarkPIIRedactor_1KiB(b *testing.B) {
 	}
 	cfg := hooks.HookConfig{
 		ID:          builtin.BuiltinEventID("pii-redactor", "user_prompt_submit"),
-		TenantID:    hooks.SentinelTenantID,
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Source:      hooks.SourceBuiltin,

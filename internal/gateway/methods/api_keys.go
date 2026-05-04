@@ -60,7 +60,6 @@ func (m *APIKeysMethods) handleCreate(ctx context.Context, client *gateway.Clien
 		Scopes    []string `json:"scopes"`
 		ExpiresIn *int     `json:"expires_in"` // seconds; nil = never
 		OwnerID   string   `json:"owner_id"`   // optional; non-admin callers always get their own user_id
-		TenantID  string   `json:"tenant_id"`  // optional UUID; cross-tenant callers may specify or omit (NULL = system key)
 	}
 	if req.Params != nil {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -99,34 +98,6 @@ func (m *APIKeysMethods) handleCreate(ctx context.Context, client *gateway.Clien
 		return
 	}
 
-	// Resolve tenant_id based on caller type.
-	var tenantID uuid.UUID // uuid.Nil = system-level (NULL in DB)
-	if client.IsOwner() {
-		if params.TenantID != "" {
-			tid, err := uuid.Parse(params.TenantID)
-			if err != nil {
-				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id")))
-				return
-			}
-			tenantID = tid
-		}
-		// else: uuid.Nil stays → system-level key
-	} else if client.HasScope(permissions.ScopeProvision) {
-		// Provision-scoped callers may create tenant-bound keys only (not system-level).
-		if params.TenantID != "" {
-			tid, err := uuid.Parse(params.TenantID)
-			if err != nil {
-				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant_id")))
-				return
-			}
-			tenantID = tid
-		} else {
-			tenantID = client.TenantID()
-		}
-	} else {
-		tenantID = client.TenantID()
-	}
-
 	now := time.Now()
 	key := &store.APIKeyData{
 		ID:        store.GenNewID(),
@@ -135,7 +106,6 @@ func (m *APIKeysMethods) handleCreate(ctx context.Context, client *gateway.Clien
 		KeyHash:   hash,
 		Scopes:    params.Scopes,
 		OwnerID:   ownerID,
-		TenantID:  tenantID,
 		CreatedBy: store.UserIDFromContext(ctx),
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -165,12 +135,9 @@ func (m *APIKeysMethods) handleCreate(ctx context.Context, client *gateway.Clien
 
 // handleRevoke revokes an API key after verifying ownership.
 //
-// Phase 0b hotfix: store-layer Revoke SQL matches on
-// `tenant_id = $N OR tenant_id IS NULL`, which previously allowed any
-// tenant admin to revoke system-level (NULL-tenant) API keys. The fix
-// pre-fetches the key and enforces strict tenant match for non-owner
-// callers. Non-admin callers continue to use the ownerID filter path
-// (unchanged behaviour for personal keys).
+// Store-layer Revoke enforces scope filtering; the fix pre-fetches the
+// key and rejects non-owner callers who do not own the key.
+// Non-admin callers continue to use the ownerID filter path.
 func (m *APIKeysMethods) handleRevoke(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	locale := store.LocaleFromContext(ctx)
 
@@ -205,24 +172,6 @@ func (m *APIKeysMethods) handleRevoke(ctx context.Context, client *gateway.Clien
 	// does not inject role into ctx (see router.go handleRequest), so the
 	// ctx-based helper is dead here. Client carries the authoritative role
 	// from connect.
-	if ownerID == "" && !client.IsOwner() {
-		key, gerr := m.apiKeys.Get(ctx, id)
-		if gerr != nil || key == nil {
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "API key", params.ID)))
-			return
-		}
-		// In v4 single-user, all keys are system-level (uuid.Nil tenant).
-		// Non-owner admins may only revoke keys without a tenant binding.
-		if key.TenantID != uuid.Nil {
-			slog.Warn("security.api_key_revoke_forbidden",
-				"key_id", params.ID,
-				"key_tenant", key.TenantID,
-				"user_id", client.UserID(),
-			)
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "API key")))
-			return
-		}
-	}
 
 	if err := m.apiKeys.Revoke(ctx, id, ownerID); err != nil {
 		slog.Error("api_keys.revoke failed", "error", err, "id", params.ID)

@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
@@ -88,7 +86,6 @@ func (sm *SubagentManager) Spawn(
 		OriginSenderID:    store.SenderIDFromContext(ctx),
 		OriginRole:        store.RoleFromContext(ctx),
 		OriginSessionKey:  ToolSessionKeyFromCtx(ctx),
-		OriginTenantID:    uuid.Nil,
 		OriginTraceID:     tracing.TraceIDFromContext(ctx),
 		OriginRootSpanID:  tracing.ParentSpanIDFromContext(ctx),
 		CreatedAt:         time.Now().UnixMilli(),
@@ -167,7 +164,6 @@ func (sm *SubagentManager) RunSync(
 		OriginSenderID:   store.SenderIDFromContext(ctx),
 		OriginRole:       store.RoleFromContext(ctx),
 		OriginSessionKey: ToolSessionKeyFromCtx(ctx),
-		OriginTenantID:   uuid.Nil,
 		OriginTraceID:    tracing.TraceIDFromContext(ctx),
 		OriginRootSpanID: tracing.ParentSpanIDFromContext(ctx),
 		CreatedAt:        time.Now().UnixMilli(),

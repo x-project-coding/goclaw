@@ -8,7 +8,6 @@ import (
 // VaultDocument is a registered document in the Knowledge Vault.
 type VaultDocument struct {
 	ID           string         `json:"id" db:"id"`
-	TenantID     string         `json:"tenant_id" db:"tenant_id"`
 	AgentID      *string        `json:"agent_id,omitempty" db:"agent_id"`
 	OwnerUserID  *string        `json:"owner_user_id,omitempty" db:"owner_user_id"`
 	TeamID       *string        `json:"team_id,omitempty" db:"team_id"`
@@ -57,7 +56,6 @@ type VaultSearchResult struct {
 type VaultSearchOptions struct {
 	Query      string
 	AgentID    string
-	TenantID   string
 	TeamID     *string  // nil = no filter, ptr-to-empty = personal (NULL team_id), ptr-to-uuid = specific team
 	TeamIDs    []string // non-nil = personal (NULL) + these team UUIDs (used for "all accessible" view)
 	ChatID     *string  // isolated-team scope: when non-nil + TeamIsolated, filter (chat_id = ChatID OR chat_id IS NULL)
@@ -105,20 +103,20 @@ type VaultTreeOptions struct {
 type VaultStore interface {
 	// Document CRUD
 	UpsertDocument(ctx context.Context, doc *VaultDocument) error
-	GetDocument(ctx context.Context, tenantID, agentID, path string) (*VaultDocument, error)
-	GetDocumentByID(ctx context.Context, tenantID, id string) (*VaultDocument, error)
-	DeleteDocument(ctx context.Context, tenantID, agentID, path string) error
-	ListDocuments(ctx context.Context, tenantID, agentID string, opts VaultListOptions) ([]VaultDocument, error)
-	CountDocuments(ctx context.Context, tenantID, agentID string, opts VaultListOptions) (int, error)
-	UpdateHash(ctx context.Context, tenantID, id, newHash string) error
+	GetDocument(ctx context.Context, agentID, path string) (*VaultDocument, error)
+	GetDocumentByID(ctx context.Context, id string) (*VaultDocument, error)
+	DeleteDocument(ctx context.Context, agentID, path string) error
+	ListDocuments(ctx context.Context, agentID string, opts VaultListOptions) ([]VaultDocument, error)
+	CountDocuments(ctx context.Context, agentID string, opts VaultListOptions) (int, error)
+	UpdateHash(ctx context.Context, id, newHash string) error
 
 	// ListTreeEntries returns immediate children (files + virtual folders) under the given path prefix.
-	ListTreeEntries(ctx context.Context, tenantID string, opts VaultTreeOptions) ([]VaultTreeEntry, error)
+	ListTreeEntries(ctx context.Context, opts VaultTreeOptions) ([]VaultTreeEntry, error)
 
-	// GetDocumentsByIDs returns documents matching the given IDs with tenant isolation.
-	GetDocumentsByIDs(ctx context.Context, tenantID string, docIDs []string) ([]VaultDocument, error)
+	// GetDocumentsByIDs returns documents matching the given IDs.
+	GetDocumentsByIDs(ctx context.Context, docIDs []string) ([]VaultDocument, error)
 	// GetDocumentByBasename finds a document by path basename (case-insensitive).
-	GetDocumentByBasename(ctx context.Context, tenantID, agentID, basename string) (*VaultDocument, error)
+	GetDocumentByBasename(ctx context.Context, agentID, basename string) (*VaultDocument, error)
 
 	// Search (FTS + vector hybrid)
 	Search(ctx context.Context, opts VaultSearchOptions) ([]VaultSearchResult, error)
@@ -126,31 +124,30 @@ type VaultStore interface {
 	// Links
 	CreateLinks(ctx context.Context, links []VaultLink) error
 	CreateLink(ctx context.Context, link *VaultLink) error
-	DeleteLink(ctx context.Context, tenantID, id string) error
-	GetOutLinks(ctx context.Context, tenantID, docID string) ([]VaultLink, error)
-	GetOutLinksBatch(ctx context.Context, tenantID string, docIDs []string) ([]VaultLink, error)
-	GetBacklinks(ctx context.Context, tenantID, docID string) ([]VaultBacklink, error)
-	DeleteDocLinks(ctx context.Context, tenantID, docID string) error
-	DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error
-	DeleteDocLinksByTypes(ctx context.Context, tenantID, docID string, types []string) error
+	DeleteLink(ctx context.Context, id string) error
+	GetOutLinks(ctx context.Context, docID string) ([]VaultLink, error)
+	GetOutLinksBatch(ctx context.Context, docIDs []string) ([]VaultLink, error)
+	GetBacklinks(ctx context.Context, docID string) ([]VaultBacklink, error)
+	DeleteDocLinks(ctx context.Context, docID string) error
+	DeleteDocLinksByType(ctx context.Context, docID, linkType string) error
+	DeleteDocLinksByTypes(ctx context.Context, docID string, types []string) error
 
 	// DeleteLinksBySource removes vault_links rows where metadata->>'source'
 	// equals the given source key (e.g. "task:{uuid}", "delegation:{uuid}").
 	// Used by cleanup paths (DetachFileFromTask, DeleteTask, bulk task delete)
-	// to surgically remove Phase-04/05 auto-links without touching classify-
-	// owned links. Returns the number of rows deleted. Tenant isolation is
-	// enforced by joining vault_documents on tenant_id.
-	DeleteLinksBySource(ctx context.Context, tenantID, source string) (int64, error)
+	// to surgically remove auto-links without touching classify-owned links.
+	// Returns the number of rows deleted.
+	DeleteLinksBySource(ctx context.Context, source string) (int64, error)
 
 	// Enrichment
 	// ListUnenrichedDocs returns documents with empty summary for re-enrichment.
 	// Used after rescan to retry failed enrichments.
-	ListUnenrichedDocs(ctx context.Context, tenantID string, limit int) ([]VaultDocument, error)
+	ListUnenrichedDocs(ctx context.Context, limit int) ([]VaultDocument, error)
 	// UpdateSummaryAndReembed updates summary text and re-generates embedding from title+path+summary.
-	UpdateSummaryAndReembed(ctx context.Context, tenantID, docID, summary string) error
+	UpdateSummaryAndReembed(ctx context.Context, docID, summary string) error
 	// FindSimilarDocs finds documents with similar embeddings to the given docID.
 	// Returns top-N neighbors excluding the source doc. Score = cosine similarity.
-	FindSimilarDocs(ctx context.Context, tenantID, agentID, docID string, limit int) ([]VaultSearchResult, error)
+	FindSimilarDocs(ctx context.Context, agentID, docID string, limit int) ([]VaultSearchResult, error)
 	// BatchFindByDelegationIDs returns vault docs sharing any of the given
 	// delegation_ids in their metadata, keyed by delegation_id. Each
 	// delegation's bucket is capped at `limit` (ordered by created_at DESC).
@@ -159,7 +156,6 @@ type VaultStore interface {
 	// the partial index added by migration 000048.
 	BatchFindByDelegationIDs(
 		ctx context.Context,
-		tenantID string,
 		delegationIDs []string,
 		limit int,
 		excludeDocIDs []string,

@@ -62,7 +62,6 @@ type DBTokenSource struct {
 	providerStore store.ProviderStore
 	secretsStore  store.ConfigSecretsStore
 	providerName  string
-	tenantID      uuid.UUID // tenant context for DB queries
 
 	providerDisplayName string
 	providerAPIBase     string
@@ -85,14 +84,7 @@ func NewDBTokenSource(provStore store.ProviderStore, secretsStore store.ConfigSe
 		providerStore: provStore,
 		secretsStore:  secretsStore,
 		providerName:  providerName,
-		tenantID:      uuid.Nil,
 	}
-}
-
-// WithTenantID sets the tenant context for DB queries. Must be called at init time before Token().
-func (ts *DBTokenSource) WithTenantID(tenantID uuid.UUID) *DBTokenSource {
-	ts.tenantID = tenantID
-	return ts
 }
 
 // WithProviderMeta sets defaults used when creating or updating OAuth-backed providers.

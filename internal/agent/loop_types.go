@@ -287,8 +287,6 @@ type AgentEvent struct {
 	ChatID     string `json:"chatId,omitempty"`
 	SessionKey string `json:"sessionKey,omitempty"`
 
-	// TenantID scopes this event to a specific tenant for filtering (not serialized).
-	TenantID uuid.UUID `json:"-"`
 }
 
 // LoopConfig configures a new Loop.

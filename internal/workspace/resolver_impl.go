@@ -59,7 +59,7 @@ func (r *defaultResolver) resolveDelegate(p ResolveParams) (*WorkspaceContext, e
 
 // resolveTeam handles team workspace (shared or isolated).
 func (r *defaultResolver) resolveTeam(p ResolveParams) *WorkspaceContext {
-	base := tenantPath(p.BaseDir, p.TenantID, p.TenantSlug)
+	base := p.BaseDir
 	teamRoot := filepath.Join(base, "teams", sanitizeSegment(*p.TeamID))
 
 	shared := p.TeamConfig.IsShared()
@@ -91,7 +91,7 @@ func (r *defaultResolver) resolveTeam(p ResolveParams) *WorkspaceContext {
 
 // resolvePersonal handles open agent (per-user) and predefined agent (shared) workspaces.
 func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
-	base := tenantPath(p.BaseDir, p.TenantID, p.TenantSlug)
+	base := p.BaseDir
 	agentDir := filepath.Join(base, sanitizeSegment(p.AgentID))
 
 	activePath := agentDir
@@ -114,12 +114,6 @@ func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
 	}
 	ensureDir(wc.ActivePath)
 	return wc
-}
-
-// tenantPath returns base dir unchanged in v4 single-tenant. Kept as a
-// shim until ResolveParams drops the TenantID/TenantSlug fields.
-func tenantPath(base, _, _ string) string {
-	return base
 }
 
 // userChatSegment returns the isolation segment: chatID for group, userID for direct.

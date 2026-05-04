@@ -14,7 +14,7 @@ import (
 )
 
 // Provider wraps media.TranscribeAudio as an audio.STTProvider.
-// Preserves all proxy behaviors (Bearer auth, tenant_id field, semaphore, etc.)
+// Preserves all proxy behaviors (Bearer auth, stt_tenant_id field, semaphore, etc.)
 // so channels can fall back to the proxy without any behavior change.
 type Provider struct {
 	cfg media.STTConfig

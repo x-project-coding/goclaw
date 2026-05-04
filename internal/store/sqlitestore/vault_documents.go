@@ -100,7 +100,7 @@ func (s *SQLiteVaultStore) UpsertDocument(ctx context.Context, doc *store.VaultD
 // GetDocument retrieves a vault document by agent and path.
 // Empty agentID means no agent filter.
 // Team scoping via RunContext: present+TeamID → filter; present+empty → personal; nil → any match.
-func (s *SQLiteVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path string) (*store.VaultDocument, error) {
+func (s *SQLiteVaultStore) GetDocument(ctx context.Context, agentID, path string) (*store.VaultDocument, error) {
 	q := `SELECT id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE path = ?`
 	args := []any{path}
@@ -124,7 +124,7 @@ func (s *SQLiteVaultStore) GetDocument(ctx context.Context, tenantID, agentID, p
 }
 
 // GetDocumentByID retrieves a vault document by ID.
-func (s *SQLiteVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string) (*store.VaultDocument, error) {
+func (s *SQLiteVaultStore) GetDocumentByID(ctx context.Context, id string) (*store.VaultDocument, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE id = ?`, id)
@@ -132,7 +132,7 @@ func (s *SQLiteVaultStore) GetDocumentByID(ctx context.Context, tenantID, id str
 }
 
 // GetDocumentsByIDs returns documents matching the given IDs.
-func (s *SQLiteVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID string, docIDs []string) ([]store.VaultDocument, error) {
+func (s *SQLiteVaultStore) GetDocumentsByIDs(ctx context.Context, docIDs []string) ([]store.VaultDocument, error) {
 	if len(docIDs) == 0 {
 		return nil, nil
 	}
@@ -170,7 +170,7 @@ func (s *SQLiteVaultStore) GetDocumentsByIDs(ctx context.Context, tenantID strin
 }
 
 // GetDocumentByBasename finds a document by path basename (case-insensitive).
-func (s *SQLiteVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agentID, basename string) (*store.VaultDocument, error) {
+func (s *SQLiteVaultStore) GetDocumentByBasename(ctx context.Context, agentID, basename string) (*store.VaultDocument, error) {
 	q := `SELECT id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents
 		WHERE lower(replace(path, rtrim(path, replace(path, '/', '')), '')) = lower(?)`
@@ -187,7 +187,7 @@ func (s *SQLiteVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, 
 // DeleteDocument removes a vault document (FK cascades delete vault_links).
 // Empty agentID means no agent filter.
 // Team scoping via RunContext (same rules as GetDocument).
-func (s *SQLiteVaultStore) DeleteDocument(ctx context.Context, tenantID, agentID, path string) error {
+func (s *SQLiteVaultStore) DeleteDocument(ctx context.Context, agentID, path string) error {
 	q := `DELETE FROM vault_documents WHERE path = ?`
 	args := []any{path}
 
@@ -210,7 +210,7 @@ func (s *SQLiteVaultStore) DeleteDocument(ctx context.Context, tenantID, agentID
 }
 
 // ListDocuments returns vault documents with optional scope/type filters.
-func (s *SQLiteVaultStore) ListDocuments(ctx context.Context, tenantID, agentID string, opts store.VaultListOptions) ([]store.VaultDocument, error) {
+func (s *SQLiteVaultStore) ListDocuments(ctx context.Context, agentID string, opts store.VaultListOptions) ([]store.VaultDocument, error) {
 	q := `SELECT id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents WHERE 1=1`
 	var args []any
@@ -262,7 +262,7 @@ func (s *SQLiteVaultStore) ListDocuments(ctx context.Context, tenantID, agentID 
 }
 
 // CountDocuments returns the total number of vault documents matching the given filters.
-func (s *SQLiteVaultStore) CountDocuments(ctx context.Context, tenantID, agentID string, opts store.VaultListOptions) (int, error) {
+func (s *SQLiteVaultStore) CountDocuments(ctx context.Context, agentID string, opts store.VaultListOptions) (int, error) {
 	q := `SELECT COUNT(*) FROM vault_documents WHERE 1=1`
 	var args []any
 
@@ -291,7 +291,7 @@ func (s *SQLiteVaultStore) CountDocuments(ctx context.Context, tenantID, agentID
 }
 
 // UpdateHash updates the content hash for a vault document.
-func (s *SQLiteVaultStore) UpdateHash(ctx context.Context, tenantID, id, newHash string) error {
+func (s *SQLiteVaultStore) UpdateHash(ctx context.Context, id, newHash string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE vault_documents SET content_hash = ?, updated_at = ? WHERE id = ?`,
@@ -301,7 +301,7 @@ func (s *SQLiteVaultStore) UpdateHash(ctx context.Context, tenantID, id, newHash
 
 // ListUnenrichedDocs returns documents with empty summary for re-enrichment.
 // limit=0 means no limit.
-func (s *SQLiteVaultStore) ListUnenrichedDocs(ctx context.Context, tenantID string, limit int) ([]store.VaultDocument, error) {
+func (s *SQLiteVaultStore) ListUnenrichedDocs(ctx context.Context, limit int) ([]store.VaultDocument, error) {
 	q := `SELECT id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at
 		FROM vault_documents
 		WHERE summary IS NULL OR summary = ''
@@ -330,7 +330,7 @@ func (s *SQLiteVaultStore) ListUnenrichedDocs(ctx context.Context, tenantID stri
 }
 
 // UpdateSummaryAndReembed updates summary (no embedding in SQLite).
-func (s *SQLiteVaultStore) UpdateSummaryAndReembed(ctx context.Context, tenantID, docID, summary string) error {
+func (s *SQLiteVaultStore) UpdateSummaryAndReembed(ctx context.Context, docID, summary string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE vault_documents SET summary = ?, updated_at = ? WHERE id = ?`,
@@ -339,7 +339,7 @@ func (s *SQLiteVaultStore) UpdateSummaryAndReembed(ctx context.Context, tenantID
 }
 
 // FindSimilarDocs is a no-op in SQLite (no vector support).
-func (s *SQLiteVaultStore) FindSimilarDocs(ctx context.Context, tenantID, agentID, docID string, limit int) ([]store.VaultSearchResult, error) {
+func (s *SQLiteVaultStore) FindSimilarDocs(ctx context.Context, agentID, docID string, limit int) ([]store.VaultSearchResult, error) {
 	return nil, nil
 }
 
@@ -421,7 +421,7 @@ func (s *SQLiteVaultStore) Search(ctx context.Context, opts store.VaultSearchOpt
 }
 
 // ListTreeEntries returns immediate children (files + virtual folders) under the given path prefix.
-func (s *SQLiteVaultStore) ListTreeEntries(ctx context.Context, tenantID string, opts store.VaultTreeOptions) ([]store.VaultTreeEntry, error) {
+func (s *SQLiteVaultStore) ListTreeEntries(ctx context.Context, opts store.VaultTreeOptions) ([]store.VaultTreeEntry, error) {
 	prefix := opts.Path
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"

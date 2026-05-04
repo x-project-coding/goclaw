@@ -77,9 +77,8 @@ func masterCtx() context.Context {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-func minimalHook(tenantID uuid.UUID, event hooks.HookEvent) hooks.HookConfig {
+func minimalHook(_ uuid.UUID, event hooks.HookEvent) hooks.HookConfig {
 	return hooks.HookConfig{
-		TenantID:    tenantID,
 		Event:       event,
 		HandlerType: hooks.HandlerCommand,
 		Scope:       hooks.ScopeTenant,
@@ -382,7 +381,7 @@ func TestPGHookStore_BuiltinReadOnly(t *testing.T) {
 
 	// Seed a builtin row via WithSeedBypass (the only authorized path).
 	seedCtx := hooks.WithSeedBypass(store.WithRole(masterCtx(), store.RoleRoot))
-	cfg := minimalHook(hooks.SentinelTenantID, hooks.EventUserPromptSubmit)
+	cfg := minimalHook(uuid.Nil, hooks.EventUserPromptSubmit)
 	cfg.Source = hooks.SourceBuiltin
 	cfg.Scope = hooks.ScopeGlobal
 	cfg.HandlerType = hooks.HandlerScript

@@ -59,21 +59,13 @@ func (h *SkillsHandler) skillUploadLock(scopeKey string) *sync.Mutex {
 }
 
 // emitCacheInvalidate broadcasts a skill-related cache invalidation event.
-// tenantID == uuid.Nil means global invalidation (master admin path).
-// Existing grant-related callers pass tenantID == uuid.Nil since grants are
-// stored globally; tenant-aware callers (tenant_config handlers) pass the
-// caller's tenant ID so only that tenant's cached agents are invalidated.
-func (h *SkillsHandler) emitCacheInvalidate(kind, key string, tenantID uuid.UUID) {
+func (h *SkillsHandler) emitCacheInvalidate(kind, key string) {
 	if h.msgBus == nil {
 		return
 	}
 	h.msgBus.Broadcast(bus.Event{
-		Name: protocol.EventCacheInvalidate,
-		Payload: bus.CacheInvalidatePayload{
-			Kind:     kind,
-			Key:      key,
-			TenantID: tenantID,
-		},
+		Name:    protocol.EventCacheInvalidate,
+		Payload: bus.CacheInvalidatePayload{Kind: kind, Key: key},
 	})
 }
 
@@ -212,7 +204,7 @@ func (h *SkillsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.skills.BumpVersion()
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr)
 	emitAudit(h.msgBus, r, "skill.updated", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
@@ -246,7 +238,7 @@ func (h *SkillsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.skills.BumpVersion()
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr)
 	emitAudit(h.msgBus, r, "skill.deleted", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
@@ -333,7 +325,7 @@ func (h *SkillsHandler) handleInstallDeps(w http.ResponseWriter, r *http.Request
 	}
 	if statusChanged {
 		h.skills.BumpVersion()
-		h.emitCacheInvalidate(bus.CacheKindSkills, "", uuid.Nil)
+		h.emitCacheInvalidate(bus.CacheKindSkills, "")
 	}
 
 	if h.msgBus != nil {
@@ -499,7 +491,7 @@ func (h *SkillsHandler) handleRescanDeps(w http.ResponseWriter, r *http.Request)
 	if updated > 0 {
 		// rescanAndUpdate bumped the skills version already; emit a global
 		// invalidate so cached agent Loops pick up the new status set.
-		h.emitCacheInvalidate(bus.CacheKindSkills, "", uuid.Nil)
+		h.emitCacheInvalidate(bus.CacheKindSkills, "")
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"updated": updated,
@@ -561,7 +553,7 @@ func (h *SkillsHandler) handleToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.skills.BumpVersion()
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr)
 	emitAudit(h.msgBus, r, "skill.toggled", "skill", idStr)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": body.Enabled, "status": newStatus})
 }
@@ -586,7 +578,7 @@ func (h *SkillsHandler) handlePin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	h.emitCacheInvalidate(bus.CacheKindSkills, idStr, uuid.Nil)
+	h.emitCacheInvalidate(bus.CacheKindSkills, idStr)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "pinned": body.Pinned})
 }
 

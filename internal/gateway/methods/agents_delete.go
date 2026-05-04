@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -63,7 +61,6 @@ func (m *AgentsMethods) handleDelete(ctx context.Context, client *gateway.Client
 				Payload: bus.AgentDeletedPayload{
 					AgentKey: params.AgentID,
 					Provider: ag.Provider,
-					TenantID: uuid.Nil,
 				},
 			})
 		}

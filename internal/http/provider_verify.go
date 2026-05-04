@@ -19,9 +19,9 @@ import (
 )
 
 // HandleVerifyProviderForTest invokes the verify handler directly without auth
-// middleware. Integration tests must inject the desired tenant_id into the
+// middleware. Integration tests must inject the desired user context into the
 // request context before calling. Production code MUST go through RegisterRoutes
-// so the auth/locale/tenant pipeline runs first.
+// so the auth/locale pipeline runs first.
 func (h *ProvidersHandler) HandleVerifyProviderForTest(w http.ResponseWriter, r *http.Request) {
 	h.handleVerifyProvider(w, r)
 }

@@ -34,7 +34,6 @@ func IsSeedBypass(ctx context.Context) bool {
 
 // ListFilter narrows results from HookStore.List.
 type ListFilter struct {
-	TenantID *uuid.UUID
 	AgentID  *uuid.UUID
 	Event    *HookEvent
 	Scope    *Scope
@@ -45,8 +44,8 @@ type ListFilter struct {
 // PG impl lives in internal/store/pg/hooks.go;
 // SQLite impl lives in internal/store/sqlitestore/hooks.go.
 //
-// All write operations must enforce tenant isolation: reads outside master scope
-// must include WHERE tenant_id = $N. See store.IsMasterScope(ctx).
+// All write operations must enforce access control: reads outside master scope
+// must filter by the caller's scope. See store.IsMasterScope(ctx).
 type HookStore interface {
 	// Create inserts a new hook config and returns the generated UUID.
 	Create(ctx context.Context, cfg HookConfig) (uuid.UUID, error)
@@ -68,8 +67,8 @@ type HookStore interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 
 	// ResolveForEvent returns the ordered list of enabled hooks that match
-	// (tenant_id, agent_id, event). Implementations should cache this result
-	// with a short TTL (5s) keyed by (tenant_id, agent_id, event, maxVersion)
+	// (agent_id, event). Implementations should cache this result
+	// with a short TTL (5s) keyed by (agent_id, event, maxVersion)
 	// and short-circuit via COUNT(*) = 0 cache for the zero-hooks hot path.
 	ResolveForEvent(ctx context.Context, event Event) ([]HookConfig, error)
 

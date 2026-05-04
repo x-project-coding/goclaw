@@ -18,7 +18,6 @@ type AutoInjector interface {
 type InjectParams struct {
 	AgentID     string
 	UserID      string
-	TenantID    string
 	UserMessage string
 
 	// RecentContext carries a short snippet of recent conversation (typically

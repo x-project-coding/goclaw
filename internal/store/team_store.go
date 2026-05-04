@@ -13,7 +13,6 @@ import (
 type RecoveredTaskInfo struct {
 	ID         uuid.UUID `db:"-"`
 	TeamID     uuid.UUID `db:"-"`
-	TenantID   uuid.UUID `db:"-"`
 	TaskNumber int       `db:"-"`
 	Subject    string    `db:"-"`
 	Channel    string    `db:"-"` // task's origin channel for notification routing
@@ -94,7 +93,6 @@ type TeamMemberData struct {
 type TeamTaskData struct {
 	BaseModel
 	TeamID       uuid.UUID      `json:"team_id" db:"team_id"`
-	TenantID     uuid.UUID      `json:"tenant_id" db:"tenant_id"`
 	Subject      string         `json:"subject" db:"subject"`
 	Description  string         `json:"description,omitempty" db:"description"`
 	Status       string         `json:"status" db:"status"`

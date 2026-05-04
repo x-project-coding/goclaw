@@ -22,10 +22,9 @@ import (
 
 // makeCommandHook seeds a command-handler hook for the given tenant. Returns
 // the row's id; auto-cleanup via t.Cleanup.
-func makeCommandHook(t *testing.T, hs hooks.HookStore, tenantID uuid.UUID, source string, enabled bool) uuid.UUID {
+func makeCommandHook(t *testing.T, hs hooks.HookStore, _ uuid.UUID, source string, enabled bool) uuid.UUID {
 	t.Helper()
 	cfg := hooks.HookConfig{
-		TenantID:    tenantID,
 		Scope:       hooks.ScopeTenant,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
@@ -51,7 +50,6 @@ func makeScriptHook(t *testing.T, hs hooks.HookStore, tenantID uuid.UUID, source
 	cfg.Enabled = enabled
 	if cfg.Source == hooks.SourceBuiltin {
 		cfg.Scope = hooks.ScopeGlobal
-		cfg.TenantID = hooks.SentinelTenantID
 		cfg.ID = uuid.New()
 	}
 	id, err := hs.Create(crossTenantOwnerCtx(), cfg)
@@ -62,17 +60,16 @@ func makeScriptHook(t *testing.T, hs hooks.HookStore, tenantID uuid.UUID, source
 	return id
 }
 
-// test-E1: Standard edition with 3 enabled command hooks across 2 tenants →
-// all 3 disabled. Idempotent rerun returns 0.
+// test-E1: Standard edition with 3 enabled command hooks → all 3 disabled.
+// Idempotent rerun returns 0.
 func TestHooksE1_StandardDisablesAllCommand(t *testing.T) {
 	db := testDB(t)
 	tenantA, _ := seedTenantAgent(t, db)
-	tenantB := seedExtraTenant(t, db)
 	hs := pg.NewPGHookStore(db)
 
 	id1 := makeCommandHook(t, hs, tenantA, "ui", true)
 	id2 := makeCommandHook(t, hs, tenantA, "api", true)
-	id3 := makeCommandHook(t, hs, tenantB, "ui", true)
+	id3 := makeCommandHook(t, hs, tenantA, "ui", true)
 
 	n, err := hooks.DisableLegacyCommandHooks(context.Background(), hs, edition.Standard)
 	if err != nil {

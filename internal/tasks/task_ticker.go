@@ -175,10 +175,9 @@ func (t *TaskTicker) recoverAll(forceRecover bool) {
 // ============================================================
 
 type taskScope struct {
-	TeamID   uuid.UUID
-	TenantID uuid.UUID
-	Channel  string // from task's origin channel
-	ChatID   string
+	TeamID  uuid.UUID
+	Channel string // from task's origin channel
+	ChatID  string
 }
 
 // notifyLeaders sends a batched system message per (teamID, channel, chatID) scope to the leader.
@@ -190,20 +189,16 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 	// Group by (team_id, channel, chat_id) → one message per scope.
 	byScope := map[taskScope][]store.RecoveredTaskInfo{}
 	for _, task := range tasks {
-		key := taskScope{TeamID: task.TeamID, TenantID: task.TenantID, Channel: task.Channel, ChatID: task.ChatID}
+		key := taskScope{TeamID: task.TeamID, Channel: task.Channel, ChatID: task.ChatID}
 		byScope[key] = append(byScope[key], task)
 	}
 
 	// Cache team+lead lookups (same team may have multiple scopes).
-	// Composite key includes TenantID to clarify multi-tenant intent (UUIDs are globally
-	// unique but composite key makes the isolation boundary explicit and future-proof).
 	type teamCacheKey struct {
-		TeamID   uuid.UUID
-		TenantID uuid.UUID
+		TeamID uuid.UUID
 	}
 	type leadCacheKey struct {
-		AgentID  uuid.UUID
-		TenantID uuid.UUID
+		AgentID uuid.UUID
 	}
 	teamCache := map[teamCacheKey]*store.TeamData{}
 	leadCache := map[leadCacheKey]*store.AgentData{}
@@ -211,34 +206,33 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 	for scope, scopeTasks := range byScope {
 		scopeCtx := ctx
 
-		teamKey := teamCacheKey{TeamID: scope.TeamID, TenantID: scope.TenantID}
+		teamKey := teamCacheKey{TeamID: scope.TeamID}
 		team := teamCache[teamKey]
 		if team == nil {
 			var err error
 			team, err = t.teams.GetTeam(scopeCtx, scope.TeamID)
 			if err != nil {
-				slog.Warn("task_ticker: get team failed", "team_id", scope.TeamID, "tenant_id", scope.TenantID, "error", err)
+				slog.Warn("task_ticker: get team failed", "team_id", scope.TeamID, "error", err)
 				continue
 			}
 			if team == nil {
-				// GetTeam can return (nil, nil) when tenant ctx is missing or team is deleted.
-				slog.Warn("task_ticker: team not found (nil)", "team_id", scope.TeamID, "tenant_id", scope.TenantID)
+				slog.Warn("task_ticker: team not found (nil)", "team_id", scope.TeamID)
 				continue
 			}
 			teamCache[teamKey] = team
 		}
 
-		leadKey := leadCacheKey{AgentID: team.LeadAgentID, TenantID: scope.TenantID}
+		leadKey := leadCacheKey{AgentID: team.LeadAgentID}
 		lead := leadCache[leadKey]
 		if lead == nil {
 			var err error
 			lead, err = t.agents.GetByID(scopeCtx, team.LeadAgentID)
 			if err != nil {
-				slog.Warn("task_ticker: get lead agent failed", "agent_id", team.LeadAgentID, "tenant_id", scope.TenantID, "error", err)
+				slog.Warn("task_ticker: get lead agent failed", "agent_id", team.LeadAgentID, "error", err)
 				continue
 			}
 			if lead == nil {
-				slog.Warn("task_ticker: lead agent not found (nil)", "agent_id", team.LeadAgentID, "tenant_id", scope.TenantID)
+				slog.Warn("task_ticker: lead agent not found (nil)", "agent_id", team.LeadAgentID)
 				continue
 			}
 			leadCache[leadKey] = lead
@@ -316,7 +310,7 @@ func (t *TaskTicker) broadcastStaleEvents(ctx context.Context, tasks []store.Rec
 			continue
 		}
 		seen[task.TeamID] = true
-		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, task.TenantID, tools.BuildTaskEventPayload(
+		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, uuid.Nil, tools.BuildTaskEventPayload(
 			task.TeamID.String(), "",
 			store.TeamTaskStatusStale,
 			"system", "task_ticker",

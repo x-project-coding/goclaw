@@ -78,7 +78,6 @@ func makePromptCfg(t *testing.T) hooks.HookConfig {
 func makePromptEv() hooks.Event {
 	return hooks.Event{
 		EventID:   "evt-1",
-		TenantID:  uuid.New(),
 		HookEvent: hooks.EventPreToolUse,
 		ToolName:  "exec",
 		ToolInput: map[string]any{"cmd": "ls -la"},

@@ -93,18 +93,13 @@ func (h *HandlerType) UnmarshalJSON(b []byte) error {
 type Scope string
 
 const (
-	// ScopeGlobal hooks apply to all tenants. Stored with sentinel UUID as tenant_id.
+	// ScopeGlobal hooks apply to all users. Stored with sentinel UUID scope.
 	ScopeGlobal Scope = "global"
 	// ScopeTenant hooks are scoped to a specific tenant.
 	ScopeTenant Scope = "tenant"
 	// ScopeAgent hooks are scoped to a specific agent within a tenant.
 	ScopeAgent Scope = "agent"
 )
-
-// SentinelTenantID is the tenant_id value used for global-scope hooks.
-// In v4 single-user world there is no multi-tenant routing; uuid.Nil is used
-// as the sentinel (no specific tenant).
-var SentinelTenantID = uuid.Nil
 
 // Decision is the outcome returned by a hook execution.
 type Decision string
@@ -155,7 +150,6 @@ type FireResult struct {
 // nullable columns.
 type HookConfig struct {
 	ID          uuid.UUID          `json:"id"`
-	TenantID    uuid.UUID          `json:"tenant_id"`
 	AgentID     *uuid.UUID         `json:"agent_id,omitempty"`     // DEPRECATED: kept for JSON backward compat
 	AgentIDs    []uuid.UUID        `json:"agent_ids,omitempty"`
 	Event       HookEvent          `json:"event"`
@@ -203,7 +197,6 @@ type Event struct {
 	// Used as part of the dedup key in hook_executions.
 	EventID   string
 	SessionID string
-	TenantID  uuid.UUID
 	// UserID is the authenticated user's UUID. Used for per-user budget
 	// enforcement in the prompt handler. uuid.Nil for group-prefix senders
 	// (no per-user budget applies).

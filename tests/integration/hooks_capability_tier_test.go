@@ -77,7 +77,6 @@ func TestHooksC1_UISourceMutationDenied(t *testing.T) {
 
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c1",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 		RawInput:  "original",
@@ -118,7 +117,7 @@ func TestHooksC2_BuiltinSourceMutationApplied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load pii-redactor.js: %v", err)
 	}
-	cfg := hookCfgScript(hooks.SentinelTenantID, hooks.EventUserPromptSubmit,
+	cfg := hookCfgScript(uuid.Nil, hooks.EventUserPromptSubmit,
 		hooks.SourceBuiltin, string(src))
 	cfg.Scope = hooks.ScopeGlobal
 	cfg.ID = builtin.BuiltinEventID("pii-redactor", string(hooks.EventUserPromptSubmit))
@@ -134,7 +133,6 @@ func TestHooksC2_BuiltinSourceMutationApplied(t *testing.T) {
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c2",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 		RawInput:  "ping me at user@example.com",
@@ -164,7 +162,7 @@ func TestHooksC3_AllowlistDropsOutOfListField(t *testing.T) {
 	tenantID, agentID := seedTenantAgent(t, db)
 	hs := pg.NewPGHookStore(db)
 
-	cfg := hookCfgScript(hooks.SentinelTenantID, hooks.EventPreToolUse,
+	cfg := hookCfgScript(uuid.Nil, hooks.EventPreToolUse,
 		hooks.SourceBuiltin, mutateNonlistedJS)
 	cfg.Scope = hooks.ScopeGlobal
 	cfg.ID = uuid.New()
@@ -183,7 +181,6 @@ func TestHooksC3_AllowlistDropsOutOfListField(t *testing.T) {
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c3",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		ToolName:  "shell",
 		ToolInput: map[string]any{"command": "ls"},
@@ -220,7 +217,6 @@ func TestHooksC4_AskCollapsesToBlock(t *testing.T) {
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c4",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	})
@@ -254,7 +250,6 @@ func TestHooksC5_DeepFreezeBlocksInPlaceMutation(t *testing.T) {
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c5",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		ToolName:  "shell",
 		ToolInput: originalToolInput,
@@ -288,7 +283,7 @@ func TestHooksC6_ChainMutationVisibleDownstream(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	// Hook 1: builtin rewrites rawInput.
-	hook1 := hookCfgScript(hooks.SentinelTenantID, hooks.EventUserPromptSubmit,
+	hook1 := hookCfgScript(uuid.Nil, hooks.EventUserPromptSubmit,
 		hooks.SourceBuiltin, mutateRawInputJS)
 	hook1.Scope = hooks.ScopeGlobal
 	hook1.ID = uuid.New()
@@ -322,7 +317,6 @@ func TestHooksC6_ChainMutationVisibleDownstream(t *testing.T) {
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
 		EventID:   "c6",
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 		RawInput:  "original",
@@ -355,7 +349,7 @@ func TestHooksC_SmokeAllow(t *testing.T) {
 
 	d := newCapDispatcher(t, hs)
 	res, err := d.Fire(tenantCtx(tenantID), hooks.Event{
-		EventID: "c-smoke", TenantID: tenantID, AgentID: agentID,
+		EventID: "c-smoke", AgentID: agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	})
 	if err != nil {

@@ -50,7 +50,6 @@ func (sm *SubagentManager) persistCreate(ctx context.Context, task *SubagentTask
 
 	data := &store.SubagentTaskData{
 		BaseModel:      store.BaseModel{ID: task.dbID},
-		TenantID:       task.OriginTenantID,
 		ParentAgentKey: task.ParentID,
 		SessionKey:     sessionKey,
 		Subject:        task.Label,

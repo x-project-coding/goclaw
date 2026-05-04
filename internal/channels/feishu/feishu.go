@@ -167,7 +167,7 @@ func (c *Channel) SetPendingCompaction(cfg *channels.CompactionConfig) {
 	}
 }
 
-// SetPendingHistoryTenantID propagates tenant_id to the pending history for DB operations.
+// SetPendingHistoryTenantID propagates the scope UUID to pending history for DB operations.
 func (c *Channel) SetPendingHistoryTenantID(id uuid.UUID) {
 	if gh := c.GroupHistory(); gh != nil {
 		gh.SetTenantID(id)

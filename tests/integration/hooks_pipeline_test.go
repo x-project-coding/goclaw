@@ -46,7 +46,6 @@ func TestHooksIntegration_HTTPHandler_AllowWritesAudit(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	cfg := hooks.HookConfig{
-		TenantID:    tenantID,
 		AgentID:     &agentID,
 		Scope:       hooks.ScopeAgent,
 		Event:       hooks.EventUserPromptSubmit,
@@ -74,7 +73,6 @@ func TestHooksIntegration_HTTPHandler_AllowWritesAudit(t *testing.T) {
 
 	ev := hooks.Event{
 		EventID:   uuid.NewString(),
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
@@ -117,7 +115,6 @@ func TestHooksIntegration_HTTPHandler_Block(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	cfg := hooks.HookConfig{
-		TenantID:    tenantID,
 		AgentID:     &agentID,
 		Scope:       hooks.ScopeAgent,
 		Event:       hooks.EventUserPromptSubmit,
@@ -145,7 +142,6 @@ func TestHooksIntegration_HTTPHandler_Block(t *testing.T) {
 
 	ev := hooks.Event{
 		EventID:   uuid.NewString(),
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
@@ -179,7 +175,6 @@ func TestHooksIntegration_CommandHandler_LiteEdition(t *testing.T) {
 	hs := pg.NewPGHookStore(db)
 
 	cfg := hooks.HookConfig{
-		TenantID:    tenantID,
 		AgentID:     &agentID,
 		Scope:       hooks.ScopeAgent,
 		Event:       hooks.EventUserPromptSubmit,
@@ -207,7 +202,6 @@ func TestHooksIntegration_CommandHandler_LiteEdition(t *testing.T) {
 
 	ev := hooks.Event{
 		EventID:   uuid.NewString(),
-		TenantID:  tenantID,
 		AgentID:   agentID,
 		HookEvent: hooks.EventUserPromptSubmit,
 	}
@@ -262,7 +256,6 @@ func TestHooksIntegration_DelegateBridge_SubscribesNoPanic(t *testing.T) {
 		ID:       uuid.NewString(),
 		Type:     eventbus.EventDelegateCompleted,
 		SourceID: uuid.NewString(), // unique so dedup doesn't swallow
-		TenantID: tenantID.String(),
 		AgentID:  agentID.String(),
 		Payload: eventbus.DelegateCompletedPayload{
 			DelegationID: uuid.NewString(),

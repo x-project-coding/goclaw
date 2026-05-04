@@ -146,7 +146,7 @@ func (w *dreamingWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	// Resolve provider for this tenant at processing time.
 	provider, model := w.resolveProvider(ctx)
 	if provider == nil {
-		slog.Warn("dreaming: no provider available", "tenant", event.TenantID, "agent", agentID)
+		slog.Warn("dreaming: no provider available", "agent", agentID)
 		return nil
 	}
 

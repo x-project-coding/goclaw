@@ -258,12 +258,11 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			// Filesystem path segment must use agent_key, not UUID — matches
 			// the v2 path in loop_pipeline_callbacks.go and the session_key
 			// anchor. See docs/agent-identity-conventions.md.
-			AgentID:    l.id,
-			AgentType:  l.agentType,
-			UserID:     req.UserID,
-			ChatID:     req.ChatID,
-			TenantSlug: "",
-			PeerKind:   req.PeerKind,
+			AgentID:   l.id,
+			AgentType: l.agentType,
+			UserID:    req.UserID,
+			ChatID:    req.ChatID,
+			PeerKind:  req.PeerKind,
 			TeamID:     teamIDPtr,
 			TeamConfig: teamWSConfig,
 			BaseDir:    l.dataDir,

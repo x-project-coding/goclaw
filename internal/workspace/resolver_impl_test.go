@@ -15,8 +15,6 @@ func TestResolve_PersonalOpen(t *testing.T) {
 		AgentID:    "agent-123",
 		AgentType:  "open",
 		UserID:     "user-456",
-		TenantID:   "tenant-uuid-1",
-		TenantSlug: "acme",
 		PeerKind:   "direct",
 		BaseDir:    base,
 	})
@@ -48,8 +46,6 @@ func TestResolve_PersonalGroup(t *testing.T) {
 		AgentType:  "open",
 		UserID:     "user-456",
 		ChatID:     "chat-789",
-		TenantID:   "tenant-uuid-1",
-		TenantSlug: "acme",
 		PeerKind:   "group",
 		BaseDir:    base,
 	})
@@ -71,8 +67,6 @@ func TestResolve_PredefinedShared(t *testing.T) {
 		AgentID:    "agent-pre",
 		AgentType:  "predefined",
 		UserID:     "user-1",
-		TenantID:   "tenant-uuid-1",
-		TenantSlug: "acme",
 		PeerKind:   "direct",
 		BaseDir:    base,
 	})
@@ -96,8 +90,6 @@ func TestResolve_TeamShared(t *testing.T) {
 		AgentType:  "open",
 		UserID:     "user-1",
 		ChatID:     "chat-1",
-		TenantID:   "tenant-uuid-1",
-		TenantSlug: "acme",
 		PeerKind:   "direct",
 		TeamID:     &teamID,
 		TeamConfig: &TeamWorkspaceConfig{WorkspaceScope: "shared"},
@@ -131,8 +123,6 @@ func TestResolve_TeamIsolated(t *testing.T) {
 		AgentType:  "open",
 		UserID:     "user-1",
 		ChatID:     "chat-1",
-		TenantID:   "tenant-uuid-1",
-		TenantSlug: "acme",
 		PeerKind:   "direct",
 		TeamID:     &teamID,
 		TeamConfig: &TeamWorkspaceConfig{WorkspaceScope: "isolated"},
@@ -244,7 +234,6 @@ func TestResolve_MasterTenant(t *testing.T) {
 		AgentID:   "agent-1",
 		AgentType: "open",
 		UserID:    "user-1",
-		TenantID:  "0193a5b0-7000-7000-8000-000000000001",
 		PeerKind:  "direct",
 		BaseDir:   base,
 	})

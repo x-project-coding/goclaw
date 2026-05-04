@@ -45,9 +45,9 @@ type VaultGraphListOptions struct {
 // VaultGraphStore provides read-only graph data for visualization.
 type VaultGraphStore interface {
 	// ListGraphNodes returns lightweight nodes with pre-computed degree.
-	ListGraphNodes(ctx context.Context, tenantID, agentID string, opts VaultGraphListOptions) ([]GraphNode, int, error)
+	ListGraphNodes(ctx context.Context, agentID string, opts VaultGraphListOptions) ([]GraphNode, int, error)
 	// ListGraphEdges returns lightweight edges for nodes in scope.
-	ListGraphEdges(ctx context.Context, tenantID, agentID string, opts VaultGraphListOptions) ([]GraphEdge, int, error)
+	ListGraphEdges(ctx context.Context, agentID string, opts VaultGraphListOptions) ([]GraphEdge, int, error)
 }
 
 // KGGraphStore provides read-only KG graph data for visualization.

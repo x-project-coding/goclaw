@@ -26,7 +26,7 @@ type fakeVaultStore struct {
 	targetsErr error                           // injected error for GetDocumentsByIDs
 }
 
-func (f *fakeVaultStore) GetDocumentByID(_ context.Context, _ string, id string) (*store.VaultDocument, error) {
+func (f *fakeVaultStore) GetDocumentByID(_ context.Context, id string) (*store.VaultDocument, error) {
 	if f.byID == nil {
 		return nil, os.ErrNotExist
 	}
@@ -37,7 +37,7 @@ func (f *fakeVaultStore) GetDocumentByID(_ context.Context, _ string, id string)
 	return doc, nil
 }
 
-func (f *fakeVaultStore) GetOutLinks(_ context.Context, _, docID string) ([]store.VaultLink, error) {
+func (f *fakeVaultStore) GetOutLinks(_ context.Context, docID string) ([]store.VaultLink, error) {
 	if f.outLinkErr != nil {
 		return nil, f.outLinkErr
 	}
@@ -47,7 +47,7 @@ func (f *fakeVaultStore) GetOutLinks(_ context.Context, _, docID string) ([]stor
 	return f.outlinks[docID], nil
 }
 
-func (f *fakeVaultStore) GetDocumentsByIDs(_ context.Context, _ string, docIDs []string) ([]store.VaultDocument, error) {
+func (f *fakeVaultStore) GetDocumentsByIDs(_ context.Context, docIDs []string) ([]store.VaultDocument, error) {
 	if f.targetsErr != nil {
 		return nil, f.targetsErr
 	}
@@ -113,9 +113,8 @@ func makeCtx(tenantID, agentID uuid.UUID) context.Context {
 func makeCtxWithTeam(tenantID, agentID uuid.UUID, teamID string) context.Context {
 	ctx := makeCtx(tenantID, agentID)
 	return store.WithRunContext(ctx, &store.RunContext{
-		TenantID: tenantID,
-		AgentID:  agentID,
-		TeamID:   teamID,
+		AgentID: agentID,
+		TeamID:  teamID,
 	})
 }
 
@@ -125,8 +124,7 @@ func TestVaultRead_SharedScope_Allow(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "shared/notes.md", Title: "Notes",
+		ID: docID.String(),		Scope: "shared", Path: "shared/notes.md", Title: "Notes",
 		DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
@@ -152,8 +150,7 @@ func TestVaultRead_PersonalScope_Match_Allow(t *testing.T) {
 	docID := uuid.New()
 	aid := agentID.String()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		AgentID: &aid, Scope: "personal", Path: "memo.md",
+		ID: docID.String(),		AgentID: &aid, Scope: "personal", Path: "memo.md",
 		Title: "Memo", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
@@ -177,8 +174,7 @@ func TestVaultRead_PersonalScope_Mismatch_Deny(t *testing.T) {
 	docID := uuid.New()
 	aid := agentA.String()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		AgentID: &aid, Scope: "personal", Path: "memo.md",
+		ID: docID.String(),		AgentID: &aid, Scope: "personal", Path: "memo.md",
 		Title: "Memo", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
@@ -199,8 +195,7 @@ func TestVaultRead_TeamScope_Match_Allow(t *testing.T) {
 	teamID := uuid.New().String()
 	tid := teamID
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		TeamID: &tid, Scope: "team", Path: "team/doc.md",
+		ID: docID.String(),		TeamID: &tid, Scope: "team", Path: "team/doc.md",
 		Title: "Team Doc", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
@@ -223,8 +218,7 @@ func TestVaultRead_TeamScope_NoContext_Deny(t *testing.T) {
 	docID := uuid.New()
 	tid := uuid.New().String()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		TeamID: &tid, Scope: "team", Path: "team/doc.md",
+		ID: docID.String(),		TeamID: &tid, Scope: "team", Path: "team/doc.md",
 		Title: "Team Doc", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
@@ -254,8 +248,7 @@ func TestVaultRead_TeamScope_IsolatedCrossChat_Deny(t *testing.T) {
 	tid := teamID
 	chatA := "chatA"
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		TeamID: &tid, ChatID: &chatA,
+		ID: docID.String(),		TeamID: &tid, ChatID: &chatA,
 		Scope: "team", Path: "team/doc.md",
 		Title: "Team Doc", DocType: "note",
 	}
@@ -266,7 +259,7 @@ func TestVaultRead_TeamScope_IsolatedCrossChat_Deny(t *testing.T) {
 	ctx := store.WithRunContext(
 		makeCtx(tenantID, agentID),
 		&store.RunContext{
-			TenantID: tenantID, AgentID: agentID,
+			AgentID: agentID,
 			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatB",
 		})
 	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
@@ -284,8 +277,7 @@ func TestVaultRead_TeamScope_IsolatedSameChat_Allow(t *testing.T) {
 	tid := teamID
 	chatA := "chatA"
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		TeamID: &tid, ChatID: &chatA,
+		ID: docID.String(),		TeamID: &tid, ChatID: &chatA,
 		Scope: "team", Path: "team/doc.md",
 		Title: "Team Doc", DocType: "note",
 	}
@@ -295,7 +287,7 @@ func TestVaultRead_TeamScope_IsolatedSameChat_Allow(t *testing.T) {
 	ctx := store.WithRunContext(
 		makeCtx(tenantID, agentID),
 		&store.RunContext{
-			TenantID: tenantID, AgentID: agentID,
+			AgentID: agentID,
 			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatA",
 		})
 	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
@@ -312,8 +304,7 @@ func TestVaultRead_TeamScope_IsolatedTeamWide_Allow(t *testing.T) {
 	teamID := uuid.New().String()
 	tid := teamID
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		TeamID: &tid, ChatID: nil, // team-wide
+		ID: docID.String(),		TeamID: &tid, ChatID: nil, // team-wide
 		Scope: "team", Path: "team/doc.md",
 		Title: "Team Doc", DocType: "note",
 	}
@@ -323,7 +314,7 @@ func TestVaultRead_TeamScope_IsolatedTeamWide_Allow(t *testing.T) {
 	ctx := store.WithRunContext(
 		makeCtx(tenantID, agentID),
 		&store.RunContext{
-			TenantID: tenantID, AgentID: agentID,
+			AgentID: agentID,
 			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatZ",
 		})
 	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
@@ -365,8 +356,7 @@ func TestVaultRead_MediaDocType_Rejected(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "pic.png", Title: "Pic", DocType: "media",
+		ID: docID.String(),		Scope: "shared", Path: "pic.png", Title: "Pic", DocType: "media",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 	writeFile(t, ws, "pic.png", "pretend-png")
@@ -384,8 +374,7 @@ func TestVaultRead_BinaryExtension_Rejected(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "report.PDF", Title: "Rep", DocType: "document",
+		ID: docID.String(),		Scope: "shared", Path: "report.PDF", Title: "Rep", DocType: "document",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 	writeFile(t, ws, "report.PDF", "%PDF-1.7")
@@ -403,8 +392,7 @@ func TestVaultRead_BinaryContent_UTF8Rejected(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "blob.txt", Title: "Blob", DocType: "note",
+		ID: docID.String(),		Scope: "shared", Path: "blob.txt", Title: "Blob", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 	// Invalid UTF-8: stray 0xC3 byte with no continuation.
@@ -423,8 +411,7 @@ func TestVaultRead_Oversize_Truncated(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "big.md", Title: "Big", DocType: "note",
+		ID: docID.String(),		Scope: "shared", Path: "big.md", Title: "Big", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 	// 30KB of 'a' — fits in UTF-8 sniff check, but larger than max_bytes below.
@@ -447,8 +434,7 @@ func TestVaultRead_SymlinkEscape_Denied(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "escape.md", Title: "Esc", DocType: "note",
+		ID: docID.String(),		Scope: "shared", Path: "escape.md", Title: "Esc", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 
@@ -475,8 +461,7 @@ func TestVaultRead_SymlinkEscape_Denied(t *testing.T) {
 // sharedDoc returns a minimal shared-scope vault doc.
 func sharedDoc(tenantID uuid.UUID, title, path string) *store.VaultDocument {
 	return &store.VaultDocument{
-		ID: uuid.New().String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: path, Title: title, DocType: "note",
+		ID: uuid.New().String(),		Scope: "shared", Path: path, Title: title, DocType: "note",
 	}
 }
 
@@ -484,8 +469,7 @@ func sharedDoc(tenantID uuid.UUID, title, path string) *store.VaultDocument {
 func personalDoc(tenantID, agentID uuid.UUID, title, path string) *store.VaultDocument {
 	aid := agentID.String()
 	return &store.VaultDocument{
-		ID: uuid.New().String(), TenantID: tenantID.String(),
-		AgentID: &aid, Scope: "personal", Path: path, Title: title, DocType: "note",
+		ID: uuid.New().String(),		AgentID: &aid, Scope: "personal", Path: path, Title: title, DocType: "note",
 	}
 }
 
@@ -493,8 +477,7 @@ func personalDoc(tenantID, agentID uuid.UUID, title, path string) *store.VaultDo
 func teamDoc(tenantID uuid.UUID, teamID, title, path string) *store.VaultDocument {
 	tid := teamID
 	return &store.VaultDocument{
-		ID: uuid.New().String(), TenantID: tenantID.String(),
-		TeamID: &tid, Scope: "team", Path: path, Title: title, DocType: "note",
+		ID: uuid.New().String(),		TeamID: &tid, Scope: "team", Path: path, Title: title, DocType: "note",
 	}
 }
 
@@ -776,8 +759,7 @@ func TestVaultRead_MaxBytes_ClampCeiling(t *testing.T) {
 	agentID := uuid.New()
 	docID := uuid.New()
 	doc := &store.VaultDocument{
-		ID: docID.String(), TenantID: tenantID.String(),
-		Scope: "shared", Path: "c.md", Title: "C", DocType: "note",
+		ID: docID.String(),		Scope: "shared", Path: "c.md", Title: "C", DocType: "note",
 	}
 	tool, ws := newVaultReadTestTool(t, doc)
 	// 1.2MB body — should be truncated to 1MB hard ceiling regardless of arg.

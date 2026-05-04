@@ -29,13 +29,11 @@ func SubscribeDelegateEvents(bus eventbus.DomainEventBus, d Dispatcher) {
 			return nil
 		}
 
-		tenantID, _ := uuid.Parse(event.TenantID)
 		agentID, _ := uuid.Parse(event.AgentID)
 
 		ev := Event{
 			EventID:   delegationID,
 			SessionID: event.SourceID,
-			TenantID:  tenantID,
 			AgentID:   agentID,
 			HookEvent: EventSubagentStop,
 		}

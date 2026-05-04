@@ -10,7 +10,7 @@ import (
 
 // ListUnenrichedDocs returns documents with empty summary for re-enrichment.
 // limit=0 means no limit.
-func (s *PGVaultStore) ListUnenrichedDocs(ctx context.Context, tenantID string, limit int) ([]store.VaultDocument, error) {
+func (s *PGVaultStore) ListUnenrichedDocs(ctx context.Context, limit int) ([]store.VaultDocument, error) {
 	q := `SELECT ` + vaultDocSelectCols + `
 		FROM vault_documents
 		WHERE (summary IS NULL OR summary = '')
@@ -30,7 +30,7 @@ func (s *PGVaultStore) ListUnenrichedDocs(ctx context.Context, tenantID string, 
 }
 
 // UpdateSummaryAndReembed updates the document summary and re-embeds the combined text.
-func (s *PGVaultStore) UpdateSummaryAndReembed(ctx context.Context, tenantID, docID, summary string) error {
+func (s *PGVaultStore) UpdateSummaryAndReembed(ctx context.Context, docID, summary string) error {
 	did, err := parseUUID(docID)
 	if err != nil {
 		return fmt.Errorf("vault update summary: doc: %w", err)
@@ -68,7 +68,7 @@ func (s *PGVaultStore) UpdateSummaryAndReembed(ctx context.Context, tenantID, do
 // FindSimilarDocs finds documents with similar embeddings to the given docID.
 // Returns top-N neighbors excluding the source doc itself.
 // Empty agentID means no agent filter.
-func (s *PGVaultStore) FindSimilarDocs(ctx context.Context, tenantID, agentID, docID string, limit int) ([]store.VaultSearchResult, error) {
+func (s *PGVaultStore) FindSimilarDocs(ctx context.Context, agentID, docID string, limit int) ([]store.VaultSearchResult, error) {
 	aid, err := optAgentUUID(&agentID)
 	if err != nil {
 		return nil, fmt.Errorf("find similar: agent: %w", err)

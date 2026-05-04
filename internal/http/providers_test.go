@@ -26,7 +26,6 @@ func TestProvidersHandlerRegisterInMemoryAppliesCodexPoolDefaults(t *testing.T) 
 
 	provider := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     uuid.New(),
 		Name:         "openai-codex",
 		ProviderType: store.ProviderChatGPTOAuth,
 		APIKey:       "token",
@@ -72,7 +71,6 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForAnthropic(t *testing.T) {
 
 	provider := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     uuid.New(),
 		Name:         "my-anthropic",
 		ProviderType: store.ProviderAnthropicNative,
 		APIKey:       "sk-ant-test",
@@ -111,7 +109,6 @@ func TestProvidersHandlerRegisterInMemoryUsesDBNameForClaudeCLI(t *testing.T) {
 
 	provider := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     uuid.New(),
 		Name:         "claude-max",
 		ProviderType: store.ProviderClaudeCLI,
 		APIBase:      fakeCLI,
@@ -147,7 +144,6 @@ func TestProvidersHandlerRegisterInMemorySkipsClaudeCLIWhenBinaryMissing(t *test
 
 	provider := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     uuid.New(),
 		Name:         "claude-broken",
 		ProviderType: store.ProviderClaudeCLI,
 		APIBase:      missingPath,
@@ -174,7 +170,6 @@ func TestProvidersHandlerRegisterInMemoryAnthropicUsesModelRegistry(t *testing.T
 
 	provider := &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     uuid.New(),
 		Name:         "my-anthropic",
 		ProviderType: store.ProviderAnthropicNative,
 		APIKey:       "sk-ant-test",

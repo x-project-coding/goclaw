@@ -45,8 +45,6 @@ type vaultGraphResponse struct {
 
 func (h *VaultGraphHandler) handleVaultGraph(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tenantID := uuid.Nil.String()
-
 	agentID := r.URL.Query().Get("agent_id")
 	teamID := r.URL.Query().Get("team_id")
 
@@ -64,7 +62,7 @@ func (h *VaultGraphHandler) handleVaultGraph(w http.ResponseWriter, r *http.Requ
 		h.applyNonOwnerTeamScope(ctx, &opts)
 	}
 
-	nodes, totalNodes, err := h.vaultGraph.ListGraphNodes(ctx, tenantID, agentID, opts)
+	nodes, totalNodes, err := h.vaultGraph.ListGraphNodes(ctx, agentID, opts)
 	if err != nil {
 		slog.Warn("vault_graph.nodes failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
@@ -74,7 +72,7 @@ func (h *VaultGraphHandler) handleVaultGraph(w http.ResponseWriter, r *http.Requ
 		nodes = []store.GraphNode{}
 	}
 
-	edges, totalEdges, err := h.vaultGraph.ListGraphEdges(ctx, tenantID, agentID, opts)
+	edges, totalEdges, err := h.vaultGraph.ListGraphEdges(ctx, agentID, opts)
 	if err != nil {
 		slog.Warn("vault_graph.edges failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})

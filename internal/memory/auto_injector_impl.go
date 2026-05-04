@@ -104,11 +104,7 @@ func (a *pgAutoInjector) Inject(ctx context.Context, params InjectParams) (*Inje
 
 // recordRetrievalMetric records an auto-inject retrieval metric in a background goroutine.
 func (a *pgAutoInjector) recordRetrievalMetric(params InjectParams, result *InjectResult) {
-	if a.metricsStore == nil || params.TenantID == "" {
-		return
-	}
-	tenantID, err := uuid.Parse(params.TenantID)
-	if err != nil {
+	if a.metricsStore == nil || params.AgentID == "" {
 		return
 	}
 	agentID, err := uuid.Parse(params.AgentID)
@@ -126,7 +122,6 @@ func (a *pgAutoInjector) recordRetrievalMetric(params InjectParams, result *Inje
 		})
 		if err := a.metricsStore.RecordMetric(bgCtx, store.EvolutionMetric{
 			ID:         uuid.New(),
-			TenantID:   tenantID,
 			AgentID:    agentID,
 			MetricType: store.MetricRetrieval,
 			MetricKey:  "auto_inject",

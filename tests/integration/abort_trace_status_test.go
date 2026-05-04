@@ -132,9 +132,8 @@ func TestCollector_BroadcastsStatusEvent(t *testing.T) {
 		}{payload, tid}
 		// Also emit to message bus for WS subscribers
 		msgBus.Broadcast(bus.Event{
-			Name:     protocol.EventTraceStatusChanged,
-			Payload:  payload,
-			TenantID: tid,
+			Name:    protocol.EventTraceStatusChanged,
+			Payload: payload,
 		})
 	}
 	collector.SetStatusBroadcaster(broadcaster)

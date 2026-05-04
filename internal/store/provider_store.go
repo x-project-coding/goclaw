@@ -75,7 +75,6 @@ var ValidProviderTypes = map[string]bool{
 // LLMProviderData represents an LLM provider configuration.
 type LLMProviderData struct {
 	BaseModel
-	TenantID     uuid.UUID       `json:"tenant_id,omitempty" db:"tenant_id"`
 	Name         string          `json:"name" db:"name"`
 	DisplayName  string          `json:"display_name,omitempty" db:"display_name"`
 	ProviderType string          `json:"provider_type" db:"provider_type"`

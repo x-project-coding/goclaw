@@ -5,14 +5,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // handleListAllDocuments lists vault documents across all agents in tenant.
 // Optional query param agent_id to filter by specific agent.
 func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
 	agentID := r.URL.Query().Get("agent_id")
 	opts := h.parseListOpts(r)
 
@@ -27,7 +25,7 @@ func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Req
 		h.applyNonOwnerTeamScope(r.Context(), &opts)
 	}
 
-	docs, err := h.store.ListDocuments(r.Context(), tenantID.String(), agentID, opts)
+	docs, err := h.store.ListDocuments(r.Context(), agentID, opts)
 	if err != nil {
 		slog.Warn("vault.list_all failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -36,7 +34,7 @@ func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Req
 	if docs == nil {
 		docs = []store.VaultDocument{}
 	}
-	total, cntErr := h.store.CountDocuments(r.Context(), tenantID.String(), agentID, opts)
+	total, cntErr := h.store.CountDocuments(r.Context(), agentID, opts)
 	if cntErr != nil {
 		slog.Warn("vault.count failed", "error", cntErr)
 	}
@@ -45,7 +43,6 @@ func (h *VaultHandler) handleListAllDocuments(w http.ResponseWriter, r *http.Req
 
 // handleListDocuments lists vault documents for a specific agent.
 func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
 	agentID := r.PathValue("agentID")
 	opts := h.parseListOpts(r)
 
@@ -58,7 +55,7 @@ func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Reques
 		h.applyNonOwnerTeamScope(r.Context(), &opts)
 	}
 
-	docs, err := h.store.ListDocuments(r.Context(), tenantID.String(), agentID, opts)
+	docs, err := h.store.ListDocuments(r.Context(), agentID, opts)
 	if err != nil {
 		slog.Warn("vault.list failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -67,7 +64,7 @@ func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Reques
 	if docs == nil {
 		docs = []store.VaultDocument{}
 	}
-	total, cntErr := h.store.CountDocuments(r.Context(), tenantID.String(), agentID, opts)
+	total, cntErr := h.store.CountDocuments(r.Context(), agentID, opts)
 	if cntErr != nil {
 		slog.Warn("vault.count failed", "error", cntErr)
 	}
@@ -76,11 +73,10 @@ func (h *VaultHandler) handleListDocuments(w http.ResponseWriter, r *http.Reques
 
 // handleGetDocument returns a single vault document by ID, scoped to the agent.
 func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 
-	doc, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
+	doc, err := h.store.GetDocumentByID(r.Context(), docID)
 	if err != nil {
 		slog.Warn("vault.get failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -110,7 +106,6 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 // handleCreateDocument creates a new vault document.
 func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := uuid.Nil
 	agentID := r.PathValue("agentID")
 
 	var body struct {
@@ -148,7 +143,6 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 	}
 
 	doc := &store.VaultDocument{
-		TenantID: tenantID.String(),
 		Path:     body.Path,
 		Title:    body.Title,
 		DocType:  body.DocType,
@@ -183,7 +177,7 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	// Re-fetch by ID (set via RETURNING) — unambiguous even when same path exists across teams.
-	created, _ := h.store.GetDocumentByID(r.Context(), tenantID.String(), doc.ID)
+	created, _ := h.store.GetDocumentByID(r.Context(), doc.ID)
 	if created != nil {
 		writeJSON(w, http.StatusCreated, created)
 	} else {
@@ -194,11 +188,10 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 // handleUpdateDocument updates an existing vault document.
 func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	locale := extractLocale(r)
-	tenantID := uuid.Nil
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 
-	existing, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
+	existing, err := h.store.GetDocumentByID(r.Context(), docID)
 	if err != nil || existing == nil || (agentID != "" && existing.AgentID != nil && *existing.AgentID != agentID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
@@ -247,7 +240,7 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	updated, _ := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
+	updated, _ := h.store.GetDocumentByID(r.Context(), docID)
 	if updated != nil {
 		writeJSON(w, http.StatusOK, updated)
 	} else {
@@ -257,11 +250,10 @@ func (h *VaultHandler) handleUpdateDocument(w http.ResponseWriter, r *http.Reque
 
 // handleDeleteDocument deletes a vault document by ID.
 func (h *VaultHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
 	agentID := r.PathValue("agentID")
 	docID := r.PathValue("docID")
 
-	existing, err := h.store.GetDocumentByID(r.Context(), tenantID.String(), docID)
+	existing, err := h.store.GetDocumentByID(r.Context(), docID)
 	if err != nil || existing == nil || (agentID != "" && existing.AgentID != nil && *existing.AgentID != agentID) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
@@ -281,7 +273,7 @@ func (h *VaultHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Reque
 	if existing.AgentID != nil {
 		deleteAgentID = *existing.AgentID
 	}
-	if err := h.store.DeleteDocument(r.Context(), tenantID.String(), deleteAgentID, existing.Path); err != nil {
+	if err := h.store.DeleteDocument(r.Context(), deleteAgentID, existing.Path); err != nil {
 		slog.Warn("vault.delete failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

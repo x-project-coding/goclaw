@@ -20,7 +20,6 @@ func newTestHandler() *ScriptHandler {
 func mkCfg(source string) hooks.HookConfig {
 	return hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeTenant,
@@ -36,7 +35,6 @@ func mkEvent() hooks.Event {
 	return hooks.Event{
 		EventID:   "evt-1",
 		SessionID: "sess-1",
-		TenantID:  uuid.New(),
 		AgentID:   uuid.New(),
 		ToolName:  "test_tool",
 		ToolInput: map[string]any{"path": "/tmp/x", "n": 3},

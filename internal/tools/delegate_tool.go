@@ -36,7 +36,6 @@ type DelegateRequest struct {
 	UserID       string
 	SenderID     string // real acting sender preserved through delegate announce re-ingress (#915)
 	Role         string // caller's RBAC role; bypasses per-user grants for admin/operator/owner (#915)
-	TenantID     string
 	Channel      string
 	ChatID       string
 	PeerKind     string
@@ -152,7 +151,6 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]any) *Result
 		UserID:       actorID,
 		SenderID:     store.SenderIDFromContext(ctx),
 		Role:         store.RoleFromContext(ctx),
-		TenantID:     uuid.Nil.String(),
 		Channel:      ToolChannelFromCtx(ctx),
 		ChatID:       ToolChatIDFromCtx(ctx),
 		PeerKind:     ToolPeerKindFromCtx(ctx),
@@ -173,7 +171,6 @@ func (t *DelegateTool) Execute(ctx context.Context, args map[string]any) *Result
 		evt := hooks.Event{
 			EventID:   uuid.NewString(),
 			SessionID: req.SessionKey,
-			TenantID:  parseUUIDOrNil(req.TenantID),
 			AgentID:   req.FromAgentID,
 			HookEvent: hooks.EventSubagentStart,
 			Depth:     hooks.DepthFrom(ctx),
@@ -317,15 +314,6 @@ func (t *DelegateTool) announceToParent(req DelegateRequest, content string, med
 	})
 }
 
-// parseUUIDOrNil parses s as a UUID; returns uuid.Nil on failure.
-func parseUUIDOrNil(s string) uuid.UUID {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil
-	}
-	return id
-}
-
 func (t *DelegateTool) emitEvent(ctx context.Context, eventType eventbus.EventType, payload any) {
 	if t.eventBus == nil {
 		return
@@ -333,7 +321,6 @@ func (t *DelegateTool) emitEvent(ctx context.Context, eventType eventbus.EventTy
 	t.eventBus.Publish(eventbus.DomainEvent{
 		ID:        uuid.New().String(),
 		Type:      eventType,
-		TenantID:  uuid.Nil.String(),
 		AgentID:   store.AgentIDFromContext(ctx).String(),
 		UserID:    store.ActorIDFromContext(ctx), // audit actor, not scope (#915)
 		Timestamp: time.Now().UTC(),

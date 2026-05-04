@@ -308,7 +308,6 @@ func TestEpisodicWorkerHandle_WithSummary(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventSessionCompleted,
-		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  uuid.New().String(),
 		UserID:   uuid.New().String(),
 		Payload: &eventbus.SessionCompletedPayload{
@@ -363,7 +362,6 @@ func TestEpisodicWorkerHandle_DuplicateSourceID(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventSessionCompleted,
-		TenantID: uuid.New().String(),
 		AgentID:  uuid.New().String(),
 		UserID:   uuid.New().String(),
 		Payload: &eventbus.SessionCompletedPayload{
@@ -395,7 +393,6 @@ func TestEpisodicWorkerHandle_NonUUIDAgentID(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventSessionCompleted,
-		TenantID: uuid.New().String(),
 		AgentID:  "goctech-leader", // agent key, not a UUID
 		UserID:   "test-user",
 		Payload: &eventbus.SessionCompletedPayload{
@@ -428,7 +425,6 @@ func TestEpisodicWorkerHandle_NonUUIDUserID(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventSessionCompleted,
-		TenantID: uuid.New().String(),
 		AgentID:  uuid.New().String(),
 		UserID:   "alice@example.com", // email, not UUID
 		Payload: &eventbus.SessionCompletedPayload{
@@ -450,32 +446,6 @@ func TestEpisodicWorkerHandle_NonUUIDUserID(t *testing.T) {
 	}
 }
 
-// TestEpisodicWorkerHandle_NonUUIDTenantID mirrors the agent_id guard for tenant_id.
-func TestEpisodicWorkerHandle_NonUUIDTenantID(t *testing.T) {
-	mockStore := &mockEpisodicStore{}
-	worker := &episodicWorker{store: mockStore}
-
-	ctx := context.Background()
-	event := eventbus.DomainEvent{
-		Type:     eventbus.EventSessionCompleted,
-		TenantID: "not-a-uuid",
-		AgentID:  uuid.New().String(),
-		UserID:   "test-user",
-		Payload: &eventbus.SessionCompletedPayload{
-			SessionKey:      "session-123",
-			CompactionCount: 0,
-			Summary:         "Summary",
-		},
-	}
-
-	err := worker.Handle(ctx, event)
-	if err == nil {
-		t.Fatal("Expected error for non-UUID tenant_id, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid tenant_id") {
-		t.Errorf("Expected 'invalid tenant_id' error, got: %v", err)
-	}
-}
 
 // Test semantic worker
 
@@ -503,7 +473,6 @@ func TestSemanticWorkerHandle_WithValidExtraction(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: uuid.New().String(),
 		AgentID:  uuid.New().String(),
 		UserID:   "test-user",
 		Payload: &eventbus.EpisodicCreatedPayload{
@@ -735,7 +704,6 @@ func TestDreamingWorkerHandle_MeetsThreshold(t *testing.T) {
 	ctx := context.Background()
 	event := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload:  &eventbus.EpisodicCreatedPayload{},
@@ -793,7 +761,6 @@ func TestDreamingWorkerHandle_DebounceSkip(t *testing.T) {
 	// First run should succeed
 	event1 := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: "00000000-0000-0000-0000-000000000001",
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload: &eventbus.EpisodicCreatedPayload{
@@ -815,7 +782,6 @@ func TestDreamingWorkerHandle_DebounceSkip(t *testing.T) {
 	mockEpisodic.promoted = make(map[string]bool) // reset for second run
 	event2 := eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
-		TenantID: uuid.New().String(),
 		AgentID:  "agent-123",
 		UserID:   "user-123",
 		Payload: &eventbus.EpisodicCreatedPayload{

@@ -193,7 +193,6 @@ func (m *HookMethods) handleUpdate(ctx context.Context, client *gateway.Client, 
 	// builtin-tier hook (which the dispatcher allows to mutate event input).
 	// Stripping `created_by` prevents lying about provenance.
 	delete(params.Updates, "id")
-	delete(params.Updates, "tenant_id")
 	delete(params.Updates, "version")
 	delete(params.Updates, "source")
 	delete(params.Updates, "created_by")
@@ -364,11 +363,6 @@ func (m *HookMethods) handleTest(ctx context.Context, client *gateway.Client, re
 			i18n.T(locale, i18n.MsgInvalidRequest, err.Error())))
 		return
 	}
-	// In v4 single-user world there is no tenant routing; tenant/agent scoped
-	// hooks leave TenantID as uuid.Nil.
-	if cfg.Scope == hooks.ScopeGlobal {
-		cfg.TenantID = hooks.SentinelTenantID
-	}
 	if err := cfg.Validate(m.edition); err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, err.Error()))
 		return
@@ -436,7 +430,6 @@ func parseHookConfigParams(raw json.RawMessage) (*hooks.HookConfig, error) {
 func parseTestEventParams(raw json.RawMessage, cfg *hooks.HookConfig) (hooks.Event, error) {
 	ev := hooks.Event{
 		EventID:   fmt.Sprintf("test-%d", time.Now().UnixNano()),
-		TenantID:  cfg.TenantID,
 		HookEvent: cfg.Event,
 	}
 	if cfg.AgentID != nil {

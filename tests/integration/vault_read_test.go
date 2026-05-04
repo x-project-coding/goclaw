@@ -108,7 +108,6 @@ func TestVaultRead_MediaRejected(t *testing.T) {
 
 	aid := agentID.String()
 	doc := &store.VaultDocument{
-		TenantID:    tenantID.String(),
 		AgentID:     &aid,
 		Scope:       "personal",
 		Path:        relPath,

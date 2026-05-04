@@ -79,7 +79,7 @@ func BridgeLegacySTT(mgr *Manager, cfg *config.Config) {
 		)
 
 		p := &legacyBridgeSTTProvider{
-			cfg:     media.STTConfig{ProxyURL: ch.URL, APIKey: ch.Key, TenantID: ch.TID, TimeoutSeconds: ch.TOut},
+			cfg:     media.STTConfig{ProxyURL: ch.URL, APIKey: ch.Key, STTTenantID: ch.TID, TimeoutSeconds: ch.TOut},
 			channel: ch.Name,
 		}
 		mgr.RegisterChannelSTT(ch.Name, p)

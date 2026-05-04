@@ -307,11 +307,10 @@ func wireTracingAndCron(
 			})
 		}
 		// Immediate status broadcast on every successful status write (bypasses 5s flush).
-		traceCollector.SetStatusBroadcaster(func(p tracing.TraceStatusPayload, tid uuid.UUID) {
+		traceCollector.SetStatusBroadcaster(func(p tracing.TraceStatusPayload, _ uuid.UUID) {
 			msgBus.Broadcast(bus.Event{
-				Name:     protocol.EventTraceStatusChanged,
-				Payload:  p,
-				TenantID: tid,
+				Name:    protocol.EventTraceStatusChanged,
+				Payload: p,
 			})
 		})
 		traceCollector.Start()
@@ -428,7 +427,7 @@ func setupMemoryEmbeddings(
 
 // seedSystemConfigs ensures system_configs has all expected keys.
 // Inserts missing keys from config.json without overwriting existing values.
-// v4 single-tenant: writes only the master scope (uuid.Nil tenant_id).
+// v4 single-user: writes only the master scope (uuid.Nil owner).
 func seedSystemConfigs(sc store.SystemConfigStore, cfg *config.Config) {
 	if sc == nil || cfg == nil {
 		return

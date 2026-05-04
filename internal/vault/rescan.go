@@ -12,11 +12,10 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// RescanParams holds input for tenant-wide workspace rescan.
+// RescanParams holds input for workspace rescan.
 // AgentMap and TeamSet are pre-loaded by the caller to avoid per-file DB lookups.
 type RescanParams struct {
-	TenantID  string
-	Workspace string            // absolute path to tenant's workspace root
+	Workspace string            // absolute path to workspace root
 	AgentMap  map[string]string // agent_key → agent UUID
 	TeamSet   map[string]bool   // team UUID → exists (for validation)
 }
@@ -81,9 +80,9 @@ func RescanWorkspace(ctx context.Context, params RescanParams, vs store.VaultSto
 
 		// Check if document already exists with same hash.
 		// Fallback: also check old stripped path (pre-fix records stored without prefix).
-		existing, _ := vs.GetDocument(ctx, params.TenantID, agentIDStr, relPath)
+		existing, _ := vs.GetDocument(ctx, agentIDStr, relPath)
 		if existing == nil && strippedPath != relPath {
-			existing, _ = vs.GetDocument(ctx, params.TenantID, agentIDStr, strippedPath)
+			existing, _ = vs.GetDocument(ctx, agentIDStr, strippedPath)
 		}
 		if existing != nil && existing.ContentHash == hash {
 			result.Unchanged++
@@ -91,7 +90,6 @@ func RescanWorkspace(ctx context.Context, params RescanParams, vs store.VaultSto
 		}
 
 		doc := &store.VaultDocument{
-			TenantID:    params.TenantID,
 			AgentID:     agentID,
 			TeamID:      teamID,
 			ChatID:      chatID,
@@ -123,12 +121,10 @@ func RescanWorkspace(ctx context.Context, params RescanParams, vs store.VaultSto
 				ID:        uuid.Must(uuid.NewV7()).String(),
 				Type:      eventbus.EventVaultDocUpserted,
 				SourceID:  doc.ID + ":" + hash,
-				TenantID:  params.TenantID,
 				AgentID:   agentIDStr,
 				Timestamp: time.Now(),
 				Payload: eventbus.VaultDocUpsertedPayload{
 					DocID:       doc.ID,
-					TenantID:    params.TenantID,
 					AgentID:     agentIDStr,
 					Path:        relPath,
 					ContentHash: hash,
@@ -139,7 +135,6 @@ func RescanWorkspace(ctx context.Context, params RescanParams, vs store.VaultSto
 	}
 
 	slog.Info("vault.rescan",
-		"tenant", params.TenantID,
 		"scanned", result.Scanned, "new", result.New,
 		"updated", result.Updated, "unchanged", result.Unchanged,
 		"skipped", result.Skipped, "errors", result.Errors,

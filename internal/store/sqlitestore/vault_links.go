@@ -149,13 +149,13 @@ func (s *SQLiteVaultStore) CreateLink(ctx context.Context, link *store.VaultLink
 }
 
 // DeleteLink removes a vault link by ID.
-func (s *SQLiteVaultStore) DeleteLink(ctx context.Context, tenantID, id string) error {
+func (s *SQLiteVaultStore) DeleteLink(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM vault_links WHERE id = ?`, id)
 	return err
 }
 
 // GetOutLinks returns all links originating from a document.
-func (s *SQLiteVaultStore) GetOutLinks(ctx context.Context, tenantID, docID string) ([]store.VaultLink, error) {
+func (s *SQLiteVaultStore) GetOutLinks(ctx context.Context, docID string) ([]store.VaultLink, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, from_doc_id, to_doc_id, link_type, context, metadata, created_at
 		FROM vault_links
@@ -169,7 +169,7 @@ func (s *SQLiteVaultStore) GetOutLinks(ctx context.Context, tenantID, docID stri
 }
 
 // GetOutLinksBatch returns all outlinks for multiple doc IDs in a single query.
-func (s *SQLiteVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string, docIDs []string) ([]store.VaultLink, error) {
+func (s *SQLiteVaultStore) GetOutLinksBatch(ctx context.Context, docIDs []string) ([]store.VaultLink, error) {
 	if len(docIDs) == 0 {
 		return nil, nil
 	}
@@ -191,7 +191,7 @@ func (s *SQLiteVaultStore) GetOutLinksBatch(ctx context.Context, tenantID string
 }
 
 // GetBacklinks returns enriched backlinks pointing to a document (single JOIN, LIMIT 100).
-func (s *SQLiteVaultStore) GetBacklinks(ctx context.Context, tenantID, docID string) ([]store.VaultBacklink, error) {
+func (s *SQLiteVaultStore) GetBacklinks(ctx context.Context, docID string) ([]store.VaultBacklink, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT vl.from_doc_id, vl.context, vd.title, vd.path, vd.team_id
 		FROM vault_links vl
@@ -215,7 +215,7 @@ func (s *SQLiteVaultStore) GetBacklinks(ctx context.Context, tenantID, docID str
 }
 
 // DeleteDocLinks removes all links from or to a document.
-func (s *SQLiteVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID string) error {
+func (s *SQLiteVaultStore) DeleteDocLinks(ctx context.Context, docID string) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
 		WHERE from_doc_id = ? OR to_doc_id = ?`,
@@ -224,7 +224,7 @@ func (s *SQLiteVaultStore) DeleteDocLinks(ctx context.Context, tenantID, docID s
 }
 
 // DeleteDocLinksByType removes outbound links of a specific type from a document.
-func (s *SQLiteVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, docID, linkType string) error {
+func (s *SQLiteVaultStore) DeleteDocLinksByType(ctx context.Context, docID, linkType string) error {
 	_, err := s.db.ExecContext(ctx, `
 		DELETE FROM vault_links
 		WHERE from_doc_id = ? AND link_type = ?`,
@@ -233,7 +233,7 @@ func (s *SQLiteVaultStore) DeleteDocLinksByType(ctx context.Context, tenantID, d
 }
 
 // DeleteDocLinksByTypes removes outbound links matching any of the given types from a document.
-func (s *SQLiteVaultStore) DeleteDocLinksByTypes(ctx context.Context, tenantID, docID string, types []string) error {
+func (s *SQLiteVaultStore) DeleteDocLinksByTypes(ctx context.Context, docID string, types []string) error {
 	if len(types) == 0 {
 		return nil
 	}

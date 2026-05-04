@@ -40,7 +40,6 @@ func bindEvent(rt *goja.Runtime, ev hooks.Event) error {
 	viewable := map[string]any{
 		"hookEvent": string(ev.HookEvent),
 		"sessionId": ev.SessionID,
-		"tenantId":  ev.TenantID.String(),
 		"agentId":   ev.AgentID.String(),
 		"toolName":  ev.ToolName,
 		"toolInput": ev.ToolInput,

@@ -8,7 +8,7 @@
 // NOT the agent's UUID. All Build*SessionKey functions expect agentKey, not UUID.
 // This is critical for cache invalidation — the agent router cache uses agentKey
 // as the lookup key, and InvalidateAgent() matches by agentKey suffix.
-// Tenant isolation is handled separately via context (tenant_id in DB, prefix in cache).
+// User isolation is handled separately via context (user_id in DB, prefix in cache).
 //
 // Where {rest} depends on the session type:
 //

@@ -41,12 +41,8 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		return fmt.Errorf("episodic: unexpected payload type %T", event.Payload)
 	}
 
-	// Parse tenant/agent IDs up front so we fail fast on bad input instead of
+	// Parse agent ID up front so we fail fast on bad input instead of
 	// leaking into a PG error or panicking via uuid.MustParse later on.
-	tenantUUID, err := uuid.Parse(event.TenantID)
-	if err != nil {
-		return fmt.Errorf("episodic: invalid tenant_id %q: %w", event.TenantID, err)
-	}
 	agentUUID, err := uuid.Parse(event.AgentID)
 	if err != nil {
 		return fmt.Errorf("episodic: invalid agent_id %q: %w", event.AgentID, err)
@@ -95,7 +91,6 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	expiresAt := time.Now().UTC().Add(90 * 24 * time.Hour)
 
 	ep := &store.EpisodicSummary{
-		TenantID:   tenantUUID,
 		AgentID:    agentUUID,
 		UserID:     event.UserID,
 		SessionKey: payload.SessionKey,
@@ -116,7 +111,6 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 	w.eventBus.Publish(eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
 		SourceID: ep.ID.String(),
-		TenantID: event.TenantID,
 		AgentID:  event.AgentID,
 		UserID:   event.UserID,
 		Payload: &eventbus.EpisodicCreatedPayload{

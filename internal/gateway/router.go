@@ -120,7 +120,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		SenderID    string `json:"sender_id"`    // browser pairing: stored sender ID for reconnect
 		Locale      string `json:"locale"`       // user's preferred locale (en, vi, zh)
 		TenantHint  string `json:"tenant_hint"`  // ignored in v4 single-tenant
-		TenantID    string `json:"tenant_id"`    // ignored in v4 single-tenant
 		TenantScope string `json:"tenant_scope"` // ignored in v4 single-tenant
 	}
 	if req.Params != nil {
@@ -198,7 +197,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			slog.Debug("security.ws_connect_resolved",
 				"client", client.id,
 				"role", string(client.role),
-				"tenant_id", client.tenantID.String(),
 			)
 			r.sendConnectResponse(ctx, client, req.ID)
 			return
@@ -295,7 +293,6 @@ func (r *MethodRouter) sendConnectResponse(ctx context.Context, client *Client, 
 		"protocol":        protocol.ProtocolVersion,
 		"role":            string(client.role),
 		"user_id":         client.userID,
-		"tenant_id":       client.tenantID.String(),
 		"is_owner":        client.IsOwner(),
 		"is_master_scope": store.IsMasterScope(scopedCtx),
 		"edition":         edition.Current().Name,

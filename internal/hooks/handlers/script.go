@@ -115,7 +115,7 @@ func (h *ScriptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	}
 	defer func() { <-h.globalSem }()
 
-	tsem := h.acquireTenantSem(ev.TenantID)
+	tsem := h.acquireTenantSem(uuid.Nil)
 	select {
 	case tsem <- struct{}{}:
 	case <-ctx.Done():

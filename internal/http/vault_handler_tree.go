@@ -5,14 +5,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // handleVaultTree returns immediate children (files + virtual folders) under
 // a given path prefix for lazy-loading the vault sidebar tree.
 func (h *VaultHandler) handleVaultTree(w http.ResponseWriter, r *http.Request) {
-	tenantID := uuid.Nil
 	path := r.URL.Query().Get("path")
 
 	if strings.Contains(path, "..") || strings.HasPrefix(path, "/") {
@@ -45,7 +43,7 @@ func (h *VaultHandler) handleVaultTree(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	entries, err := h.store.ListTreeEntries(r.Context(), tenantID.String(), opts)
+	entries, err := h.store.ListTreeEntries(r.Context(), opts)
 	if err != nil {
 		slog.Warn("vault.tree failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load tree"})

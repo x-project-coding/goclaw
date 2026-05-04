@@ -13,7 +13,7 @@ import (
 )
 
 // broadcastTeamEvent sends a real-time event via the message bus for team activity visibility.
-// Includes tenant_id from context for proper WS event filtering.
+// Includes user context for proper WS event filtering.
 func (m *TeamToolManager) broadcastTeamEvent(ctx context.Context, name string, payload any) {
 	if m.msgBus == nil {
 		return

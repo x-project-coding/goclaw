@@ -198,11 +198,9 @@ func TestOAuthHandlerSaveAndRegisterAppliesCodexPoolDefaults(t *testing.T) {
 	providerReg := providers.NewRegistry()
 	handler := NewOAuthHandler(provStore, secretStore, providerReg, nil)
 
-	tenantID := uuid.New()
 	ctx := context.Background()
 	if err := provStore.CreateProvider(ctx, &store.LLMProviderData{
 		BaseModel:    store.BaseModel{ID: uuid.New()},
-		TenantID:     tenantID,
 		Name:         oauth.DefaultProviderName,
 		ProviderType: store.ProviderChatGPTOAuth,
 		APIBase:      oauth.DefaultProviderAPIBase,
@@ -420,7 +418,6 @@ func TestProvidersHandlerRequiresAdmin(t *testing.T) {
 		crypto.HashAPIKey(token): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: uuid.Nil,
 		},
 	})
 
@@ -444,7 +441,6 @@ func TestOAuthHandlerRequiresAdmin(t *testing.T) {
 		crypto.HashAPIKey(token): {
 			ID:       uuid.New(),
 			Scopes:   []string{"operator.write"},
-			TenantID: uuid.Nil,
 		},
 	})
 	h := newTestOAuthHandler(t, "")

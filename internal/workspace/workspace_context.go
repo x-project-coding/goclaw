@@ -56,13 +56,11 @@ type Resolver interface {
 
 // ResolveParams captures all inputs needed to determine workspace.
 type ResolveParams struct {
-	AgentID    string
-	AgentType  string // "open" | "predefined"
-	UserID     string
-	ChatID     string
-	TenantID   string
-	TenantSlug string // human-readable tenant name for path composition
-	PeerKind   string // "direct" | "group"
+	AgentID   string
+	AgentType string // "open" | "predefined"
+	UserID    string
+	ChatID    string
+	PeerKind  string // "direct" | "group"
 	TeamID     *string
 	TeamConfig *TeamWorkspaceConfig
 	DelegateCtx *DelegateContext

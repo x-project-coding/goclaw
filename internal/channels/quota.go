@@ -294,10 +294,9 @@ func QueryTodaySummary(ctx context.Context, db *sql.DB, result *QuotaUsageResult
 	}
 }
 
-// tenantWhereClause returns a SQL fragment " AND tenant_id = $N" with the tenant UUID arg.
+// tenantWhereClause returns an empty SQL filter in v4 single-user mode.
 // startIdx is the next $N placeholder.
-// In v4 single-user world the traces table no longer has a tenant_id column,
-// so this always returns an empty filter.
+// Kept as a shim so callers need not branch; traces table has no scope column.
 func tenantWhereClause(_ context.Context, startIdx int) (string, []any, int) {
 	return "", nil, startIdx
 }

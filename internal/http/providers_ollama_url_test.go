@@ -243,7 +243,6 @@ func TestRegisterInMemoryOllamaURLNormalization(t *testing.T) {
 
 			p := &store.LLMProviderData{
 				BaseModel:    store.BaseModel{ID: uuid.New()},
-				TenantID:     uuid.New(),
 				Name:         "my-ollama",
 				ProviderType: store.ProviderOllama,
 				APIBase:      tt.apiBase,

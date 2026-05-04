@@ -46,7 +46,7 @@ func (s QueryScope) WhereClauseAlias(startParam int, alias string) (clause strin
 }
 
 // InsertValues returns column names and values for INSERT operations.
-// v4: tenant_id no longer inserted; only project_id when set.
+// v4: only project_id is inserted when set.
 func (s QueryScope) InsertValues() (columns []string, values []any) {
 	if s.ProjectID != nil {
 		return []string{"project_id"}, []any{*s.ProjectID}

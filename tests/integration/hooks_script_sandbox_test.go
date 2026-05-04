@@ -27,7 +27,6 @@ import (
 func makeScriptCfg(src string, timeoutMS int) hooks.HookConfig {
 	return hooks.HookConfig{
 		ID:          uuid.New(),
-		TenantID:    uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
 		Scope:       hooks.ScopeTenant,
@@ -40,12 +39,11 @@ func makeScriptCfg(src string, timeoutMS int) hooks.HookConfig {
 	}
 }
 
-func runScript(t *testing.T, h *hookhandlers.ScriptHandler, cfg hooks.HookConfig, tenantID uuid.UUID, ctxTimeout time.Duration) (hooks.Decision, error) {
+func runScript(t *testing.T, h *hookhandlers.ScriptHandler, cfg hooks.HookConfig, _ uuid.UUID, ctxTimeout time.Duration) (hooks.Decision, error) {
 	t.Helper()
 	ev := hooks.Event{
 		EventID:   "b",
 		SessionID: "s",
-		TenantID:  tenantID,
 		AgentID:   uuid.New(),
 		HookEvent: hooks.EventUserPromptSubmit,
 	}

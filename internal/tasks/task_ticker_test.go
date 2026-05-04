@@ -457,7 +457,7 @@ func TestNotifyLeaders_NilMsgBusIsNoop(t *testing.T) {
 
 	// Must not panic even with tasks.
 	tt.notifyLeaders(context.Background(), []store.RecoveredTaskInfo{
-		{ID: uuid.New(), TeamID: uuid.New(), TenantID: uuid.New()},
+		{ID: uuid.New(), TeamID: uuid.New()},
 	}, "recovered", "hint")
 }
 
@@ -542,7 +542,7 @@ func TestNotifyLeaders_NilTeam_NoPanic(t *testing.T) {
 
 	// Must not panic.
 	tt.notifyLeaders(context.Background(), []store.RecoveredTaskInfo{
-		{ID: uuid.New(), TeamID: teamID, TenantID: uuid.Nil},
+		{ID: uuid.New(), TeamID: teamID},
 	}, "recovered", "hint")
 
 	ts.mu.Lock()
@@ -555,10 +555,9 @@ func TestNotifyLeaders_NilTeam_NoPanic(t *testing.T) {
 }
 
 
-// TestNotifyLeaders_CachedOnSameTenant verifies that two scopes with the same team+tenant
-// result in only one GetTeam call (cache hit on composite key).
+// TestNotifyLeaders_CachedOnSameTeam verifies that two scopes with the same team
+// result in only one GetTeam call (cache hit on team key).
 func TestNotifyLeaders_CachedOnSameTenant(t *testing.T) {
-	tenantID := uuid.New()
 	teamID := uuid.New()
 	leadID := uuid.New()
 
@@ -578,10 +577,10 @@ func TestNotifyLeaders_CachedOnSameTenant(t *testing.T) {
 	mb := bus.New()
 	tt := NewTaskTicker(ts, as, mb, 3600)
 
-	// Two tasks same team+tenant but different ChatID → two scopes, same cache key.
+	// Two tasks same team but different ChatID → two scopes, same cache key.
 	tasks := []store.RecoveredTaskInfo{
-		{ID: uuid.New(), TeamID: teamID, TenantID: tenantID, ChatID: "chat-A"},
-		{ID: uuid.New(), TeamID: teamID, TenantID: tenantID, ChatID: "chat-B"},
+		{ID: uuid.New(), TeamID: teamID, ChatID: "chat-A"},
+		{ID: uuid.New(), TeamID: teamID, ChatID: "chat-B"},
 	}
 	tt.notifyLeaders(context.Background(), tasks, "recovered", "hint")
 
@@ -599,7 +598,6 @@ func TestNotifyLeaders_CachedOnSameTenant(t *testing.T) {
 // TestProcessFollowups_NilTeam_NoPanic verifies that when GetTeam returns (nil, nil)
 // processFollowups skips without panicking, and no followup is sent.
 func TestProcessFollowups_NilTeam_NoPanic(t *testing.T) {
-	tenantID := uuid.New()
 	teamID := uuid.New()
 
 	ts := &stubTeamStore{
@@ -607,7 +605,6 @@ func TestProcessFollowups_NilTeam_NoPanic(t *testing.T) {
 			{
 				BaseModel:       store.BaseModel{ID: uuid.New()},
 				TeamID:          teamID,
-				TenantID:        tenantID,
 				FollowupChannel: "telegram",
 				FollowupChatID:  "chat-1",
 				FollowupMessage: "ping",
