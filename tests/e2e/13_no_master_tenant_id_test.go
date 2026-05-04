@@ -14,7 +14,7 @@ import (
 // `MasterTenantID` is gone from all production Go code. Test files are allowed
 // to mention the literal in fixture comments only — no symbol references.
 //
-// Phase 13 of the v4 EPIC-04 cleanup; see plans/260502-1635-v4-epic-04-schema/.
+// MasterTenantID was a v3 single-tenant placeholder UUID; v4 has no tenants.
 func TestNoMasterTenantIDProjectWide(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 

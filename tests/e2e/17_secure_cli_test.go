@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B Secure CLI tests.
-// Validates /v1/cli-credentials/* endpoints (internal/http/secure_cli.go +
-// secure_cli_user_credentials.go). Implementation uses the cli-credentials
-// model per ADR docs/adr/2026-05-v4-secure-cli-credentials-model.md.
+// Package e2e_test exercises /v1/cli-credentials/* endpoints
+// (internal/http/secure_cli.go + secure_cli_user_credentials.go).
+// Implementation uses the cli-credentials model — see
+// docs/adr/2026-05-v4-secure-cli-credentials-model.md.
 package e2e_test
 
 import (

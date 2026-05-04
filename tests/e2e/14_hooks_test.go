@@ -1,12 +1,11 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B hooks tests.
-// Validates:
-//   - Phase 14A-3: GET /v1/hooks/budget (internal/http/hooks_budget.go)
-//     — auth guard, 404-on-no-row, and response shape.
+// Package e2e_test exercises the hooks endpoints:
+//   - GET /v1/hooks/budget (internal/http/hooks_budget.go) — auth guard,
+//     404-on-no-row, and response shape.
 //   - WS hook CRUD subset via helpers.NewWSClient + protocol.MethodHooksCreate /
-//     MethodHooksCreate-scope-agent error path.
-//     Full WS CRUD coverage deferred to follow-up (see TODO below).
+//     MethodHooksCreate-scope-agent error path. Full WS CRUD coverage is
+//     a TODO (see below).
 package e2e_test
 
 import (

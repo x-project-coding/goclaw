@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B OAuth tests.
-// Validates /v1/auth/chatgpt/{provider}/* and /v1/auth/openai/* endpoints
-// (internal/http/oauth.go). Full OAuth flow requires a live provider, so
-// tests focus on wire format, permission gates, and status endpoints.
+// Package e2e_test exercises /v1/auth/chatgpt/{provider}/* and
+// /v1/auth/openai/* endpoints (internal/http/oauth.go). Full OAuth flow
+// requires a live provider, so tests focus on wire format, permission
+// gates, and status endpoints.
 package e2e_test
 
 import (

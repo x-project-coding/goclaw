@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B users tests.
-// Validates Phase 14A-1 Users CRUD HTTP endpoints (internal/http/users.go +
-// internal/http/users_handlers.go): listing, creation, get, patch, delete,
-// RBAC guards, and password-hash absence in responses.
+// Package e2e_test exercises the Users CRUD HTTP endpoints
+// (internal/http/users.go + internal/http/users_handlers.go): listing,
+// creation, get, patch, delete, RBAC guards, and password-hash absence in
+// responses.
 package e2e_test
 
 import (

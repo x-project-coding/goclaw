@@ -148,8 +148,7 @@ func Restore(ctx context.Context, opts RestoreOptions) (*RestoreResult, error) {
 
 			// Revoke any sessions the restored snapshot left active so a
 			// pre-revocation backup can't reactivate stolen refresh tokens
-			// (RED-TEAM Finding 6 / RFC 6749 §10.4). All users must re-auth
-			// after restore.
+			// (RFC 6749 §10.4). All users must re-auth after restore.
 			revoked, err := RevokeAllSessionsPostRestore(ctx, opts.DSN)
 			if err != nil {
 				result.Warnings = append(result.Warnings,

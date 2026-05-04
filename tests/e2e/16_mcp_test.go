@@ -1,8 +1,8 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B MCP tests.
-// Validates /v1/mcp/servers CRUD, agent grants, user grants, and access
-// requests (internal/http/mcp.go + mcp_grants.go + mcp_requests.go).
+// Package e2e_test exercises /v1/mcp/servers CRUD, agent grants, user
+// grants, and access requests (internal/http/mcp.go + mcp_grants.go +
+// mcp_requests.go).
 package e2e_test
 
 import (

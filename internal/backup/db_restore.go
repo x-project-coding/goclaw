@@ -83,7 +83,7 @@ func RevokeAllSessionsPostRestore(ctx context.Context, dsn string) (int64, error
 	res, err := db.ExecContext(ctx,
 		`UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL`)
 	if err != nil {
-		// undefined_table → schema doesn't have user_sessions yet (pre-Phase-06 backup)
+		// undefined_table → restored schema predates the user_sessions table; nothing to revoke.
 		if strings.Contains(err.Error(), "user_sessions") &&
 			strings.Contains(err.Error(), "does not exist") {
 			return 0, nil

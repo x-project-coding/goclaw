@@ -10,7 +10,7 @@ import (
 )
 
 // TestPurgedSymbols asserts that specific identifiers retired during the v4
-// EPIC-04 cleanup are gone from production code. We check by reading the
+// single-tenant rewrite are gone from production code. We check by reading the
 // source files where those identifiers used to live — a cheaper, more
 // targeted check than a project-wide grep, and one that surfaces a clear
 // "this file should not contain X" signal in CI logs.
@@ -48,14 +48,14 @@ func TestPurgedSymbols(t *testing.T) {
 		body := string(raw)
 		for _, needle := range tc.forbidden {
 			if strings.Contains(body, needle) {
-				t.Errorf("%s still contains %q — should be purged in Phase 13", tc.path, needle)
+				t.Errorf("%s still contains %q — multi-tenant residue must be purged", tc.path, needle)
 			}
 		}
 	}
 }
 
-// TestDeletedFiles asserts that legacy files removed during Phase 13
-// are not silently re-created by future merges.
+// TestDeletedFiles asserts that legacy multi-tenant test files removed during
+// the v4 cleanup are not silently re-created by future merges.
 func TestDeletedFiles(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 
@@ -67,7 +67,7 @@ func TestDeletedFiles(t *testing.T) {
 
 	for _, rel := range deleted {
 		if _, err := os.Stat(filepath.Join(repoRoot, rel)); err == nil {
-			t.Errorf("file %s should remain deleted (Phase 13)", rel)
+			t.Errorf("file %s should remain deleted (v4 single-tenant cleanup)", rel)
 		}
 	}
 }

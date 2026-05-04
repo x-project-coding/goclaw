@@ -1,8 +1,8 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B multi-user isolation tests.
+// Package e2e_test exercises multi-user/multi-tenant isolation.
 //
-// Covers master § 11.4 — 9 isolation scenarios:
+// Covers 9 isolation scenarios:
 //  1. Memory doc user_id=A  → B cannot read (user-scoped)
 //  2. Memory doc user_id=NULL → A and B both can read (agent-level shared)
 //  3. KG entity user_id=NULL → visible to all

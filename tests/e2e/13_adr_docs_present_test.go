@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestADRsExist asserts that the four v4 EPIC-04 ADRs landed during Phase 13
-// (LOG-2, LOG-3, audit MISS-2, audit MISS-3) are present and non-empty.
-// Each is a load-bearing record that future contributors must be able to
-// look up before re-litigating a settled decision.
+// TestADRsExist asserts that the four v4 cleanup ADRs (vault custom-scope,
+// vault no-encryption, sessions naming divergence, activity-logs retention)
+// are present and non-empty. Each is a load-bearing record that future
+// contributors must be able to look up before re-litigating a settled decision.
 func TestADRsExist(t *testing.T) {
 	repoRoot := mustRepoRoot(t)
 	adrDir := filepath.Join(repoRoot, "docs", "adr")

@@ -1,8 +1,8 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B memory tests.
-// Validates /v1/agents/{agentID}/memory/* and /v1/agents/{agentID}/kg/*
-// endpoints (internal/http/memory.go + internal/http/knowledge_graph.go).
+// Package e2e_test exercises /v1/agents/{agentID}/memory/* and
+// /v1/agents/{agentID}/kg/* endpoints (internal/http/memory.go +
+// internal/http/knowledge_graph.go).
 package e2e_test
 
 import (

@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B cron tests.
-// Validates WS cron.* RPC methods (internal/gateway/methods/cron.go):
-// create with at/every/cron schedule kinds, list, and runs history shape.
-// All operations are WS-primary (no HTTP cron endpoints in v4).
+// Package e2e_test exercises WS cron.* RPC methods
+// (internal/gateway/methods/cron.go): create with at/every/cron schedule
+// kinds, list, and runs history shape. All operations are WS-primary (no
+// HTTP cron endpoints in v4).
 package e2e_test
 
 import (

@@ -1,8 +1,7 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B vault tests.
-// Validates /v1/vault/* and /v1/agents/{agentID}/vault/* endpoints
-// (internal/http/vault_handlers.go + vault_handler_documents.go).
+// Package e2e_test exercises /v1/vault/* and /v1/agents/{agentID}/vault/*
+// endpoints (internal/http/vault_handlers.go + vault_handler_documents.go).
 package e2e_test
 
 import (

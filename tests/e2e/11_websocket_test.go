@@ -1,8 +1,8 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B WebSocket protocol layer tests.
-// Validates frame types, connect auth guards, ping, expired/bad JWT rejection,
-// and event frame delivery. All tests use the helpers.WSClient (gorilla/websocket).
+// Package e2e_test exercises the WebSocket protocol layer: frame types,
+// connect auth guards, ping, expired/bad JWT rejection, and event frame
+// delivery. All tests use the helpers.WSClient (gorilla/websocket).
 package e2e_test
 
 import (

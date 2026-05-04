@@ -165,9 +165,9 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 	}
 
 	// 8. Auto-inject L0 memory context into system prompt.
-	// V3RetrievalEnabled check removed — auto-inject runs whenever AutoInject is available.
-	// Phase 9: pass recent conversation context so vector search can resolve
-	// pronouns and implicit references in follow-up questions.
+	// Auto-inject runs whenever AutoInject is available.
+	// Pass recent conversation context so vector search can resolve pronouns
+	// and implicit references in follow-up questions.
 	if s.deps.AutoInject != nil && state.Input.Message != "" {
 		recentCtx := buildRecentContext(state.Messages.History())
 		section, err := s.deps.AutoInject(ctx, state.Input.Message, state.Input.UserID, recentCtx)
@@ -190,8 +190,8 @@ func (s *ContextStage) Execute(ctx context.Context, state *RunState) error {
 // Budget: up to 2 user turns, max ~300 runes total. Rune (not byte) cap keeps
 // vi/zh locales safe — a byte-wise clip would slice multi-byte characters
 // and emit invalid UTF-8 to the embedding model. Tuning knob is intentional
-// here rather than config-driven — Phase 9 adds it only if operational data
-// shows variance across agent types.
+// here rather than config-driven — promote to config only if operational
+// data shows variance across agent types.
 func buildRecentContext(history []providers.Message) string {
 	const maxTurns = 2
 	const maxRunes = 300
@@ -227,7 +227,7 @@ func buildRecentContext(history []providers.Message) string {
 }
 
 // toAnySlice converts []bootstrap.ContextFile to []any for ContextState.ContextFiles.
-// Phase 8 will remove this when ContextState uses typed field.
+// Remove this once ContextState.ContextFiles uses a typed field.
 func toAnySlice(files []bootstrap.ContextFile) []any {
 	out := make([]any, len(files))
 	for i, f := range files {

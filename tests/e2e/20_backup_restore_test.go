@@ -1,21 +1,23 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B backup/restore round-trip tests.
-//
-// This is the release-gate test for backup/restore integrity + RED-TEAM Finding 6
-// session revocation. All tests use the HTTP API:
+// Package e2e_test exercises backup/restore round-trip integrity, including
+// post-restore session revocation (RFC 6749 §10.4). All tests use the HTTP
+// API:
 //
 //	POST /v1/system/backup  — SSE-streamed, returns download_url in "complete" event
 //	GET  /v1/system/backup/download/{token} — streams the tar.gz
 //	POST /v1/system/restore — multipart tar.gz upload, SSE-streamed
 //
-// Finding 6 (CRITICAL): After restore, all user_sessions rows with revoked_at=NULL
-// must be revoked. TestRestoreRevokesAllSessions will be RED until the restore handler
-// executes `UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL`.
+// Session revocation invariant: after restore, all user_sessions rows with
+// revoked_at=NULL must be revoked. The restore handler must execute
+// `UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL`
+// after the schema+data load to prevent reactivation of stolen refresh
+// tokens captured before a pre-revocation backup.
 //
-// Checksum equivalence is intentionally NOT tested — checksums break across OS/DB-version
-// skew and are invalidated by the post-restore session revocation step itself.
-// Row-count + key-row spot-check is the authoritative equivalence assertion.
+// Checksum equivalence is intentionally NOT tested — checksums break across
+// OS/DB-version skew and are invalidated by the post-restore session
+// revocation step itself. Row-count + key-row spot-check is the
+// authoritative equivalence assertion.
 package e2e_test
 
 import (
@@ -433,19 +435,18 @@ func TestRestoreFKIntegrity(t *testing.T) {
 	t.Logf("TestRestoreFKIntegrity: orphan agent_shares=%d (want 0)", orphanCount)
 }
 
-// TestRestoreRevokesAllSessions — RED-TEAM Finding 6 (CRITICAL).
+// TestRestoreRevokesAllSessions verifies that post-restore the gateway
+// revokes every active refresh-token session captured in the backup
+// (RFC 6749 §10.4 — see internal/backup/restore.go RevokeAllSessionsPostRestore).
 //
 // Pre-restore: assert active (revoked_at IS NULL) user_sessions rows exist.
 // Trigger restore.
 // Post-restore: assert SELECT COUNT(*) FROM user_sessions WHERE revoked_at IS NULL = 0.
 // Assert total row count is unchanged (rows survive, just revoked).
 //
-// THIS TEST WILL BE RED until the restore handler executes:
+// The restore handler must execute, after the schema+data load:
 //
 //	UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL
-//
-// after completing the schema+data load. The "red" state is intentional and expected
-// per RED-TEAM Finding 6 — this test drives the implementation.
 func TestRestoreRevokesAllSessions(t *testing.T) {
 	helpers.MustMigrateClean(t)
 	helpers.ResetDB(t)
@@ -476,7 +477,7 @@ func TestRestoreRevokesAllSessions(t *testing.T) {
 			INSERT INTO user_sessions (id, user_id, family_id, refresh_token_hash, expires_at, revoked_at)
 			VALUES (uuid_generate_v7(), $1, uuid_generate_v7(), $2, NOW() + INTERVAL '7 days', NULL)`,
 			rootUserID,
-			fmt.Sprintf("e2e-finding6-hash-%d-%s", i, helpers.RandHex8()),
+			fmt.Sprintf("e2e-active-session-hash-%d-%s", i, helpers.RandHex8()),
 		)
 		if insertErr != nil {
 			t.Fatalf("TestRestoreRevokesAllSessions: insert session %d: %v", i, insertErr)
@@ -540,9 +541,9 @@ func TestRestoreRevokesAllSessions(t *testing.T) {
 
 	t.Logf("TestRestoreRevokesAllSessions: post-restore active=%d total=%d", postActive, postTotal)
 
-	// Finding 6 assertion: all active sessions must be revoked after restore.
+	// Invariant: all active sessions must be revoked after restore.
 	if postActive != 0 {
-		t.Errorf("TestRestoreRevokesAllSessions [Finding 6 FAIL]: "+
+		t.Errorf("TestRestoreRevokesAllSessions: "+
 			"post-restore revoked_at=NULL count=%d, want 0. "+
 			"The restore handler must execute: UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL",
 			postActive)

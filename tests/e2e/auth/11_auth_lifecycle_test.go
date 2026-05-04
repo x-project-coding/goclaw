@@ -4,8 +4,9 @@
 // React frontend depends on: login → me → refresh → patch users/me →
 // change-password → relogin → logout. Catches FE-API contract drift.
 //
-// Browser-level interaction (route guards, redirects, form submission) is left
-// to Phase 14 because the gateway does not yet serve the FE bundle statically.
+// Browser-level interaction (route guards, redirects, form submission) is
+// out of scope here because the gateway does not yet serve the FE bundle
+// statically.
 package auth_e2e_test
 
 import (

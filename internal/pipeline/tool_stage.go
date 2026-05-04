@@ -114,7 +114,7 @@ func (s *ToolStage) executeParallel(ctx context.Context, state *RunState, toolCa
 		err     error
 	}
 
-	// Phase 1: parallel I/O (no state mutation)
+	// Step 1: parallel I/O (no state mutation)
 	results := make([]rawResult, len(toolCalls))
 	var wg sync.WaitGroup
 	for i, tc := range toolCalls {
@@ -127,7 +127,7 @@ func (s *ToolStage) executeParallel(ctx context.Context, state *RunState, toolCa
 	}
 	wg.Wait()
 
-	// Phase 2: sequential state mutation (safe, deterministic order)
+	// Step 2: sequential state mutation (safe, deterministic order)
 	for _, r := range results {
 		if r.err != nil {
 			return fmt.Errorf("execute tool %s: %w", r.tc.Name, r.err)

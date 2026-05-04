@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B teams tests.
-// Validates WS teams.* RPC methods (internal/gateway/methods/teams*.go):
-// create, list, update, add-member, task lifecycle, and delete.
-// All operations are WS-primary (no HTTP teams endpoints in v4).
+// Package e2e_test exercises WS teams.* RPC methods
+// (internal/gateway/methods/teams*.go): create, list, update, add-member,
+// task lifecycle, and delete. All operations are WS-primary (no HTTP teams
+// endpoints in v4).
 package e2e_test
 
 import (

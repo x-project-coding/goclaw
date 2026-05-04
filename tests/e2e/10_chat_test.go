@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B chat tests.
-// Covers HTTP /v1/chat/completions (non-stream + stream) and WS chat.send.
-// LLM real-call tests are gated by testing.Short() and env-var API keys.
-// Agent model is addressed via "goclaw:<agent_key>" in the model field.
+// Package e2e_test exercises HTTP /v1/chat/completions (non-stream + stream)
+// and WS chat.send. LLM real-call tests are gated by testing.Short() and
+// env-var API keys. Agent model is addressed via "goclaw:<agent_key>" in
+// the model field.
 package e2e_test
 
 import (

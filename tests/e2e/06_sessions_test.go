@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B sessions tests.
-// Validates WS sessions.* RPC methods (internal/gateway/methods/sessions.go):
-// list, preview, and delete. Sessions live in the agent_sessions table (v4 rename).
-// Sessions are seeded via direct DB insert — no HTTP sessions endpoint in v4.
+// Package e2e_test exercises WS sessions.* RPC methods
+// (internal/gateway/methods/sessions.go): list, preview, and delete.
+// Sessions live in the agent_sessions table (v4 rename). Sessions are
+// seeded via direct DB insert — no HTTP sessions endpoint in v4.
 package e2e_test
 
 import (

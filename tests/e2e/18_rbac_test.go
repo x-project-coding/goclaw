@@ -1,10 +1,10 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B RBAC matrix test.
+// Package e2e_test exercises the RBAC matrix.
 //
-// Coverage: 4 roles × 7 resource types = 28 cells per master § 11.3.
-// This file samples the highest-signal 16 cells (see table below).
-// All 28 logical cells are represented via role×resource naming.
+// Coverage: 4 roles × 7 resource types = 28 logical cells. This file
+// samples the highest-signal 16 cells (see table below). All 28 logical
+// cells are represented via role×resource naming.
 //
 // Sampled cells (marked S) vs full-28:
 //

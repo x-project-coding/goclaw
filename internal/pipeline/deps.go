@@ -37,7 +37,7 @@ type PipelineDeps struct {
 	// Invoked ONCE per run by ContextStage and stored in RunState.Context.EffectiveContextWindow.
 	ResolveContextWindow func(provider, model string) int
 
-	// Callbacks from agent.Loop — Phase 8 adapter wires these.
+	// Callbacks from agent.Loop — the adapter wires these.
 	EmitEvent func(event any)
 
 	// Auto-inject memory context (ContextStage, L0 tier).

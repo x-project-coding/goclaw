@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e_test — Phase 14B agents tests.
-// Validates /v1/agents/* CRUD (internal/http/agents.go): create open/predefined,
-// list, get, update via PUT, delete, and per-user share grants.
-// Foundational: later phase tests (sessions, memory, vault) depend on agents existing.
+// Package e2e_test exercises /v1/agents/* CRUD (internal/http/agents.go):
+// create open/predefined, list, get, update via PUT, delete, and per-user
+// share grants. Foundational — sessions, memory, and vault tests depend on
+// agents existing.
 package e2e_test
 
 import (
