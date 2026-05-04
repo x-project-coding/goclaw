@@ -178,9 +178,9 @@ func TestSeed_InsertsOneRowPerEvent(t *testing.T) {
 	}
 }
 
-// TestSeed_Idempotent validates H9 — re-running seed against the same registry
-// creates zero additional rows. A regression here would manifest as duplicate
-// rows every boot once the unique index is dropped by Phase 03.
+// TestSeed_Idempotent — re-running seed against the same registry creates
+// zero additional rows. A regression here would manifest as duplicate rows
+// every boot once the unique index is dropped.
 func TestSeed_Idempotent(t *testing.T) {
 	spec := fixtureSpec(1)
 	withTestRegistry(t, spec, []byte("// v1"))

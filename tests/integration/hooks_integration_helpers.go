@@ -15,15 +15,15 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// ─── Phase 08 shared test helpers ────────────────────────────────────────────
+// ─── Hook integration shared test helpers ───────────────────────────────────
 //
-// Helpers scoped to the Phase 08 hook integration tests. Do NOT extend with
-// generic store / channel helpers — keep additions hook-specific so the file
-// stays focused.
+// Helpers scoped to the hook integration tests. Do NOT extend with generic
+// store / channel helpers — keep additions hook-specific so the file stays
+// focused.
 
 // withEdition flips edition.Current() for the duration of the test, restoring
 // the prior value on cleanup. Used by tests that exercise the edition-gated
-// migration + validation paths (E bucket, F5).
+// migration + validation paths.
 func withEdition(t *testing.T, e edition.Edition) {
 	t.Helper()
 	prev := edition.Current()

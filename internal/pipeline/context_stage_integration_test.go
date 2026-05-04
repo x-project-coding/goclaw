@@ -59,7 +59,7 @@ func buildRealisticToolDefinitions(n int) []providers.ToolDefinition {
 }
 
 // TestContextStage_Integration_ToolOverhead_RealCounter verifies the end-to-end
-// composition of Phase 03 (CountToolSchemas) with the real FallbackCounter:
+// composition of CountToolSchemas with the real FallbackCounter:
 //  1. state.Think.Tools is populated (len == numTools).
 //  2. OverheadTokens > system-prompt-only count (tools add non-zero overhead).
 //  3. OverheadTokens > 5000 when 10 tools each ~3KB JSON are provided.

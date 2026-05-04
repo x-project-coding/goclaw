@@ -9,12 +9,12 @@ import (
 
 // ErrBuiltinReadOnly is returned by Update/Delete when a caller attempts to
 // modify a row with source='builtin' beyond toggling `enabled`. Builtin rows
-// are canonical — content comes from embedded JS at every startup (Phase 04
-// seed). UI should render them read-only except for the enabled toggle.
-// Message is surfaced via i18n key hook.builtin_readonly.
+// are canonical — content comes from embedded JS at every startup via the
+// builtin seeder. UI should render them read-only except for the enabled
+// toggle. Message is surfaced via i18n key hook.builtin_readonly.
 var ErrBuiltinReadOnly = errors.New("hook: builtin row is read-only except enabled toggle")
 
-// seedBypassKey is the private context key used by Phase 04 builtin seeder to
+// seedBypassKey is the private context key used by the builtin seeder to
 // bypass the Update/Delete builtin-readonly guard. Process-private: only the
 // seeder sets it. Ensures user-facing writes still fail ErrBuiltinReadOnly.
 type seedBypassKey struct{}

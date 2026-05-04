@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Phase 09 Sub-09C — paired_devices.user_id is nullable + bound after auth.
+// paired_devices.user_id is nullable + bound after auth.
 //
 // v3 paired devices were tenant-scoped (paired_devices.tenant_id NOT NULL).
 // v4 drops tenant_id and exposes user_id as nullable: row inserts pre-auth,

@@ -97,9 +97,9 @@ func TestSessionLoadFromDB_RestoresLastPromptTokens(t *testing.T) {
 	}
 }
 
-// TestSessionListPagedRich_FallsBackToHeuristicWhenNoMetadataTokens verifies the
-// Phase 01 characterization test behavior: sessions with no last_prompt_tokens in
-// metadata still use the heuristic (COALESCE fallback path).
+// TestSessionListPagedRich_FallsBackToHeuristicWhenNoMetadataTokens verifies that
+// sessions with no last_prompt_tokens in metadata still use the heuristic
+// (COALESCE fallback path).
 func TestSessionListPagedRich_FallsBackToHeuristicWhenNoMetadataTokens(t *testing.T) {
 	db := openTestDB(t)
 	if err := EnsureSchema(db); err != nil {

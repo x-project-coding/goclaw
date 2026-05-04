@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Phase 09 Sub-09A — Finding 10 atomicity proof.
+// Atomic contact-merge concurrency proof.
 //
 // If the merge isn't actually atomic (multiple TXes), concurrent admins or
 // retried requests would cascade partial state: contact flipped but sessions

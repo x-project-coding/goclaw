@@ -35,7 +35,7 @@ func buildVietnameseMessages(n int) []string {
 // SetLastPromptTokens → Save → ListPagedRich returns metadata value (not heuristic),
 // then evicts cache and verifies GetLastPromptTokens restores from DB.
 //
-// This is an end-to-end integration test for Phase 02 (metadata persistence) using a
+// End-to-end integration test for last_prompt_tokens metadata persistence using a
 // Vietnamese UTF-8 fixture to match trace-019dab16 characteristics.
 func TestSessionDisplayTokens_Integration_SQLite(t *testing.T) {
 	db := openTestDB(t)

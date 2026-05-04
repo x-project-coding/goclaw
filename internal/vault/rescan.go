@@ -216,8 +216,8 @@ func inferOwnerFromPath(relPath string, agentMap map[string]string, teamSet map[
 // Path-prefix rules (memory/, skills/, episodic/, SOUL/IDENTITY/AGENTS)
 // take precedence over extension classification — e.g. `memory/foo.md`
 // classifies as `memory` even though `.md` is a whitelisted note extension.
-// Phase 01: extension fallback uses the shared `extensionDocType` whitelist
-// so PDFs/office files resolve to `document` instead of the prior `note`.
+// Extension fallback uses the shared `extensionDocType` whitelist so PDFs
+// and office files resolve to `document` instead of the prior `note`.
 func InferDocType(relPath string) string {
 	lower := strings.ToLower(relPath)
 	ext := strings.ToLower(filepath.Ext(relPath))

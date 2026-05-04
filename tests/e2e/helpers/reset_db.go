@@ -134,17 +134,17 @@ func quoteIdents(in []string) []string {
 	return out
 }
 
-// seedRootUser inserts the root user used by Phase 06 bootstrap tests.
+// seedRootUser inserts the root user used by auth bootstrap tests.
 //
-// Phase 06+: hashes E2E_ROOT_PASSWORD with Argon2id so /v1/auth/login works
-// against the seeded credentials. Hash is cached process-wide.
+// Hashes E2E_ROOT_PASSWORD with Argon2id so /v1/auth/login works against
+// the seeded credentials. Hash is cached process-wide.
 func seedRootUser(ctx context.Context, db *sql.DB) error {
 	exists, err := tableExists(ctx, db, "users")
 	if err != nil {
 		return err
 	}
 	if !exists {
-		// Pre-Phase-03: nothing to seed. Harness self-tests still pass.
+		// users table not yet present: nothing to seed. Harness self-tests still pass.
 		return nil
 	}
 	hash, err := rootPasswordHash()

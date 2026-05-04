@@ -252,9 +252,6 @@ func TestTestConnection_BlockedAPIBase(t *testing.T) {
 	}
 }
 
-// Note: TestTestConnection_GeminiInvalidVoice_I18n (M2-b carry-over) is owned
-// by Phase 04 — it lands alongside the i18n.T wiring at the HTTP response site.
-
 // TestFillMissingTestSecrets_RestoresMaskedAPIKey verifies that a request with
 // the masked sentinel "***" or empty api_key is filled from saved secrets, so
 // the user can retest a previously saved provider without retyping the key.

@@ -121,9 +121,9 @@ func (w *dreamingWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		return nil
 	}
 
-	// Fetch unpromoted entries ordered by recall_score DESC (Phase 10). Falls
-	// back to created_at ASC for ties so agents with no recall history still
-	// get oldest-first behaviour.
+	// Fetch unpromoted entries ordered by recall_score DESC. Falls back to
+	// created_at ASC for ties so agents with no recall history still get
+	// oldest-first behaviour.
 	entries, err := w.episodicStore.ListUnpromotedScored(ctx, agentID, userID, dreamingFetchLimit)
 	if err != nil {
 		slog.Warn("dreaming: list unpromoted failed", "err", err, "agent", agentID)

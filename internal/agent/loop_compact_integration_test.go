@@ -35,7 +35,7 @@ func buildVietnameseMsgs(n, viRunes int) []providers.Message {
 }
 
 // TestLoopCompact_Integration_DynamicMaxTokens_VietnameseFixture verifies the
-// end-to-end composition of Phase 03 (FallbackCounter) + Phase 04 (dynamicSummaryMax):
+// end-to-end composition of FallbackCounter + dynamicSummaryMax:
 //
 //  1. Loop with real FallbackCounter estimates ~100k input tokens from 600 Vietnamese messages.
 //  2. compactMessagesInPlace passes max_tokens in [2000, 8192] to the provider.

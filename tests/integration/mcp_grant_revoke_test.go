@@ -21,8 +21,7 @@ import (
 // TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError verifies that after revoking
 // an agent grant, BridgeTool.Execute returns an error instead of executing the tool.
 //
-// This test MUST FAIL initially (Phase 01 TDD) because BridgeTool.Execute currently
-// only checks `connected` status — it does NOT recheck grants.
+// Regression guard: BridgeTool.Execute must recheck grants, not only `connected` status.
 func TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError(t *testing.T) {
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
@@ -75,13 +74,11 @@ func TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError(t *testing.T) {
 		t.Fatalf("RevokeFromAgent: %v", err)
 	}
 
-	// Execute the tool after revoke
-	// EXPECTED (after Phase 02 fix): should return ErrorResult with "grant revoked"
-	// ACTUAL (currently): will try to execute and fail with "no active client" or succeed
+	// Execute the tool after revoke.
+	// Expected: returns ErrorResult with "grant revoked" — BridgeTool.Execute
+	// must recheck the grant before invoking the upstream client.
 	result := tool.Execute(ctx, map[string]any{"arg": "value"})
 
-	// This assertion SHOULD PASS after Phase 02, but FAILS now
-	// because BridgeTool.Execute does NOT recheck grants
 	if !result.IsError {
 		t.Error("expected error result after grant revoked, but got success")
 	}
@@ -92,16 +89,14 @@ func TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError(t *testing.T) {
 
 // TestBridgeTool_Execute_RevokeUserGrant_ReturnsError verifies that after revoking
 // a user grant, BridgeTool.Execute returns an error.
-//
-// This test MUST FAIL initially (Phase 01 TDD).
 func TestBridgeTool_Execute_RevokeUserGrant_ReturnsError(t *testing.T) {
-	// TDD-red: Phase 02 user-grant revocation not yet implemented.
-	// ListAccessible's current SQL treats an absent mcp_user_grants row as
-	// "allowed by default" (mug.id IS NULL OR mug.enabled = true), so deleting
-	// the user grant row does not remove access. Implementing this requires
-	// either changing the semantics (user grant required when one ever existed)
-	// or a separate audit trail. Re-enable once Phase 02 lands.
-	t.Skip("Phase 02: user-grant-level revocation not yet implemented — see commit 8b8da3a3")
+	// User-grant revocation not yet implemented. ListAccessible's current SQL
+	// treats an absent mcp_user_grants row as "allowed by default"
+	// (mug.id IS NULL OR mug.enabled = true), so deleting the user grant row
+	// does not remove access. Implementing this requires either changing the
+	// semantics (user grant required when one ever existed) or a separate
+	// audit trail.
+	t.Skip("user-grant-level revocation not yet implemented — see commit 8b8da3a3")
 
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
@@ -154,12 +149,11 @@ func TestBridgeTool_Execute_RevokeUserGrant_ReturnsError(t *testing.T) {
 		t.Fatalf("RevokeFromUser: %v", err)
 	}
 
-	// Execute the tool after user revoke
-	// EXPECTED (after Phase 02 fix): should return "grant revoked" since user lost access
-	// ACTUAL (currently): does not check user grants at execute time
+	// Execute the tool after user revoke.
+	// Expected: returns "grant revoked" since user lost access — Execute must
+	// recheck user grants, not just agent grants.
 	result := tool.Execute(ctx, map[string]any{"arg": "value"})
 
-	// This assertion SHOULD PASS after Phase 02, but FAILS now
 	if !result.IsError {
 		t.Error("expected error result after user grant revoked")
 	}

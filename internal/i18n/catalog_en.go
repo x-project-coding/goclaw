@@ -236,7 +236,7 @@ func init() {
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
 
-		// Auth + Bootstrap (Phase 06)
+		// Auth + Bootstrap
 		MsgBootstrapRequired:    "gateway not bootstrapped — POST /v1/bootstrap/init first",
 		MsgBootstrapAlreadyDone: "bootstrap already completed",
 		MsgInvalidEmail:         "invalid email address",

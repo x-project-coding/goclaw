@@ -120,7 +120,7 @@ func TestSafeWalkWorkspace_MaxFileLimit(t *testing.T) {
 func TestSafeWalkWorkspace_MaxTotalBytes(t *testing.T) {
 	dir := t.TempDir()
 	// Create files that exceed total byte limit. Use a whitelisted extension
-	// (.txt) so the files actually register — Phase 01 whitelist would skip .bin.
+	// (.txt) so the files actually register — the extension whitelist would skip .bin.
 	bigContent := make([]byte, 1024) // 1KB each
 	for i := range 10 {
 		writeFile(t, dir, filepath.Join("data", string(rune('a'+i))+".txt"), string(bigContent))
@@ -160,7 +160,7 @@ func TestSafeWalkWorkspace_PerFileSizeSkip(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "small.txt", "ok")
 	// Create a file larger than MaxFileBytes. Use a whitelisted extension
-	// (.txt) so Phase 01 whitelist doesn't short-circuit before size check.
+	// (.txt) so the extension whitelist doesn't short-circuit before the size check.
 	bigContent := make([]byte, 100*1024) // 100KB
 	writeFile(t, dir, "huge.txt", string(bigContent))
 

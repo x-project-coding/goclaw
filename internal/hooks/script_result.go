@@ -5,8 +5,8 @@ import "context"
 // ScriptResult carries non-decision outputs from a script handler execution
 // (reason text, updatedInput proposal, captured stdout). The dispatcher
 // provisions one via context before calling Handler.Execute; the handler
-// populates it on success. Phase 03 wires this into the dispatcher so that
-// only builtin-source hooks can apply UpdatedInput to the pipeline state.
+// populates it on success. The dispatcher consumes it so that only
+// builtin-source hooks can apply UpdatedInput to the pipeline state.
 //
 // Fields are read-write within a single Execute call; not concurrent-safe
 // (each Execute gets its own instance via a context key).

@@ -25,7 +25,7 @@ type EpisodicSummary struct {
 	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty" db:"expires_at"`
 
-	// Phase 10 — dreaming weighted scoring signals. Populated by
+	// Dreaming weighted scoring signals. Populated by
 	// EpisodicStore.RecordRecall; consumed by consolidation.ComputeRecallScore.
 	RecallCount    int        `json:"recall_count" db:"recall_count"`
 	RecallScore    float64    `json:"recall_score" db:"recall_score"`         // running average of memory_search hit scores

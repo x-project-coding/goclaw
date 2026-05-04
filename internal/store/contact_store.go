@@ -50,7 +50,7 @@ type ContactListOpts struct {
 //   4. UPDATE memory_documents SET user_id = TargetUserID
 //        WHERE user_id = ANY(SourceUserIDs).
 //
-// All four UPDATEs share a single *sql.Tx to guarantee atomicity (Finding 10).
+// All four UPDATEs share a single *sql.Tx to guarantee atomicity.
 type MergeUserAggregateRequest struct {
 	ContactIDs    []uuid.UUID // channel_contacts.id rows whose merged_id must flip to TargetUserID
 	SourceUserIDs []uuid.UUID // users.id values whose data must move to TargetUserID
@@ -58,7 +58,7 @@ type MergeUserAggregateRequest struct {
 	MergeAudit    []byte      // JSONB blob {merged_by_user_id, merged_at, from_channel_id, ...}
 }
 
-// Sentinel errors for merge pre-check failures (Finding 7 — security).
+// Sentinel errors for merge pre-check failures (security).
 var (
 	ErrMergeSourceAlreadyMerged = errors.New("source contact already merged — user→user merge forbidden")
 	ErrMergeTargetAlreadyMerged = errors.New("target user already merged into another — chained merges forbidden")

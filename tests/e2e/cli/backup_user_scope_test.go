@@ -9,7 +9,7 @@ import (
 )
 
 // TestBackupUserScope verifies the backup CLI no longer accepts any
-// tenant-scoped flag — full-DB scope only (Q-G + Q-8). The kept flags are
+// tenant-scoped flag — full-DB scope only. The kept flags are
 // --output, --exclude-db, --exclude-files, --upload-s3.
 func TestBackupUserScope(t *testing.T) {
 	out, err := exec.Command(goclawBin, "backup", "--help").CombinedOutput()

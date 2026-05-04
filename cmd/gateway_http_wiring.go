@@ -157,7 +157,7 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 		httpapi.InitAPIKeyCache(d.pgStores.APIKeys, d.msgBus)
 	}
 
-	// Phase 06: bootstrap + password-auth endpoints (JWT + opaque refresh).
+	// Bootstrap + password-auth endpoints (JWT + opaque refresh).
 	// Fatal on misconfig at fresh install — without JWT keyset, /v1/bootstrap/init
 	// would not register, leaving the operator unable to bootstrap.
 	if d.pgStores != nil && d.pgStores.Users != nil && d.pgStores.UserSessions != nil {

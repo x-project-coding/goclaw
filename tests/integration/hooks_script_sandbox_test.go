@@ -14,12 +14,12 @@ import (
 	hookhandlers "github.com/nextlevelbuilder/goclaw/internal/hooks/handlers"
 )
 
-// Phase 08 — B bucket: end-to-end sandbox escape + per-tenant fairness.
+// End-to-end sandbox escape + per-tenant fairness.
 //
 // The handler-package tests (script_sandbox_corpus_test.go) cover the full
-// ≥25-case corpus in isolation. The B subset here re-exercises 6 cases plus
-// the two-layer semaphore + fairness invariant THROUGH the public Execute
-// surface so we catch any wiring regression that bypasses corpus coverage.
+// ≥25-case corpus in isolation. This subset re-exercises 6 cases plus the
+// two-layer semaphore + fairness invariant THROUGH the public Execute surface
+// so we catch any wiring regression that bypasses corpus coverage.
 
 // makeScriptCfg builds a script HookConfig with an arbitrary timeout. Source
 // "ui" so the dispatcher (when wired) would NOT apply mutations — but B

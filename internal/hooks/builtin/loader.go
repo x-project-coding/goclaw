@@ -18,9 +18,9 @@ import (
 )
 
 // fs carries the registry YAML and one .js per builtin. A `//go:embed *.js`
-// directive errors at build time if zero .js files exist, so Phase 04 ships a
-// tiny `_placeholder.js` alongside an empty `builtins:` list. Phase 05 adds
-// pii-redactor.js and removes the placeholder.
+// directive errors at build time if zero .js files exist, so a tiny
+// `_placeholder.js` is shipped whenever the registry is empty; once any real
+// builtin (e.g. pii-redactor.js) lands the placeholder is removed.
 //
 //go:embed *.yaml *.js
 var fs embed.FS

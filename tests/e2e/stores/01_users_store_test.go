@@ -19,7 +19,7 @@ import (
 
 // TestUsersCRUD exercises Create/Get/GetByEmail/List/Update/Delete.
 // Covers the partial unique index `users_only_one_root` indirectly by NOT writing
-// a second root — Phase 06 owns concurrent-root tests.
+// a second root — concurrent-root coverage lives with the auth bootstrap tests.
 func TestUsersCRUD(t *testing.T) {
 	helpers.ResetDB(t)
 

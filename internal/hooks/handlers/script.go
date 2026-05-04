@@ -16,9 +16,9 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 )
 
-// MaxScriptSourceBytes is the mandatory safety-floor cap on script source size
-// (brainstorm §Critical safety items #2). Validated again at execute time as a
-// belt-and-suspenders check after Phase 03 wires the Create/Update validation.
+// MaxScriptSourceBytes is the mandatory safety-floor cap on script source size.
+// Validated again at execute time as a belt-and-suspenders check on top of
+// the Create/Update validation in the hook store.
 const MaxScriptSourceBytes = 32 * 1024
 
 // MaxStdoutBytes is the mandatory safety-floor cap on captured console output
@@ -96,9 +96,9 @@ func NewScriptHandler(globalConcurrency, perTenantConcurrency, cacheSize int) *S
 }
 
 // InvalidateHook removes cached program entries related to the given hook.
-// Phase 03 wires this from hooks.update / hooks.delete store events. Wave 1
-// uses a full purge for simplicity — LRU v2 does not expose keyed predicates,
-// and refill is cheap (single recompile per subsequent invocation).
+// Called from hooks.update / hooks.delete store events. Currently does a
+// full purge for simplicity — LRU v2 does not expose keyed predicates, and
+// refill is cheap (single recompile per subsequent invocation).
 func (h *ScriptHandler) InvalidateHook(_ uuid.UUID) {
 	h.progCache.Purge()
 }
@@ -200,9 +200,10 @@ func (h *ScriptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 		dec = hooks.DecisionBlock
 	}
 
-	// Write non-decision outputs for dispatcher pickup (Phase 03 applies them
-	// only when cfg.Source == "builtin"). Standalone tests may not provision a
-	// ScriptResult — ScriptResultFrom returns nil in that case, which is fine.
+	// Write non-decision outputs for dispatcher pickup. The dispatcher applies
+	// them only when cfg.Source == "builtin". Standalone tests may not
+	// provision a ScriptResult — ScriptResultFrom returns nil in that case,
+	// which is fine.
 	if r := hooks.ScriptResultFrom(ctx); r != nil {
 		r.Reason = reason
 		r.UpdatedInput = updated

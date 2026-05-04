@@ -188,10 +188,10 @@ func (m *HookMethods) handleUpdate(ctx context.Context, client *gateway.Client, 
 	}
 	// Strip protected columns before any validation so callers cannot bypass
 	// the scope/edition/matcher/timeout gate by sneaking them into updates.
-	// `source` strip closes the C2 forge: without it a tenant admin could
-	// PATCH {"source":"builtin"} on an existing UI row to escalate it into a
+	// Stripping `source` prevents a tenant admin from PATCHing
+	// {"source":"builtin"} on an existing UI row to escalate it into a
 	// builtin-tier hook (which the dispatcher allows to mutate event input).
-	// `created_by` strip prevents lying about provenance.
+	// Stripping `created_by` prevents lying about provenance.
 	delete(params.Updates, "id")
 	delete(params.Updates, "tenant_id")
 	delete(params.Updates, "version")
@@ -421,7 +421,7 @@ func parseHookConfigParams(raw json.RawMessage) (*hooks.HookConfig, error) {
 	// source-tier gate trusts `Source == "builtin"` to permit input mutation;
 	// allowing a tenant admin to forge that here would let any script bypass
 	// the readonly capability tier and rewrite event input. ID stripping keeps
-	// the H9 cfg.ID-honor path (Phase 03) restricted to internal seeders only.
+	// the cfg.ID-honor path restricted to internal seeders only.
 	cfg.Source = ""
 	cfg.ID = uuid.Nil
 	cfg.CreatedBy = nil

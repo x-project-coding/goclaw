@@ -67,8 +67,8 @@ type Config struct {
 // runaway tenant cannot starve global slots. ScriptCacheSize caps the LRU of
 // compiled goja programs keyed by (hookID, version).
 //
-// BuiltinDisable names builtin hook IDs (from Phase 04's builtins.yaml) that
-// the operator wants force-disabled at startup — per-deployment escape hatch.
+// BuiltinDisable names builtin hook IDs (from builtins.yaml) that the
+// operator wants force-disabled at startup — per-deployment escape hatch.
 type HooksConfig struct {
 	ScriptConcurrency          int      `json:"script_concurrency,omitempty"`
 	ScriptPerTenantConcurrency int      `json:"script_per_tenant_concurrency,omitempty"`

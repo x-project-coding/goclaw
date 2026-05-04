@@ -73,7 +73,7 @@ func (m *migStore) GetHookAgents(context.Context, uuid.UUID) ([]uuid.UUID, error
 //	C: enabled http + ui     → skip (not command)
 //	D: enabled script + builtin → skip (builtin carve-out)
 //	E: enabled command + builtin → skip (defensive carve-out even though
-//	   Phase 04/05 never seed command builtins)
+//	   builtin seeds never include command-handler hooks)
 func fixtureRows() []hooks.HookConfig {
 	mk := func(ht hooks.HandlerType, src string, enabled bool) hooks.HookConfig {
 		return hooks.HookConfig{

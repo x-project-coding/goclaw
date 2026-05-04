@@ -29,9 +29,10 @@ type gateFixture struct {
 	binaryID uuid.UUID
 }
 
-// setupGateTest seeds: tenant, two agents under that SAME tenant (Red Team F10),
-// a non-global registered binary, and a grant only for agentA. Returns a wired
-// ExecTool + the IDs. All rows are cleaned up via t.Cleanup.
+// setupGateTest seeds: tenant, two agents under that SAME tenant, a
+// non-global registered binary, and a grant only for agentA. Returns a wired
+// ExecTool + the IDs. All rows are cleaned up via t.Cleanup. Same-tenant is
+// required so the gate (not tenant isolation) is what denies ungranted exec.
 func setupGateTest(t *testing.T) *gateFixture {
 	t.Helper()
 
@@ -55,9 +56,9 @@ func setupGateTest(t *testing.T) *gateFixture {
 	}
 }
 
-// seedSecondAgent inserts an additional agent under an existing tenant. Used
-// to satisfy Red Team F10: both test agents must share the same tenant to
-// prove the gate (not tenant isolation) is what denies ungranted exec.
+// seedSecondAgent inserts an additional agent under an existing tenant. Both
+// test agents must share the same tenant so the gate (not tenant isolation)
+// is what denies ungranted exec.
 func seedSecondAgent(t *testing.T, db *sql.DB, tenantID uuid.UUID) uuid.UUID {
 	t.Helper()
 
@@ -185,7 +186,7 @@ func TestSecureCLIGate_UnregisteredBinaryUnchanged(t *testing.T) {
 	}
 }
 
-// TestSecureCLIGate_IsGlobalBinaryNotDenied is Red Team F2 regression guard.
+// TestSecureCLIGate_IsGlobalBinaryNotDenied — global binary regression guard.
 // A global binary (is_global=true) needs no grant; the gate must NOT deny.
 func TestSecureCLIGate_IsGlobalBinaryNotDenied(t *testing.T) {
 	t.Parallel()
@@ -208,7 +209,7 @@ func TestSecureCLIGate_IsGlobalBinaryNotDenied(t *testing.T) {
 	}
 }
 
-// TestSecureCLIGate_ShellWrapperBypassDenied is Red Team F1 integration guard.
+// TestSecureCLIGate_ShellWrapperBypassDenied — shell-wrapper bypass guard.
 // Wrapping the registered binary in `sh -c '...'` must still hit the deny path.
 func TestSecureCLIGate_ShellWrapperBypassDenied(t *testing.T) {
 	t.Parallel()

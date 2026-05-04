@@ -13,12 +13,12 @@ import (
 
 // MergeUserAggregate atomically merges SourceUserIDs' data into TargetUserID
 // across channel_contacts, agent_sessions, user_context_files, and memory_documents.
-// All UPDATEs share one *sql.Tx (Finding 10 — atomic merge guarantee).
+// All UPDATEs share one *sql.Tx — atomic merge guarantee.
 //
 // Pre-checks inside the TX (concurrency-safe via SELECT FOR UPDATE):
-//   - source contacts must have merged_id IS NULL (Finding 7 — no user→user merge)
+//   - source contacts must have merged_id IS NULL (no user→user merge)
 //   - target user must exist (FK guard)
-//   - target user must not have been merged elsewhere (Finding 7 — depth cap = 1)
+//   - target user must not have been merged elsewhere (depth cap = 1)
 //
 // On success, the in-memory contact-resolve cache is invalidated.
 func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.MergeUserAggregateRequest) error {

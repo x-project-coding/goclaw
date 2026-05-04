@@ -13,8 +13,8 @@ type MemberInfo struct {
 }
 
 // ErrMemberResolveNotSupported indicates the channel does not implement
-// ChannelMemberResolver (e.g., Discord/Feishu in Phase 01). Callers should
-// treat this as a soft skip — proceed without enriched metadata.
+// ChannelMemberResolver (e.g., Discord/Feishu). Callers should treat this
+// as a soft skip — proceed without enriched metadata.
 var ErrMemberResolveNotSupported = errors.New("member resolve not supported by this channel")
 
 // MemberResolver is the facade consumed by gateway/HTTP handlers. Manager

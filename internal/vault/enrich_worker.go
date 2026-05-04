@@ -319,8 +319,8 @@ func (w *EnrichWorker) processChunk(ctx context.Context, items []eventbus.VaultD
 			all = append(all, prepared{payload: item, summary: existing.Summary, title: existing.Title})
 			continue
 		}
-		// Phase 02: deterministic pseudo-summary for media + new `document`
-		// docType. Pure function — no file read, no LLM, works for any binary.
+		// Deterministic pseudo-summary for media + new `document` docType.
+		// Pure function — no file read, no LLM, works for any binary.
 		if existing != nil && (existing.DocType == "media" || existing.DocType == "document") {
 			mime, _ := existing.Metadata["mime_type"].(string)
 			summary := SynthesizeMediaSummary(existing.Path, mime)

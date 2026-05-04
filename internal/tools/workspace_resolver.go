@@ -21,7 +21,8 @@ func ResolveWorkspace(base string, layers ...WorkspaceLayer) string {
 }
 
 // TenantLayer is a no-op in v4 single-tenant. Returns base unchanged.
-// Phase 13 removes all call sites and this function.
+// Kept temporarily for source-compat with remaining callers; will be removed
+// once all call sites are migrated.
 func TenantLayer(_ uuid.UUID, _ string) WorkspaceLayer {
 	return func(base string) string {
 		return base

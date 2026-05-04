@@ -16,7 +16,7 @@ import (
 
 // MergeUserAggregate atomically migrates SourceUserIDs' data into TargetUserID
 // across channel_contacts, agent_sessions, user_context_files, memory_documents.
-// All UPDATEs share one *sql.Tx (Finding 10). SQLite has no array type; lists
+// All UPDATEs share one *sql.Tx for atomicity. SQLite has no array type; lists
 // expand to placeholder strings at query build time.
 func (s *SQLiteContactStore) MergeUserAggregate(ctx context.Context, req store.MergeUserAggregateRequest) error {
 	if len(req.ContactIDs) == 0 {

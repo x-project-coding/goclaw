@@ -12,11 +12,11 @@ import (
 // when running on Standard edition. No-op on Lite. Idempotent: second call
 // finds nothing to disable.
 //
-// Context: Phase 01 removed the UI affordance for creating `command` hooks on
-// Standard edition; Phase 03's edition gate rejects new writes at the WS RPC
-// layer. But Standard deployments that existed BEFORE Wave 1 already have
-// command-hook rows in the DB, and those rows keep firing via the dispatcher.
-// This helper is the one-time-per-boot runtime migration that flips them off.
+// Context: the UI no longer offers `command` hooks on Standard edition, and
+// the edition gate rejects new writes at the WS RPC layer. But Standard
+// deployments that existed before that change already have command-hook rows
+// in the DB, and those rows keep firing via the dispatcher. This helper is
+// the one-time-per-boot runtime migration that flips them off.
 //
 // Why not a SQL migration?
 //   - Lite runs on SQLite and must not be affected even when sharing code
@@ -34,8 +34,8 @@ func DisableLegacyCommandHooks(ctx context.Context, hs HookStore, ed edition.Edi
 		return 0, nil
 	}
 
-	// Reach all tenants' rows. store.WithOwnerRole does NOT exist — see
-	// phase-04 red-team notes. Use WithRole explicitly.
+	// Reach all tenants' rows. store.WithOwnerRole does NOT exist; use
+	// WithRole(RoleRoot) explicitly to bypass the tenant scope filter.
 	ctx = store.WithRole(ctx, store.RoleRoot)
 
 	enabled := true
@@ -50,8 +50,9 @@ func DisableLegacyCommandHooks(ctx context.Context, hs HookStore, ed edition.Edi
 			continue
 		}
 		if r.Source == SourceBuiltin {
-			// Defensive: Phase 04/05 only seed HandlerScript, but guard anyway
-			// so a future accidental builtin command row wouldn't get disabled.
+			// Defensive: builtin seeds only emit HandlerScript today, but guard
+			// anyway so a future accidental builtin command row would not be
+			// silently disabled.
 			continue
 		}
 		if err := hs.Update(ctx, r.ID, map[string]any{"enabled": false}); err != nil {

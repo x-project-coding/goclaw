@@ -8,8 +8,8 @@ import (
 )
 
 // TestEditionGate covers the full matrix (handlerType × scope × edition).
-// Per plan C2 drop: `command` is Lite-only across all scopes.
-// `http` and `prompt` are allowed on both editions.
+// `command` is Lite-only across all scopes; `http` and `prompt` are allowed
+// on both editions.
 func TestEditionGate(t *testing.T) {
 	var policy hooks.HookEditionPolicy
 
@@ -25,7 +25,7 @@ func TestEditionGate(t *testing.T) {
 		{"command/tenant/lite", hooks.HandlerCommand, hooks.ScopeTenant, edition.Lite, true},
 		{"command/agent/lite", hooks.HandlerCommand, hooks.ScopeAgent, edition.Lite, true},
 
-		// command on Standard — blocked at every scope (C2 drop).
+		// command on Standard — blocked at every scope.
 		{"command/global/standard", hooks.HandlerCommand, hooks.ScopeGlobal, edition.Standard, false},
 		{"command/tenant/standard", hooks.HandlerCommand, hooks.ScopeTenant, edition.Standard, false},
 		{"command/agent/standard", hooks.HandlerCommand, hooks.ScopeAgent, edition.Standard, false},

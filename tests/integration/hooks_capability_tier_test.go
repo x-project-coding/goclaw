@@ -15,7 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-// Phase 08 — C bucket: source-tier capability gate + FireResult propagation.
+// Source-tier capability gate + FireResult propagation.
 //
 // Wires the real ScriptHandler into the StdDispatcher and asserts that:
 //   - non-builtin scripts returning updatedInput have it stripped (FireResult

@@ -117,7 +117,7 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.P
 		SanitizeHistory: cb.sanitizeHistory,
 		CompactMessages: cb.compactMessages,
 
-		// Cache-TTL gate callbacks (Phase 06)
+		// Cache-TTL gate callbacks
 		GetProviderCaps: func() providers.ProviderCapabilities {
 			if ca, ok := l.provider.(providers.CapabilitiesAware); ok {
 				return ca.Capabilities()

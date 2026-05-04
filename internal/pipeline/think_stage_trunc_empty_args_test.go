@@ -43,8 +43,8 @@ func TestThinkStage_WriteFileEmptyArgsTreatedAsTruncated(t *testing.T) {
 }
 
 // TestThinkStage_DatetimeEmptyArgsNoRetry is the critical regression guard
-// for Phase 03. Nullary/optional-args tools (datetime, heartbeat) routinely
-// call with empty args; the truncation heuristic MUST skip them.
+// for the truncation heuristic: nullary/optional-args tools (datetime,
+// heartbeat) routinely call with empty args and the heuristic MUST skip them.
 func TestThinkStage_DatetimeEmptyArgsNoRetry(t *testing.T) {
 	t.Parallel()
 	deps := &PipelineDeps{

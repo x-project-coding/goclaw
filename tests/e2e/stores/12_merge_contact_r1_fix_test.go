@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Phase 09 Sub-09A — R1 fix verification.
+// Contact-merge regression: agent_sessions migration must follow merged_id flip.
 //
 // v3 bug: contact_merge_handlers.go flipped channel_contacts.merged_id but
 // did NOT migrate agent_sessions.user_id to the merged user. After auth, the

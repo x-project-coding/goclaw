@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// TestBundledSkills_NoRegression verifies every bundled skill scans successfully
-// after Phase 02 changes. No skill currently uses deps:/exclude_deps: (verified
-// via grep), so FromManifest must be false across the board.
+// TestBundledSkills_NoRegression verifies every bundled skill scans
+// successfully. No skill currently uses deps:/exclude_deps: (verified via
+// grep), so FromManifest must be false across the board.
 func TestBundledSkills_NoRegression(t *testing.T) {
 	bundled := "../../skills"
 	entries, err := os.ReadDir(bundled)

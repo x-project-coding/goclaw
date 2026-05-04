@@ -180,9 +180,9 @@ func (t *MemorySearchTool) Execute(ctx context.Context, args map[string]any) *Re
 
 	// Record retrieval metric non-blocking (best-effort).
 	t.recordRetrievalMetric(ctx, len(combined), episodicResults)
-	// Phase 10: update per-episode recall signals for dreaming weighted
-	// scoring. Fire-and-forget — recall tracking must never block the hot
-	// search path or surface errors to the agent loop.
+	// Update per-episode recall signals for dreaming weighted scoring.
+	// Fire-and-forget — recall tracking must never block the hot search
+	// path or surface errors to the agent loop.
 	t.recordEpisodicRecall(ctx, episodicResults)
 
 	return NewResult(string(data))

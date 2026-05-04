@@ -1,12 +1,13 @@
 package tools
 
 // Characterization tests for write_file deliver=true/false behavior.
-// These pin the delivery chain side-effects so phase 03 (send_file tool) cannot
-// silently regress Result.Media population or DeliveredMedia.Mark() call.
+// These pin the delivery chain side-effects so future delivery tools (e.g.,
+// send_file) cannot silently regress Result.Media population or the
+// DeliveredMedia.Mark() call.
 //
 // Gap noted: message.go (line 123) only READS IsDelivered — it does NOT call Mark.
 // Mark is called exclusively by write_file (filesystem_write.go:236, 281).
-// Phase 03 will add send_file which must also call Mark. Tests here lock that contract.
+// Any future delivery tool must also call Mark; tests here lock that contract.
 
 import (
 	"context"

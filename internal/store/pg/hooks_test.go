@@ -370,7 +370,7 @@ func TestPGHookStore_CreateHonorsFixedID(t *testing.T) {
 	}
 }
 
-// ─── Phase 04: builtin-row readonly protection ───────────────────────────────
+// ─── builtin-row readonly protection ─────────────────────────────────────────
 
 // TestPGHookStore_BuiltinReadOnly exercises the builtin-row guard: user-facing
 // writes on a source='builtin' row may only toggle enabled; every other patch

@@ -28,7 +28,7 @@ func TestRandHex8Uniqueness(t *testing.T) {
 }
 
 // TestSeedUserUUID asserts SeedUser returns a UUID v7 (not v4) and a globally
-// unique email. v7 versioning is enforced by the V4 lock per plan.md.
+// unique email. v7 is the project-wide UUID version.
 func TestSeedUserUUID(t *testing.T) {
 	t.Parallel()
 	a := SeedUser(t, SeedUserOpts{})

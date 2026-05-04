@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Phase 09 Sub-09A — shared insert/assert helpers for merge tests.
+// Shared insert/assert helpers for contact-merge tests.
 // Kept here (not in helpers/) so the SQL stays close to the tests asserting
 // against it, and so we don't ship test fixtures into the helper package.
 

@@ -109,10 +109,10 @@ func (r *MethodRouter) registerDefaults() {
 // --- Built-in handlers ---
 
 func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *protocol.RequestFrame) {
-	// Parse connect params. Phase 06: AccessToken is the v4 password-auth path
-	// (HS256 JWT issued by /v1/auth/login). Token remains for gateway-token /
-	// API-key compatibility. tenant_* params kept as no-ops for backward compat
-	// during the desktop/web client rollout — they are silently ignored.
+	// Parse connect params. AccessToken is the v4 password-auth path (HS256
+	// JWT issued by /v1/auth/login). Token remains for gateway-token /
+	// API-key compatibility. tenant_* params kept as no-ops for backward
+	// compat during the desktop/web client rollout — silently ignored.
 	var params struct {
 		Token       string `json:"token"`
 		AccessToken string `json:"accessToken"`  // v4 JWT access token from /v1/auth/login
@@ -148,8 +148,8 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		return
 	}
 
-	// Path 1a: JWT access token (Phase 06, v4 multi-user auth).
-	// Issued by /v1/auth/login or /v1/bootstrap/init. Carries Sub (user UUID) + Role.
+	// Path 1a: JWT access token (v4 multi-user auth). Issued by
+	// /v1/auth/login or /v1/bootstrap/init. Carries Sub (user UUID) + Role.
 	if params.AccessToken != "" {
 		if claims, ok := httpapi.ResolveJWTAccess(params.AccessToken); ok {
 			client.role = permissions.Role(claims.Role)

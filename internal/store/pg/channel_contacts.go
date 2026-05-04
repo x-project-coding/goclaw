@@ -215,8 +215,7 @@ func (s *PGContactStore) GetSenderIDsByContactIDs(ctx context.Context, contactID
 	return result, rows.Err()
 }
 
-// Note: MergeContacts/UnmergeContacts/GetContactsByMergedID were removed
-// in v4 Phase 09. The single MergeUserAggregate method (see merge_aggregate.go)
-// is the only sanctioned merge entry point — it owns one *sql.Tx covering
-// channel_contacts + agent_sessions + user_context_files + memory_documents
-// for atomic R1-fix semantics.
+// Note: MergeContacts/UnmergeContacts/GetContactsByMergedID were removed in v4.
+// The single MergeUserAggregate method (see merge_aggregate.go) is the only
+// sanctioned merge entry point — it owns one *sql.Tx covering channel_contacts
+// + agent_sessions + user_context_files + memory_documents for atomic semantics.

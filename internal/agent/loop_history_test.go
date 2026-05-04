@@ -602,7 +602,7 @@ func TestEstimateOverhead(t *testing.T) {
 }
 
 func TestPruneContextMessagesDefaultEnabled(t *testing.T) {
-	// Phase 04: nil config → no pruning (opt-in). To enable, use Mode: "cache-ttl".
+	// nil config → no pruning (opt-in). To enable, use Mode: "cache-ttl".
 	// Create messages with a large tool result that exceeds soft trim threshold.
 	largeContent := make([]byte, 10000)
 	for i := range largeContent {

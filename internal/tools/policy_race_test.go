@@ -10,7 +10,8 @@ import (
 // tool groups. When two registries (representing two agent Loops) register their
 // MCP tools to their own "mcp" group, they don't pollute each other.
 //
-// This test PASSES after Phase 03 fix because toolGroups is now per-Registry.
+// This test passes because toolGroups is per-Registry, so registrations from
+// one Loop's registry never leak into another Loop's registry.
 func TestToolGroups_PerRegistry_Isolation(t *testing.T) {
 	// Create two separate registries (simulating two agent Loops)
 	regA := NewRegistry()

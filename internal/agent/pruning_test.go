@@ -444,9 +444,9 @@ func TestHasImportantTail_ShortContentNoMatch(t *testing.T) {
 	}
 }
 
-// ─── Characterization tests (Phase 01) ────────────────────────────────────
-// Lock current (buggy-vs-TS) behavior before refactoring. Subsequent phases
-// update these tests to new expected values.
+// ─── Characterization tests ───────────────────────────────────────────────
+// Lock current pruning behavior so refactors stay byte-identical until a
+// matching test update accompanies the change.
 
 // makeLargeHistoryFixture creates a history with a large tool result for default-enabled tests.
 // contextWindow=5000 → charWindow=20000, total ~8030 chars → ratio ~40% ≥ 30% (softTrimRatio).
@@ -502,7 +502,7 @@ func TestPruneContextMessages_CacheTtlMode_Prunes(t *testing.T) {
 }
 
 func TestPruneContextMessages_Pass0_RemovedSuffixAbsent(t *testing.T) {
-	// Phase 02: Pass 0 removed. This test asserts the distinctive suffix is GONE.
+	// Pass 0 has been removed. This test asserts its distinctive suffix is GONE.
 	// Pass 1 still trims via ratio gate, but with different suffix format.
 	//
 	// contextWindow=10000 → charWindow=40000; msg=15000 chars = 37.5% ≥ 25% softTrimRatio.
@@ -519,7 +519,7 @@ func TestPruneContextMessages_Pass0_RemovedSuffixAbsent(t *testing.T) {
 	got := pruneContextMessages(msgs, 10000, cfg, nil, "", nil)
 
 	content := got[2].Content
-	// Pass 0 suffix markers must be GONE after Phase 02 deletion.
+	// Pass 0 suffix markers must be absent (Pass 0 has been removed).
 	if strings.Contains(content, "Single tool result trimmed:") {
 		t.Errorf("Pass 0 suffix should be removed; got: %q", testTruncate(content, 200))
 	}
@@ -532,7 +532,7 @@ func TestPruneContextMessages_Pass0_RemovedSuffixAbsent(t *testing.T) {
 	}
 }
 
-// ─── PruneStats (Phase 05) ────────────────────────────────────────────────
+// ─── PruneStats ───────────────────────────────────────────────────────────
 
 func TestPruneContextMessages_Stats_TrimmedPopulated(t *testing.T) {
 	// Large tool result that will be soft-trimmed.
@@ -566,7 +566,7 @@ func TestPruneContextMessages_Stats_NilSafe(t *testing.T) {
 	_ = pruneContextMessages(msgs, 5000, cfg, nil, "", nil) // must not panic
 }
 
-// ─── parseTTL (Phase 06) ─────────────────────────────────────────────────
+// ─── parseTTL ─────────────────────────────────────────────────────────────
 
 func testTruncate(s string, n int) string {
 	if len(s) <= n {

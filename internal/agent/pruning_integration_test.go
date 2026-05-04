@@ -10,8 +10,8 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
 
-// TestPruneStage_SingleEntryPoint verifies that after Phase 03 refactoring:
-// - loop_history.go no longer calls pruneContextMessages
+// TestPruneStage_SingleEntryPoint guards the pruning entry-point invariant:
+// - loop_history.go must not call pruneContextMessages
 // - PruneStage owns the single entry point for pruning
 // - SanitizeHistory is called after PruneMessages in PruneStage
 //

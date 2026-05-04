@@ -29,7 +29,7 @@ type Agent struct {
 	Type     string
 }
 
-// LoginTokens is returned from LoginAs once Phase 06 ships.
+// LoginTokens is returned from LoginAs once auth endpoints land.
 type LoginTokens struct {
 	AccessToken  string
 	RefreshToken string
@@ -144,9 +144,10 @@ func RandEmail(prefix string) string {
 }
 
 // LoginAs returns access+refresh tokens for the given credentials.
-// Pre-P06 this is unimplemented and returns a clear error to avoid silent test passes.
+// Currently unimplemented — skips clearly to avoid silent test passes until
+// the auth login/refresh endpoints land.
 func LoginAs(t *testing.T, email, password string) *LoginTokens {
 	t.Helper()
-	t.Skipf("e2e: LoginAs requires Phase 06 auth endpoints (login/refresh) — not yet shipped")
+	t.Skipf("e2e: LoginAs requires auth endpoints (login/refresh) — not yet shipped")
 	return nil
 }

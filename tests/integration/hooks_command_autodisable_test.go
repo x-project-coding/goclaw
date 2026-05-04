@@ -13,7 +13,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-// Phase 08 — E bucket: DisableLegacyCommandHooks against live PG.
+// DisableLegacyCommandHooks against live PG.
 //
 // Unit coverage in internal/hooks/migration_command_autodisable_test.go uses
 // a fake store + tests the branching. Here we replay the same scenarios

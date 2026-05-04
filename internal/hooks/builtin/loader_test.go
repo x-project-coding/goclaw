@@ -7,9 +7,8 @@ import (
 )
 
 // TestLoad_ShippedRegistry verifies the baked-in builtins parse clean at
-// build time. Phase 05 ships pii-redactor (2 events), so we assert the
-// registry contains at least that spec and that its embedded source file
-// loaded successfully.
+// build time. The registry must contain pii-redactor (2 events) and its
+// embedded source file must load successfully.
 func TestLoad_ShippedRegistry(t *testing.T) {
 	if err := Load(); err != nil {
 		t.Fatalf("Load: %v", err)

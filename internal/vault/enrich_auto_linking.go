@@ -7,7 +7,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// phase25TaskLinking implements task-based auto-linking (Phase 04).
+// phase25TaskLinking implements task-based auto-linking.
 // Runs after Phase 2 embed, before Phase 3 classify. Uses dedicated
 // link_type LinkTypeTaskAttachment (outside validClassifyTypes) so
 // DeleteDocLinksByTypes in classify cannot wipe these links.
@@ -88,9 +88,9 @@ func (w *EnrichWorker) phase25TaskLinking(ctx context.Context, embedded []enrich
 		"count", len(links))
 }
 
-// phase26DelegationLinking implements delegation-based auto-linking
-// (Phase 05). Runs after Phase 2.5, before Phase 3 classify. Uses
-// dedicated link_type LinkTypeDelegationAttachment.
+// phase26DelegationLinking implements delegation-based auto-linking.
+// Runs after Phase 2.5, before Phase 3 classify. Uses dedicated
+// link_type LinkTypeDelegationAttachment.
 //
 // Batched query via VaultStore.BatchFindByDelegationIDs; single
 // CreateLinks call. No-op when no embedded doc carries metadata.delegation_id.

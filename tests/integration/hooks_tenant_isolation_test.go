@@ -14,7 +14,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-// Phase 08 — A bucket: tenant isolation for script hooks.
+// Tenant isolation for script hooks.
 //
 // Each test uses two real tenants (A + B) seeded against live PG. We exercise
 // the resolver path that the dispatcher takes (ResolveForEvent) plus the

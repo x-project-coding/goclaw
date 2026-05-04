@@ -483,9 +483,9 @@ func TestDispatcher_ScriptMutation_UISourceDenied(t *testing.T) {
 	}
 }
 
-// ── Phase 05: dotted-path allowlist walker (exercises Phase-03 walker)  ──────
+// ── Dotted-path allowlist walker ─────────────────────────────────────────────
 //
-// Phase 05 ships the pii-redactor whose mutable_fields are
+// The pii-redactor builtin declares mutable_fields
 // [rawInput, toolInput.command, toolInput.query, toolInput.content].
 // These tests drive the dispatcher's applyBuiltinMutation via a mutating
 // handler + a custom lookup to prove the dotted-path and wildcard semantics

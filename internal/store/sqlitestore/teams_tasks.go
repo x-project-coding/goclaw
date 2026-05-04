@@ -307,7 +307,7 @@ func (s *SQLiteTeamStore) DeleteTask(ctx context.Context, taskID, teamID uuid.UU
 		return store.ErrTaskNotFound
 	}
 
-	// Phase 04: clean up auto-created vault_links sourced from this task
+	// Clean up auto-created vault_links sourced from this task
 	// (task_attachment + defensive delegation_attachment) inside the same tx.
 	if _, derr := tx.ExecContext(ctx, `
 		DELETE FROM vault_links
@@ -364,7 +364,7 @@ func (s *SQLiteTeamStore) DeleteTasks(ctx context.Context, taskIDs []uuid.UUID, 
 			return nil, err
 		}
 
-		// Phase 04 bulk cleanup: drop task_attachment / delegation_attachment
+		// Bulk cleanup: drop task_attachment / delegation_attachment
 		// links for all deleted task IDs in the same tx.
 		sourceArgs := make([]any, 0, len(deleted)*2)
 		phs := make([]string, 0, len(deleted)*2)

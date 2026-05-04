@@ -88,7 +88,7 @@ func TestCommand_EmptyCommand_ReturnsError(t *testing.T) {
 }
 
 func TestCommand_EditionBlocked_Standard(t *testing.T) {
-	// CommandHandler is blocked on Standard edition (C2 drop decision).
+	// CommandHandler is blocked on Standard edition.
 	h := &handlers.CommandHandler{Edition: edition.Standard}
 	cfg := makeCmdCfg("exit 0", hooks.ScopeAgent)
 	dec, err := h.Execute(context.Background(), cfg, hooks.Event{HookEvent: hooks.EventPreToolUse})

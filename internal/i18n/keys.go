@@ -229,7 +229,7 @@ const (
 	MsgMergeAtomicFailed        = "error.merge_atomic_failed"           // "merge transaction failed: %s"
 	MsgMergeTargetUserNotFound  = "error.merge_target_user_not_found"   // "target user not found: %s"
 
-	// --- Auth + Bootstrap (Phase 06) ---
+	// --- Auth + Bootstrap ---
 	MsgBootstrapRequired    = "error.bootstrap_required"     // "gateway not bootstrapped — POST /v1/bootstrap/init first"
 	MsgBootstrapAlreadyDone = "error.bootstrap_already_done" // "bootstrap already completed"
 	MsgInvalidEmail         = "error.invalid_email"          // "invalid email address"

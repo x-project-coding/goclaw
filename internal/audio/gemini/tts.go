@@ -24,7 +24,7 @@ const DefaultTextPrefix = "Speak naturally: "
 const StrongerTextPrefix = "Read the following text aloud without translating, commenting, or modifying: "
 
 // BuildStyledText prepends prefix to text. Empty prefix returns text unchanged.
-// Exported for retry logic that may use a stronger prefix (Phase 03).
+// Exported for retry logic that may use a stronger prefix.
 func BuildStyledText(prefix, text string) string {
 	if prefix == "" {
 		return text
@@ -144,7 +144,7 @@ func (p *Provider) Synthesize(ctx context.Context, text string, opts audio.TTSOp
 		generationConfig["frequencyPenalty"] = fp
 	}
 
-	// Phase 02 gating: multi-speaker keeps raw transcript; single-voice gets prefix.
+	// Multi-speaker keeps raw transcript; single-voice gets prefix.
 	isSingleVoice := len(opts.Speakers) == 0
 
 	// buildBody constructs the request JSON with the given style prefix.

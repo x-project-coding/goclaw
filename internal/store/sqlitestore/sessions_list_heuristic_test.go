@@ -15,7 +15,8 @@ import (
 // TestSessionListPagedRich_EstimatedTokensHeuristic_UTF8 pins the PRE-fix
 // byte-length heuristic: EstimatedTokens == length(messages_json)/4 + 12000.
 //
-// Characterization: pins PRE-fix heuristic behavior. Change asserted value when Phase 02 lands.
+// Characterization: pins PRE-fix heuristic behavior. Update the asserted value
+// when the byte-length heuristic is replaced with a rune/tiktoken estimate.
 //
 // The fixture uses Vietnamese UTF-8 text to expose the byte-over-rune overshoot:
 // multi-byte chars inflate length() beyond character count, so estimated tokens

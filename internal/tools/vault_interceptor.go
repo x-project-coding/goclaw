@@ -94,8 +94,8 @@ func (v *VaultInterceptor) AfterWrite(ctx context.Context, resolvedPath, content
 		DocType:     docType,
 		ContentHash: hash,
 	}
-	// Phase 05: tag with delegation_id when write happens inside a delegated
-	// task so Phase 2.6 auto-linking can sibling-link the docs later.
+	// Tag with delegation_id when the write happens inside a delegated
+	// task so the auto-linking enrichment pass can sibling-link the docs later.
 	if delegID := DelegationIDFromCtx(ctx); delegID != "" {
 		if doc.Metadata == nil {
 			doc.Metadata = make(map[string]any)

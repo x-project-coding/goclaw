@@ -7,8 +7,8 @@ import "github.com/nextlevelbuilder/goclaw/internal/edition"
 //
 // Rule: the `command` handler executes arbitrary shell; it is only safe in
 // the Lite edition where the operator physically owns the host. On Standard
-// (multi-tenant managed hosting), `command` is blocked across every scope
-// (C2 drop decision). `http` and `prompt` are allowed on both editions.
+// (multi-tenant managed hosting), `command` is blocked across every scope.
+// `http` and `prompt` are allowed on both editions.
 type HookEditionPolicy struct{}
 
 // Allow returns (ok, reason). reason is only set when ok=false.

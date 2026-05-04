@@ -203,8 +203,8 @@ func TestBuildSystemPrompt_PredefinedBootstrapSoftened(t *testing.T) {
 	}
 }
 
-// TestBuildSystemPrompt_OpenBootstrapUnchanged verifies Phase 04 did NOT
-// touch the open-agent slim branch — its existing mandate copy stays.
+// TestBuildSystemPrompt_OpenBootstrapUnchanged guards the open-agent slim
+// branch — its existing mandate copy must remain untouched.
 func TestBuildSystemPrompt_OpenBootstrapUnchanged(t *testing.T) {
 	cfg := SystemPromptConfig{
 		IsBootstrap: true,

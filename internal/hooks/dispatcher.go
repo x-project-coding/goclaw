@@ -182,7 +182,7 @@ func (d *stdDispatcher) Fire(ctx context.Context, ev Event) (FireResult, error) 
 // runSync executes the blocking chain with a wall-time budget and per-hook
 // timeouts. First block wins; any fail-closed condition aborts to Block.
 //
-// Mutation propagation (Phase 03): the dispatcher keeps a local evMut copy
+// Mutation propagation: the dispatcher keeps a local evMut copy
 // with its own ToolInput map so a builtin-source hook's updatedInput becomes
 // visible to downstream hooks in the chain (and to the caller via FireResult)
 // without leaking mutations back into the caller's original event on error
@@ -282,8 +282,9 @@ func cloneMap(m map[string]any) map[string]any {
 }
 
 // applyBuiltinMutation applies the builtin hook's updatedInput fields into ev,
-// gated by the per-builtin allowlist. The allowlist is loaded in Phase 04 from
-// builtins.yaml; Phase 03 uses a permissive default (rawInput + toolInput).
+// gated by the per-builtin allowlist. The allowlist is loaded from
+// builtins.yaml; when no registry is wired the dispatcher uses a permissive
+// default (rawInput + toolInput).
 func applyBuiltinMutation(ev *Event, updated map[string]any, allowlist []string) {
 	if updated == nil {
 		return
@@ -318,8 +319,8 @@ func applyBuiltinMutation(ev *Event, updated map[string]any, allowlist []string)
 
 // builtinAllowlistLookup is set at startup by the builtin package wiring
 // (cmd/gateway_managed.go calls SetBuiltinAllowlistLookup(builtin.AllowlistFor)).
-// When nil (tests that don't wire the registry) we fall back to the Phase 03
-// permissive default so legacy mutation tests stay green.
+// When nil (tests that don't wire the registry) we fall back to the
+// permissive default below so mutation tests stay green.
 //
 // atomic.Pointer guards against the data race that fires when parallel tests
 // install/clear the lookup while the dispatcher reads it on another goroutine.
@@ -340,7 +341,7 @@ func SetBuiltinAllowlistLookup(f func(uuid.UUID) []string) {
 // builtinAllowlistFor returns the field allowlist for a builtin hook row.
 // Registered builtin → YAML mutable_fields. Unknown id under a wired lookup
 // → empty allowlist (mutations stripped, defense-in-depth). Unset lookup
-// (unit tests) → Phase 03 permissive default.
+// (unit tests) → permissive default (rawInput + toolInput).
 func builtinAllowlistFor(id uuid.UUID) []string {
 	if fp := builtinAllowlistLookup.Load(); fp != nil {
 		return (*fp)(id)
@@ -349,12 +350,13 @@ func builtinAllowlistFor(id uuid.UUID) []string {
 }
 
 // SourceBuiltin is the `source` value marking a hook seeded by the builtin
-// infrastructure (Phase 04 loader). Only builtin-source hooks are allowed to
-// mutate event input through the script handler's updatedInput field.
+// loader. Only builtin-source hooks are allowed to mutate event input through
+// the script handler's updatedInput field.
 const SourceBuiltin = "builtin"
 
-// runAsync fires non-blocking hooks concurrently. Phase 1 uses a simple
-// goroutine-per-hook; Phase 2 will route through the eventbus worker pool.
+// runAsync fires non-blocking hooks concurrently. Currently uses a simple
+// goroutine-per-hook; future iterations will route through the eventbus
+// worker pool.
 func (d *stdDispatcher) runAsync(ctx context.Context, ev Event, chain []HookConfig) {
 	for _, cfg := range chain {
 		if !cfg.Enabled || !d.prefilter(cfg, ev) {

@@ -236,7 +236,7 @@ func init() {
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
 
-		// Auth + Bootstrap (Phase 06)
+		// Auth + Bootstrap
 		MsgBootstrapRequired:    "网关尚未初始化 — 请先调用 POST /v1/bootstrap/init",
 		MsgBootstrapAlreadyDone: "网关已完成初始化",
 		MsgInvalidEmail:         "邮箱地址无效",

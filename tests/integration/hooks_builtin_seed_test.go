@@ -16,7 +16,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-// Phase 08 — D bucket: builtin seed reconciliation against live PG.
+// Builtin seed reconciliation against live PG.
 //
 // Seed() runs against shared state (the PG hooks table) — these tests
 // share the test DB with other integration tests, so each one purges the

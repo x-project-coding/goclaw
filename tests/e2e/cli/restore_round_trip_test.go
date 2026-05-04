@@ -17,7 +17,7 @@ import (
 //
 // The full DB round-trip (workspace tar + pg_dump → reset DB → restore →
 // row-count parity) is gated on GOCLAW_E2E_FULL_ROUND_TRIP=1; setting up
-// PG + workspace fixtures lives with Phase 14's e2e harness.
+// PG + workspace fixtures lives with the dedicated e2e harness.
 //
 // Without that env, the test still asserts the CLI shape: backup with
 // --exclude-db + --exclude-files produces a valid gzipped tar containing
@@ -29,7 +29,7 @@ func TestRestoreRoundTrip(t *testing.T) {
 		return
 	}
 
-	t.Skip("full DB round-trip lives in Phase 14 e2e harness; shape check covers Phase 08 exit gate")
+	t.Skip("full DB round-trip lives in dedicated e2e harness; shape check covers the CLI contract")
 }
 
 // runShapeOnlyArchiveCheck builds a backup with everything excluded and

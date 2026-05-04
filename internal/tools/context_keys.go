@@ -449,7 +449,7 @@ const ctxDelegationID toolContextKey = "tool_delegation_id"
 
 // WithDelegationID injects the delegation identifier into context so vault
 // documents created during the delegated task can be tagged in metadata for
-// Phase 05 auto-linking.
+// delegation-based auto-linking.
 func WithDelegationID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, ctxDelegationID, id)
 }

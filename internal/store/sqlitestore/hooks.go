@@ -44,9 +44,9 @@ func NewSQLiteHookStore(db *sql.DB) *SqliteHookStore {
 // ─── Create ─────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) Create(ctx context.Context, cfg hooks.HookConfig) (uuid.UUID, error) {
-	// Honor caller-provided fixed ID (H9) — Phase 04 builtin seeder uses
-	// UUIDv5 for idempotent UPSERT; tests need deterministic IDs. Only
-	// auto-generate when the caller left ID unset.
+	// Honor caller-provided fixed ID — the builtin seeder uses UUIDv5 for
+	// idempotent UPSERT; tests need deterministic IDs. Only auto-generate
+	// when the caller left ID unset.
 	id := cfg.ID
 	if id == uuid.Nil {
 		id = uuid.Must(uuid.NewV7())
@@ -198,8 +198,8 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 		return fmt.Errorf("callers must not include 'version' in update map")
 	}
 
-	// Builtin-row protection (Phase 04). User/UI writes may only toggle
-	// `enabled`; the builtin seeder itself bypasses this via hooks.WithSeedBypass.
+	// Builtin-row protection. User/UI writes may only toggle `enabled`;
+	// the builtin seeder itself bypasses this via hooks.WithSeedBypass.
 	// Fail-closed on GetByID errors — silently passing here could let wide
 	// patches through on a transient DB read failure.
 	if !hooks.IsSeedBypass(ctx) {
@@ -272,7 +272,7 @@ func (s *SqliteHookStore) Update(ctx context.Context, id uuid.UUID, updates map[
 // ─── Delete ──────────────────────────────────────────────────────────────────
 
 func (s *SqliteHookStore) Delete(ctx context.Context, id uuid.UUID) error {
-	// Builtin-row protection (Phase 04): reject unless caller marked seed-bypass.
+	// Builtin-row protection: reject unless caller marked seed-bypass.
 	// Fail-closed on GetByID errors.
 	if !hooks.IsSeedBypass(ctx) {
 		current, err := s.GetByID(ctx, id)

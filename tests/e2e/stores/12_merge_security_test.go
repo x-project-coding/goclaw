@@ -1,6 +1,6 @@
 //go:build e2e
 
-// Phase 09 Sub-09A — Findings 7 + 10 security guards.
+// Contact-merge security guards.
 //
 // Without these checks, RoleAdmin alone could silently hijack any user's
 // data: merge user A's contacts into user B, or chain merges so data hops

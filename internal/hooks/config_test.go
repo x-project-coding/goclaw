@@ -61,7 +61,7 @@ func TestValidate_AcceptsValidPromptHook(t *testing.T) {
 }
 
 // Prompt handler requires at least ONE filter (matcher OR if_expr) to avoid
-// firing the LLM on every event — runaway-cost mitigation (L-risk in plan).
+// firing the LLM on every event — runaway-cost mitigation.
 func TestValidate_RejectsPromptWithoutFilter(t *testing.T) {
 	h := baseValidCommandHook()
 	h.HandlerType = hooks.HandlerPrompt
@@ -101,8 +101,8 @@ func TestValidate_RejectsMalformedCEL(t *testing.T) {
 	}
 }
 
-// Command on Standard + tenant scope is blocked via edition gate. Plan C2 drop:
-// command handler is Lite-only (multi-tenant host can't run arbitrary shell).
+// Command on Standard + tenant scope is blocked via edition gate.
+// Command handler is Lite-only (multi-tenant host can't run arbitrary shell).
 func TestValidate_RejectsCommandOnStandardTenant(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Scope = hooks.ScopeTenant
@@ -194,8 +194,7 @@ func TestValidate_AppliesVersionDefault(t *testing.T) {
 	}
 }
 
-// Source defaults to "ui" when empty — distinguishes UI writes from agent-seeded
-// hooks (M1 isolation in plan).
+// Source defaults to "ui" when empty — distinguishes UI writes from agent-seeded hooks.
 func TestValidate_AppliesSourceDefault(t *testing.T) {
 	h := baseValidCommandHook()
 	h.Source = ""
@@ -245,7 +244,7 @@ func TestValidate_CapsTimeoutToMax(t *testing.T) {
 	}
 }
 
-// ─── Script handler validation (Phase 03) ────────────────────────────────────
+// ─── Script handler validation ──────────────────────────────────────────────
 
 func baseValidScriptHook() hooks.HookConfig {
 	h := baseValidCommandHook()

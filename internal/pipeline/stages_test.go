@@ -2103,7 +2103,7 @@ func TestFinalizeStage_DeduplicatesMedia_WithRealFile(t *testing.T) {
 	}
 }
 
-// ─── parseTTL (Phase 06) ─────────────────────────────────────────────────
+// ─── parseTTL ────────────────────────────────────────────────────────────
 
 func TestParseTTL_ValidInputs(t *testing.T) {
 	cases := []struct {
@@ -2125,7 +2125,7 @@ func TestParseTTL_ValidInputs(t *testing.T) {
 	}
 }
 
-// ─── Cache-TTL gate (Phase 06) ───────────────────────────────────────────
+// ─── Cache-TTL gate ──────────────────────────────────────────────────────
 
 // makePruneHistory builds history that exceeds the 70% soft threshold.
 // budget = 10000-0-1000=9000, soft=6300. 100 msgs * 100 = 10000 > 6300.

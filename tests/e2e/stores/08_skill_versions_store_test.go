@@ -18,10 +18,8 @@ import (
 
 // TestSkillVersionsStore exercises Create/List/GetActive/Delete.
 //
-// Schema (PG/SQLite Phase 03/04 locked) has no `archived_at` column on
-// skill_versions — "active" simply means `MAX(version)` per skill_id.
-// Plan prose for "Archive sets archived_at + clears content" was authored before
-// schema lock and is superseded; this test follows the schema source-of-truth.
+// Schema has no `archived_at` column on skill_versions — "active" simply
+// means `MAX(version)` per skill_id. This test follows the schema source-of-truth.
 func TestSkillVersionsStore(t *testing.T) {
 	helpers.ResetDB(t)
 
@@ -31,7 +29,7 @@ func TestSkillVersionsStore(t *testing.T) {
 	db := helpers.MustDB(t)
 	skillsStore := pg.NewPGSkillVersionsStore(db)
 
-	// Seed parent skill row directly — Phase 10 owns the SkillStore refactor.
+	// Seed parent skill row directly — SkillStore refactor lives elsewhere.
 	skillID := uuid.Must(uuid.NewV7())
 	skillName := "skill-" + helpers.RandHex8()
 	if _, err := db.ExecContext(ctx, `

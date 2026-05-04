@@ -252,7 +252,7 @@ type Loop struct {
 	// User identity resolver: maps channel contacts to merged tenant users for credential lookups.
 	userResolver UserIdentityResolver
 
-	// Per-session cache-touch timestamps for the cache-TTL pruning gate (Phase 06).
+	// Per-session cache-touch timestamps for the cache-TTL pruning gate.
 	// Key: sessionKey (string), Value: time.Time of last prune mutation.
 	// sync.Map zero value is ready to use — no init required.
 	// Grows with distinct sessions; typical gateway has bounded session count.

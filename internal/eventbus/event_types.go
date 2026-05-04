@@ -16,7 +16,7 @@ const (
 	EventRunCompleted   EventType = "run.completed"
 	EventToolExecuted     EventType = "tool.executed"
 
-	// Context pruning observability (Phase 05)
+	// Context pruning observability
 	EventContextPruned EventType = "context.pruned"
 
 	// Vault events (v3 enrichment pipeline)

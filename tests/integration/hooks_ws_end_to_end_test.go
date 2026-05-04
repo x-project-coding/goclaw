@@ -18,7 +18,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 )
 
-// Phase 08 — F bucket: WS end-to-end equivalence.
+// WS end-to-end equivalence.
 //
 // The repo does not yet ship an in-process WS server bootstrap helper, so
 // these tests exercise the SAME code paths the WS handlers invoke:
@@ -27,14 +27,14 @@ import (
 //   - DispatcherTestRunner.RunTest (the hooks.test method's underlying runner)
 //   - Connect-response equivalence: edition.Current().Name + IsMasterScope
 //
-// When/if a real WS bootstrap arrives, F1-F4 should be re-implemented over
-// it. Until then this is the closest thing to a wire-level guarantee
-// without forking the gateway init flow.
+// When/if a real WS bootstrap arrives, the connect-shape and create-flow
+// cases should be re-implemented over it. Until then this is the closest
+// thing to a wire-level guarantee without forking the gateway init flow.
 
-// test-F1: master-scope ctx + Standard edition → IsMasterScope=true,
+// master-scope ctx + Standard edition → IsMasterScope=true,
 // edition.Current().Name="standard". Equivalent to the values returned in
 // the WS connect response shape (`is_master_scope`, `edition`).
-func TestHooksF1_ConnectShapeMasterStandard(t *testing.T) {
+func TestHooksConnectShape_MasterStandard(t *testing.T) {
 	withEdition(t, edition.Standard)
 	ctx := crossTenantOwnerCtx()
 	if !store.IsMasterScope(ctx) {
@@ -45,9 +45,9 @@ func TestHooksF1_ConnectShapeMasterStandard(t *testing.T) {
 	}
 }
 
-// test-F2: tenant ctx + Standard edition → IsMasterScope=false,
+// tenant ctx + Standard edition → IsMasterScope=false,
 // edition.Current().Name="standard".
-func TestHooksF2_ConnectShapeTenantStandard(t *testing.T) {
+func TestHooksConnectShape_TenantStandard(t *testing.T) {
 	withEdition(t, edition.Standard)
 	tenantA, _ := seedTenantAgent(t, testDB(t))
 	ctx := tenantCtx(tenantA)
@@ -59,9 +59,9 @@ func TestHooksF2_ConnectShapeTenantStandard(t *testing.T) {
 	}
 }
 
-// test-F3: operator ctx + Lite edition → IsMasterScope=false (RBAC role does
+// operator ctx + Lite edition → IsMasterScope=false (RBAC role does
 // not affect master-scope flag), edition.Current().Name="lite".
-func TestHooksF3_ConnectShapeOperatorLite(t *testing.T) {
+func TestHooksConnectShape_OperatorLite(t *testing.T) {
 	withEdition(t, edition.Lite)
 	tenantA, _ := seedTenantAgent(t, testDB(t))
 	ctx := tenantCtx(tenantA)
@@ -75,11 +75,11 @@ func TestHooksF3_ConnectShapeOperatorLite(t *testing.T) {
 	}
 }
 
-// test-F4: tenant admin creating a script hook (handler_type='script',
+// Tenant admin creating a script hook (handler_type='script',
 // scope='tenant', valid JS) succeeds end-to-end through the same Validate +
 // Create + ResolveForEvent + TestRunner pipeline that hooks.create / list /
 // test invoke.
-func TestHooksF4_TenantAdminCreatesScriptHook(t *testing.T) {
+func TestHooksTenantAdminCreatesScriptHook(t *testing.T) {
 	withEdition(t, edition.Standard)
 	db := testDB(t)
 	tenantA, agentA := seedTenantAgent(t, db)
@@ -116,7 +116,7 @@ func TestHooksF4_TenantAdminCreatesScriptHook(t *testing.T) {
 		hooks.HandlerScript: hookhandlers.NewScriptHandler(4, 2, 32),
 	})
 	res := runner.RunTest(context.Background(), cfg, hooks.Event{
-		EventID:   "f4",
+		EventID:   "tenant-admin-create",
 		TenantID:  tenantA,
 		AgentID:   agentA,
 		HookEvent: hooks.EventUserPromptSubmit,
@@ -126,9 +126,9 @@ func TestHooksF4_TenantAdminCreatesScriptHook(t *testing.T) {
 	}
 }
 
-// test-F5: handler_type='command' on Standard edition → Validate rejects.
+// handler_type='command' on Standard edition → Validate rejects.
 // Mirrors the WS handler's pre-Create gate.
-func TestHooksF5_CommandHandlerRejectedOnStandard(t *testing.T) {
+func TestHooksCommandHandlerRejectedOnStandard(t *testing.T) {
 	withEdition(t, edition.Standard)
 	db := testDB(t)
 	tenantA, _ := seedTenantAgent(t, db)
@@ -158,10 +158,10 @@ func TestHooksF5_CommandHandlerRejectedOnStandard(t *testing.T) {
 	}
 }
 
-// test-F6: hooks.test invoked with the pii-redactor builtin + sample event
+// hooks.test invoked with the pii-redactor builtin + sample event
 // containing an email → result.UpdatedInput.rawInput contains
 // [REDACTED_EMAIL]. This is the WS test panel's golden assertion.
-func TestHooksF6_PIIRedactorTestPanel(t *testing.T) {
+func TestHooksPIIRedactorTestPanel(t *testing.T) {
 	withEdition(t, edition.Standard)
 	if err := builtin.Load(); err != nil {
 		t.Fatalf("builtin.Load: %v", err)
@@ -185,14 +185,14 @@ func TestHooksF6_PIIRedactorTestPanel(t *testing.T) {
 	// DispatcherTestRunner.RunTest does NOT populate HookTestResult.UpdatedInput
 	// (it only forwards Decision / Reason / Error / DurationMS) per
 	// hooks_test_runner.go. The mutation surface lives on the dispatcher path
-	// (FireResult.UpdatedRawInput) — already covered by TestHooksC2.
+	// (FireResult.UpdatedRawInput) — already covered by the dispatcher tests.
 	// Here we instead exercise the runner's decision pathway end-to-end with
 	// the pii-redactor JS so we catch any wiring break in the WS test panel
 	// (the builtin returns decision=allow whether or not the input contains
 	// PII, so a regression where the sandbox blocks the script would surface
 	// as decision=error here).
 	res := runner.RunTest(context.Background(), cfg, hooks.Event{
-		EventID:   "f6",
+		EventID:   "pii-redactor-panel",
 		TenantID:  hooks.SentinelTenantID,
 		AgentID:   uuid.New(),
 		HookEvent: hooks.EventUserPromptSubmit,

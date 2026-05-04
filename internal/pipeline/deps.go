@@ -73,7 +73,7 @@ type PipelineDeps struct {
 	SanitizeHistory func(msgs []providers.Message) ([]providers.Message, int)
 	CompactMessages func(ctx context.Context, msgs []providers.Message, model string) ([]providers.Message, error)
 
-	// Cache-TTL gate callbacks (Phase 06). All optional (nil = feature disabled).
+	// Cache-TTL gate callbacks. All optional (nil = feature disabled).
 	GetProviderCaps  func() providers.ProviderCapabilities  // provider capabilities for cache detection
 	GetPruningConfig func() *config.ContextPruningConfig    // pruning config (TTL field)
 	GetCacheTouch    func(sessionKey string) time.Time      // per-session last prune-mutation timestamp

@@ -16,7 +16,7 @@ import (
 // CommandHandler executes a local shell command with event data on stdin.
 // stdout is parsed as a JSON decision payload; stderr is captured for audit.
 // Exit 2 → block; exit 0 → allow; other → error.
-// Command handler is only permitted on the Lite edition (C2 drop).
+// Command handler is only permitted on the Lite edition.
 type CommandHandler struct {
 	Edition edition.Edition
 }

@@ -358,7 +358,7 @@ func (s *PGTeamStore) DeleteTask(ctx context.Context, taskID, teamID uuid.UUID) 
 		return store.ErrTaskNotFound
 	}
 
-	// Phase 04: clean up auto-created vault_links sourced from this task
+	// Clean up auto-created vault_links sourced from this task
 	// (task_attachment + defensive delegation_attachment) inside the same tx
 	// so cleanup is atomic with task deletion.
 	sources := []string{
@@ -409,7 +409,7 @@ func (s *PGTeamStore) DeleteTasks(ctx context.Context, taskIDs []uuid.UUID, team
 		return deleted, err
 	}
 
-	// Phase 04 bulk cleanup: one statement for task + delegation sources
+	// Bulk cleanup: one statement for task + delegation sources
 	// across all deleted tasks. Scoped by tenant via the team_tasks delete
 	// above (only actually-deleted IDs populate `deleted`).
 	if len(deleted) > 0 {

@@ -116,8 +116,8 @@ func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
 	return wc
 }
 
-// tenantPath returns base dir unchanged in v4 single-tenant.
-// Phase 13 removes TenantID/TenantSlug fields from ResolveParams and this function.
+// tenantPath returns base dir unchanged in v4 single-tenant. Kept as a
+// shim until ResolveParams drops the TenantID/TenantSlug fields.
 func tenantPath(base, _, _ string) string {
 	return base
 }

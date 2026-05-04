@@ -163,7 +163,7 @@ type TeamTaskEventData struct {
 
 // TaskSibling represents a vault document attached to the same team task as
 // another file sharing the same basename. Returned by BatchGetTaskSiblingsByBasenames
-// for Phase 04 task-based auto-linking.
+// for task-based auto-linking.
 type TaskSibling struct {
 	TaskID         uuid.UUID `db:"task_id"`
 	DocID          uuid.UUID `db:"doc_id"`
