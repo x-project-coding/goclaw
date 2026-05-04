@@ -71,12 +71,12 @@ func optAgentUUID(agentID *string) (*uuid.UUID, error) {
 }
 
 // vaultDocSelectCols is the shared column list for vault_documents SELECT queries.
-const vaultDocSelectCols = `id, agent_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at`
+const vaultDocSelectCols = `id, agent_id, owner_user_id, team_id, chat_id, scope, custom_scope, path, path_basename, title, doc_type, content_hash, summary, metadata, created_at, updated_at`
 
 // scanVaultDocRow scans a single row into vaultDocRow using QueryRowContext result.
 func scanVaultDocRow(row *sql.Row, r *vaultDocRow) error {
 	return row.Scan(
-		&r.ID, &r.AgentID, &r.TeamID, &r.ChatID, &r.Scope, &r.CustomScope,
+		&r.ID, &r.AgentID, &r.OwnerUserID, &r.TeamID, &r.ChatID, &r.Scope, &r.CustomScope,
 		&r.Path, &r.PathBasename, &r.Title, &r.DocType, &r.ContentHash, &r.Summary,
 		&r.MetaJSON, &r.CreatedAt, &r.UpdatedAt)
 }
@@ -118,6 +118,15 @@ func (s *PGVaultStore) UpsertDocument(ctx context.Context, doc *store.VaultDocum
 		teamID = &t
 	}
 
+	var ownerUserID *uuid.UUID
+	if doc.OwnerUserID != nil && *doc.OwnerUserID != "" {
+		u, err := parseUUID(*doc.OwnerUserID)
+		if err != nil {
+			return fmt.Errorf("vault upsert: owner_user_id: %w", err)
+		}
+		ownerUserID = &u
+	}
+
 	var actualID uuid.UUID
 	// Normalize chat_id: empty string → NULL.
 	var chatID *string
@@ -128,8 +137,8 @@ func (s *PGVaultStore) UpsertDocument(ctx context.Context, doc *store.VaultDocum
 
 	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO vault_documents
-			(id, agent_id, team_id, chat_id, scope, custom_scope, path, title, doc_type, content_hash, summary, embedding, metadata, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+			(id, agent_id, owner_user_id, team_id, chat_id, scope, custom_scope, path, title, doc_type, content_hash, summary, embedding, metadata, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
 		ON CONFLICT (scope, COALESCE(custom_scope,''), path, COALESCE(owner_user_id::text,'')) DO UPDATE SET
 			title        = EXCLUDED.title,
 			doc_type     = EXCLUDED.doc_type,
@@ -140,7 +149,7 @@ func (s *PGVaultStore) UpsertDocument(ctx context.Context, doc *store.VaultDocum
 			chat_id      = COALESCE(EXCLUDED.chat_id, vault_documents.chat_id),
 			updated_at   = EXCLUDED.updated_at
 		RETURNING id`,
-		id, aid, teamID, chatID, doc.Scope, doc.CustomScope, doc.Path, doc.Title, doc.DocType,
+		id, aid, ownerUserID, teamID, chatID, doc.Scope, doc.CustomScope, doc.Path, doc.Title, doc.DocType,
 		doc.ContentHash, doc.Summary, embStr, meta, now,
 	).Scan(&actualID)
 	if err != nil {
@@ -183,7 +192,7 @@ func (s *PGVaultStore) GetDocument(ctx context.Context, tenantID, agentID, path 
 
 	var row vaultDocRow
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(
-		&row.ID, &row.AgentID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
+		&row.ID, &row.AgentID, &row.OwnerUserID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
 		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {
@@ -202,7 +211,7 @@ func (s *PGVaultStore) GetDocumentByID(ctx context.Context, tenantID, id string)
 	var row vaultDocRow
 	err = s.db.QueryRowContext(ctx,
 		`SELECT `+vaultDocSelectCols+` FROM vault_documents WHERE id = $1`, uid,
-	).Scan(&row.ID, &row.AgentID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
+	).Scan(&row.ID, &row.AgentID, &row.OwnerUserID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
 		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {
@@ -254,7 +263,7 @@ func (s *PGVaultStore) GetDocumentByBasename(ctx context.Context, tenantID, agen
 	q += " LIMIT 1"
 	var row vaultDocRow
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(
-		&row.ID, &row.AgentID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
+		&row.ID, &row.AgentID, &row.OwnerUserID, &row.TeamID, &row.ChatID, &row.Scope, &row.CustomScope,
 		&row.Path, &row.PathBasename, &row.Title, &row.DocType, &row.ContentHash, &row.Summary,
 		&row.MetaJSON, &row.CreatedAt, &row.UpdatedAt)
 	if err != nil {

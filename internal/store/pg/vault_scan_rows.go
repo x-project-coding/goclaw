@@ -14,6 +14,7 @@ import (
 type vaultDocRow struct {
 	ID           uuid.UUID  `db:"id"`
 	AgentID      *uuid.UUID `db:"agent_id"`
+	OwnerUserID  *uuid.UUID `db:"owner_user_id"`
 	TeamID       *uuid.UUID `db:"team_id"`
 	ChatID       *string    `db:"chat_id"`
 	Scope        string     `db:"scope"`
@@ -47,6 +48,10 @@ func (r *vaultDocRow) toVaultDocument() store.VaultDocument {
 	if r.AgentID != nil {
 		s := r.AgentID.String()
 		doc.AgentID = &s
+	}
+	if r.OwnerUserID != nil {
+		s := r.OwnerUserID.String()
+		doc.OwnerUserID = &s
 	}
 	if r.TeamID != nil {
 		s := r.TeamID.String()

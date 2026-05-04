@@ -292,10 +292,11 @@ func TestSessionRichRow_ToSessionInfoRich(t *testing.T) {
 
 func TestEntityRow_ToEntity(t *testing.T) {
 	created := time.Unix(1700000000, 0)
+	uid := "u1"
 	r := entityRow{
 		ID:          "e1",
 		AgentID:     "a1",
-		UserID:      "u1",
+		UserID:      &uid,
 		ExternalID:  "ext-1",
 		Name:        "Alice",
 		EntityType:  "Person",
@@ -348,8 +349,9 @@ func TestEntityTemporalRow_PreservesTemporal(t *testing.T) {
 
 func TestRelationRow_ToRelation(t *testing.T) {
 	created := time.Unix(1700000000, 0)
+	rUserID := "u"
 	r := relationRow{
-		ID: "r1", AgentID: "a", UserID: "u",
+		ID: "r1", AgentID: "a", UserID: &rUserID,
 		SourceEntityID: "s", RelationType: "KNOWS", TargetEntityID: "t",
 		Confidence: 0.8,
 		Properties: json.RawMessage(`{"since":"2020","strength":"strong"}`),

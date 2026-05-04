@@ -160,7 +160,7 @@ func (s *PGKnowledgeGraphStore) insertDedupCandidate(ctx context.Context, agentI
 		INSERT INTO kg_dedup_candidates (id, agent_id, user_id, entity_a_id, entity_b_id, similarity, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (entity_a_id, entity_b_id) DO NOTHING`,
-		uuid.Must(uuid.NewV7()), agentID, userID, aID, bID, similarity, time.Now(),
+		uuid.Must(uuid.NewV7()), agentID, nilStr(userID), aID, bID, similarity, time.Now(),
 	)
 	return err
 }

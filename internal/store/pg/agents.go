@@ -401,13 +401,15 @@ func (s *PGAgentStore) CanAccess(ctx context.Context, agentID uuid.UUID, userID 
 }
 
 func (s *PGAgentStore) ListAccessible(ctx context.Context, userID string) ([]store.AgentData, error) {
+	// agent_shares.user_id is UUID type — parse before querying.
+	userUUID := parseUUIDOrNil(userID)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+agentSelectCols+`
 		 FROM agents
 		 WHERE deleted_at IS NULL AND (
 		     owner_id = $1
 		     OR is_default = true
-		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $1)
+		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $2)
 		     OR (
 		         agent_type = 'predefined'
 		         AND id IN (
@@ -420,7 +422,7 @@ func (s *PGAgentStore) ListAccessible(ctx context.Context, userID string) ([]sto
 		         )
 		     )
 		 )
-		 ORDER BY created_at DESC`, userID)
+		 ORDER BY created_at DESC`, userID, userUUID)
 	if err != nil {
 		return nil, err
 	}

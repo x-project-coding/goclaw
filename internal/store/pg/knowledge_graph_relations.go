@@ -38,7 +38,7 @@ func (s *PGKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation *st
 		ON CONFLICT (agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = EXCLUDED.confidence,
 			properties  = EXCLUDED.properties`,
-		id, aid, relation.UserID, src, relation.RelationType, tgt, relation.Confidence, props, now,
+		id, aid, nilStr(relation.UserID), src, relation.RelationType, tgt, relation.Confidence, props, now,
 	)
 	return err
 }

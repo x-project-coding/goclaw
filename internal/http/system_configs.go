@@ -40,8 +40,8 @@ var providerRelatedKeys = map[string]bool{
 func (h *SystemConfigsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/system-configs", requireAuth("", h.handleList))
 	mux.HandleFunc("GET /v1/system-configs/{key}", requireAuth("", h.handleGet))
-	mux.HandleFunc("PUT /v1/system-configs/{key}", requireAuth("admin", h.handleSet))
-	mux.HandleFunc("DELETE /v1/system-configs/{key}", requireAuth("admin", h.handleDelete))
+	mux.HandleFunc("PUT /v1/system-configs/{key}", requireAuth("root", h.handleSet))
+	mux.HandleFunc("DELETE /v1/system-configs/{key}", requireAuth("root", h.handleDelete))
 }
 
 func (h *SystemConfigsHandler) handleList(w http.ResponseWriter, r *http.Request) {

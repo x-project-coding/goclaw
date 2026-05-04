@@ -45,7 +45,7 @@ func (s *PGKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *store.
 		INSERT INTO kg_entities
 			(id, agent_id, user_id, external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-		ON CONFLICT (agent_id, user_id, external_id) DO UPDATE SET
+		ON CONFLICT (agent_id, (COALESCE(user_id::text, '')), external_id) DO UPDATE SET
 			name        = EXCLUDED.name,
 			entity_type = EXCLUDED.entity_type,
 			description = EXCLUDED.description,
@@ -54,7 +54,7 @@ func (s *PGKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *store.
 			confidence  = EXCLUDED.confidence,
 			updated_at  = EXCLUDED.updated_at
 		RETURNING id`,
-		id, aid, entity.UserID, entity.ExternalID, entity.Name, entity.EntityType,
+		id, aid, nilStr(entity.UserID), entity.ExternalID, entity.Name, entity.EntityType,
 		entity.Description, props, entity.SourceID, entity.Confidence, now,
 	).Scan(&actualID); err != nil {
 		return err
@@ -156,7 +156,8 @@ func (s *PGKnowledgeGraphStore) ListEntities(ctx context.Context, agentID, userI
 	args := []any{aid}
 	idx := 2
 	if !store.IsSharedKG(ctx) && userID != "" {
-		where += fmt.Sprintf(" AND user_id = $%d", idx)
+		// Include own entities (user_id=caller) AND agent-level shared entities (user_id IS NULL).
+		where += fmt.Sprintf(" AND (user_id = $%d OR user_id IS NULL)", idx)
 		args = append(args, userID)
 		idx++
 	}

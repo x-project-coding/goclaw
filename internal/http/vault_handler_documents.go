@@ -90,6 +90,14 @@ func (h *VaultHandler) handleGetDocument(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
 		return
 	}
+	// Personal-scope docs belong to the owner only. Non-root callers can only read their own.
+	if doc.OwnerUserID != nil && *doc.OwnerUserID != "" && !store.IsRootRole(r.Context()) {
+		callerID := store.UserIDFromContext(r.Context())
+		if callerID != *doc.OwnerUserID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "document not found"})
+			return
+		}
+	}
 	// Verify team boundary — non-owner must be team member to view team docs.
 	if doc.TeamID != nil && *doc.TeamID != "" && !store.IsRootRole(r.Context()) {
 		if !h.validateTeamMembership(r.Context(), w, *doc.TeamID) {
@@ -146,6 +154,14 @@ func (h *VaultHandler) handleCreateDocument(w http.ResponseWriter, r *http.Reque
 		DocType:  body.DocType,
 		Scope:    body.Scope,
 		Metadata: body.Metadata,
+	}
+	// Bind personal-scope docs to the authenticated caller before any scope promotion,
+	// so that scope=personal always carries an owner regardless of agent/team context.
+	if body.Scope == "personal" {
+		callerID := store.UserIDFromContext(r.Context())
+		if callerID != "" {
+			doc.OwnerUserID = &callerID
+		}
 	}
 	if agentID != "" {
 		doc.AgentID = &agentID

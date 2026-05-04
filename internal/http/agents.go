@@ -132,7 +132,7 @@ func (h *AgentsHandler) emitCacheInvalidate(kind, key string) {
 func (h *AgentsHandler) RegisterRoutes(mux *http.ServeMux) {
 	// Agent CRUD (reads: viewer+, writes: admin+)
 	mux.HandleFunc("GET /v1/agents", h.authMiddleware(h.handleList))
-	mux.HandleFunc("POST /v1/agents", h.adminMiddleware(h.handleCreate))
+	mux.HandleFunc("POST /v1/agents", h.memberMiddleware(h.handleCreate))
 	mux.HandleFunc("GET /v1/agents/{id}", h.authMiddleware(h.handleGet))
 	// Finding #15: PUT /v1/agents/{id} is gated by adminMiddleware (RoleAdmin required).
 	// Admin-only access significantly reduces abuse risk — rapid writes by a malicious admin
@@ -181,6 +181,10 @@ func (h *AgentsHandler) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func (h *AgentsHandler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return requireAuth(permissions.RoleAdmin, next)
+}
+
+func (h *AgentsHandler) memberMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return requireAuth(permissions.RoleMember, next)
 }
 
 func (h *AgentsHandler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -331,6 +335,23 @@ func (h *AgentsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 
 	ag, err := h.agents.GetByID(r.Context(), id)
 	if err != nil {
+		// GetByID scopes by owner_user_id for non-admin callers. If the caller has a share
+		// grant on this agent (owner is another user), the row won't match the owner filter.
+		// Fall back to unscoped lookup + explicit CanAccess check.
+		if !isOwner && userID != "" {
+			agUnscoped, unscopedErr := h.agents.GetByIDUnscoped(r.Context(), id)
+			if unscopedErr != nil {
+				writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", id.String()))
+				return
+			}
+			if ok, _, _ := h.agents.CanAccess(r.Context(), id, userID); !ok {
+				writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", id.String()))
+				return
+			}
+			publicAgent := canonicalizeAgentForResponse(agUnscoped)
+			writeJSON(w, http.StatusOK, publicAgent)
+			return
+		}
 		writeError(w, http.StatusNotFound, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "agent", id.String()))
 		return
 	}

@@ -10,6 +10,7 @@ type VaultDocument struct {
 	ID           string         `json:"id" db:"id"`
 	TenantID     string         `json:"tenant_id" db:"tenant_id"`
 	AgentID      *string        `json:"agent_id,omitempty" db:"agent_id"`
+	OwnerUserID  *string        `json:"owner_user_id,omitempty" db:"owner_user_id"`
 	TeamID       *string        `json:"team_id,omitempty" db:"team_id"`
 	ChatID       *string        `json:"chat_id,omitempty" db:"chat_id"` // nil = team-wide (shared / legacy); non-nil = scoped to specific chat in isolated teams
 	Scope        string         `json:"scope" db:"scope"` // personal, team, shared
