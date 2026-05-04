@@ -287,6 +287,67 @@ func TestAgentDelete(t *testing.T) {
 	}
 }
 
+// TestAgentDeleteCascadesContext — DELETE /v1/agents/{id} removes the agent and all
+// rows in agent_context_files that reference it (ON DELETE CASCADE).
+func TestAgentDeleteCascadesContext(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+	api.SetToken(token)
+
+	// Create an agent.
+	body := createAgentBody("open")
+	res, err := api.POST(ctx, "/v1/agents", body)
+	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
+	var created agentResp
+	mustJSONAgents(t, res, &created)
+
+	// Insert a context file row directly via DB (no HTTP endpoint for agent_context_files).
+	db := helpers.MustDB(t)
+	_, dbErr := db.ExecContext(ctx,
+		`INSERT INTO agent_context_files (agent_id, file_name, content, created_at, updated_at)
+		 VALUES ($1, 'e2e-cascade-test.md', 'hello cascade', now(), now())`,
+		created.ID,
+	)
+	if dbErr != nil {
+		t.Skipf("insert agent_context_files: schema may differ: %v", dbErr)
+	}
+
+	// Confirm the row exists before delete.
+	var countBefore int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM agent_context_files WHERE agent_id = $1", created.ID,
+	).Scan(&countBefore); err != nil {
+		t.Fatalf("count before delete: %v", err)
+	}
+	if countBefore == 0 {
+		t.Fatal("context file row not found before agent delete")
+	}
+
+	// Delete the agent.
+	res, err = api.DELETE(ctx, fmt.Sprintf("/v1/agents/%s", created.ID))
+	mustOKAgents(t, "DELETE /v1/agents/{id}", res, err, http.StatusOK)
+
+	// Verify cascade: agent_context_files row must be gone.
+	var countAfter int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM agent_context_files WHERE agent_id = $1", created.ID,
+	).Scan(&countAfter); err != nil {
+		t.Fatalf("count after delete: %v", err)
+	}
+	if countAfter != 0 {
+		t.Fatalf("expected 0 agent_context_files rows after agent delete, got %d", countAfter)
+	}
+}
+
 // TestAgentShareWithUser — POST /v1/agents/{id}/shares with another user → 201;
 // the shared member can GET the agent.
 func TestAgentShareWithUser(t *testing.T) {

@@ -41,7 +41,7 @@ Each impl phase MUST follow: **(1) write failing tests → (2) impl → (3) veri
 | 11 | Frontend bootstrap + login + refresh | **completed 2026-05-03** (Sub-11A+B+C+D done; browser e2e → Phase 14) | 15-18d (re-scouted) | 06 + 09 |
 | ~~12~~ | ~~Desktop edition first-run (sqliteonly)~~ | **DEFERRED → EPIC-05-desktop** | ~~6d~~ | — |
 | 13 | Cleanup deferred (MasterTenantID purge, dead code) | **completed 2026-05-03** (5 batches A-E + Final: 73 files purged, 4 ADRs, 4 e2e tests, README polished) | 8-10d | 09+10 |
-| 14 | Validation final (full e2e + RBAC) | **in-progress 2026-05-04** (14A impl done; 14B 16/16 e2e files committed; both red-state fixes merged — Finding 6 + KG per-user; pending: live e2e run on dev pgvector) | 6d + 2d (14A impl) | all phases |
+| 14 | Validation final (full e2e + RBAC) | **code-complete 2026-05-04** (14A impl done; 14B 16/16 e2e files + 12 gap tests committed; red-state fixes merged; 2 ADR deferral docs added; Makefile test-e2e-short/full/release-gate; CI e2e-fast PR + e2e-full nightly. Pending: live e2e run on pgvector → tag rc1) | 6d + 2d (14A impl) | all phases |
 
 **Total:** 122-124 dev-days (Phase 12 → EPIC-05; Phase 13 bumped per F15 audit).
 

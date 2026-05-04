@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, dev-v4]
+  schedule:
+    # Nightly e2e-full — exercises real LLM provider paths (Bailian + OpenRouter).
+    # 03:00 UTC ≈ 10:00 ICT, runs after the main dev push window settles.
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -87,3 +91,101 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
+
+  # e2e-fast — per-PR / per-push lane. Skips real LLM provider calls (-short).
+  # Blocks merge on failure. Real PG18+pgvector on port 5435 to mirror local
+  # `make test-e2e-short` exactly.
+  e2e-fast:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_DB: goclaw_v4_e2e
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: devpass
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U dev -d goclaw_v4_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      GOCLAW_DATABASE_URL: postgres://dev:devpass@localhost:5435/goclaw_v4_e2e?sslmode=disable
+      GOCLAW_DB_HOST: localhost
+      GOCLAW_DB_PORT: "5435"
+      GOCLAW_DB_USER: dev
+      GOCLAW_DB_PASSWORD: devpass
+      GOCLAW_DB_NAME: goclaw_v4_e2e
+      GOCLAW_HOST: 127.0.0.1
+      GOCLAW_PORT: "0"
+      GOCLAW_LOG_LEVEL: warn
+      GOCLAW_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      GOCLAW_JWT_SECRET: e2e-ci-jwt-secret-32-byte-minimum-padding-here
+      E2E_ROOT_PASSWORD: E2eRootPass!2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Enable pgvector + pgcrypto
+        run: |
+          PGPASSWORD=devpass psql -h localhost -p 5435 -U dev -d goclaw_v4_e2e \
+            -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+      - name: e2e-short (skip real LLM)
+        run: go test -tags e2e -short -v -timeout 15m ./tests/e2e/...
+
+  # e2e-full — nightly. Real LLM provider calls via Bailian + OpenRouter.
+  # Skipped on PRs; runs on schedule trigger only. Provider keys come from
+  # repository secrets; missing-secret cases skip provider-specific subtests
+  # rather than failing the whole job.
+  e2e-full:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_DB: goclaw_v4_e2e
+          POSTGRES_USER: dev
+          POSTGRES_PASSWORD: devpass
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U dev -d goclaw_v4_e2e"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      GOCLAW_DATABASE_URL: postgres://dev:devpass@localhost:5435/goclaw_v4_e2e?sslmode=disable
+      GOCLAW_DB_HOST: localhost
+      GOCLAW_DB_PORT: "5435"
+      GOCLAW_DB_USER: dev
+      GOCLAW_DB_PASSWORD: devpass
+      GOCLAW_DB_NAME: goclaw_v4_e2e
+      GOCLAW_HOST: 127.0.0.1
+      GOCLAW_PORT: "0"
+      GOCLAW_LOG_LEVEL: warn
+      GOCLAW_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      GOCLAW_JWT_SECRET: e2e-ci-jwt-secret-32-byte-minimum-padding-here
+      E2E_ROOT_PASSWORD: E2eRootPass!2026
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENROUTER_API_BASE: https://openrouter.ai/api/v1
+      BAILIAN_API_KEY: ${{ secrets.BAILIAN_API_KEY }}
+      BAILIAN_API_BASE: ${{ secrets.BAILIAN_API_BASE }}
+      BAILIAN_DEFAULT_MODEL: ${{ secrets.BAILIAN_DEFAULT_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Enable pgvector + pgcrypto
+        run: |
+          PGPASSWORD=devpass psql -h localhost -p 5435 -U dev -d goclaw_v4_e2e \
+            -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+      - name: e2e-full (with real LLM)
+        run: go test -tags e2e -v -timeout 30m ./tests/e2e/...

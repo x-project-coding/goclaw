@@ -362,6 +362,84 @@ func TestUsersDeleteRootRejected(t *testing.T) {
 	}
 }
 
+// TestUsersDeleteCascadesToOwnedResources — DELETE /v1/users/{id} removes member user;
+// agents that had owner_user_id pointing to the deleted user get owner_user_id set to NULL
+// (ON DELETE SET NULL) rather than being deleted. The agent row must still exist.
+func TestUsersDeleteCascadesToOwnedResources(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	rootToken := loginUser(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+
+	// Seed member user A via HTTP (role=member, real password so login works).
+	api.SetToken(rootToken)
+	memberEmail := helpers.RandEmail("del")
+	memberPass := "TestPass1!-" + helpers.RandHex8()
+	res, err := api.POST(ctx, "/v1/users", map[string]any{
+		"email":    memberEmail,
+		"password": memberPass,
+		"role":     "member",
+	})
+	mustOKUsers(t, "POST /v1/users (member A)", res, err, http.StatusCreated)
+	var memberUser struct{ ID string `json:"id"` }
+	mustJSONUsers(t, res, &memberUser)
+
+	// Create an agent as root; we'll reassign owner_user_id to member A via DB.
+	// Member cannot call the admin-gated POST /v1/agents directly.
+	api.SetToken(rootToken)
+	agentKey := "test-" + helpers.RandHex8()
+	res, err = api.POST(ctx, "/v1/agents", map[string]any{
+		"agent_key":  agentKey,
+		"agent_type": "open",
+		"model":      "test/test-model",
+		"provider":   "openai",
+		// owner_user_id is set server-side from the authenticated user's ID;
+		// root creates it but we need it tied to memberUser — seed via DB instead.
+	})
+	mustOKUsers(t, "POST /v1/agents (for cascade test)", res, err, http.StatusCreated)
+	var createdAgent struct{ ID string `json:"id"` }
+	mustJSONUsers(t, res, &createdAgent)
+
+	// Update owner_user_id in DB directly to point at member A.
+	db := helpers.MustDB(t)
+	_, dbErr := db.ExecContext(ctx,
+		"UPDATE agents SET owner_user_id = $1 WHERE id = $2",
+		memberUser.ID, createdAgent.ID,
+	)
+	if dbErr != nil {
+		t.Fatalf("update owner_user_id: %v", dbErr)
+	}
+
+	// Delete member A via root.
+	api.SetToken(rootToken)
+	res, err = api.DELETE(ctx, fmt.Sprintf("/v1/users/%s", memberUser.ID))
+	mustOKUsers(t, "DELETE /v1/users/{A.id}", res, err, http.StatusNoContent)
+
+	// Verify: agent row still exists (SET NULL, not CASCADE) and owner_user_id is NULL.
+	var agentCount int
+	var ownerUserID *string
+	row := db.QueryRowContext(ctx,
+		"SELECT COUNT(*), MAX(owner_user_id::text) FROM agents WHERE id = $1",
+		createdAgent.ID,
+	)
+	if err := row.Scan(&agentCount, &ownerUserID); err != nil {
+		t.Fatalf("query agents after user delete: %v", err)
+	}
+	if agentCount == 0 {
+		t.Fatalf("agent row unexpectedly deleted after user delete — expected SET NULL, not CASCADE")
+	}
+	if ownerUserID != nil {
+		t.Fatalf("owner_user_id should be NULL after user delete, got %q", *ownerUserID)
+	}
+}
+
 // TestUsersPasswordHashNeverInResponse — GET response bytes must not contain "password_hash".
 func TestUsersPasswordHashNeverInResponse(t *testing.T) {
 	helpers.MustMigrateClean(t)

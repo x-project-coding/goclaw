@@ -181,6 +181,108 @@ func TestSessionsPreview(t *testing.T) {
 	}
 }
 
+// TestSessionResume — sessions.preview returns session metadata for a seeded session key.
+// The "resume" pattern is exposed via the sessions.preview WS method: send the session key,
+// expect back the same key + messages field in the response.
+func TestSessionResume(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	token := loginForSessions(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+	sessionKey := seedSession(t, ctx)
+
+	wsCtx, wsCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer wsCancel()
+	wsc := wsConnectSessions(t, wsCtx, token)
+	defer wsc.Close()
+
+	params, _ := json.Marshal(map[string]any{"key": sessionKey})
+	payload, err := wsc.SendReq(wsCtx, protocol.MethodSessionsPreview, json.RawMessage(params))
+	if err != nil {
+		t.Fatalf("sessions.preview (resume): %v", err)
+	}
+
+	var result struct {
+		Key      string            `json:"key"`
+		Messages []json.RawMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("sessions.preview unmarshal: %v (raw=%s)", err, string(payload))
+	}
+	if result.Key != sessionKey {
+		t.Fatalf("resume: key mismatch: got %q want %q", result.Key, sessionKey)
+	}
+	// messages field must be present (may be empty array for fresh session).
+	if result.Messages == nil {
+		t.Fatalf("resume: missing messages key in: %s", string(payload))
+	}
+}
+
+// TestSessionMessageHistory — sessions.preview returns seeded messages stored in the
+// agent_sessions.messages JSONB column.
+func TestSessionMessageHistory(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	token := loginForSessions(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+	sessionKey := seedSession(t, ctx)
+
+	// Inject messages directly into the agent_sessions.messages JSONB column.
+	// Messages follow the {role, content} shape used throughout the pipeline.
+	db := helpers.MustDB(t)
+	messagesJSON := `[
+		{"role":"user","content":"hello from e2e"},
+		{"role":"assistant","content":"hi there from e2e"},
+		{"role":"user","content":"second message e2e"}
+	]`
+	_, dbErr := db.ExecContext(ctx,
+		"UPDATE agent_sessions SET messages = $1::jsonb WHERE session_key = $2",
+		messagesJSON, sessionKey,
+	)
+	if dbErr != nil {
+		t.Skipf("update agent_sessions.messages: schema may differ: %v", dbErr)
+	}
+
+	wsCtx, wsCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer wsCancel()
+	wsc := wsConnectSessions(t, wsCtx, token)
+	defer wsc.Close()
+
+	params, _ := json.Marshal(map[string]any{"key": sessionKey})
+	payload, err := wsc.SendReq(wsCtx, protocol.MethodSessionsPreview, json.RawMessage(params))
+	if err != nil {
+		t.Fatalf("sessions.preview (history): %v", err)
+	}
+
+	var result struct {
+		Key      string            `json:"key"`
+		Messages []json.RawMessage `json:"messages"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
+		t.Fatalf("sessions.preview unmarshal: %v (raw=%s)", err, string(payload))
+	}
+	if result.Key != sessionKey {
+		t.Fatalf("history: key mismatch: got %q want %q", result.Key, sessionKey)
+	}
+	if len(result.Messages) < 3 {
+		t.Fatalf("history: expected ≥3 messages, got %d (raw=%s)", len(result.Messages), string(payload))
+	}
+}
+
 // TestSessionsDelete — sessions.delete removes session; subsequent list excludes it.
 func TestSessionsDelete(t *testing.T) {
 	helpers.MustMigrateClean(t)

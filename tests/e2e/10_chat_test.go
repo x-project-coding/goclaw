@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -301,5 +302,65 @@ func TestChatProviderOpenRouter(t *testing.T) {
 	}
 	if len(resp.Choices) == 0 {
 		t.Fatalf("openrouter: empty choices")
+	}
+}
+
+// TestProviderBailian — POST /v1/chat/completions via Alibaba DashScope (Bailian) provider.
+// Skipped in -short mode and when BAILIAN_API_KEY is missing.
+func TestProviderBailian(t *testing.T) {
+	if testing.Short() {
+		t.Skip("LLM real-call skipped under -short")
+	}
+	helpers.MustLoadEnv()
+	if helpers.BailianKey() == "" {
+		t.Skip("BAILIAN_API_KEY missing")
+	}
+
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	token := loginForChat(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+	api.SetToken(token)
+
+	// Use the env-configured model or fall back to qwen-turbo.
+	model := os.Getenv("BAILIAN_DEFAULT_MODEL")
+	if model == "" {
+		model = "qwen-turbo"
+	}
+
+	agentKey := createAgentForChat(t, ctx, api, "dashscope", model)
+
+	body := map[string]any{
+		"model": fmt.Sprintf("goclaw:%s", agentKey),
+		"messages": []map[string]string{
+			{"role": "user", "content": "Reply with the single word: pong"},
+		},
+		"stream": false,
+	}
+	res, err := api.POST(ctx, "/v1/chat/completions", body)
+	mustOKChat(t, "POST /v1/chat/completions (bailian)", res, err, http.StatusOK)
+
+	var resp struct {
+		Choices []struct {
+			Message struct{ Content string `json:"content"` } `json:"message"`
+		} `json:"choices"`
+		Usage struct{ TotalTokens int `json:"total_tokens"` } `json:"usage"`
+	}
+	mustJSONChat(t, res, &resp)
+	if resp.Usage.TotalTokens <= 0 {
+		t.Fatalf("bailian: total_tokens=%d, want >0 (body=%s)", resp.Usage.TotalTokens, string(res.Body))
+	}
+	if len(resp.Choices) == 0 {
+		t.Fatalf("bailian: empty choices (body=%s)", string(res.Body))
+	}
+	if resp.Choices[0].Message.Content == "" {
+		t.Fatalf("bailian: empty message content (body=%s)", string(res.Body))
 	}
 }

@@ -285,6 +285,92 @@ func TestVaultHybridSearch(t *testing.T) {
 	_ = results
 }
 
+// TestVaultWikilinksResolve — create 2 docs, link them, GET /v1/vault/documents/{id}/links
+// and verify the doc_names map resolves the target doc title.
+func TestVaultWikilinksResolve(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	rootToken := loginVault(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+	api.SetToken(rootToken)
+
+	// Create doc A with title "alpha".
+	resA, err := api.POST(ctx, "/v1/vault/documents", map[string]any{
+		"path":     "wiki/alpha.md",
+		"title":    "alpha",
+		"content":  "# Alpha\n\nLink to [[Beta]] here.",
+		"doc_type": "note",
+		"scope":    "shared",
+	})
+	mustOKVault(t, "POST /v1/vault/documents (alpha)", resA, err, http.StatusCreated)
+	var docA struct {
+		ID string `json:"id"`
+	}
+	mustJSONVault(t, resA, &docA)
+
+	// Create doc B with title "beta".
+	resB, err := api.POST(ctx, "/v1/vault/documents", map[string]any{
+		"path":     "wiki/beta.md",
+		"title":    "beta",
+		"content":  "# Beta\n\nReferenced by Alpha.",
+		"doc_type": "note",
+		"scope":    "shared",
+	})
+	mustOKVault(t, "POST /v1/vault/documents (beta)", resB, err, http.StatusCreated)
+	var docB struct {
+		ID string `json:"id"`
+	}
+	mustJSONVault(t, resB, &docB)
+
+	// Create a link from A → B via POST /v1/vault/links.
+	resLink, err := api.POST(ctx, "/v1/vault/links", map[string]any{
+		"from_doc_id": docA.ID,
+		"to_doc_id":   docB.ID,
+		"link_type":   "reference",
+	})
+	mustOKVault(t, "POST /v1/vault/links", resLink, err, http.StatusCreated)
+
+	// GET /v1/vault/documents/{docA.ID}/links — should return doc_names with B's ID → "beta".
+	res, err := api.GET(ctx, fmt.Sprintf("/v1/vault/documents/%s/links", docA.ID))
+	mustOKVault(t, "GET /v1/vault/documents/{id}/links", res, err, http.StatusOK)
+
+	var linksResp struct {
+		Outlinks  []struct {
+			ToDocID string `json:"to_doc_id"`
+		} `json:"outlinks"`
+		DocNames map[string]string `json:"doc_names"`
+	}
+	mustJSONVault(t, res, &linksResp)
+
+	// Verify outlink from A → B is present.
+	foundOutlink := false
+	for _, l := range linksResp.Outlinks {
+		if l.ToDocID == docB.ID {
+			foundOutlink = true
+			break
+		}
+	}
+	if !foundOutlink {
+		t.Fatalf("outlinks does not contain to_doc_id=%s (body=%s)", docB.ID, string(res.Body))
+	}
+
+	// Verify doc_names resolves B's ID to "beta".
+	resolvedName, ok := linksResp.DocNames[docB.ID]
+	if !ok {
+		t.Fatalf("doc_names missing entry for doc_id=%s (body=%s)", docB.ID, string(res.Body))
+	}
+	if resolvedName != "beta" {
+		t.Fatalf("doc_names[%s] = %q, want %q", docB.ID, resolvedName, "beta")
+	}
+}
+
 // TestVaultAgentScopedDocCreate — POST /v1/agents/{agentID}/vault/documents creates a doc scoped to agent.
 func TestVaultAgentScopedDocCreate(t *testing.T) {
 	helpers.MustMigrateClean(t)

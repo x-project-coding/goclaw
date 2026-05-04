@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null 
 LDFLAGS  = -s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=$(VERSION)
 BINARY   = goclaw
 
-.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing e2e-pg-up e2e-pg-down test-e2e
+.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing e2e-pg-up e2e-pg-down test-e2e test-e2e-short test-e2e-full test-release-gate
 
 # Build backend only (API-only, no embedded web UI)
 build:
@@ -132,6 +132,18 @@ e2e-pg-down:
 # Build tag //go:build e2e — see tests/e2e/README.md
 test-e2e: e2e-pg-up
 	go test -tags e2e -v -timeout 30m ./tests/e2e/...
+
+# Skip real LLM provider calls (Bailian/OpenRouter) — fast lane for per-PR CI.
+# Tests guarded by env-presence checks (e.g., OPENROUTER_API_KEY) skip themselves.
+test-e2e-short: e2e-pg-up
+	go test -tags e2e -short -v -timeout 15m ./tests/e2e/...
+
+# Full suite including real LLM provider smoke tests. Requires keys in env.
+test-e2e-full: e2e-pg-up
+	go test -tags e2e -v -timeout 30m ./tests/e2e/...
+
+# Pre-merge release gate — invariants + contracts + e2e-short. Blocks merge.
+test-release-gate: test-critical test-e2e-short
 
 vet:
 	go vet ./...

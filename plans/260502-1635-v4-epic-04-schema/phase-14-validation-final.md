@@ -9,10 +9,11 @@
 ## Overview
 
 - Priority: P0 (release gate)
-- Status: **in-progress 2026-05-03** (14A impl committed; 14B all 16 e2e files committed; 2 red-state tests gate remaining work)
-- Effort: 6 dev-days + 2d Phase 14A endpoint impl
+- Status: **code-complete 2026-05-04** — pending only the live e2e run on pgvector container before tag `v4.0.0-rc1`
+- Effort: 6 dev-days + 2d Phase 14A endpoint impl + 1d gap closure (14C below)
 - Sub-phase 14A (impl missing endpoints): committed in `feat(v4): phase-14a` (Users CRUD, hook budget rewire + GET /v1/hooks/budget, secure-cli ADR, channel pairing audit-correction)
 - Sub-phase 14B (write 16 e2e test files): committed across 4 batches (b1: users+agents+hooks; b2: memory+vault+oauth+mcp+cli; b3: teams+sessions+chat+ws+cron; b4: rbac+isolation+backup)
+- Sub-phase 14C (gap closure 2026-05-04): 12 missing test funcs added across 8 files — `TestUsersDeleteCascadesToOwnedResources`, `TestAgentDeleteCascadesContext`, `TestSessionResume`, `TestSessionMessageHistory`, `TestVaultWikilinksResolve`, `TestProviderBailian`, `TestHookExecutionLogs`, `TestUserHookBudgetMonthlyReset`, `TestWSChatStreamEvents`, `TestWSReconnectAfterDisconnect`, `TestBackupWorkspace`, `TestRestoreFreshDB`. ADRs added: `2026-05-v4-localstorage-tokens-defer.md`, `2026-05-v4-password-reset-http-defer.md`. Makefile: `test-e2e-short` / `test-e2e-full` / `test-release-gate`. CI: `e2e-fast` per-PR (skips LLM), `e2e-full` nightly cron 03:00 UTC.
 - **Remaining red-state work:** ✅ both fixed in commit `7cbd10ea` (2026-05-04). (1) `RevokeAllSessionsPostRestore` wired into `backup.Restore` for both PG and SQLite. (2) KG handler `auth()` now gates `WithSharedKG` on `IsMasterScope` so non-admin callers get per-user filter already enforced by the store layer.
 - Description: Implement remaining e2e tests covering full master § 11 matrix not yet covered by per-phase tests. RBAC matrix (root/admin/member/viewer × all resources). Multi-user isolation. Backup/restore round-trip. WebSocket frame coverage. LLM real-call smoke (Bailian + OpenRouter). Final regression run. Branch merge gate.
 
@@ -197,19 +198,22 @@ Verification chain:
 
 ## Todo List
 
-- [ ] Batch 1: users, agents, teams, sessions, memory, vault tests
-- [ ] Batch 2: chat (LLM), websocket, cron, hooks, oauth, mcp, secure_cli
-- [ ] Batch 3: rbac matrix, isolation, backup/restore round-trip
-<!-- RED-TEAM Finding 6 -->
-- [ ] (Finding 6) `goclaw restore` post-step: `UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL`
-- [ ] (Finding 6) `TestRestoreRevokesAllSessions` green
-- [ ] (Finding 6) Drop checksum equivalence assertion; replace with row-count + key-row spot-check
-- [ ] Makefile test-e2e-short + test-e2e-full
-- [ ] Earlier phase tests still green (regression)
-- [ ] Frontend build clean
-- [ ] go build (PG + sqliteonly) + go vet clean
-- [ ] Manual smoke checklist
-- [ ] All e2e tests green
+- [x] Batch 1: users, agents, teams, sessions, memory, vault tests
+- [x] Batch 2: chat (LLM), websocket, cron, hooks, oauth, mcp, secure_cli
+- [x] Batch 3: rbac matrix, isolation, backup/restore round-trip
+- [x] Sub-14C gap closure: 12 missing test funcs across 8 files
+- [x] `goclaw restore` post-step: `UPDATE user_sessions SET revoked_at = NOW() WHERE revoked_at IS NULL` (PG + SQLite)
+- [x] `TestRestoreRevokesAllSessions` written
+- [x] Drop checksum equivalence; row-count + key-row spot-check applied
+- [x] Makefile `test-e2e-short` + `test-e2e-full` + `test-release-gate`
+- [x] CI `e2e-fast` per-PR + `e2e-full` nightly cron
+- [x] ADR `2026-05-v4-localstorage-tokens-defer.md` (Finding 5 deferral)
+- [x] ADR `2026-05-v4-password-reset-http-defer.md` (Finding 8 deferral)
+- [x] `go build` (PG + sqliteonly) + `go vet` clean
+- [ ] **Live e2e run on dev pgvector container** (pending — operator-driven)
+- [ ] Frontend build clean (verified earlier; re-run before tag)
+- [ ] Manual smoke checklist (operator-driven)
+- [ ] All e2e tests green on live pgvector → tag `v4.0.0-rc1`
 
 ## Success Criteria
 

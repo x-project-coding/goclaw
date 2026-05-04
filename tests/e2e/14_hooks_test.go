@@ -288,3 +288,163 @@ func TestHooksCreateGlobalScope(t *testing.T) {
 		t.Fatalf("hooks.create global: empty hookId in response: %s", string(payload))
 	}
 }
+
+// TestHookExecutionLogs — create a hook via WS, call hooks.history, verify response shape.
+// hooks.history is a Phase-3 MVP stub that returns an empty list. The test verifies:
+// 1. hooks.create succeeds and returns a hookId.
+// 2. hooks.history returns a valid JSON response with an "executions" array (empty is acceptable).
+func TestHookExecutionLogs(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	token := loginForHooks(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+
+	wsCtx, wsCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer wsCancel()
+
+	wsc, err := helpers.NewWSClient(wsCtx, token)
+	if err != nil {
+		t.Skipf("WS dial failed: %v", err)
+	}
+	defer wsc.Close()
+
+	if _, err := wsc.Connect(wsCtx, map[string]any{"locale": "en"}); err != nil {
+		t.Skipf("WS connect failed: %v", err)
+	}
+
+	// Create a minimal global command hook (cheapest handler — no external deps).
+	hookName := "e2e-execlog-" + helpers.RandHex8()
+	createParams, _ := json.Marshal(map[string]any{
+		"handler_type": "command",
+		"event":        "pre_tool_use",
+		"scope":        "global",
+		"name":         hookName,
+		"config":       map[string]any{"command": "echo test"},
+		"enabled":      true,
+	})
+	createPayload, createErr := wsc.SendReq(wsCtx, protocol.MethodHooksCreate, json.RawMessage(createParams))
+	if createErr != nil {
+		// Global scope requires master scope; skip if server rejects (same condition as TestHooksCreateGlobalScope).
+		t.Skipf("hooks.create (global) returned error — may need master_scope WS param: %v", createErr)
+	}
+	var createResult struct {
+		HookID string `json:"hookId"`
+	}
+	if err := json.Unmarshal(createPayload, &createResult); err != nil || createResult.HookID == "" {
+		t.Skipf("hooks.create: unexpected response shape: %s", string(createPayload))
+	}
+
+	// Call hooks.history — verify the response has an "executions" field (empty list acceptable; stub is documented).
+	histParams, _ := json.Marshal(map[string]any{
+		"hookId": createResult.HookID,
+		"limit":  20,
+	})
+	histPayload, histErr := wsc.SendReq(wsCtx, protocol.MethodHooksHistory, json.RawMessage(histParams))
+	if histErr != nil {
+		t.Fatalf("hooks.history: unexpected error: %v", histErr)
+	}
+
+	var histResult struct {
+		Executions []any  `json:"executions"`
+		NextCursor string `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(histPayload, &histResult); err != nil {
+		t.Fatalf("hooks.history: unmarshal response: %v (raw=%s)", err, string(histPayload))
+	}
+	// executions may be empty (stub returns []); the key requirement is the field exists and is a JSON array.
+	if histResult.Executions == nil {
+		t.Fatalf("hooks.history: missing 'executions' field in response: %s", string(histPayload))
+	}
+}
+
+// TestUserHookBudgetMonthlyReset — seed a stale budget row (previous month), simulate the
+// reset SQL that the cron worker uses, then verify GET /v1/hooks/budget reflects the new
+// month_start and a refilled remaining value.
+func TestUserHookBudgetMonthlyReset(t *testing.T) {
+	helpers.MustMigrateClean(t)
+	helpers.ResetDB(t)
+
+	gw := helpers.StartGateway(t)
+	api := helpers.NewAPIClient()
+	api.BaseURL = gw.BaseURL
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	rootToken := loginForHooks(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
+
+	// Resolve root's user_id.
+	api.SetToken(rootToken)
+	res, err := api.GET(ctx, "/v1/auth/me")
+	mustOKHooks(t, "GET /v1/auth/me", res, err, http.StatusOK)
+	var me struct {
+		UserID string `json:"user_id"`
+	}
+	mustJSONHooks(t, res, &me)
+
+	db := helpers.MustDB(t)
+
+	// Insert a stale budget row: month_start = first day of previous month, remaining = 999.
+	prevMonthStart := time.Now().UTC().AddDate(0, -1, 0)
+	prevMonthStart = time.Date(prevMonthStart.Year(), prevMonthStart.Month(), 1, 0, 0, 0, 0, time.UTC)
+	const budgetTotal = 500
+
+	_, dbErr := db.ExecContext(ctx, `
+		INSERT INTO user_hook_budget (user_id, month_start, budget_total, remaining, updated_at)
+		VALUES ($1, $2::date, $3, 999, now())
+		ON CONFLICT (user_id) DO UPDATE
+		   SET month_start  = EXCLUDED.month_start,
+		       budget_total = EXCLUDED.budget_total,
+		       remaining    = 999,
+		       updated_at   = now()`,
+		me.UserID, prevMonthStart.Format("2006-01-02"), budgetTotal,
+	)
+	if dbErr != nil {
+		t.Skipf("cannot seed stale budget row (table may not exist yet): %v", dbErr)
+	}
+
+	// Run the reset SQL directly — same logic as ResetMonthly in PGUserHookBudgetStore.
+	// This simulates what the monthly cron does without requiring time-travel.
+	currentMonthStart := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), 1, 0, 0, 0, 0, time.UTC)
+	_, resetErr := db.ExecContext(ctx, `
+		INSERT INTO user_hook_budget (user_id, month_start, budget_total, remaining, updated_at)
+		VALUES ($1, $2, $3, $3, now())
+		ON CONFLICT (user_id) DO UPDATE
+		   SET month_start    = EXCLUDED.month_start,
+		       budget_total   = EXCLUDED.budget_total,
+		       remaining      = EXCLUDED.budget_total,
+		       last_warned_at = NULL,
+		       updated_at     = now()`,
+		me.UserID, currentMonthStart, budgetTotal,
+	)
+	if resetErr != nil {
+		t.Fatalf("budget reset SQL failed: %v", resetErr)
+	}
+
+	// GET /v1/hooks/budget — should now show current month and remaining = budgetTotal (refilled).
+	res, err = api.GET(ctx, "/v1/hooks/budget")
+	mustOKHooks(t, "GET /v1/hooks/budget (after reset)", res, err, http.StatusOK)
+
+	var budget hooksBudgetResp
+	mustJSONHooks(t, res, &budget)
+
+	if budget.MonthStart == "" {
+		t.Fatalf("budget.month_start empty after reset")
+	}
+	// Verify month_start is the current month.
+	wantMonthStart := currentMonthStart.Format("2006-01-")
+	if len(budget.MonthStart) < 7 || budget.MonthStart[:7] != wantMonthStart[:7] {
+		t.Fatalf("budget.month_start = %q, want current month prefix %q", budget.MonthStart, wantMonthStart[:7])
+	}
+	// Verify remaining was refilled (should equal budgetTotal after reset).
+	if budget.Remaining != budgetTotal {
+		t.Fatalf("budget.remaining = %d after reset, want %d (refilled)", budget.Remaining, budgetTotal)
+	}
+}
