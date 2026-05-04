@@ -41,11 +41,14 @@ func TestNoMasterTenantIDProjectWide(t *testing.T) {
 	// We allow the substring to appear in test names / fixture comments,
 	// so this leg is a soft check that fails only if the count regresses
 	// suspiciously high.
+	// Concatenate to avoid this test file matching its own grep pattern.
+	needle := "store." + "MasterTenantID"
 	out, _ = runGrep(t, repoRoot,
-		"-rln", "store.MasterTenantID", "--include=*_test.go",
+		"-rln", needle, "--include=*_test.go",
+		"--exclude=13_no_master_tenant_id_test.go",
 		"--exclude-dir=node_modules", "--exclude-dir=.git")
 	if strings.TrimSpace(out) != "" {
-		t.Fatalf("store.MasterTenantID symbol still referenced in tests:\n%s", out)
+		t.Fatalf("%s symbol still referenced in tests:\n%s", needle, out)
 	}
 }
 

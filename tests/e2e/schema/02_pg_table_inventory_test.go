@@ -8,7 +8,9 @@ import (
 	"github.com/nextlevelbuilder/goclaw/tests/e2e/helpers"
 )
 
-// expectedTables is the canonical 65-table list for v4.
+// expectedTables is the canonical v4 table list. TestPgTableCount asserts
+// the actual `pg_tables` count matches `len(expectedTables)` exactly — so
+// any future schema migration must update this slice to stay green.
 var expectedTables = []string{
 	// Core
 	"users",
@@ -51,6 +53,7 @@ var expectedTables = []string{
 	"skill_user_grants",
 	"skill_versions",
 	"curator_runs",
+	"curator_events",
 	// Channels
 	"channel_instances",
 	"channel_pending_messages",
@@ -121,8 +124,8 @@ func TestPgTableCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query table count: %v", err)
 	}
-	if count != 66 {
-		t.Errorf("expected 66 tables, got %d", count)
+	if count != len(expectedTables) {
+		t.Errorf("expected %d tables, got %d", len(expectedTables), count)
 	}
 }
 

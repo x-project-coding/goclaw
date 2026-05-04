@@ -57,8 +57,8 @@ func createMCPServer(t *testing.T, ctx context.Context, api *helpers.APIClient) 
 	res, err := api.POST(ctx, "/v1/mcp/servers", map[string]any{
 		"name":      name,
 		"transport": "stdio",
-		"command":   "echo",
-		"args":      []string{"hello"},
+		"command":   "node",
+		"args":      []string{"-e", "console.log('mcp stub ready')"},
 	})
 	mustOKMCP(t, "POST /v1/mcp/servers", res, err, http.StatusCreated)
 	var srv struct {
