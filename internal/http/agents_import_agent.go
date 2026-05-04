@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -37,7 +36,7 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 	// Dedup: suffix with -N if key already exists
 	agentKey = h.dedupAgentKey(ctx, agentKey)
 
-	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, uuid.Nil, userID)
+	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, userID)
 
 	if progressFn != nil {
 		progressFn(ProgressEvent{Phase: "config", Status: "running"})
@@ -76,7 +75,7 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 }
 
 // buildAgentFromArchive constructs an AgentData from the parsed archive config map.
-func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, agentKey, displayName string, tenantID uuid.UUID, ownerID string) *store.AgentData {
+func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, agentKey, displayName string, ownerID string) *store.AgentData {
 	ag := &store.AgentData{
 		AgentKey:    agentKey,
 		DisplayName: displayName,

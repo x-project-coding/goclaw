@@ -307,7 +307,7 @@ func wireTracingAndCron(
 			})
 		}
 		// Immediate status broadcast on every successful status write (bypasses 5s flush).
-		traceCollector.SetStatusBroadcaster(func(p tracing.TraceStatusPayload, _ uuid.UUID) {
+		traceCollector.SetStatusBroadcaster(func(p tracing.TraceStatusPayload) {
 			msgBus.Broadcast(bus.Event{
 				Name:    protocol.EventTraceStatusChanged,
 				Payload: p,

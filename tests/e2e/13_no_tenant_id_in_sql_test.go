@@ -48,6 +48,48 @@ func TestNoTenantIDInSQLStatements(t *testing.T) {
 	}
 }
 
+// TestNoTenantIDInProductionGo asserts no production Go file contains a
+// tenantID / TenantID identifier outside of comments and the allowlisted
+// STT 3rd-party param. v4 is single-user — all tenant scoping scaffolding
+// has been removed; any surviving reference is dead code or a regression.
+func TestNoTenantIDInProductionGo(t *testing.T) {
+	repoRoot := mustRepoRoot(t)
+
+	out, _ := runGrep(t, repoRoot,
+		"-rnEw", `tenantID|TenantID`, "--include=*.go",
+		"--exclude=*_test.go",
+		"--exclude-dir=node_modules",
+		"--exclude-dir=plans",
+		"--exclude-dir=docs",
+		"--exclude-dir=.claude",
+		"--exclude-dir=.git")
+
+	var hits []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+		// Allowlist: STT 3rd-party API param (not goclaw tenant concept).
+		if strings.Contains(line, "STTTenantID") || strings.Contains(line, "stt_tenant_id") {
+			continue
+		}
+		// Skip pure comment lines (grep line format: file:line:content).
+		parts := strings.SplitN(line, ":", 3)
+		if len(parts) == 3 {
+			content := strings.TrimSpace(parts[2])
+			if strings.HasPrefix(content, "//") {
+				continue
+			}
+		}
+		hits = append(hits, line)
+	}
+
+	if len(hits) > 0 {
+		t.Fatalf("found %d production references to tenantID/TenantID (v4 is single-user — all tenant scaffolding removed):\n  %s",
+			len(hits), strings.Join(hits, "\n  "))
+	}
+}
+
 // TestNoTenantIDDBTagInStructs asserts no production struct uses the
 // `db:"tenant_id"` field tag. v4 stores must not declare a tenant_id column
 // mapping; any sqlx StructScan against such a tag would either fail or

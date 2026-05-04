@@ -15,8 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
@@ -122,7 +120,7 @@ func New(cfg config.FeishuConfig, msgBus *bus.MessageBus, pairingSvc store.Pairi
 		audioMgr:       audioMgr,
 	}
 	ch.SetPairingService(pairingSvc)
-	ch.SetGroupHistory(channels.MakeHistory(channels.TypeFeishu, pendingStore, base.TenantID()))
+	ch.SetGroupHistory(channels.MakeHistory(channels.TypeFeishu, pendingStore))
 	ch.SetHistoryLimit(historyLimit)
 	for _, opt := range opts {
 		opt(ch)
@@ -164,13 +162,6 @@ func (c *Channel) BlockReplyEnabled() *bool { return c.cfg.BlockReply }
 func (c *Channel) SetPendingCompaction(cfg *channels.CompactionConfig) {
 	if gh := c.GroupHistory(); gh != nil {
 		gh.SetCompactionConfig(cfg)
-	}
-}
-
-// SetPendingHistoryTenantID propagates the scope UUID to pending history for DB operations.
-func (c *Channel) SetPendingHistoryTenantID(id uuid.UUID) {
-	if gh := c.GroupHistory(); gh != nil {
-		gh.SetTenantID(id)
 	}
 }
 

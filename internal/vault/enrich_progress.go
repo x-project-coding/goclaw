@@ -3,7 +3,6 @@ package vault
 import (
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -14,7 +13,6 @@ import (
 type EnrichProgress struct {
 	mu         sync.Mutex
 	msgBus     bus.EventPublisher
-	tenantID   uuid.UUID
 	total      int
 	done       int
 	running    bool
@@ -59,17 +57,16 @@ func (p *EnrichProgress) broadcast(e EnrichEvent) {
 	if p.msgBus == nil {
 		return
 	}
-	bus.BroadcastForTenant(p.msgBus, protocol.EventVaultEnrichProgress, p.tenantID, e)
+	bus.Broadcast(p.msgBus, protocol.EventVaultEnrichProgress, e)
 }
 
 // Start signals enrichment with the global total. Called by the HTTP rescan/upload
 // handler ONCE with the full count. Resets counters for a fresh run.
-func (p *EnrichProgress) Start(total int, tenantID uuid.UUID) {
+func (p *EnrichProgress) Start(total int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.done = 0
 	p.total = total
-	p.tenantID = tenantID
 	p.running = true
 	p.errorCount = 0
 	p.lastError = ""

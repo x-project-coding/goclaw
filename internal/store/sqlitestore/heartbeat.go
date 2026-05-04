@@ -283,7 +283,7 @@ func (s *SQLiteHeartbeatStore) ListLogs(ctx context.Context, agentID uuid.UUID, 
 // ListDeliveryTargets returns known delivery targets (channel, chatID, title, kind) from channel_contacts.
 // Queries contacts with contact_type IN ('group','topic','user').
 // For topic contacts, chatID is built as senderID + ":topic:" + threadID.
-func (s *SQLiteHeartbeatStore) ListDeliveryTargets(ctx context.Context, tenantID uuid.UUID) ([]store.DeliveryTarget, error) {
+func (s *SQLiteHeartbeatStore) ListDeliveryTargets(ctx context.Context) ([]store.DeliveryTarget, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT cc.sender_id,
 		        cc.thread_id,

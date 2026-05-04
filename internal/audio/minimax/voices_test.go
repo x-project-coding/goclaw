@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/audio/minimax"
 )
 
@@ -26,7 +25,7 @@ func TestListVoices_RequestShape(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("test-key", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("test-key", srv.URL, 5000)
 	vl.ListVoices(t.Context())
 
 	if gotMethod != http.MethodPost {
@@ -58,7 +57,7 @@ func TestListVoices_ParsesAllThreeArrays(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("k", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("k", srv.URL, 5000)
 	voices, err := vl.ListVoices(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -90,7 +89,7 @@ func TestListVoices_EmptyArrays(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("k", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("k", srv.URL, 5000)
 	voices, err := vl.ListVoices(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error for empty response: %v", err)
@@ -110,7 +109,7 @@ func TestListVoices_AuthError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("bad-key", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("bad-key", srv.URL, 5000)
 	_, err := vl.ListVoices(t.Context())
 	if err == nil {
 		t.Fatal("expected error for 401, got nil")
@@ -126,7 +125,7 @@ func TestListVoices_5xxFallback_ReturnsStaleCacheOrEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("k", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("k", srv.URL, 5000)
 	voices, err := vl.ListVoices(t.Context())
 	// No prior cache → returns empty slice + error.
 	if err == nil {
@@ -156,7 +155,7 @@ func TestListVoices_5xxFallback_ReturnsStaleCacheWhenPresent(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	vl := minimax.NewVoiceLister("k", srv.URL, 5000, uuid.New())
+	vl := minimax.NewVoiceLister("k", srv.URL, 5000)
 
 	// First call populates cache.
 	voices1, err := vl.ListVoices(t.Context())

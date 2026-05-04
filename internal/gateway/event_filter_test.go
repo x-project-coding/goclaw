@@ -3,31 +3,24 @@ package gateway
 import (
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // makeClient builds a minimal Client for filter tests.
-// conn and server are nil — only role/userID/tenantID fields are used.
-func makeClient(role permissions.Role, userID string, tenantID uuid.UUID) *Client {
+// conn and server are nil — only role/userID fields are used.
+func makeClient(role permissions.Role, userID string) *Client {
 	c := &Client{}
 	c.role = role
 	c.userID = userID
-	c.tenantID = tenantID
 	return c
 }
 
 // makeEvent builds a bus.Event for testing.
-func makeEvent(name string, _ uuid.UUID, payload any) bus.Event {
+func makeEvent(name string, payload any) bus.Event {
 	return bus.Event{Name: name, Payload: payload}
 }
-
-// masterTenant is a non-Nil UUID kept as a routing fixture for legacy event-shape
-// fields. v4 has no tenant scope; the value is never authoritative for filtering.
-var masterTenant = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 // ---- isSystemEvent ----
 
@@ -80,17 +73,17 @@ func TestIsAdminOnlyEvent_NonAdminEvent(t *testing.T) {
 // ---- Internal event filtering (cache., audit.log) ----
 
 func TestClientCanReceiveEvent_InternalCacheEvent_Blocked(t *testing.T) {
-	c := makeClient(permissions.RoleAdmin, "admin", masterTenant)
+	c := makeClient(permissions.RoleAdmin, "admin")
 	c.role = permissions.RoleRoot // even owner shouldn't get cache events
-	evt := makeEvent("cache.invalidate", masterTenant, nil)
+	evt := makeEvent("cache.invalidate", nil)
 	if clientCanReceiveEvent(c, evt) {
 		t.Error("cache.* events must never be forwarded to any client")
 	}
 }
 
 func TestClientCanReceiveEvent_AuditLog_Blocked(t *testing.T) {
-	c := makeClient(permissions.RoleRoot, "admin", masterTenant)
-	evt := makeEvent(protocol.EventAuditLog, masterTenant, nil)
+	c := makeClient(permissions.RoleRoot, "admin")
+	evt := makeEvent(protocol.EventAuditLog, nil)
 	if clientCanReceiveEvent(c, evt) {
 		t.Error("audit.log events must never be forwarded")
 	}
@@ -99,8 +92,8 @@ func TestClientCanReceiveEvent_AuditLog_Blocked(t *testing.T) {
 // ---- System events broadcast to everyone ----
 
 func TestClientCanReceiveEvent_SystemEvent_AllowedToAnyClient(t *testing.T) {
-	c := makeClient(permissions.RoleViewer, "viewer", masterTenant)
-	evt := makeEvent(protocol.EventHealth, uuid.Nil, nil) // system events have no tenant
+	c := makeClient(permissions.RoleViewer, "viewer")
+	evt := makeEvent(protocol.EventHealth, nil)
 	// system events bypass tenant checks and go to everyone
 	if !clientCanReceiveEvent(c, evt) {
 		t.Error("system events (health) should reach all clients")
@@ -110,10 +103,10 @@ func TestClientCanReceiveEvent_SystemEvent_AllowedToAnyClient(t *testing.T) {
 // ---- User-scoped events (agent, chat) ----
 
 func TestClientCanReceiveEvent_AgentEvent_FilteredByUserID(t *testing.T) {
-	userA := makeClient(permissions.RoleMember, "user-a", masterTenant)
-	userB := makeClient(permissions.RoleMember, "user-b", masterTenant)
+	userA := makeClient(permissions.RoleMember, "user-a")
+	userB := makeClient(permissions.RoleMember, "user-b")
 
-	evt := makeEvent(protocol.EventAgent, masterTenant, map[string]any{"userId": "user-a"})
+	evt := makeEvent(protocol.EventAgent, map[string]any{"userId": "user-a"})
 
 	if !clientCanReceiveEvent(userA, evt) {
 		t.Error("user-a should receive their own agent event")
@@ -124,8 +117,8 @@ func TestClientCanReceiveEvent_AgentEvent_FilteredByUserID(t *testing.T) {
 }
 
 func TestClientCanReceiveEvent_AgentEvent_AdminSeesAll(t *testing.T) {
-	admin := makeClient(permissions.RoleAdmin, "admin", masterTenant)
-	evt := makeEvent(protocol.EventAgent, masterTenant, map[string]any{"userId": "user-x"})
+	admin := makeClient(permissions.RoleAdmin, "admin")
+	evt := makeEvent(protocol.EventAgent, map[string]any{"userId": "user-x"})
 	if !clientCanReceiveEvent(admin, evt) {
 		t.Error("admin should receive all agent events")
 	}
@@ -134,11 +127,11 @@ func TestClientCanReceiveEvent_AgentEvent_AdminSeesAll(t *testing.T) {
 // ---- Team events ----
 
 func TestClientCanReceiveEvent_TeamEvent_FilteredByTeamID(t *testing.T) {
-	c := makeClient(permissions.RoleMember, "user", masterTenant)
+	c := makeClient(permissions.RoleMember, "user")
 	c.SetTeamAccess([]string{"team-1"})
 
-	evtMyTeam := makeEvent("team.task.created", masterTenant, map[string]any{"team_id": "team-1"})
-	evtOtherTeam := makeEvent("team.task.created", masterTenant, map[string]any{"team_id": "team-2"})
+	evtMyTeam := makeEvent("team.task.created", map[string]any{"team_id": "team-1"})
+	evtOtherTeam := makeEvent("team.task.created", map[string]any{"team_id": "team-2"})
 
 	if !clientCanReceiveEvent(c, evtMyTeam) {
 		t.Error("user should receive events for their team")
@@ -151,9 +144,9 @@ func TestClientCanReceiveEvent_TeamEvent_FilteredByTeamID(t *testing.T) {
 // ---- Admin-only events ----
 
 func TestClientCanReceiveEvent_AdminOnlyEvent_BlockedForNonAdmin(t *testing.T) {
-	c := makeClient(permissions.RoleMember, "user", masterTenant)
+	c := makeClient(permissions.RoleMember, "user")
 	// Admin-only events land in the default deny path for non-admin.
-	evt := makeEvent(protocol.EventNodePairRequested, masterTenant, nil)
+	evt := makeEvent(protocol.EventNodePairRequested, nil)
 	if clientCanReceiveEvent(c, evt) {
 		t.Error("admin-only events should not reach operator-role clients")
 	}
@@ -162,9 +155,9 @@ func TestClientCanReceiveEvent_AdminOnlyEvent_BlockedForNonAdmin(t *testing.T) {
 // ---- Skill events broadcast ----
 
 func TestClientCanReceiveEvent_SkillEvent_BroadcastToTenantClients(t *testing.T) {
-	ownerClient := makeClient(permissions.RoleRoot, "owner", masterTenant)
+	ownerClient := makeClient(permissions.RoleRoot, "owner")
 	// skill.deps.checked is a skill event — should broadcast
-	evt := makeEvent(protocol.EventSkillDepsChecked, uuid.Nil, nil)
+	evt := makeEvent(protocol.EventSkillDepsChecked, nil)
 	// owner receives unscoped skill events
 	if !clientCanReceiveEvent(ownerClient, evt) {
 		t.Error("owner should receive skill events")
@@ -174,10 +167,10 @@ func TestClientCanReceiveEvent_SkillEvent_BroadcastToTenantClients(t *testing.T)
 // ---- Tenant access revocation ----
 
 func TestClientCanReceiveEvent_TenantAccessRevoked_DeliveredToCorrectUser(t *testing.T) {
-	userA := makeClient(permissions.RoleMember, "user-a", masterTenant)
-	userB := makeClient(permissions.RoleMember, "user-b", masterTenant)
+	userA := makeClient(permissions.RoleMember, "user-a")
+	userB := makeClient(permissions.RoleMember, "user-b")
 
-	evt := makeEvent(protocol.EventTenantAccessRevoked, masterTenant, map[string]any{"user_id": "user-a"})
+	evt := makeEvent(protocol.EventTenantAccessRevoked, map[string]any{"user_id": "user-a"})
 
 	if !clientCanReceiveEvent(userA, evt) {
 		t.Error("revocation event should be delivered to the affected user")

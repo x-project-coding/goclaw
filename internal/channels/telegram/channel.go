@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mymmrac/telego"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
@@ -84,7 +83,7 @@ func WithSubagentTaskStore(s store.SubagentTaskStore) Option {
 // WithPendingMessageStore sets the pending message store for group history buffering.
 func WithPendingMessageStore(s store.PendingMessageStore) Option {
 	return func(c *Channel) {
-		c.SetGroupHistory(channels.MakeHistory(channels.TypeTelegram, s, c.TenantID()))
+		c.SetGroupHistory(channels.MakeHistory(channels.TypeTelegram, s))
 	}
 }
 
@@ -167,7 +166,7 @@ func New(cfg config.TelegramConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 		audioMgr:    audioMgr,
 	}
 	ch.SetPairingService(pairingSvc)
-	ch.SetGroupHistory(channels.MakeHistory(channels.TypeTelegram, nil, base.TenantID()))
+	ch.SetGroupHistory(channels.MakeHistory(channels.TypeTelegram, nil))
 	ch.SetHistoryLimit(historyLimit)
 	ch.SetRequireMention(requireMention)
 	for _, o := range chanOpts {
@@ -348,13 +347,6 @@ func (c *Channel) BlockReplyEnabled() *bool { return c.config.BlockReply }
 func (c *Channel) SetPendingCompaction(cfg *channels.CompactionConfig) {
 	if gh := c.GroupHistory(); gh != nil {
 		gh.SetCompactionConfig(cfg)
-	}
-}
-
-// SetPendingHistoryTenantID propagates the scope UUID to pending history for DB operations.
-func (c *Channel) SetPendingHistoryTenantID(id uuid.UUID) {
-	if gh := c.GroupHistory(); gh != nil {
-		gh.SetTenantID(id)
 	}
 }
 

@@ -41,7 +41,7 @@ type VaultHandler struct {
 	eventBus       eventbus.DomainEventBus
 	enrichProgress *vault.EnrichProgress // nil = enrichment progress SSE disabled
 	enrichWorker   *vault.EnrichWorker   // nil = stop not available
-	rescanMu       sync.Map              // key: tenantID → struct{}, per-tenant concurrency guard
+	rescanMu       sync.Map              // key: scopeKey → struct{}, per-scope concurrency guard
 }
 
 // SetEnrichProgress injects the enrichment progress tracker for SSE streaming.
@@ -216,7 +216,7 @@ func (h *VaultHandler) handleRescan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.enrichProgress != nil && total > 0 {
-		h.enrichProgress.Start(total, uuid.Nil)
+		h.enrichProgress.Start(total)
 	}
 
 	// Now publish enrichment events — workers will call AddDone after Start.

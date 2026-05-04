@@ -163,7 +163,7 @@ func (h *AgentsHandler) handleRegenerate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	go h.summoner.RegenerateAgent(id, uuid.Nil, ag.Provider, ag.Model, req.Prompt)
+	go h.summoner.RegenerateAgent(id, ag.Provider, ag.Model, req.Prompt)
 
 	emitAudit(h.msgBus, r, "agent.regenerated", "agent", id.String())
 	writeJSON(w, http.StatusAccepted, map[string]string{"ok": "true", "status": store.AgentStatusSummoning})
@@ -205,7 +205,7 @@ func (h *AgentsHandler) handleResummon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.summoner.SummonAgent(id, uuid.Nil, ag.Provider, ag.Model, description)
+	go h.summoner.SummonAgent(id, ag.Provider, ag.Model, description)
 
 	emitAudit(h.msgBus, r, "agent.resummoned", "agent", id.String())
 	writeJSON(w, http.StatusAccepted, map[string]string{"ok": "true", "status": store.AgentStatusSummoning})
@@ -242,7 +242,7 @@ func (h *AgentsHandler) handleCancelSummon(w http.ResponseWriter, r *http.Reques
 	}
 
 	if h.msgBus != nil {
-		bus.BroadcastForTenant(h.msgBus, protocol.EventAgentSummoning, uuid.Nil, map[string]any{
+		bus.Broadcast(h.msgBus, protocol.EventAgentSummoning, map[string]any{
 			"agent_id": id.String(),
 			"type":     "failed",
 			"error":    i18n.T(locale, i18n.MsgSummonCancelled),

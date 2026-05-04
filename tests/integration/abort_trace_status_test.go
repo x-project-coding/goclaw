@@ -20,22 +20,21 @@ import (
 // store fails twice, the retry mechanism recovers and persists the update.
 func TestCollector_UpdateRetry_SucceedsAfterTwoFailures(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	seedTenantAgent(t, db)
 
 	// Create a real store and collector
 	tracingStore := pg.NewPGTracingStore(db)
 	collector := tracing.NewCollector(tracingStore)
 	defer collector.Stop()
 
-	// Create a trace in the DB (with tenant_id)
 	trace := &store.TraceData{
 		ID:        uuid.New(),
 		Status:    "running",
 		StartTime: time.Now().UTC(),
 	}
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO traces (id, tenant_id, status, start_time) VALUES ($1, $2, $3, $4)`,
-		trace.ID, tenantID, trace.Status, trace.StartTime)
+		`INSERT INTO traces (id, status, start_time) VALUES ($1, $2, $3)`,
+		trace.ID, trace.Status, trace.StartTime)
 	if err != nil {
 		t.Fatalf("insert trace failed: %v", err)
 	}
@@ -76,13 +75,13 @@ func TestCollector_UpdateRetry_SucceedsAfterTwoFailures(t *testing.T) {
 // retries fail, the update is enqueued in the retry queue (RetryQueueLen >= 1).
 func TestCollector_UpdateRetry_EnqueuesOnAllFailures(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	seedTenantAgent(t, db)
 
 	// Create a trace in the DB so UpdateTrace has a valid target.
 	traceID := uuid.New()
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO traces (id, tenant_id, status, start_time) VALUES ($1, $2, $3, $4)`,
-		traceID, tenantID, "running", time.Now().UTC())
+		`INSERT INTO traces (id, status, start_time) VALUES ($1, $2, $3)`,
+		traceID, "running", time.Now().UTC())
 	if err != nil {
 		t.Fatalf("insert trace failed: %v", err)
 	}
@@ -107,30 +106,19 @@ func TestCollector_UpdateRetry_EnqueuesOnAllFailures(t *testing.T) {
 
 // TestCollector_BroadcastsStatusEvent verifies that when a trace status is
 // updated successfully, the StatusBroadcaster callback is invoked with the
-// correct payload and tenant ID.
+// correct payload.
 func TestCollector_BroadcastsStatusEvent(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
+	seedTenantAgent(t, db)
 
-	// Create stores and collector
 	tracingStore := pg.NewPGTracingStore(db)
 	collector := tracing.NewCollector(tracingStore)
 
-	// Set up a message bus and broadcaster
 	msgBus := bus.New()
 
-	broadcastedPayloads := make(chan struct {
-		payload  tracing.TraceStatusPayload
-		tenantID uuid.UUID
-	}, 10)
-
-	// Wire the broadcaster
-	broadcaster := func(payload tracing.TraceStatusPayload, tid uuid.UUID) {
-		broadcastedPayloads <- struct {
-			payload  tracing.TraceStatusPayload
-			tenantID uuid.UUID
-		}{payload, tid}
-		// Also emit to message bus for WS subscribers
+	broadcastedPayloads := make(chan tracing.TraceStatusPayload, 10)
+	broadcaster := func(payload tracing.TraceStatusPayload) {
+		broadcastedPayloads <- payload
 		msgBus.Broadcast(bus.Event{
 			Name:    protocol.EventTraceStatusChanged,
 			Payload: payload,
@@ -138,44 +126,35 @@ func TestCollector_BroadcastsStatusEvent(t *testing.T) {
 	}
 	collector.SetStatusBroadcaster(broadcaster)
 
-	// Create a trace in the DB (with tenant_id)
 	trace := &store.TraceData{
 		ID:        uuid.New(),
 		Status:    "running",
 		StartTime: time.Now().UTC(),
 	}
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO traces (id, tenant_id, status, start_time) VALUES ($1, $2, $3, $4)`,
-		trace.ID, tenantID, trace.Status, trace.StartTime)
+		`INSERT INTO traces (id, status, start_time) VALUES ($1, $2, $3)`,
+		trace.ID, trace.Status, trace.StartTime)
 	if err != nil {
 		t.Fatalf("insert trace failed: %v", err)
 	}
 
-	// Call FinishTrace
 	finishCtx, finishCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finishCancel()
-
 	collector.FinishTrace(finishCtx, trace.ID, "completed", "", "test output")
 
-	// Give a moment for the broadcast
 	time.Sleep(50 * time.Millisecond)
 
-	// Verify broadcaster was called
 	select {
 	case p := <-broadcastedPayloads:
-		if p.payload.TraceID != trace.ID.String() {
-			t.Errorf("expected traceId=%s, got %s", trace.ID.String(), p.payload.TraceID)
+		if p.TraceID != trace.ID.String() {
+			t.Errorf("expected traceId=%s, got %s", trace.ID.String(), p.TraceID)
 		}
-		if p.payload.Status != "completed" {
-			t.Errorf("expected status='completed', got '%s'", p.payload.Status)
+		if p.Status != "completed" {
+			t.Errorf("expected status='completed', got '%s'", p.Status)
 		}
-		if p.payload.EndedAt == nil {
+		if p.EndedAt == nil {
 			t.Error("expected EndedAt to be non-nil")
 		}
-		if p.tenantID != tenantID {
-			t.Errorf("expected tenantID=%s, got %s", tenantID.String(), p.tenantID.String())
-		}
-		t.Logf("Broadcast payload verified: status=%s, tenantID=%s", p.payload.Status, p.tenantID.String())
 	case <-time.After(1 * time.Second):
 		t.Error("broadcaster was not called within timeout")
 	}
@@ -197,9 +176,9 @@ func TestCollector_StaleRecovery_MarksOldRunningAsError(t *testing.T) {
 	oldStartTime := time.Now().UTC().Add(-11 * time.Minute)
 	_, err := db.ExecContext(
 		context.Background(),
-		`INSERT INTO traces (id, tenant_id, status, start_time)
-		 VALUES ($1, $2, $3, $4)`,
-		traceID, uuid.Nil, "running", oldStartTime,
+		`INSERT INTO traces (id, status, start_time)
+		 VALUES ($1, $2, $3)`,
+		traceID, "running", oldStartTime,
 	)
 	if err != nil {
 		t.Fatalf("insert stale trace failed: %v", err)

@@ -104,7 +104,7 @@ type Manager struct {
 	pool          *Pool
 	poolServers   map[string]struct{}  // server names acquired from pool (for cleanup)
 	poolToolNames map[string][]string  // per-agent tool names for pool-backed servers
-	poolKeys      map[string]string   // server name → pool compound key (tenantID/name) for Release
+	poolKeys      map[string]string   // server name → pool compound key (scope/name) for Release
 
 	// Search mode: deferred tools not registered in registry
 	deferredTools  map[string]*BridgeTool // registeredName → BridgeTool

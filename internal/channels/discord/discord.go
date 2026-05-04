@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -75,7 +74,7 @@ func New(cfg config.DiscordConfig, msgBus *bus.MessageBus, pairingSvc store.Pair
 	}
 	ch.SetRequireMention(requireMention)
 	ch.SetPairingService(pairingSvc)
-	ch.SetGroupHistory(channels.MakeHistory(channels.TypeDiscord, pendingStore, base.TenantID()))
+	ch.SetGroupHistory(channels.MakeHistory(channels.TypeDiscord, pendingStore))
 	ch.SetHistoryLimit(historyLimit)
 	return ch, nil
 }
@@ -112,13 +111,6 @@ func (c *Channel) BlockReplyEnabled() *bool { return c.config.BlockReply }
 func (c *Channel) SetPendingCompaction(cfg *channels.CompactionConfig) {
 	if gh := c.GroupHistory(); gh != nil {
 		gh.SetCompactionConfig(cfg)
-	}
-}
-
-// SetPendingHistoryTenantID propagates the scope UUID to pending history for DB operations.
-func (c *Channel) SetPendingHistoryTenantID(id uuid.UUID) {
-	if gh := c.GroupHistory(); gh != nil {
-		gh.SetTenantID(id)
 	}
 }
 

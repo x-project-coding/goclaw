@@ -368,7 +368,7 @@ func (d *stdDispatcher) runAsync(ctx context.Context, ev Event, chain []HookConf
 			if execErr != nil {
 				errMsg = execErr.Error()
 			}
-			// Use WithoutCancel to preserve context values (TenantID, UserID)
+			// Use WithoutCancel to preserve context values (UserID, etc.)
 			// but detach from parent deadline, then add a timeout to prevent indefinite hang
 			writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()

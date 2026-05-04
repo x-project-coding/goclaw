@@ -206,7 +206,7 @@ func httpMinRole(method string) permissions.Role {
 	}
 }
 
-// enrichContext injects locale, role, userID, and tenantID from authResult into ctx.
+// enrichContext injects locale, role, and userID from authResult into ctx.
 // Used by requireAuth middleware and ServeHTTP handlers that do their own auth checks.
 func enrichContext(ctx context.Context, r *http.Request, auth authResult) context.Context {
 	ctx = store.WithLocale(ctx, extractLocale(r))
@@ -249,7 +249,7 @@ func enrichContext(ctx context.Context, r *http.Request, auth authResult) contex
 
 // requireAuth is a middleware that checks authentication and minimum role.
 // Pass "" for minRole to auto-detect from HTTP method (GET→Viewer, POST→Operator).
-// Injects locale, role, userID and tenantID into request context.
+// Injects locale, role, and userID into request context.
 func requireAuth(minRole permissions.Role, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		locale := extractLocale(r)

@@ -104,7 +104,7 @@ func (h *ProvidersHandler) handleVerifyProvider(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Use provider's own TenantID (not request context) so cross-tenant admins
+	// Use provider's own owner_user_id (not request context) so admins
 	// can verify providers belonging to other tenants.
 	provider, err := h.providerReg.GetByName(p.Name)
 	if err != nil {

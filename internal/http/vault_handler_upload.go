@@ -233,7 +233,7 @@ func (h *VaultHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Start progress BEFORE publishing events to avoid race with workers.
 	if h.enrichProgress != nil && created > 0 {
-		h.enrichProgress.Start(created, uuid.Nil)
+		h.enrichProgress.Start(created)
 	}
 	for _, event := range pendingEvents {
 		h.eventBus.Publish(event)

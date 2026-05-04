@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	slackapi "github.com/slack-go/slack"
 	"github.com/slack-go/slack/socketmode"
 
@@ -125,7 +124,7 @@ func New(cfg config.SlackConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 	}
 	ch.SetRequireMention(requireMention)
 	ch.SetPairingService(pairingSvc)
-	ch.SetGroupHistory(channels.MakeHistory(channels.TypeSlack, pendingStore, base.TenantID()))
+	ch.SetGroupHistory(channels.MakeHistory(channels.TypeSlack, pendingStore))
 	ch.SetHistoryLimit(historyLimit)
 	return ch, nil
 }
@@ -269,13 +268,6 @@ func (c *Channel) handleEvent(evt socketmode.Event) {
 func (c *Channel) SetPendingCompaction(cfg *channels.CompactionConfig) {
 	if gh := c.GroupHistory(); gh != nil {
 		gh.SetCompactionConfig(cfg)
-	}
-}
-
-// SetPendingHistoryTenantID propagates the scope UUID to pending history for DB operations.
-func (c *Channel) SetPendingHistoryTenantID(id uuid.UUID) {
-	if gh := c.GroupHistory(); gh != nil {
-		gh.SetTenantID(id)
 	}
 }
 

@@ -11,28 +11,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 )
 
 const voicesCacheTTL = 5 * time.Minute
 
 // VoiceLister fetches MiniMax voices via POST /v1/get_voice.
-// It holds a per-tenant in-process cache with 5-min TTL and
+// It holds an in-process cache with 5-min TTL and
 // stale-while-refetch semantics on upstream 5xx errors.
 type VoiceLister struct {
 	apiKey    string
 	apiBase   string
 	timeoutMs int
-	tenantID  uuid.UUID
 
 	mu        sync.Mutex
 	cached    []audio.Voice
 	expiresAt time.Time
 }
 
-// NewVoiceLister creates a VoiceLister for the given tenant credentials.
-func NewVoiceLister(apiKey, apiBase string, timeoutMs int, tenantID uuid.UUID) *VoiceLister {
+// NewVoiceLister creates a VoiceLister for the given credentials.
+func NewVoiceLister(apiKey, apiBase string, timeoutMs int) *VoiceLister {
 	if apiBase == "" {
 		apiBase = "https://api.minimax.io/v1"
 	}
@@ -43,7 +41,6 @@ func NewVoiceLister(apiKey, apiBase string, timeoutMs int, tenantID uuid.UUID) *
 		apiKey:    apiKey,
 		apiBase:   apiBase,
 		timeoutMs: timeoutMs,
-		tenantID:  tenantID,
 	}
 }
 

@@ -39,9 +39,8 @@ type Client struct {
 	// Team access cache for event filtering (lazily populated).
 	teamIDs map[string]bool
 
-	tenantID   uuid.UUID // resolved tenant; always concrete after connect
-	tenantName string    // resolved tenant display name (set during connect)
-	tenantSlug string    // resolved tenant URL slug (set during connect)
+	tenantName string // resolved tenant display name (set during connect)
+	tenantSlug string // resolved tenant URL slug (set during connect)
 }
 
 func NewClient(conn *websocket.Conn, server *Server, remoteIP string) *Client {
@@ -209,9 +208,6 @@ func (c *Client) ConnectedAt() time.Time { return c.connectedAt }
 
 // RemoteAddr returns the peer IP:port.
 func (c *Client) RemoteAddr() string { return c.remoteAddr }
-
-// TenantID returns the resolved tenant UUID (uuid.Nil means cross-tenant).
-func (c *Client) TenantID() uuid.UUID { return c.tenantID }
 
 // TenantSlug returns the resolved tenant URL slug (set during connect).
 func (c *Client) TenantSlug() string { return c.tenantSlug }

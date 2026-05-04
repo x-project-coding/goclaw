@@ -337,7 +337,7 @@ func (p *Pool) acquireUserSlot(ctx context.Context, sem chan struct{}, slotKey s
 }
 
 // Release decrements the reference count for a server.
-// Accepts the same key format as Acquire (tenantID + name).
+// Accepts the same key format as Acquire (scope + name).
 func (p *Pool) Release(key string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -353,7 +353,7 @@ func (p *Pool) Release(key string) {
 }
 
 // ReleaseUser decrements the reference count for a user-scoped connection.
-// Accepts the same key format as AcquireUser (tenantID + serverName + userID).
+// Accepts the same key format as AcquireUser (scope + serverName + userID).
 func (p *Pool) ReleaseUser(key string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -493,7 +493,7 @@ func (p *Pool) evictIdle() {
 			}
 			delete(p.userServers, key)
 			// Return slot to per-server semaphore
-			// Extract slotKey from user key: "tenantID/serverName/user:userID" → "tenantID/serverName"
+			// Extract slotKey from user key: "scope/serverName/user:userID" → "scope/serverName"
 			// We search userSlots by iterating — key format guarantees prefix match
 			for slotKey, sem := range p.userSlots {
 				if strings.HasPrefix(key, slotKey+"/") {

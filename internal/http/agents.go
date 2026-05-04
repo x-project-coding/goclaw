@@ -301,7 +301,7 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Start LLM summoning in background if applicable
 	if req.Status == store.AgentStatusSummoning {
-		go h.summoner.SummonAgent(req.ID, uuid.Nil, req.Provider, req.Model, description)
+		go h.summoner.SummonAgent(req.ID, req.Provider, req.Model, description)
 	}
 
 	emitAudit(h.msgBus, r, "agent.created", "agent", req.ID.String())
@@ -404,7 +404,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	allowed["restrict_to_workspace"] = true
 
 	// If agent_key is being changed, enforce the slug format. The router
-	// cache uses `tenantID:agentKey` as its canonical key and splits on the
+	// cache uses `agentKey` as its canonical key and splits on the
 	// last colon for exact-segment invalidation — a colon inside agent_key
 	// would silently break invalidation. Slug regex already rejects colons
 	// and any other shell/path-unfriendly characters.
@@ -489,8 +489,7 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	// Cascade: if status changed, broadcast so channel instances and cron jobs react.
 	if newStatus, ok := allowed["status"].(string); ok && newStatus != ag.Status {
 		if h.msgBus != nil {
-			bus.BroadcastForTenant(h.msgBus, bus.EventAgentStatusChanged,
-				uuid.Nil,
+			bus.Broadcast(h.msgBus, bus.EventAgentStatusChanged,
 				bus.AgentStatusChangedPayload{
 					AgentID:   id.String(),
 					OldStatus: ag.Status,

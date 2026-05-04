@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -40,8 +39,8 @@ type TraceStatusPayload struct {
 }
 
 // StatusBroadcaster is a callback invoked after each successful trace status write.
-// Implementations broadcast the payload to connected WS clients in the given tenant.
-type StatusBroadcaster func(payload TraceStatusPayload, tenantID uuid.UUID)
+// Implementations broadcast the payload to connected WS clients.
+type StatusBroadcaster func(payload TraceStatusPayload)
 
 // SpanExporter is implemented by backends that receive span data alongside
 // the PostgreSQL store (e.g. OpenTelemetry OTLP).  Keeping this as an
@@ -537,7 +536,7 @@ func (c *Collector) emitStatusBroadcast(ctx context.Context, traceID uuid.UUID, 
 		TraceID: traceID.String(),
 		Status:  status,
 		EndedAt: endedAt,
-	}, uuid.Nil)
+	})
 }
 
 // truncatePreviewStr sanitizes and truncates a string by removing the middle.

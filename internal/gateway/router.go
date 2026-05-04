@@ -8,8 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -84,8 +82,7 @@ func (r *MethodRouter) Handle(ctx context.Context, client *Client, req *protocol
 		}
 	}
 
-	// Inject locale + tenant + role into context.
-	// All connect paths guarantee client.tenantID is set (owner defaults to uuid.Nil in v4 single-user).
+	// Inject locale + role into context.
 	// Role injection is required so store.IsRootRole / store.IsMasterScope work
 	// from WS handlers — without it, ctx-based permission helpers silently
 	// evaluate as non-owner. HTTP layer does the same via enrichContext.
@@ -142,7 +139,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		if isOwnerID(params.UserID, r.server.cfg.Gateway.OwnerIDs) {
 			client.role = permissions.RoleRoot
 		}
-		client.tenantID = uuid.Nil
 		r.sendConnectResponse(ctx, client, req.ID)
 		return
 	}
@@ -154,7 +150,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			client.role = permissions.Role(claims.Role)
 			client.authenticated = true
 			client.userID = claims.Sub
-			client.tenantID = uuid.Nil
 			slog.Debug("security.ws_connect_resolved_jwt",
 				"client", client.id,
 				"role", string(client.role),
@@ -193,7 +188,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			} else {
 				client.userID = params.UserID
 			}
-			client.tenantID = uuid.Nil
 			slog.Debug("security.ws_connect_resolved",
 				"client", client.id,
 				"role", string(client.role),
@@ -208,7 +202,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		client.role = permissions.RoleMember
 		client.authenticated = true
 		client.userID = params.UserID
-		client.tenantID = uuid.Nil
 		r.sendConnectResponse(ctx, client, req.ID)
 		return
 	}
@@ -234,7 +227,6 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			client.userID = params.UserID
 			client.pairedSenderID = params.SenderID
 			client.pairedChannel = "browser"
-			client.tenantID = uuid.Nil
 			slog.Info("browser pairing authenticated", "sender_id", params.SenderID, "client", client.id)
 			r.sendConnectResponse(ctx, client, req.ID)
 			return

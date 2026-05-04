@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 )
 
@@ -62,8 +61,7 @@ func TestProbeBotInfo_APIError(t *testing.T) {
 	}
 }
 
-// --- SetPendingCompaction / SetPendingHistoryTenantID ---
-// Both use GroupHistory() which requires a real BaseChannel from New().
+// --- SetPendingCompaction ---
 
 func TestSetPendingCompaction_WithChannel(t *testing.T) {
 	ch := newLifecycleTestChannel(t)
@@ -73,16 +71,6 @@ func TestSetPendingCompaction_WithChannel(t *testing.T) {
 		}
 	}()
 	ch.SetPendingCompaction(nil)
-}
-
-func TestSetPendingHistoryTenantID_WithChannel(t *testing.T) {
-	ch := newLifecycleTestChannel(t)
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("SetPendingHistoryTenantID panicked: %v", r)
-		}
-	}()
-	ch.SetPendingHistoryTenantID(uuid.UUID{})
 }
 
 // --- ListGroupMembers ---

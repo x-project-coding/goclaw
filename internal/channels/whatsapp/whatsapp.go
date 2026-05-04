@@ -106,7 +106,7 @@ func New(cfg config.WhatsAppConfig, msgBus *bus.MessageBus,
 		builtinToolStore: builtinToolStore,
 	}
 	ch.SetPairingService(pairingSvc)
-	ch.SetGroupHistory(channels.MakeHistory("whatsapp", pendingStore, base.TenantID()))
+	ch.SetGroupHistory(channels.MakeHistory("whatsapp", pendingStore))
 	return ch, nil
 }
 

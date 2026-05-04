@@ -62,7 +62,7 @@ func makeDelegateAnnounceCallback(
 		}
 		// Notify clients that leader is processing team results
 		// (bridges UI gap between last task.completed and announce run.started).
-		bus.BroadcastForTenant(msgBus, protocol.EventTeamLeaderProcessing, uuid.Nil, map[string]any{
+		bus.Broadcast(msgBus, protocol.EventTeamLeaderProcessing, map[string]any{
 			"agentId": meta.ParentAgent,
 			"tasks":   len(items),
 		})

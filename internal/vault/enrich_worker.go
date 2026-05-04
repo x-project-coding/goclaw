@@ -88,7 +88,7 @@ type EnrichWorker struct {
 	sem     *semaphore.Weighted // limits concurrent LLM summarize calls
 
 	// Per-tenant cancel functions for stop capability
-	cancelFuncs *sync.Map // key: tenantID string, value: context.CancelFunc
+	cancelFuncs *sync.Map // key: scope string, value: context.CancelFunc
 }
 
 // resolveProvider delegates to shared background provider resolution.

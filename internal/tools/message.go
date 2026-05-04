@@ -25,16 +25,14 @@ type MessageTool struct {
 	restrict      bool
 	sender        ChannelSender
 	msgBus        *bus.MessageBus
-	tenantChecker ChannelTenantChecker
 }
 
 func NewMessageTool(workspace string, restrict bool) *MessageTool {
 	return &MessageTool{workspace: workspace, restrict: restrict}
 }
 
-func (t *MessageTool) SetChannelSender(s ChannelSender)               { t.sender = s }
-func (t *MessageTool) SetMessageBus(b *bus.MessageBus)                { t.msgBus = b }
-func (t *MessageTool) SetChannelTenantChecker(c ChannelTenantChecker) { t.tenantChecker = c }
+func (t *MessageTool) SetChannelSender(s ChannelSender) { t.sender = s }
+func (t *MessageTool) SetMessageBus(b *bus.MessageBus) { t.msgBus = b }
 
 func (t *MessageTool) Name() string { return "message" }
 func (t *MessageTool) Description() string {
@@ -133,11 +131,6 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *Result 
 				return ErrorResult("This file is already queued for automatic delivery via write_file(deliver=true). Do not send it again. To deliver files that were written with deliver=false, use write_file again with deliver=true, or use message(MEDIA:path) which is allowed for undelivered files.")
 			}
 		}
-	}
-
-	// Tenant isolation: validate channel belongs to current tenant.
-	if err := t.validateChannelTenant(ctx, channel, target); err != nil {
-		return err
 	}
 
 	// Cross-target guard: in DM/group/default sessions, prevent the agent from
@@ -241,19 +234,6 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *Result 
 	}
 
 	return ErrorResult("no channel sender or message bus available")
-}
-
-// validateChannelTenant checks the target channel belongs to the current tenant.
-// Returns an error Result if the send should be blocked, nil if allowed.
-func (t *MessageTool) validateChannelTenant(ctx context.Context, channel, target string) *Result {
-	if t.tenantChecker == nil {
-		return nil
-	}
-	_, chExists := t.tenantChecker(channel)
-	if !chExists {
-		return ErrorResult(fmt.Sprintf("channel %q not found", channel))
-	}
-	return nil
 }
 
 // sendMedia sends a file as a media attachment via the outbound message bus.

@@ -137,9 +137,6 @@ func (t *BrowserTool) Execute(ctx context.Context, args map[string]any) *tools.R
 		return tools.ErrorResult("action is required")
 	}
 
-	// In v4 single-user, no tenant ID needed for browser context.
-	ctx = WithTenantID(ctx, "")
-
 	// Auto-start browser for actions that need it
 	switch action {
 	case "open", "snapshot", "screenshot", "navigate", "act", "tabs":

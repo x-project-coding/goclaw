@@ -17,7 +17,7 @@ type MediaFile struct {
 }
 
 // InboundMessage represents a message received from a channel (Telegram, Discord, etc.).
-// v4: TenantID dropped — UserID is the only scope axis (resolved to UUID at channel
+// v4: UserID is the only scope axis (resolved to UUID at channel
 // boundary via ContactStore.ResolveTenantUserID).
 type InboundMessage struct {
 	Channel      string            `json:"channel"`
@@ -35,7 +35,7 @@ type InboundMessage struct {
 }
 
 // OutboundMessage represents a message to be sent to a channel.
-// v4: TenantID dropped — TTS voice/config flows via AgentOtherConfig only.
+// v4: TTS voice/config flows via AgentOtherConfig only.
 type OutboundMessage struct {
 	Channel          string            `json:"channel"`
 	ChatID           string            `json:"chat_id"`

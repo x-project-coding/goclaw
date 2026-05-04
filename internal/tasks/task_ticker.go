@@ -310,7 +310,7 @@ func (t *TaskTicker) broadcastStaleEvents(ctx context.Context, tasks []store.Rec
 			continue
 		}
 		seen[task.TeamID] = true
-		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, uuid.Nil, tools.BuildTaskEventPayload(
+		bus.Broadcast(t.msgBus, protocol.EventTeamTaskStale, tools.BuildTaskEventPayload(
 			task.TeamID.String(), "",
 			store.TeamTaskStatusStale,
 			"system", "task_ticker",

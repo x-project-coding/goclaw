@@ -109,7 +109,6 @@ func (h *WorkspaceUploadHandler) handleUpload(w http.ResponseWriter, r *http.Req
 	}
 
 	// Resolve workspace directory. v4 single-tenant: teams/{teamID} under dataDir.
-	tenantID := uuid.Nil // used for bus.BroadcastForTenant below
 	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)
@@ -163,7 +162,7 @@ func (h *WorkspaceUploadHandler) handleUpload(w http.ResponseWriter, r *http.Req
 
 	// Broadcast workspace file change event for real-time UI updates.
 	if h.msgBus != nil {
-		bus.BroadcastForTenant(h.msgBus, protocol.EventWorkspaceFileChanged, tenantID, map[string]string{
+		bus.Broadcast(h.msgBus, protocol.EventWorkspaceFileChanged, map[string]string{
 			"team_id":   teamID.String(),
 			"chat_id":   chatID,
 			"file_name": origName,
@@ -239,7 +238,6 @@ func (h *WorkspaceUploadHandler) handleMove(w http.ResponseWriter, r *http.Reque
 		chatID = ""
 	}
 
-	tenantID := uuid.Nil // used for bus.BroadcastForTenant below
 	scopeDir := filepath.Join(h.dataDir, "teams", teamID.String())
 	if chatID != "" {
 		scopeDir = filepath.Join(scopeDir, chatID)
@@ -291,7 +289,7 @@ func (h *WorkspaceUploadHandler) handleMove(w http.ResponseWriter, r *http.Reque
 
 	// Broadcast change event.
 	if h.msgBus != nil {
-		bus.BroadcastForTenant(h.msgBus, protocol.EventWorkspaceFileChanged, tenantID, map[string]string{
+		bus.Broadcast(h.msgBus, protocol.EventWorkspaceFileChanged, map[string]string{
 			"team_id":   teamID.String(),
 			"chat_id":   chatID,
 			"file_name": filepath.Base(toName),

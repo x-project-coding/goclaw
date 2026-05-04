@@ -89,7 +89,7 @@ func (h *ToolsInvokeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Inject agentID into context for interceptors (bootstrap, memory).
-	// Note: userID, tenantID, role, locale already injected by enrichContext above.
+	// Note: userID, role, locale already injected by enrichContext above.
 	ctx := r.Context()
 
 	agentIDStr := req.AgentID
