@@ -250,5 +250,8 @@ func init() {
 		MsgPasswordResetInvalidToken: "invalid or expired reset token",
 		MsgPasswordResetEmailSubject: "Reset your password",
 		MsgPasswordResetEmailBody:    "Click the link to reset your password: %s\nThis link expires in 1 hour.",
+
+		MsgInvalidShareTarget: "share target must be exactly one of user_id or team_id",
+		MsgInvalidShareRole:   "share role must be one of viewer, member, editor",
 	})
 }

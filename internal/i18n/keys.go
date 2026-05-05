@@ -245,6 +245,10 @@ const (
 	MsgPasswordResetEmailSubject = "password_reset.email_subject"       // "Reset your password"
 	MsgPasswordResetEmailBody    = "password_reset.email_body"          // "Click the link to reset your password: %s\nLink expires in 1 hour."
 
+	// --- Agent sharing ---
+	MsgInvalidShareTarget = "error.invalid_share_target" // "share target must be exactly one of user_id or team_id"
+	MsgInvalidShareRole   = "error.invalid_share_role"   // "share role must be one of viewer, member, editor"
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard = "hook.command_disabled_standard" // "command-type hooks are only available on Lite edition"

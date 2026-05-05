@@ -250,5 +250,8 @@ func init() {
 		MsgPasswordResetInvalidToken: "重置令牌无效或已过期",
 		MsgPasswordResetEmailSubject: "重置您的密码",
 		MsgPasswordResetEmailBody:    "点击链接以重置您的密码：%s\n此链接将在 1 小时后失效。",
+
+		MsgInvalidShareTarget: "共享目标必须是 user_id 或 team_id 之一",
+		MsgInvalidShareRole:   "共享角色必须是 viewer、member 或 editor",
 	})
 }

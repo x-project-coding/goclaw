@@ -149,7 +149,8 @@ CREATE TABLE IF NOT EXISTS agents (
     skill_evolve          BOOLEAN      NOT NULL DEFAULT FALSE,
     skill_nudge_interval  INT          NOT NULL DEFAULT 0,
     reasoning_config      JSONB        NOT NULL DEFAULT '{}',
-    workspace_sharing     JSONB        NOT NULL DEFAULT '{}',
+    share_workspace       BOOLEAN      NOT NULL DEFAULT FALSE,
+    share_memory          BOOLEAN      NOT NULL DEFAULT FALSE,
     chatgpt_oauth_routing JSONB        NOT NULL DEFAULT '{}',
     shell_deny_groups     JSONB        NOT NULL DEFAULT '{}',
     kg_dedup_config       JSONB        NOT NULL DEFAULT '{}',
@@ -172,18 +173,34 @@ CREATE INDEX idx_agents_owner_user     ON agents(owner_user_id) WHERE deleted_at
 CREATE INDEX idx_agents_status         ON agents(status)        WHERE deleted_at IS NULL;
 CREATE INDEX idx_agents_tsv            ON agents USING gin(tsv);
 
+-- Explicit grants of agent access to either a user OR a team (mutex).
+-- Owner role is implicit via agents.owner_id and is NOT a value of `role`.
+-- Implicit team membership grants are computed by the access resolver
+-- (internal/permissions/agent_access.go), not stored here.
 CREATE TABLE IF NOT EXISTS agent_shares (
-    id         UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    agent_id   UUID         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_id    UUID         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
-    role       VARCHAR(20)  NOT NULL DEFAULT 'user',
-    granted_by VARCHAR(255) NOT NULL,
-    metadata   JSONB        NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ  DEFAULT NOW(),
-    UNIQUE(agent_id, user_id)
+    id                  UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    agent_id            UUID         NOT NULL REFERENCES agents(id)       ON DELETE CASCADE,
+    shared_with_user_id UUID         NULL     REFERENCES users(id)        ON DELETE CASCADE,
+    shared_with_team_id UUID         NULL     REFERENCES agent_teams(id)  ON DELETE CASCADE,
+    role                VARCHAR(20)  NOT NULL CHECK (role IN ('viewer','member','editor')),
+    metadata            JSONB        NOT NULL DEFAULT '{}',
+    created_by          UUID         NOT NULL REFERENCES users(id)        ON DELETE RESTRICT,
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    -- Target mutex: exactly one of (user, team) must be set per row.
+    CONSTRAINT agent_shares_target_mutex CHECK (
+        (shared_with_user_id IS NOT NULL AND shared_with_team_id IS NULL) OR
+        (shared_with_user_id IS NULL     AND shared_with_team_id IS NOT NULL)
+    )
 );
 
-CREATE INDEX idx_agent_shares_user ON agent_shares(user_id);
+CREATE INDEX idx_agent_shares_agent ON agent_shares(agent_id);
+CREATE UNIQUE INDEX idx_agent_shares_user
+    ON agent_shares(agent_id, shared_with_user_id)
+    WHERE shared_with_user_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_agent_shares_team
+    ON agent_shares(agent_id, shared_with_team_id)
+    WHERE shared_with_team_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS agent_context_files (
     id         UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),

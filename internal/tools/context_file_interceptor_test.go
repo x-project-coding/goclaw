@@ -72,8 +72,9 @@ func (s *stubAgentStore) Delete(_ context.Context, _ uuid.UUID) error           
 func (s *stubAgentStore) List(_ context.Context, _ string) ([]store.AgentData, error) {
 	return nil, nil
 }
-func (s *stubAgentStore) ShareAgent(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
-func (s *stubAgentStore) RevokeShare(_ context.Context, _ uuid.UUID, _ string) error      { return nil }
+func (s *stubAgentStore) CreateShare(_ context.Context, _ store.AgentShareInput) error { return nil }
+func (s *stubAgentStore) RevokeShareByUser(_ context.Context, _, _ uuid.UUID) error    { return nil }
+func (s *stubAgentStore) RevokeShareByTeam(_ context.Context, _, _ uuid.UUID) error    { return nil }
 func (s *stubAgentStore) ListShares(_ context.Context, _ uuid.UUID) ([]store.AgentShareData, error) {
 	return nil, nil
 }

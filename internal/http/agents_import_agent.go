@@ -109,7 +109,8 @@ func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, ag
 	unmarshalField(cfg, "skill_evolve", &ag.SkillEvolve)
 	unmarshalField(cfg, "skill_nudge_interval", &ag.SkillNudgeInterval)
 	ag.ReasoningConfig = rawOrNil(cfg["reasoning_config"])
-	ag.WorkspaceSharing = rawOrNil(cfg["workspace_sharing"])
+	unmarshalField(cfg, "share_workspace", &ag.ShareWorkspace)
+	unmarshalField(cfg, "share_memory", &ag.ShareMemory)
 	ag.ChatGPTOAuthRouting = rawOrNil(cfg["chatgpt_oauth_routing"])
 	ag.ShellDenyGroups = rawOrNil(cfg["shell_deny_groups"])
 	ag.KGDedupConfig = rawOrNil(cfg["kg_dedup_config"])
@@ -133,9 +134,6 @@ func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, ag
 			extractLegacy("thinking_level", &ag.ThinkingLevel)
 			if ag.ReasoningConfig == nil {
 				ag.ReasoningConfig = rawOrNil(oc["reasoning"])
-			}
-			if ag.WorkspaceSharing == nil {
-				ag.WorkspaceSharing = rawOrNil(oc["workspace_sharing"])
 			}
 			if ag.ChatGPTOAuthRouting == nil {
 				ag.ChatGPTOAuthRouting = rawOrNil(oc["chatgpt_oauth_routing"])

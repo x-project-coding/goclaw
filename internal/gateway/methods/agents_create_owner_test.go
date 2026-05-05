@@ -53,10 +53,13 @@ func (s *createCaptureStore) GetDefault(_ context.Context) (*store.AgentData, er
 func (s *createCaptureStore) ResetStuckSummoning(_ context.Context) (int64, error) {
 	return 0, nil
 }
-func (s *createCaptureStore) ShareAgent(_ context.Context, _ uuid.UUID, _, _, _ string) error {
+func (s *createCaptureStore) CreateShare(_ context.Context, _ store.AgentShareInput) error {
 	return nil
 }
-func (s *createCaptureStore) RevokeShare(_ context.Context, _ uuid.UUID, _ string) error {
+func (s *createCaptureStore) RevokeShareByUser(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+func (s *createCaptureStore) RevokeShareByTeam(_ context.Context, _, _ uuid.UUID) error {
 	return nil
 }
 func (s *createCaptureStore) ListShares(_ context.Context, _ uuid.UUID) ([]store.AgentShareData, error) {

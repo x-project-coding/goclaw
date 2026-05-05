@@ -77,7 +77,12 @@ type AgentData struct {
 	SkillEvolve         bool            `json:"skill_evolve" db:"skill_evolve"`
 	SkillNudgeInterval  int             `json:"skill_nudge_interval" db:"skill_nudge_interval"`
 	ReasoningConfig     json.RawMessage `json:"reasoning_config,omitempty" db:"reasoning_config"`
-	WorkspaceSharing    json.RawMessage `json:"workspace_sharing,omitempty" db:"workspace_sharing"`
+	// ShareWorkspace collapses the per-user file zone — when true, all users of
+	// this agent see the base workspace root instead of users/{user_key}/.
+	ShareWorkspace      bool            `json:"share_workspace" db:"share_workspace"`
+	// ShareMemory shares memory rows + knowledge graph + sessions across all
+	// users of this agent. Independent of file zone sharing for privacy.
+	ShareMemory         bool            `json:"share_memory" db:"share_memory"`
 	ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty" db:"chatgpt_oauth_routing"`
 	ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty" db:"shell_deny_groups"`
 	KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty" db:"kg_dedup_config"`
@@ -332,18 +337,6 @@ func normalizeReasoningFallback(value string) string {
 	return providers.NormalizeReasoningFallback(value)
 }
 
-// WorkspaceSharingConfig controls per-user workspace isolation.
-// When shared_dm/shared_group is true, users share the base workspace directory
-// instead of each getting an isolated subfolder.
-type WorkspaceSharingConfig struct {
-	SharedDM            bool     `json:"shared_dm" db:"-"`
-	SharedGroup         bool     `json:"shared_group" db:"-"`
-	SharedUsers         []string `json:"shared_users,omitempty" db:"-"`
-	ShareMemory         bool     `json:"share_memory" db:"-"`
-	ShareKnowledgeGraph bool     `json:"share_knowledge_graph" db:"-"`
-	ShareSessions       bool     `json:"share_sessions" db:"-"`
-}
-
 const (
 	ReasoningSourceUnset           = "unset"
 	ReasoningSourceLegacy          = "thinking_level"
@@ -419,22 +412,6 @@ type ChatGPTOAuthRoutingConfig struct {
 	OverrideMode       string   `json:"override_mode,omitempty" db:"-"`
 	Strategy           string   `json:"strategy,omitempty" db:"-"`
 	ExtraProviderNames []string `json:"extra_provider_names,omitempty" db:"-"`
-}
-
-// ParseWorkspaceSharing reads workspace sharing config from the dedicated column.
-// Returns nil if not configured or all fields are default (isolation enabled).
-func (a *AgentData) ParseWorkspaceSharing() *WorkspaceSharingConfig {
-	if len(a.WorkspaceSharing) <= 2 {
-		return nil
-	}
-	var ws WorkspaceSharingConfig
-	if json.Unmarshal(a.WorkspaceSharing, &ws) != nil {
-		return nil
-	}
-	if !ws.SharedDM && !ws.SharedGroup && len(ws.SharedUsers) == 0 && !ws.ShareMemory && !ws.ShareKnowledgeGraph && !ws.ShareSessions {
-		return nil
-	}
-	return &ws
 }
 
 // ParseChatGPTOAuthRouting reads chatgpt_oauth_routing from the dedicated column.
@@ -615,14 +592,28 @@ func (a *AgentData) ParseShellDenyGroups() map[string]bool {
 	return groups
 }
 
-// AgentShareData represents an agent share grant.
+// Share role enum — owner role is implicit via agents.owner_id.
+const (
+	ShareRoleViewer = "viewer"
+	ShareRoleMember = "member"
+	ShareRoleEditor = "editor"
+)
+
+// AgentShareData is one explicit grant row. Exactly one of SharedWithUserID
+// or SharedWithTeamID is set per row (enforced by target-mutex CHECK).
 type AgentShareData struct {
 	BaseModel
-	AgentID   uuid.UUID       `json:"agent_id" db:"agent_id"`
-	UserID    string          `json:"user_id" db:"user_id"`
-	Role      string          `json:"role" db:"role"`
-	GrantedBy string          `json:"granted_by" db:"granted_by"`
-	Metadata  json.RawMessage `json:"metadata,omitempty" db:"metadata"`
+	AgentID          uuid.UUID       `json:"agent_id" db:"agent_id"`
+	SharedWithUserID *uuid.UUID      `json:"shared_with_user_id,omitempty" db:"shared_with_user_id"`
+	SharedWithTeamID *uuid.UUID      `json:"shared_with_team_id,omitempty" db:"shared_with_team_id"`
+	Role             string          `json:"role" db:"role"`
+	Metadata         json.RawMessage `json:"metadata,omitempty" db:"metadata"`
+	CreatedBy        uuid.UUID       `json:"created_by" db:"created_by"`
+}
+
+// ValidShareRole reports whether r is one of the three allowed enum values.
+func ValidShareRole(r string) bool {
+	return r == ShareRoleViewer || r == ShareRoleMember || r == ShareRoleEditor
 }
 
 // AgentContextFileData represents an agent-level context file (SOUL.md, IDENTITY.md, etc).
@@ -665,10 +656,26 @@ type AgentCRUDStore interface {
 	ResetStuckSummoning(ctx context.Context) (int64, error)
 }
 
+// AgentShareInput captures one explicit grant request. Exactly one of
+// SharedWithUserID or SharedWithTeamID must be non-nil — the store rejects
+// both/neither at insert time (DB-level CHECK).
+type AgentShareInput struct {
+	AgentID          uuid.UUID
+	SharedWithUserID *uuid.UUID
+	SharedWithTeamID *uuid.UUID
+	Role             string // viewer | member | editor
+	CreatedBy        uuid.UUID
+}
+
 // AgentAccessStore manages agent sharing and access control.
 type AgentAccessStore interface {
-	ShareAgent(ctx context.Context, agentID uuid.UUID, userID, role, grantedBy string) error
-	RevokeShare(ctx context.Context, agentID uuid.UUID, userID string) error
+	// CreateShare inserts a single explicit grant row. Caller is responsible
+	// for resolving CreatedBy from session context (never trust client field).
+	CreateShare(ctx context.Context, in AgentShareInput) error
+	// RevokeShareByUser removes the user-target row for (agent, user).
+	RevokeShareByUser(ctx context.Context, agentID, userID uuid.UUID) error
+	// RevokeShareByTeam removes the team-target row for (agent, team).
+	RevokeShareByTeam(ctx context.Context, agentID, teamID uuid.UUID) error
 	ListShares(ctx context.Context, agentID uuid.UUID) ([]AgentShareData, error)
 	CanAccess(ctx context.Context, agentID uuid.UUID, userID string) (bool, string, error) // (allowed, role, err)
 	ListAccessible(ctx context.Context, userID string) ([]AgentData, error)

@@ -12,30 +12,8 @@ import (
 )
 
 // --- agents_scan_rows.go ---
-
-func TestAgentShareRow_ToAgentShareData(t *testing.T) {
-	id := uuid.New()
-	aid := uuid.New()
-	created := time.Now()
-	r := agentShareRow{
-		ID:        id,
-		AgentID:   aid,
-		UserID:    "user-1",
-		Role:      "editor",
-		GrantedBy: "admin",
-		CreatedAt: created,
-	}
-	got := r.toAgentShareData()
-	if got.ID != id || got.AgentID != aid {
-		t.Errorf("IDs mismatch: %+v", got)
-	}
-	if got.UserID != "user-1" || got.Role != "editor" || got.GrantedBy != "admin" {
-		t.Errorf("fields: %+v", got)
-	}
-	if !got.CreatedAt.Equal(created) {
-		t.Errorf("CreatedAt mismatch: got %v want %v", got.CreatedAt, created)
-	}
-}
+// (agentShareRow removed in v4 sharing-model rebuild — ListShares now scans
+//  AgentShareData directly with target-mutex columns.)
 
 func TestUserInstanceRow_ToUserInstanceData(t *testing.T) {
 	first := "2026-04-11T00:00:00Z"

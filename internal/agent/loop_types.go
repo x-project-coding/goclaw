@@ -94,7 +94,11 @@ type Loop struct {
 	maxToolCalls     int
 	workspace        string
 	dataDir          string // global workspace root for team workspace resolution
-	workspaceSharing *store.WorkspaceSharingConfig
+	// Sharing flags split from legacy workspace_sharing JSONB blob.
+	// shareWorkspace = collapse per-user file zone (users/{user_key}/ → base ws).
+	// shareMemory   = share memory + KG + sessions across all users.
+	shareWorkspace bool
+	shareMemory    bool
 
 	// Per-agent overrides from DB (nil = use global defaults)
 	restrictToWs *bool
@@ -299,7 +303,8 @@ type LoopConfig struct {
 	MaxToolCalls     int
 	Workspace        string
 	DataDir          string // global workspace root for team workspace resolution
-	WorkspaceSharing *store.WorkspaceSharingConfig
+	ShareWorkspace bool
+	ShareMemory    bool
 
 	// v3 memory/retrieval flags removed — always true at runtime.
 	AutoInjector memory.AutoInjector // v3 L0 memory auto-inject (nil = disabled)
@@ -501,7 +506,8 @@ func NewLoop(cfg LoopConfig) *Loop {
 		maxToolCalls:           cfg.MaxToolCalls,
 		workspace:              cfg.Workspace,
 		dataDir:                cfg.DataDir,
-		workspaceSharing:       cfg.WorkspaceSharing,
+		shareWorkspace:         cfg.ShareWorkspace,
+		shareMemory:            cfg.ShareMemory,
 		autoInjector:           cfg.AutoInjector,
 		restrictToWs:           cfg.RestrictToWs,
 		subagentsCfg:           cfg.SubagentsCfg,

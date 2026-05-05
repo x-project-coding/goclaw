@@ -86,59 +86,26 @@ func TestUniquifyToolCallIDs_DoesNotMutateInput(t *testing.T) {
 	}
 }
 
-// ─── shouldShareKnowledgeGraph ───────────────────────────────────────────
+// ─── shouldShareMemory ───────────────────────────────────────────────────
 
-func TestShouldShareKnowledgeGraph_NilConfig(t *testing.T) {
-	l := &Loop{workspaceSharing: nil}
-	if l.shouldShareKnowledgeGraph() {
-		t.Error("nil config should return false")
+func TestShouldShareMemory_DefaultFalse(t *testing.T) {
+	l := &Loop{}
+	if l.shouldShareMemory() {
+		t.Error("default Loop should not share memory")
 	}
 }
 
-func TestShouldShareKnowledgeGraph_EnabledConfig(t *testing.T) {
-	l := &Loop{workspaceSharing: &store.WorkspaceSharingConfig{ShareKnowledgeGraph: true}}
-	if !l.shouldShareKnowledgeGraph() {
-		t.Error("ShareKnowledgeGraph=true should return true")
+func TestShouldShareMemory_TrueWhenFlagSet(t *testing.T) {
+	l := &Loop{shareMemory: true}
+	if !l.shouldShareMemory() {
+		t.Error("shareMemory=true should return true")
 	}
 }
 
-func TestShouldShareKnowledgeGraph_DisabledByDefault(t *testing.T) {
-	l := &Loop{workspaceSharing: &store.WorkspaceSharingConfig{ShareMemory: true}}
-	if l.shouldShareKnowledgeGraph() {
-		t.Error("ShareMemory alone should not enable KG sharing")
-	}
-}
-
-// ─── shouldShareSessions ──────────────────────────────────────────────────────
-
-func TestShouldShareSessions_NilConfig(t *testing.T) {
-	l := &Loop{workspaceSharing: nil}
-	if l.shouldShareSessions() {
-		t.Error("nil config should return false")
-	}
-}
-
-func TestShouldShareSessions_EnabledConfig(t *testing.T) {
-	l := &Loop{workspaceSharing: &store.WorkspaceSharingConfig{ShareSessions: true}}
-	if !l.shouldShareSessions() {
-		t.Error("ShareSessions=true should return true")
-	}
-}
-
-func TestShouldShareSessions_DisabledByDefault(t *testing.T) {
-	l := &Loop{workspaceSharing: &store.WorkspaceSharingConfig{ShareMemory: true, ShareKnowledgeGraph: true}}
-	if l.shouldShareSessions() {
-		t.Error("ShareMemory and ShareKnowledgeGraph alone should not enable sessions sharing")
-	}
-}
-
-func TestShouldShareSessions_IndependentOfMemory(t *testing.T) {
-	l := &Loop{workspaceSharing: &store.WorkspaceSharingConfig{
-		ShareMemory:    true,
-		ShareSessions: false,
-	}}
-	if l.shouldShareSessions() {
-		t.Error("ShareMemory=true with ShareSessions=false should return false (independent)")
+func TestShouldShareMemory_IndependentOfShareWorkspace(t *testing.T) {
+	l := &Loop{shareWorkspace: true}
+	if l.shouldShareMemory() {
+		t.Error("shareWorkspace=true alone must not enable memory sharing")
 	}
 }
 

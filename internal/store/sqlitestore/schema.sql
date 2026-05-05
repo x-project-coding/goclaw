@@ -134,7 +134,8 @@ CREATE TABLE IF NOT EXISTS agents (
     skill_evolve          INTEGER      NOT NULL DEFAULT 0,
     skill_nudge_interval  INT          NOT NULL DEFAULT 0,
     reasoning_config      TEXT         NOT NULL DEFAULT '{}',
-    workspace_sharing     TEXT         NOT NULL DEFAULT '{}',
+    share_workspace       INTEGER      NOT NULL DEFAULT 0,
+    share_memory          INTEGER      NOT NULL DEFAULT 0,
     chatgpt_oauth_routing TEXT         NOT NULL DEFAULT '{}',
     shell_deny_groups     TEXT         NOT NULL DEFAULT '{}',
     kg_dedup_config       TEXT         NOT NULL DEFAULT '{}',
@@ -153,18 +154,33 @@ CREATE INDEX IF NOT EXISTS idx_agents_owner      ON agents(owner_id)      WHERE 
 CREATE INDEX IF NOT EXISTS idx_agents_owner_user ON agents(owner_user_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_agents_status     ON agents(status)        WHERE deleted_at IS NULL;
 
+-- Mirror of PG agent_shares. agent_teams FK is added later in this file
+-- because the agent_teams table is declared after agent_shares (forward-ref
+-- pattern already used by other tables here). SQLite does not enforce CHECK
+-- constraints for forward FKs at parse time, so the inline FK reference works.
 CREATE TABLE IF NOT EXISTS agent_shares (
-    id         TEXT         NOT NULL PRIMARY KEY,
-    agent_id   TEXT         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_id    TEXT         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
-    role       VARCHAR(20)  NOT NULL DEFAULT 'user',
-    granted_by VARCHAR(255) NOT NULL,
-    metadata   TEXT         NOT NULL DEFAULT '{}',
-    created_at TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    UNIQUE(agent_id, user_id)
+    id                  TEXT         NOT NULL PRIMARY KEY,
+    agent_id            TEXT         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
+    shared_with_user_id TEXT         NULL     REFERENCES users(id)       ON DELETE CASCADE,
+    shared_with_team_id TEXT         NULL     REFERENCES agent_teams(id) ON DELETE CASCADE,
+    role                VARCHAR(20)  NOT NULL CHECK (role IN ('viewer','member','editor')),
+    metadata            TEXT         NOT NULL DEFAULT '{}',
+    created_by          TEXT         NOT NULL REFERENCES users(id)       ON DELETE RESTRICT,
+    created_at          TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CONSTRAINT agent_shares_target_mutex CHECK (
+        (shared_with_user_id IS NOT NULL AND shared_with_team_id IS NULL) OR
+        (shared_with_user_id IS NULL     AND shared_with_team_id IS NOT NULL)
+    )
 );
 
-CREATE INDEX IF NOT EXISTS idx_agent_shares_user ON agent_shares(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_shares_agent ON agent_shares(agent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_shares_user
+    ON agent_shares(agent_id, shared_with_user_id)
+    WHERE shared_with_user_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_shares_team
+    ON agent_shares(agent_id, shared_with_team_id)
+    WHERE shared_with_team_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS agent_context_files (
     id         TEXT         NOT NULL PRIMARY KEY,

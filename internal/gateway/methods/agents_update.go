@@ -52,7 +52,8 @@ func (m *AgentsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 		SkillEvolve         *bool           `json:"skill_evolve,omitempty"`
 		SkillNudgeInterval  *int            `json:"skill_nudge_interval,omitempty"`
 		ReasoningConfig     json.RawMessage `json:"reasoning_config,omitempty"`
-		WorkspaceSharing    json.RawMessage `json:"workspace_sharing,omitempty"`
+		ShareWorkspace      *bool           `json:"share_workspace,omitempty"`
+		ShareMemory         *bool           `json:"share_memory,omitempty"`
 		ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty"`
 		ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty"`
 		KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty"`
@@ -175,8 +176,11 @@ func (m *AgentsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 		if len(params.ReasoningConfig) > 0 {
 			updates["reasoning_config"] = []byte(params.ReasoningConfig)
 		}
-		if len(params.WorkspaceSharing) > 0 {
-			updates["workspace_sharing"] = []byte(params.WorkspaceSharing)
+		if params.ShareWorkspace != nil {
+			updates["share_workspace"] = *params.ShareWorkspace
+		}
+		if params.ShareMemory != nil {
+			updates["share_memory"] = *params.ShareMemory
 		}
 		if len(params.ChatGPTOAuthRouting) > 0 {
 			updates["chatgpt_oauth_routing"] = []byte(params.ChatGPTOAuthRouting)

@@ -121,7 +121,8 @@ func marshalAgentConfig(ag *store.AgentData) ([]byte, error) {
 		SkillEvolve         bool            `json:"skill_evolve,omitempty"`
 		SkillNudgeInterval  int             `json:"skill_nudge_interval,omitempty"`
 		ReasoningConfig     json.RawMessage `json:"reasoning_config,omitempty"`
-		WorkspaceSharing    json.RawMessage `json:"workspace_sharing,omitempty"`
+		ShareWorkspace      bool            `json:"share_workspace,omitempty"`
+		ShareMemory         bool            `json:"share_memory,omitempty"`
 		ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty"`
 		ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty"`
 		KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty"`
@@ -150,7 +151,8 @@ func marshalAgentConfig(ag *store.AgentData) ([]byte, error) {
 		SkillEvolve:         ag.SkillEvolve,
 		SkillNudgeInterval:  ag.SkillNudgeInterval,
 		ReasoningConfig:     ag.ReasoningConfig,
-		WorkspaceSharing:    ag.WorkspaceSharing,
+		ShareWorkspace:      ag.ShareWorkspace,
+		ShareMemory:         ag.ShareMemory,
 		ChatGPTOAuthRouting: canonicalizeChatGPTOAuthRoutingForResponse(ag.ChatGPTOAuthRouting),
 		ShellDenyGroups:     ag.ShellDenyGroups,
 		KGDedupConfig:       ag.KGDedupConfig,

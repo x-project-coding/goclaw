@@ -36,7 +36,7 @@ const agentSelectCols = `id, agent_key, display_name, frontmatter, owner_id, own
 	 compaction_config, context_pruning, other_config,
 	 emoji, agent_description, thinking_level, max_tokens,
 	 self_evolve, skill_evolve, skill_nudge_interval,
-	 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
+	 reasoning_config, share_workspace, share_memory, chatgpt_oauth_routing,
 	 shell_deny_groups, kg_dedup_config,
 	 is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
 
@@ -91,10 +91,10 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		 compaction_config, context_pruning, other_config,
 		 emoji, agent_description, thinking_level, max_tokens,
 		 self_evolve, skill_evolve, skill_nudge_interval,
-		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
+		 reasoning_config, share_workspace, share_memory, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
 		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		agent.ID, agent.AgentKey,
 		agent.DisplayName,
 		sql.NullString{String: agent.Frontmatter, Valid: agent.Frontmatter != ""},
@@ -104,7 +104,7 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		jsonOrNull(agent.CompactionConfig), jsonOrNull(agent.ContextPruning), jsonOrEmpty(agent.OtherConfig),
 		agent.Emoji, agent.AgentDescription, agent.ThinkingLevel, agent.MaxTokens,
 		agent.SelfEvolve, agent.SkillEvolve, agent.SkillNudgeInterval,
-		jsonOrEmpty(agent.ReasoningConfig), jsonOrEmpty(agent.WorkspaceSharing), jsonOrEmpty(agent.ChatGPTOAuthRouting),
+		jsonOrEmpty(agent.ReasoningConfig), agent.ShareWorkspace, agent.ShareMemory, jsonOrEmpty(agent.ChatGPTOAuthRouting),
 		jsonOrEmpty(agent.ShellDenyGroups), jsonOrEmpty(agent.KGDedupConfig),
 		agent.IsDefault, agent.Status, agent.BudgetMonthlyCents,
 		meta, now, now,
@@ -169,16 +169,16 @@ func (s *SQLiteAgentStore) Update(ctx context.Context, id uuid.UUID, updates map
 			updates[col] = ""
 		}
 	}
-	for _, col := range []string{"skill_nudge_interval", "max_tokens", "self_evolve", "skill_evolve", "is_default"} {
+	for _, col := range []string{"skill_nudge_interval", "max_tokens", "self_evolve", "skill_evolve", "is_default", "share_workspace", "share_memory"} {
 		if v, ok := updates[col]; ok && v == nil {
-			if col == "self_evolve" || col == "skill_evolve" || col == "is_default" {
+			if col == "self_evolve" || col == "skill_evolve" || col == "is_default" || col == "share_workspace" || col == "share_memory" {
 				updates[col] = false
 			} else {
 				updates[col] = 0
 			}
 		}
 	}
-	for _, col := range []string{"other_config", "tools_config", "reasoning_config", "workspace_sharing", "chatgpt_oauth_routing", "shell_deny_groups", "kg_dedup_config"} {
+	for _, col := range []string{"other_config", "tools_config", "reasoning_config", "chatgpt_oauth_routing", "shell_deny_groups", "kg_dedup_config"} {
 		if v, ok := updates[col]; ok && v == nil {
 			updates[col] = []byte("{}")
 		}
@@ -300,7 +300,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	var frontmatter sql.NullString
 	var ownerUserID sql.NullString
 	var toolsCfg, sandboxCfg, subagentsCfg, memoryCfg, compactionCfg, pruningCfg, otherCfg *[]byte
-	var reasoningCfg, wsCfg, oauthCfg, shellCfg, kgCfg *[]byte
+	var reasoningCfg, oauthCfg, shellCfg, kgCfg *[]byte
 	var metaCfg *[]byte
 	createdAt, updatedAt := scanTimePair()
 	err := row.Scan(
@@ -309,7 +309,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 		&toolsCfg, &sandboxCfg, &subagentsCfg, &memoryCfg, &compactionCfg, &pruningCfg, &otherCfg,
 		&d.Emoji, &d.AgentDescription, &d.ThinkingLevel, &d.MaxTokens,
 		&d.SelfEvolve, &d.SkillEvolve, &d.SkillNudgeInterval,
-		&reasoningCfg, &wsCfg, &oauthCfg, &shellCfg, &kgCfg,
+		&reasoningCfg, &d.ShareWorkspace, &d.ShareMemory, &oauthCfg, &shellCfg, &kgCfg,
 		&d.IsDefault, &d.Status, &d.BudgetMonthlyCents,
 		&metaCfg, createdAt, updatedAt,
 	)
@@ -349,9 +349,6 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	}
 	if reasoningCfg != nil {
 		d.ReasoningConfig = *reasoningCfg
-	}
-	if wsCfg != nil {
-		d.WorkspaceSharing = *wsCfg
 	}
 	if oauthCfg != nil {
 		d.ChatGPTOAuthRouting = *oauthCfg

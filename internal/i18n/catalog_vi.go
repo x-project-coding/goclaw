@@ -250,5 +250,8 @@ func init() {
 		MsgPasswordResetInvalidToken: "token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
 		MsgPasswordResetEmailSubject: "Đặt lại mật khẩu",
 		MsgPasswordResetEmailBody:    "Bấm vào liên kết để đặt lại mật khẩu: %s\nLiên kết hết hạn sau 1 giờ.",
+
+		MsgInvalidShareTarget: "mục tiêu chia sẻ phải là một trong user_id hoặc team_id",
+		MsgInvalidShareRole:   "vai trò chia sẻ phải là viewer, member hoặc editor",
 	})
 }

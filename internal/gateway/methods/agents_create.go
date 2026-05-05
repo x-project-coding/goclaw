@@ -48,7 +48,8 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		SkillEvolve         bool            `json:"skill_evolve"`
 		SkillNudgeInterval  int             `json:"skill_nudge_interval"`
 		ReasoningConfig     json.RawMessage `json:"reasoning_config,omitempty"`
-		WorkspaceSharing    json.RawMessage `json:"workspace_sharing,omitempty"`
+		ShareWorkspace      bool            `json:"share_workspace"`
+		ShareMemory         bool            `json:"share_memory"`
 		ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty"`
 		ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty"`
 		KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty"`
@@ -135,7 +136,8 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			SkillEvolve:         params.SkillEvolve,
 			SkillNudgeInterval:  params.SkillNudgeInterval,
 			ReasoningConfig:     params.ReasoningConfig,
-			WorkspaceSharing:    params.WorkspaceSharing,
+			ShareWorkspace:      params.ShareWorkspace,
+			ShareMemory:         params.ShareMemory,
 			ChatGPTOAuthRouting: params.ChatGPTOAuthRouting,
 			ShellDenyGroups:     params.ShellDenyGroups,
 			KGDedupConfig:       params.KGDedupConfig,

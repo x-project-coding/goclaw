@@ -28,7 +28,8 @@ func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
 		"other_config":          nil,
 		"tools_config":          nil,
 		"reasoning_config":      nil,
-		"workspace_sharing":     nil,
+		"share_workspace":       nil,
+		"share_memory":          nil,
 		"chatgpt_oauth_routing": nil,
 		"shell_deny_groups":     nil,
 		"kg_dedup_config":       nil,
@@ -48,19 +49,23 @@ func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
 
 	// Verify JSON columns became '{}', BOOL → 0, INT → 0, TEXT → ''.
 	var (
-		otherCfg, toolsCfg, reasoningCfg, wsSharing, oauthRouting, shellDeny, kgDedup string
-		selfEvolve, skillEvolve, isDefault                                            bool
-		skillNudge, maxTokens                                                         int
-		emoji, agentDesc, thinkingLvl                                                 string
+		otherCfg, toolsCfg, reasoningCfg, oauthRouting, shellDeny, kgDedup string
+		shareWorkspace, shareMemory                                        bool
+		selfEvolve, skillEvolve, isDefault                                 bool
+		skillNudge, maxTokens                                              int
+		emoji, agentDesc, thinkingLvl                                      string
 	)
 	err := db.QueryRowContext(ctx,
-		`SELECT other_config, tools_config, reasoning_config, workspace_sharing,
+		`SELECT other_config, tools_config, reasoning_config,
+			share_workspace, share_memory,
 			chatgpt_oauth_routing, shell_deny_groups, kg_dedup_config,
 			self_evolve, skill_evolve, is_default,
 			skill_nudge_interval, max_tokens,
 			emoji, agent_description, thinking_level
 		 FROM agents WHERE id = ?`, agentID).Scan(
-		&otherCfg, &toolsCfg, &reasoningCfg, &wsSharing, &oauthRouting, &shellDeny, &kgDedup,
+		&otherCfg, &toolsCfg, &reasoningCfg,
+		&shareWorkspace, &shareMemory,
+		&oauthRouting, &shellDeny, &kgDedup,
 		&selfEvolve, &skillEvolve, &isDefault,
 		&skillNudge, &maxTokens,
 		&emoji, &agentDesc, &thinkingLvl,
@@ -71,7 +76,7 @@ func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
 
 	jsonCols := map[string]string{
 		"other_config": otherCfg, "tools_config": toolsCfg,
-		"reasoning_config": reasoningCfg, "workspace_sharing": wsSharing,
+		"reasoning_config":      reasoningCfg,
 		"chatgpt_oauth_routing": oauthRouting, "shell_deny_groups": shellDeny,
 		"kg_dedup_config": kgDedup,
 	}
@@ -82,7 +87,11 @@ func TestSQLiteAgentStore_Update_CoerceNullForNotNullColumns(t *testing.T) {
 	}
 
 	boolCols := map[string]bool{
-		"self_evolve": selfEvolve, "skill_evolve": skillEvolve, "is_default": isDefault,
+		"self_evolve":     selfEvolve,
+		"skill_evolve":    skillEvolve,
+		"is_default":      isDefault,
+		"share_workspace": shareWorkspace,
+		"share_memory":    shareMemory,
 	}
 	for name, got := range boolCols {
 		if got {

@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -20,13 +21,13 @@ func (h *AgentsHandler) handleListShares(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Only owner can list shares
+	// Only the agent's UUID owner (or platform owner) can list shares.
 	ag, err := h.agents.GetByID(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", id.String())})
 		return
 	}
-	if userID != "" && ag.OwnerID != userID && !h.isOwnerUser(userID) {
+	if !sharesOwner(ag, userID) && !h.isOwnerUser(userID) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgOwnerOnly, "view shares")})
 		return
 	}
@@ -49,37 +50,65 @@ func (h *AgentsHandler) handleShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only owner can share
+	// CreatedBy must be a real user UUID — share rows have a NOT NULL FK to
+	// users(id). Reject channel-style identities (e.g. "telegram:123") at
+	// the handler so we never insert uuid.Nil and trip a 500 from the DB.
+	createdBy, perr := uuid.Parse(userID)
+	if perr != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgOwnerOnly, "share agent")})
+		return
+	}
+
+	// Only the agent's UUID owner (or platform owner) may share. Compare
+	// against owner_user_id (UUID), not legacy owner_id (VARCHAR).
 	ag, err := h.agents.GetByID(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", id.String())})
 		return
 	}
-	if userID != "" && ag.OwnerID != userID && !h.isOwnerUser(userID) {
+	isOwner := ag.OwnerUserID != nil && *ag.OwnerUserID == createdBy
+	if !isOwner && !h.isOwnerUser(userID) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgOwnerOnly, "share agent")})
 		return
 	}
 
 	var req struct {
-		UserID string `json:"user_id"`
+		UserID string `json:"user_id,omitempty"`
+		TeamID string `json:"team_id,omitempty"`
 		Role   string `json:"role"`
 	}
 	if !bindJSON(w, r, locale, &req) {
 		return
 	}
-	if req.UserID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgRequired, "user_id")})
+	// Target mutex: exactly one of user_id, team_id must be set.
+	hasUser := req.UserID != ""
+	hasTeam := req.TeamID != ""
+	if hasUser == hasTeam {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidShareTarget)})
 		return
 	}
-	if err := store.ValidateUserID(req.UserID); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	if !store.ValidShareRole(req.Role) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidShareRole)})
 		return
 	}
-	if req.Role == "" {
-		req.Role = "user"
+	in := store.AgentShareInput{AgentID: id, Role: req.Role, CreatedBy: createdBy}
+	if hasUser {
+		uid, perr := uuid.Parse(req.UserID)
+		if perr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "user_id")})
+			return
+		}
+		in.SharedWithUserID = &uid
+	} else {
+		tid, perr := uuid.Parse(req.TeamID)
+		if perr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "team_id")})
+			return
+		}
+		in.SharedWithTeamID = &tid
 	}
 
-	if err := h.agents.ShareAgent(r.Context(), id, req.UserID, req.Role, userID); err != nil {
+	if err := h.agents.CreateShare(r.Context(), in); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -97,25 +126,40 @@ func (h *AgentsHandler) handleRevokeShare(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Only owner can revoke shares
+	// Only the agent's UUID owner (or platform owner) can revoke shares.
 	ag, err := h.agents.GetByID(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", id.String())})
 		return
 	}
-	if userID != "" && ag.OwnerID != userID && !h.isOwnerUser(userID) {
+	if !sharesOwner(ag, userID) && !h.isOwnerUser(userID) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgOwnerOnly, "revoke shares")})
 		return
 	}
 
-	targetUserID := r.PathValue("userID")
-	if err := store.ValidateUserID(targetUserID); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	if err := h.agents.RevokeShare(r.Context(), id, targetUserID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
+	// Path supports either a UUID (user) or a "team:<uuid>" prefix to disambiguate
+	// team revocation. We accept both; mismatched prefix → 400.
+	targetID := r.PathValue("userID")
+	if strings.HasPrefix(targetID, "team:") {
+		tid, perr := uuid.Parse(strings.TrimPrefix(targetID, "team:"))
+		if perr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "team_id")})
+			return
+		}
+		if err := h.agents.RevokeShareByTeam(r.Context(), id, tid); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	} else {
+		uid, perr := uuid.Parse(targetID)
+		if perr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "user_id")})
+			return
+		}
+		if err := h.agents.RevokeShareByUser(r.Context(), id, uid); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 
 	emitAudit(h.msgBus, r, "agent.share_revoked", "agent", id.String())
@@ -251,6 +295,20 @@ func (h *AgentsHandler) handleCancelSummon(w http.ResponseWriter, r *http.Reques
 
 	emitAudit(h.msgBus, r, "agent.summon_cancelled", "agent", id.String())
 	writeJSON(w, http.StatusAccepted, map[string]string{"ok": "true", "status": store.AgentStatusSummonFailed})
+}
+
+// sharesOwner reports whether userID is the UUID owner of ag. Compares against
+// owner_user_id (UUID) — never against the legacy owner_id VARCHAR column,
+// which holds channel-style identities and is not a share-decision input.
+func sharesOwner(ag *store.AgentData, userID string) bool {
+	if ag == nil || ag.OwnerUserID == nil || userID == "" {
+		return false
+	}
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return false
+	}
+	return *ag.OwnerUserID == uid
 }
 
 // writeJSON moved to response_helpers.go

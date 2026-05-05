@@ -18,7 +18,9 @@ var schemaSQL string
 // v1 → v2: adds user_key/kind/channel_type to users, team_key to agent_teams,
 // and metadata to all 13 entity tables (foundation rebuild).
 // v2 → v3: adds password_reset_tokens table for self-serve password reset.
-const SchemaVersion = 3
+// v3 → v4: splits agents.workspace_sharing JSONB into share_workspace + share_memory BOOL.
+// v4 → v5: rebuilds agent_shares with target mutex (user XOR team), role enum, FK created_by, updated_at.
+const SchemaVersion = 5
 
 // migrations maps version → ordered slice of SQL statements to apply when
 // upgrading FROM that version to the next.
@@ -79,6 +81,39 @@ var migrations = map[int][]string{
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash)`,
 		`CREATE INDEX IF NOT EXISTS idx_password_reset_user   ON password_reset_tokens(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_password_reset_active ON password_reset_tokens(token_hash) WHERE used_at IS NULL`,
+	},
+	// Upgrade v3 → v4: split workspace_sharing JSONB blob into two boolean
+	// flags. share_workspace controls per-user file zone collapse; share_memory
+	// covers memory + KG + sessions sharing. Default-false preserves
+	// privacy-by-default. The legacy column is dropped.
+	3: {
+		`ALTER TABLE agents ADD COLUMN share_workspace INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE agents ADD COLUMN share_memory    INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE agents DROP COLUMN workspace_sharing`,
+	},
+	// Upgrade v4 → v5: rebuild agent_shares with target mutex + role enum.
+	// Drop legacy table (greenfield, no data preservation) and recreate to
+	// match PG shape. Includes FK to agent_teams via shared_with_team_id.
+	4: {
+		`DROP TABLE IF EXISTS agent_shares`,
+		`CREATE TABLE agent_shares (
+			id                  TEXT         NOT NULL PRIMARY KEY,
+			agent_id            TEXT         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
+			shared_with_user_id TEXT         NULL     REFERENCES users(id)       ON DELETE CASCADE,
+			shared_with_team_id TEXT         NULL     REFERENCES agent_teams(id) ON DELETE CASCADE,
+			role                VARCHAR(20)  NOT NULL CHECK (role IN ('viewer','member','editor')),
+			metadata            TEXT         NOT NULL DEFAULT '{}',
+			created_by          TEXT         NOT NULL REFERENCES users(id)       ON DELETE RESTRICT,
+			created_at          TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at          TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			CONSTRAINT agent_shares_target_mutex CHECK (
+				(shared_with_user_id IS NOT NULL AND shared_with_team_id IS NULL) OR
+				(shared_with_user_id IS NULL     AND shared_with_team_id IS NOT NULL)
+			)
+		)`,
+		`CREATE INDEX idx_agent_shares_agent ON agent_shares(agent_id)`,
+		`CREATE UNIQUE INDEX idx_agent_shares_user ON agent_shares(agent_id, shared_with_user_id) WHERE shared_with_user_id IS NOT NULL`,
+		`CREATE UNIQUE INDEX idx_agent_shares_team ON agent_shares(agent_id, shared_with_team_id) WHERE shared_with_team_id IS NOT NULL`,
 	},
 }
 

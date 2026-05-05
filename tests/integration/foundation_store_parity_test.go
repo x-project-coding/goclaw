@@ -172,8 +172,8 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 
 		pgID := uuid.New()
 		if _, err := pgDB.ExecContext(ctx,
-			`INSERT INTO agent_shares (id, agent_id, user_id, role, granted_by, metadata)
-			 VALUES ($1,$2,$3,'user','test',$4::jsonb)`,
+			`INSERT INTO agent_shares (id, agent_id, shared_with_user_id, role, created_by, metadata)
+			 VALUES ($1,$2,$3,'viewer',$3,$4::jsonb)`,
 			pgID, pgAgentID, pgUserID, paritySweepMetaJSON); err != nil {
 			t.Fatalf("PG agent_shares: %v", err)
 		}
@@ -181,9 +181,9 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 
 		sqlID := uuid.New()
 		if _, err := sqliteDB.ExecContext(ctx,
-			`INSERT INTO agent_shares (id, agent_id, user_id, role, granted_by, metadata)
-			 VALUES (?,?,?,'user','test',?)`,
-			sqlID.String(), sqlAgentID.String(), sqlUserID.String(), paritySweepMetaJSON); err != nil {
+			`INSERT INTO agent_shares (id, agent_id, shared_with_user_id, role, created_by, metadata)
+			 VALUES (?,?,?,'viewer',?,?)`,
+			sqlID.String(), sqlAgentID.String(), sqlUserID.String(), sqlUserID.String(), paritySweepMetaJSON); err != nil {
 			t.Fatalf("SQLite agent_shares: %v", err)
 		}
 		assertPGMeta(t, "agent_shares", "agent_shares", "id", pgID, pgDB)

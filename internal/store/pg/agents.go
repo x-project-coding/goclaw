@@ -93,7 +93,7 @@ const agentSelectCols = `id, agent_key, display_name, frontmatter, owner_id, own
 		 compaction_config, context_pruning, other_config,
 		 emoji, agent_description, thinking_level, max_tokens,
 		 self_evolve, skill_evolve, skill_nudge_interval,
-		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
+		 reasoning_config, share_workspace, share_memory, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
 		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
 
@@ -111,11 +111,11 @@ func (s *PGAgentStore) Create(ctx context.Context, agent *store.AgentData) error
 		 compaction_config, context_pruning, other_config,
 		 emoji, agent_description, thinking_level, max_tokens,
 		 self_evolve, skill_evolve, skill_nudge_interval,
-		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
+		 reasoning_config, share_workspace, share_memory, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
 		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		         $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)`,
+		         $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)`,
 		agent.ID, agent.AgentKey, agent.DisplayName, sql.NullString{String: agent.Frontmatter, Valid: agent.Frontmatter != ""},
 		agent.OwnerID, nilUUID(agent.OwnerUserID), agent.Provider, agent.Model,
 		agent.ContextWindow, agent.MaxToolIterations, agent.Workspace, agent.RestrictToWorkspace,
@@ -123,7 +123,7 @@ func (s *PGAgentStore) Create(ctx context.Context, agent *store.AgentData) error
 		jsonOrNull(agent.CompactionConfig), jsonOrNull(agent.ContextPruning), jsonOrEmpty(agent.OtherConfig),
 		agent.Emoji, agent.AgentDescription, agent.ThinkingLevel, agent.MaxTokens,
 		agent.SelfEvolve, agent.SkillEvolve, agent.SkillNudgeInterval,
-		jsonOrEmpty(agent.ReasoningConfig), jsonOrEmpty(agent.WorkspaceSharing), jsonOrEmpty(agent.ChatGPTOAuthRouting),
+		jsonOrEmpty(agent.ReasoningConfig), agent.ShareWorkspace, agent.ShareMemory, jsonOrEmpty(agent.ChatGPTOAuthRouting),
 		jsonOrEmpty(agent.ShellDenyGroups), jsonOrEmpty(agent.KGDedupConfig),
 		agent.IsDefault, agent.Status, agent.BudgetMonthlyCents, jsonOrEmpty(agent.Metadata), now, now,
 	)
@@ -214,9 +214,9 @@ func (s *PGAgentStore) Update(ctx context.Context, id uuid.UUID, updates map[str
 		}
 	}
 	// Promoted INT/BOOL columns: null → 0/false.
-	for _, col := range []string{"skill_nudge_interval", "max_tokens", "self_evolve", "skill_evolve", "is_default"} {
+	for _, col := range []string{"skill_nudge_interval", "max_tokens", "self_evolve", "skill_evolve", "is_default", "share_workspace", "share_memory"} {
 		if v, ok := updates[col]; ok && v == nil {
-			if col == "self_evolve" || col == "skill_evolve" || col == "is_default" {
+			if col == "self_evolve" || col == "skill_evolve" || col == "is_default" || col == "share_workspace" || col == "share_memory" {
 				updates[col] = false
 			} else {
 				updates[col] = 0
@@ -224,7 +224,7 @@ func (s *PGAgentStore) Update(ctx context.Context, id uuid.UUID, updates map[str
 		}
 	}
 	// NOT NULL JSONB columns: null → empty object.
-	for _, col := range []string{"other_config", "tools_config", "chatgpt_oauth_routing", "reasoning_config", "workspace_sharing", "shell_deny_groups", "kg_dedup_config"} {
+	for _, col := range []string{"other_config", "tools_config", "chatgpt_oauth_routing", "reasoning_config", "shell_deny_groups", "kg_dedup_config"} {
 		if v, ok := updates[col]; ok && v == nil {
 			updates[col] = []byte("{}")
 		}
@@ -333,39 +333,70 @@ func (s *PGAgentStore) GetDefault(ctx context.Context) (*store.AgentData, error)
 
 // --- Access Control ---
 
-func (s *PGAgentStore) ShareAgent(ctx context.Context, agentID uuid.UUID, userID, role, grantedBy string) error {
-	if err := store.ValidateUserID(userID); err != nil {
-		return err
-	}
-	if err := store.ValidateUserID(grantedBy); err != nil {
-		return err
+// CreateShare inserts a single explicit grant row (target = user XOR team).
+// Caller validates role + target_mutex at the handler layer; DB enforces
+// both as a defence-in-depth.
+func (s *PGAgentStore) CreateShare(ctx context.Context, in store.AgentShareInput) error {
+	if !store.ValidShareRole(in.Role) {
+		return store.ErrInvalidShareRole
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_shares (id, agent_id, user_id, role, granted_by, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 ON CONFLICT (agent_id, user_id) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by`,
-		store.GenNewID(), agentID, userID, role, grantedBy, time.Now(),
+		`INSERT INTO agent_shares
+			(id, agent_id, shared_with_user_id, shared_with_team_id, role, created_by, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
+		store.GenNewID(), in.AgentID, in.SharedWithUserID, in.SharedWithTeamID, in.Role, in.CreatedBy,
 	)
 	return err
 }
 
-func (s *PGAgentStore) RevokeShare(ctx context.Context, agentID uuid.UUID, userID string) error {
+func (s *PGAgentStore) RevokeShareByUser(ctx context.Context, agentID, userID uuid.UUID) error {
 	_, err := s.db.ExecContext(ctx,
-		"DELETE FROM agent_shares WHERE agent_id = $1 AND user_id = $2", agentID, userID)
+		`DELETE FROM agent_shares WHERE agent_id = $1 AND shared_with_user_id = $2`,
+		agentID, userID)
+	return err
+}
+
+func (s *PGAgentStore) RevokeShareByTeam(ctx context.Context, agentID, teamID uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM agent_shares WHERE agent_id = $1 AND shared_with_team_id = $2`,
+		agentID, teamID)
 	return err
 }
 
 func (s *PGAgentStore) ListShares(ctx context.Context, agentID uuid.UUID) ([]store.AgentShareData, error) {
-	const q = "SELECT id, agent_id, user_id, role, granted_by, created_at FROM agent_shares WHERE agent_id = $1"
-	var rows []agentShareRow
-	if err := pkgSqlxDB.SelectContext(ctx, &rows, q, agentID); err != nil {
+	const q = `SELECT id, agent_id, shared_with_user_id, shared_with_team_id, role, metadata, created_by,
+	                  created_at, updated_at
+		         FROM agent_shares WHERE agent_id = $1 ORDER BY created_at`
+	rows, err := s.db.QueryContext(ctx, q, agentID)
+	if err != nil {
 		return nil, err
 	}
-	result := make([]store.AgentShareData, len(rows))
-	for i, r := range rows {
-		result[i] = r.toAgentShareData()
+	defer rows.Close()
+	var result []store.AgentShareData
+	for rows.Next() {
+		var d store.AgentShareData
+		var sharedUser, sharedTeam sql.NullString
+		var meta *[]byte
+		if err := rows.Scan(&d.ID, &d.AgentID, &sharedUser, &sharedTeam, &d.Role, &meta,
+			&d.CreatedBy, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if sharedUser.Valid {
+			if u, perr := uuid.Parse(sharedUser.String); perr == nil {
+				d.SharedWithUserID = &u
+			}
+		}
+		if sharedTeam.Valid {
+			if u, perr := uuid.Parse(sharedTeam.String); perr == nil {
+				d.SharedWithTeamID = &u
+			}
+		}
+		if meta != nil {
+			d.Metadata = *meta
+		}
+		result = append(result, d)
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 func (s *PGAgentStore) CanAccess(ctx context.Context, agentID uuid.UUID, userID string) (bool, string, error) {
@@ -381,18 +412,22 @@ func (s *PGAgentStore) CanAccess(ctx context.Context, agentID uuid.UUID, userID 
 		}
 		return false, "", err
 	}
-	if isDefault {
-		if ownerID == userID {
-			return true, "owner", nil
-		}
-		return true, "user", nil
-	}
 	if ownerID == userID {
 		return true, "owner", nil
 	}
+	if isDefault {
+		return true, store.ShareRoleViewer, nil
+	}
+	// Direct user grant lookup. Implicit team grants are computed by the
+	// permissions resolver, not this raw store method.
+	userUUID := parseUUIDOrNil(userID)
+	if userUUID == uuid.Nil {
+		return false, "", nil
+	}
 	var role string
 	err = s.db.QueryRowContext(ctx,
-		"SELECT role FROM agent_shares WHERE agent_id = $1 AND user_id = $2", agentID, userID,
+		`SELECT role FROM agent_shares
+		  WHERE agent_id = $1 AND shared_with_user_id = $2`, agentID, userUUID,
 	).Scan(&role)
 	if err != nil {
 		return false, "", nil
@@ -401,15 +436,30 @@ func (s *PGAgentStore) CanAccess(ctx context.Context, agentID uuid.UUID, userID 
 }
 
 func (s *PGAgentStore) ListAccessible(ctx context.Context, userID string) ([]store.AgentData, error) {
-	// agent_shares.user_id is UUID type — parse before querying.
+	// $1 = legacy string identity (channel handle / "system"), used for
+	//      owner_id legacy column + channel_instances.allow_from match.
+	// $2 = UUID identity, used for shared_with_user_id direct grants and
+	//      team_user_grants → shared_with_team_id implicit grants.
 	userUUID := parseUUIDOrNil(userID)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+agentSelectCols+`
 		 FROM agents
 		 WHERE deleted_at IS NULL AND (
-		     owner_id = $1
+		     owner_id      = $1
+		     OR owner_user_id = $2
 		     OR is_default = true
-		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $2)
+		     -- Direct user grant.
+		     OR id IN (
+		         SELECT agent_id FROM agent_shares
+		          WHERE shared_with_user_id = $2
+		     )
+		     -- Implicit team-membership grant: user is in team T,
+		     -- and agent is shared to team T.
+		     OR id IN (
+		         SELECT s.agent_id FROM agent_shares s
+		           JOIN team_user_grants g ON g.team_id = s.shared_with_team_id
+		          WHERE g.user_id = $2
+		     )
 		     OR id IN (
 		         SELECT agent_id FROM channel_instances ci
 		         WHERE ci.enabled = true
@@ -439,13 +489,13 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	var ownerUserID sql.NullString
 	// pgx: scan nullable JSONB into *[]byte (NOT *json.RawMessage — pgx can't scan NULL into defined types)
 	var toolsCfg, sandboxCfg, subagentsCfg, memoryCfg, compactionCfg, pruningCfg, otherCfg *[]byte
-	var reasoningCfg, wsCfg, oauthCfg, shellCfg, kgCfg, metaCfg *[]byte
+	var reasoningCfg, oauthCfg, shellCfg, kgCfg, metaCfg *[]byte
 	err := row.Scan(&d.ID, &d.AgentKey, &d.DisplayName, &frontmatter, &d.OwnerID, &ownerUserID, &d.Provider, &d.Model,
 		&d.ContextWindow, &d.MaxToolIterations, &d.Workspace, &d.RestrictToWorkspace,
 		&toolsCfg, &sandboxCfg, &subagentsCfg, &memoryCfg, &compactionCfg, &pruningCfg, &otherCfg,
 		&d.Emoji, &d.AgentDescription, &d.ThinkingLevel, &d.MaxTokens,
 		&d.SelfEvolve, &d.SkillEvolve, &d.SkillNudgeInterval,
-		&reasoningCfg, &wsCfg, &oauthCfg, &shellCfg, &kgCfg,
+		&reasoningCfg, &d.ShareWorkspace, &d.ShareMemory, &oauthCfg, &shellCfg, &kgCfg,
 		&d.IsDefault, &d.Status, &d.BudgetMonthlyCents, &metaCfg, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -481,9 +531,6 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	}
 	if reasoningCfg != nil {
 		d.ReasoningConfig = *reasoningCfg
-	}
-	if wsCfg != nil {
-		d.WorkspaceSharing = *wsCfg
 	}
 	if oauthCfg != nil {
 		d.ChatGPTOAuthRouting = *oauthCfg

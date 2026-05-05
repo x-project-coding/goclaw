@@ -84,8 +84,9 @@ func (s *seedStubStore) Delete(_ context.Context, _ uuid.UUID) error            
 func (s *seedStubStore) List(_ context.Context, _ string) ([]store.AgentData, error)     { return nil, nil }
 func (s *seedStubStore) GetDefault(_ context.Context) (*store.AgentData, error)          { return nil, nil }
 func (s *seedStubStore) ResetStuckSummoning(_ context.Context) (int64, error)             { return 0, nil }
-func (s *seedStubStore) ShareAgent(_ context.Context, _ uuid.UUID, _, _, _ string) error { return nil }
-func (s *seedStubStore) RevokeShare(_ context.Context, _ uuid.UUID, _ string) error      { return nil }
+func (s *seedStubStore) CreateShare(_ context.Context, _ store.AgentShareInput) error { return nil }
+func (s *seedStubStore) RevokeShareByUser(_ context.Context, _, _ uuid.UUID) error    { return nil }
+func (s *seedStubStore) RevokeShareByTeam(_ context.Context, _, _ uuid.UUID) error    { return nil }
 func (s *seedStubStore) ListShares(_ context.Context, _ uuid.UUID) ([]store.AgentShareData, error) {
 	return nil, nil
 }

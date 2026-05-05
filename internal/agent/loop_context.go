@@ -152,12 +152,9 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			tools.UserChatLayer(tools.SanitizePathSegment(req.UserID), shared),
 		)
 		if l.shouldShareMemory() {
+			// share_memory collapses memory + KG + sessions into a single flag.
 			ctx = store.WithSharedMemory(ctx)
-		}
-		if l.shouldShareKnowledgeGraph() {
 			ctx = store.WithSharedKG(ctx)
-		}
-		if l.shouldShareSessions() {
 			ctx = store.WithSharedSessions(ctx)
 		}
 		if err := os.MkdirAll(effectiveWorkspace, 0755); err != nil {
