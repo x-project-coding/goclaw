@@ -71,8 +71,8 @@ func metaSeedAgent(t *testing.T) uuid.UUID {
 	id := uuid.New()
 	key := "a-" + id.String()[:8]
 	_, err := db.ExecContext(context.Background(),
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1, $2, 'predefined', 'active', 'test', 'test-model', 'test-owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1, $2, 'active', 'test', 'test-model', 'test-owner')`,
 		id, key)
 	if err != nil {
 		t.Fatalf("metaSeedAgent: %v", err)
@@ -141,8 +141,8 @@ func TestPGMetadataCRUD(t *testing.T) {
 		id := uuid.New()
 		key := "a-" + id.String()[:8]
 		_, err := db.ExecContext(ctx,
-			`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id, metadata)
-			 VALUES ($1, $2, 'predefined', 'active', 'test', 'test-model', 'owner', $3::jsonb)`,
+			`INSERT INTO agents (id, agent_key, status, provider, model, owner_id, metadata)
+			 VALUES ($1, $2, 'active', 'test', 'test-model', 'owner', $3::jsonb)`,
 			id, key, metaJSON)
 		if err != nil {
 			t.Fatalf("insert: %v", err)

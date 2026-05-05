@@ -251,7 +251,6 @@ func BuildPreviewPrompt(ctx context.Context, ag *store.AgentData, mode PromptMod
 		Mode:                 mode,
 		ToolNames:            toolNames,
 		ContextFiles:         contextFiles,
-		AgentType:            ag.AgentType,
 		Workspace:            ag.Workspace,
 		HasMemory:            true,
 		HasSpawn:             slices.Contains(toolNames, "spawn"),

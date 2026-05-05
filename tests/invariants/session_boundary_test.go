@@ -13,8 +13,8 @@ import (
 // INVARIANT: Session A's message history MUST NOT leak to Session B.
 func TestSessionBoundary_MessageHistory(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-a-" + uuid.New().String()[:8]
@@ -57,8 +57,8 @@ func TestSessionBoundary_MessageHistory(t *testing.T) {
 // INVARIANT: Session A's summary MUST NOT leak to Session B.
 func TestSessionBoundary_Summary(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-sum-a-" + uuid.New().String()[:8]
@@ -96,8 +96,8 @@ func TestSessionBoundary_Summary(t *testing.T) {
 // INVARIANT: Session A's metadata MUST NOT leak to Session B.
 func TestSessionBoundary_Metadata(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-meta-a-" + uuid.New().String()[:8]
@@ -146,8 +146,8 @@ func TestSessionBoundary_Metadata(t *testing.T) {
 // INVARIANT: Session A's label MUST NOT leak to Session B.
 func TestSessionBoundary_Label(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-label-a-" + uuid.New().String()[:8]
@@ -176,8 +176,8 @@ func TestSessionBoundary_Label(t *testing.T) {
 // INVARIANT: Session A's token counts MUST NOT affect Session B.
 func TestSessionBoundary_TokenCounts(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-tokens-a-" + uuid.New().String()[:8]
@@ -214,8 +214,8 @@ func TestSessionBoundary_TokenCounts(t *testing.T) {
 // INVARIANT: Resetting Session A MUST NOT affect Session B.
 func TestSessionBoundary_ResetIsolation(t *testing.T) {
 	db := testDB(t)
-	tenantID, _ := seedTenantAgent(t, db)
-	ctx := tenantCtx(tenantID)
+	_ = seedAgent(t, db)
+	ctx := emptyCtx()
 
 	ss := pg.NewPGSessionStore(db)
 	sessionA := "inv-sess-reset-a-" + uuid.New().String()[:8]

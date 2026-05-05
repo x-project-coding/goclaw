@@ -98,7 +98,6 @@ func setupIsolFixtures(t *testing.T, ctx context.Context, api *helpers.APIClient
 	api.SetToken(rootToken)
 	res, err = api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  "isol-shared-" + helpers.RandHex8(),
-		"agent_type": "predefined",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})

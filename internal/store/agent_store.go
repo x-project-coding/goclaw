@@ -26,12 +26,6 @@ func sanitizeToolCallPrefix(s string) string {
 	return b.String()
 }
 
-// Agent type constants.
-const (
-	AgentTypeOpen       = "open"       // per-user context files, seeded on first chat
-	AgentTypePredefined = "predefined" // shared agent-level context files
-)
-
 // Agent status constants.
 const (
 	AgentStatusActive       = "active"
@@ -59,7 +53,6 @@ type AgentData struct {
 	MaxToolIterations   int       `json:"max_tool_iterations" db:"max_tool_iterations"`
 	Workspace           string    `json:"workspace" db:"workspace"`
 	RestrictToWorkspace bool      `json:"restrict_to_workspace" db:"restrict_to_workspace"`
-	AgentType           string    `json:"agent_type" db:"agent_type"` // "open" or "predefined"
 	IsDefault           bool      `json:"is_default" db:"is_default"`
 	Status              string    `json:"status" db:"status"`
 

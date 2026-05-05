@@ -96,7 +96,6 @@ func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, i
 		}
 		return resolver.Resolve(ctx, workspace.ResolveParams{
 			AgentID:   l.id,
-			AgentType: l.agentType,
 			UserID:    input.UserID,
 			ChatID:    input.ChatID,
 			PeerKind:  input.PeerKind,

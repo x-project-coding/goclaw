@@ -252,7 +252,6 @@ func TestRestoreRowCountEquivalence(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		res, err := api.POST(ctx, "/v1/agents", map[string]any{
 			"agent_key":  fmt.Sprintf("bk-agent-%d-%s", i, helpers.RandHex8()),
-			"agent_type": "predefined",
 			"model":      "test/test-model",
 			"provider":   "openai",
 		})
@@ -321,7 +320,6 @@ func TestRestoreKeyRowSpotCheck(t *testing.T) {
 	agentKey := "spot-check-" + helpers.RandHex8()
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  agentKey,
-		"agent_type": "predefined",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})
@@ -396,7 +394,6 @@ func TestRestoreFKIntegrity(t *testing.T) {
 
 	res, err = api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  "fk-agent-" + helpers.RandHex8(),
-		"agent_type": "predefined",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})

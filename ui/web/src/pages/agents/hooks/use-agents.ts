@@ -47,7 +47,6 @@ export function useAgents() {
         max_tool_iterations: 0,
         workspace: "",
         restrict_to_workspace: false,
-        agent_type: (a as unknown as { agentType?: string }).agentType === "predefined" ? "predefined" as const : "open" as const,
         is_default: false,
         status: a.isRunning ? "active" : "inactive",
       }));

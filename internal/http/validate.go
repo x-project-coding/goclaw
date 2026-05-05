@@ -41,7 +41,7 @@ func validateAgentTTSParams(ttsParams map[string]any) error {
 // Immutable fields (id, owner_id, created_at, deleted_at) are excluded.
 
 var agentAllowedFields = map[string]bool{
-	"agent_key": true, "agent_type": true, "display_name": true,
+	"agent_key": true, "display_name": true,
 	"provider": true, "model": true, "status": true,
 	"context_window": true, "max_tool_iterations": true,
 	"workspace": true,

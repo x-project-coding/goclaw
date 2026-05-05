@@ -164,7 +164,6 @@ func buildAgent(agentKey string, ownerUserID uuid.UUID) *store.AgentData {
 		OwnerID:     ownerUserID.String(), // legacy string field; same UUID for now
 		Provider:    "openrouter",
 		Model:       "anthropic/claude-sonnet-4.6",
-		AgentType:   store.AgentTypeOpen,
 		Status:      store.AgentStatusActive,
 	}
 	uid := ownerUserID

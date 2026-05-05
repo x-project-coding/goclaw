@@ -104,7 +104,6 @@ func marshalAgentConfig(ag *store.AgentData) ([]byte, error) {
 		Model             string          `json:"model"`
 		ContextWindow     int             `json:"context_window"`
 		MaxToolIterations int             `json:"max_tool_iterations"`
-		AgentType         string          `json:"agent_type"`
 		Status            string          `json:"status"`
 		ToolsConfig       json.RawMessage `json:"tools_config,omitempty"`
 		SandboxConfig     json.RawMessage `json:"sandbox_config,omitempty"`
@@ -135,7 +134,6 @@ func marshalAgentConfig(ag *store.AgentData) ([]byte, error) {
 		Model:               ag.Model,
 		ContextWindow:       ag.ContextWindow,
 		MaxToolIterations:   ag.MaxToolIterations,
-		AgentType:           ag.AgentType,
 		Status:              ag.Status,
 		ToolsConfig:         ag.ToolsConfig,
 		SandboxConfig:       ag.SandboxConfig,

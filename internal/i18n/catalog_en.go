@@ -94,7 +94,7 @@ func init() {
 		MsgLinksNotConfigured: "agent links not configured",
 		MsgInvalidDirection:   "direction must be outbound, inbound, or bidirectional",
 		MsgSourceTargetSame:   "source and target must be different agents",
-		MsgCannotDelegateOpen: "cannot delegate to open agents — only predefined agents can be delegation targets",
+		MsgAgentTypeRejected:  "agent_type field is no longer accepted; agents are predefined-only in v4",
 		MsgNoUpdatesProvided:  "no updates provided",
 		MsgInvalidLinkStatus:  "status must be active or disabled",
 

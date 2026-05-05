@@ -363,9 +363,6 @@ func (c *Config) ResolveAgent(agentID string) AgentDefaults {
 		if spec.Sandbox != nil {
 			d.Sandbox = spec.Sandbox
 		}
-		if spec.AgentType != "" {
-			d.AgentType = spec.AgentType
-		}
 	}
 
 	return d

@@ -125,8 +125,8 @@ func newAgentUpdateTestFixture(t *testing.T) (*sql.DB, uuid.UUID, uuid.UUID) {
 
 	agentID := uuid.Must(uuid.NewV7())
 	if _, err := db.Exec(
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?,'au-'||substr(?,1,8),'predefined','active','test','test-model','owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES (?,'au-'||substr(?,1,8),'active','test','test-model','owner')`,
 		agentID.String(), agentID.String()); err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}

@@ -287,7 +287,7 @@ Context files are stored in two tables and routed based on agent type.
 | `open` | Template fallback only | All files (SOUL, IDENTITY, AGENTS, TOOLS, BOOTSTRAP, USER) |
 | `predefined` | Agent-level files (SOUL, IDENTITY, AGENTS, TOOLS, BOOTSTRAP) | Only USER.md |
 
-The `ContextFileInterceptor` checks agent type from context and routes read/write operations accordingly. For open agents, per-user files take priority with agent-level as fallback.
+The `ContextFileInterceptor` routes USER.md and BOOTSTRAP.md to user_context_files (per-user) and every other context file to agent_context_files (agent-level shared).
 
 ---
 
@@ -585,7 +585,7 @@ flowchart TD
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `agents` | Agent definitions | `agent_key` (UNIQUE), `owner_id`, `agent_type` (open/predefined), `is_default`, `frontmatter`, `tsv`, `embedding`, soft delete via `deleted_at` |
+| `agents` | Agent definitions | `agent_key` (UNIQUE), `owner_id`, `is_default`, `frontmatter`, `tsv`, `embedding`, soft delete via `deleted_at` |
 | `agent_shares` | Agent RBAC sharing | UNIQUE(agent_id, user_id), `role` (user/admin/operator) |
 | `agent_context_files` | Agent-level context | UNIQUE(agent_id, file_name) |
 | `user_context_files` | Per-user context | UNIQUE(agent_id, user_id, file_name) |
@@ -643,7 +643,6 @@ flowchart TD
 |-----|------|---------|
 | `goclaw_user_id` | string | External user ID (e.g., Telegram user ID) |
 | `goclaw_agent_id` | uuid.UUID | Agent UUID |
-| `goclaw_agent_type` | string | Agent type: `"open"` or `"predefined"` |
 | `goclaw_sender_id` | string | Original individual sender ID (in group chats, `user_id` is group-scoped but `sender_id` preserves the actual person) |
 
 ### Tool Context Keys

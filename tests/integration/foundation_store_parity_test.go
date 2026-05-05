@@ -103,8 +103,8 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 		pgID = uuid.New()
 		pgKey := "pa-" + pgID.String()[:8]
 		if _, err := pgDB.ExecContext(ctx,
-			`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id, metadata)
-			 VALUES ($1,$2,'predefined','active','test','m','owner',$3::jsonb)`,
+			`INSERT INTO agents (id, agent_key, status, provider, model, owner_id, metadata)
+			 VALUES ($1,$2,'active','test','m','owner',$3::jsonb)`,
 			pgID, pgKey, paritySweepMetaJSON); err != nil {
 			t.Fatalf("PG seed agent: %v", err)
 		}
@@ -113,8 +113,8 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 		sqlID = uuid.New()
 		sqlKey := "sa-" + sqlID.String()[:8]
 		if _, err := sqliteDB.ExecContext(ctx,
-			`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id, metadata)
-			 VALUES (?,?,'predefined','active','test','m','owner',?)`,
+			`INSERT INTO agents (id, agent_key, status, provider, model, owner_id, metadata)
+			 VALUES (?,?,'active','test','m','owner',?)`,
 			sqlID.String(), sqlKey, paritySweepMetaJSON); err != nil {
 			t.Fatalf("SQLite seed agent: %v", err)
 		}

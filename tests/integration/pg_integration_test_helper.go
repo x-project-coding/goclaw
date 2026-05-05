@@ -90,8 +90,8 @@ func seedTenantAgent(t *testing.T, db *sql.DB) (scopeID, agentID uuid.UUID) {
 	agentKey := "test-" + agentID.String()[:8]
 
 	_, err := db.Exec(
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1, $2, 'predefined', 'active', 'test', 'test-model', 'test-owner')
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1, $2, 'active', 'test', 'test-model', 'test-owner')
 		 ON CONFLICT DO NOTHING`,
 		agentID, agentKey)
 	if err != nil {

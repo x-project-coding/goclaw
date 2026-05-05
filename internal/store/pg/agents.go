@@ -95,7 +95,7 @@ const agentSelectCols = `id, agent_key, display_name, frontmatter, owner_id, own
 		 self_evolve, skill_evolve, skill_nudge_interval,
 		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
-		 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
+		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
 
 func (s *PGAgentStore) Create(ctx context.Context, agent *store.AgentData) error {
 	if agent.ID == uuid.Nil {
@@ -113,9 +113,9 @@ func (s *PGAgentStore) Create(ctx context.Context, agent *store.AgentData) error
 		 self_evolve, skill_evolve, skill_nudge_interval,
 		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
-		 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
+		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-		         $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)`,
+		         $19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)`,
 		agent.ID, agent.AgentKey, agent.DisplayName, sql.NullString{String: agent.Frontmatter, Valid: agent.Frontmatter != ""},
 		agent.OwnerID, nilUUID(agent.OwnerUserID), agent.Provider, agent.Model,
 		agent.ContextWindow, agent.MaxToolIterations, agent.Workspace, agent.RestrictToWorkspace,
@@ -125,7 +125,7 @@ func (s *PGAgentStore) Create(ctx context.Context, agent *store.AgentData) error
 		agent.SelfEvolve, agent.SkillEvolve, agent.SkillNudgeInterval,
 		jsonOrEmpty(agent.ReasoningConfig), jsonOrEmpty(agent.WorkspaceSharing), jsonOrEmpty(agent.ChatGPTOAuthRouting),
 		jsonOrEmpty(agent.ShellDenyGroups), jsonOrEmpty(agent.KGDedupConfig),
-		agent.AgentType, agent.IsDefault, agent.Status, agent.BudgetMonthlyCents, jsonOrEmpty(agent.Metadata), now, now,
+		agent.IsDefault, agent.Status, agent.BudgetMonthlyCents, jsonOrEmpty(agent.Metadata), now, now,
 	)
 	if err != nil {
 		return err
@@ -410,15 +410,12 @@ func (s *PGAgentStore) ListAccessible(ctx context.Context, userID string) ([]sto
 		     owner_id = $1
 		     OR is_default = true
 		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = $2)
-		     OR (
-		         agent_type = 'predefined'
-		         AND id IN (
-		             SELECT agent_id FROM channel_instances ci
-		             WHERE ci.enabled = true
-		             AND EXISTS (
-		                 SELECT 1 FROM jsonb_array_elements_text(ci.config->'allow_from') af
-		                 WHERE af = $1
-		             )
+		     OR id IN (
+		         SELECT agent_id FROM channel_instances ci
+		         WHERE ci.enabled = true
+		         AND EXISTS (
+		             SELECT 1 FROM jsonb_array_elements_text(ci.config->'allow_from') af
+		             WHERE af = $1
 		         )
 		     )
 		 )
@@ -449,7 +446,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 		&d.Emoji, &d.AgentDescription, &d.ThinkingLevel, &d.MaxTokens,
 		&d.SelfEvolve, &d.SkillEvolve, &d.SkillNudgeInterval,
 		&reasoningCfg, &wsCfg, &oauthCfg, &shellCfg, &kgCfg,
-		&d.AgentType, &d.IsDefault, &d.Status, &d.BudgetMonthlyCents, &metaCfg, &d.CreatedAt, &d.UpdatedAt)
+		&d.IsDefault, &d.Status, &d.BudgetMonthlyCents, &metaCfg, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

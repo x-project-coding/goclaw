@@ -138,8 +138,8 @@ func TestSQLiteTeamKeyUnique(t *testing.T) {
 
 	agentID := uuid.New().String()
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?, 'agent-slug-test', 'predefined', 'active', 'test', 'test-model', 'test-owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES (?, 'agent-slug-test', 'active', 'test', 'test-model', 'test-owner')`,
 		agentID)
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)

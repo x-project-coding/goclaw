@@ -28,7 +28,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		Avatar            string   `json:"avatar"`
 		Provider          string   `json:"provider"`
 		Model             string   `json:"model"`
-		AgentType         string   `json:"agent_type"`          // "open" (default) or "predefined"
 		OwnerIDs          []string `json:"owner_ids,omitempty"` // first entry used as DB owner_id; falls back to "system"
 		ContextWindow     int      `json:"context_window"`
 		MaxToolIterations int      `json:"max_tool_iterations"`
@@ -55,17 +54,20 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty"`
 	}
 	if req.Params != nil {
+		// Reject legacy agent_type field — keep WS contract aligned with HTTP.
+		var probe map[string]json.RawMessage
+		if err := json.Unmarshal(req.Params, &probe); err == nil {
+			if _, hasAgentType := probe["agent_type"]; hasAgentType {
+				client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgAgentTypeRejected)))
+				return
+			}
+		}
 		json.Unmarshal(req.Params, &params)
 	}
 
 	if params.Name == "" {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "name")))
 		return
-	}
-
-	agentType := params.AgentType
-	if agentType == "" || agentType == store.AgentTypeOpen {
-		agentType = store.AgentTypePredefined // v3: open agents deprecated, default to predefined
 	}
 
 	agentID := config.NormalizeAgentID(params.Name)
@@ -111,7 +113,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			AgentKey:         agentID,
 			DisplayName:      params.Name,
 			OwnerID:          ownerID,
-			AgentType:        agentType,
 			Provider:         provider,
 			Model:            model,
 			Workspace:        ws,
@@ -145,7 +146,7 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		}
 
 		// Seed context files to DB (skipped for open agents)
-		if _, err := bootstrap.SeedToStore(ctx, m.agentStore, agentData.ID, agentData.AgentType); err != nil {
+		if _, err := bootstrap.SeedToStore(ctx, m.agentStore, agentData.ID); err != nil {
 			slog.Warn("failed to seed bootstrap for agent", "agent", agentID, "error", err)
 		}
 

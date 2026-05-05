@@ -137,7 +137,6 @@ CREATE TABLE IF NOT EXISTS agents (
     shell_deny_groups     JSONB        NOT NULL DEFAULT '{}',
     kg_dedup_config       JSONB        NOT NULL DEFAULT '{}',
     is_default            BOOLEAN      NOT NULL DEFAULT FALSE,
-    agent_type            VARCHAR(20)  NOT NULL DEFAULT 'open',
     status                VARCHAR(20)  DEFAULT 'active',
     frontmatter           TEXT,
     budget_monthly_cents  INTEGER,
@@ -1315,7 +1314,7 @@ CREATE TABLE IF NOT EXISTS agent_config_permissions (
     agent_id    UUID         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     scope       VARCHAR(255) NOT NULL,
     config_type VARCHAR(50)  NOT NULL,
-    user_id     UUID         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+    user_id     VARCHAR(255) NOT NULL,
     permission  VARCHAR(10)  NOT NULL,
     granted_by  VARCHAR(255),
     metadata    JSONB        DEFAULT '{}',
@@ -1356,7 +1355,7 @@ CREATE TABLE IF NOT EXISTS hooks (
     timeout_ms   INTEGER      NOT NULL DEFAULT 5000,
     on_timeout   TEXT         NOT NULL DEFAULT 'block' CHECK (on_timeout IN ('block', 'allow')),
     priority     INTEGER      NOT NULL DEFAULT 0,
-    enabled      INTEGER      NOT NULL DEFAULT 1,
+    enabled      BOOLEAN      NOT NULL DEFAULT TRUE,
     version      INTEGER      NOT NULL DEFAULT 1,
     source       TEXT         NOT NULL DEFAULT 'ui' CHECK (source IN ('ui', 'api', 'seed', 'builtin')),
     metadata     JSONB        NOT NULL DEFAULT '{}',
@@ -1367,7 +1366,7 @@ CREATE TABLE IF NOT EXISTS hooks (
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_hooks_lookup ON hooks(event) WHERE enabled = 1;
+CREATE INDEX idx_hooks_lookup ON hooks(event) WHERE enabled = TRUE;
 CREATE INDEX idx_hooks_user   ON hooks(user_id) WHERE user_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS hook_agents (

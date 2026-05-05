@@ -49,15 +49,15 @@ type EnsureUserProfileFunc func(ctx context.Context, agentID uuid.UUID, userID, 
 // isNew indicates whether the profile was just created (seed all) or already existed
 // (only seed if user has zero files — avoids re-seeding after BOOTSTRAP.md cleanup).
 // channelMeta carries optional channel-provided contact info for bootstrap skip decisions.
-type SeedUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool, channelMeta *bootstrap.ChannelMeta) error
+type SeedUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID string, isNew bool, channelMeta *bootstrap.ChannelMeta) error
 
 // EnsureUserFilesFunc is the legacy combined callback (profile + seed + workspace).
 // Deprecated: use EnsureUserProfileFunc + SeedUserFilesFunc separately.
 // Kept for backward compatibility with existing callers during migration.
-type EnsureUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID, agentType, workspace, channel string) (effectiveWorkspace string, err error)
+type EnsureUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID, workspace, channel string) (effectiveWorkspace string, err error)
 
 // ContextFileLoaderFunc loads context files dynamically per-request.
-type ContextFileLoaderFunc func(ctx context.Context, agentID uuid.UUID, userID, agentType string) []bootstrap.ContextFile
+type ContextFileLoaderFunc func(ctx context.Context, agentID uuid.UUID, userID string) []bootstrap.ContextFile
 
 // BootstrapCleanupFunc removes BOOTSTRAP.md after a successful first run.
 // Called automatically so the system doesn't rely on the LLM to delete it.
@@ -84,7 +84,6 @@ type Loop struct {
 	// agentOtherConfig is a defensive byte copy of agents.other_config JSONB.
 	// Copied once at Loop construction; used to build AgentAudioSnapshot at tool dispatch.
 	agentOtherConfig json.RawMessage
-	agentType        string    // "open" or "predefined"
 	defaultTimezone  string    // system default timezone for bootstrap pre-fill
 	provider         providers.Provider
 	model            string
@@ -348,7 +347,6 @@ type LoopConfig struct {
 	// Agent UUID for context propagation to tools
 	AgentUUID        uuid.UUID
 	AgentOtherConfig json.RawMessage  // raw other_config JSONB — copied defensively in NewLoop
-	AgentType        string           // "open" or "predefined"
 	DisplayName string    // human-readable agent display name (for runtime section)
 	IsTeamLead bool      // agent leads a team (from resolver detection)
 
@@ -494,7 +492,6 @@ func NewLoop(cfg LoopConfig) *Loop {
 		displayName:            cfg.DisplayName,
 		agentUUID:              cfg.AgentUUID,
 		agentOtherConfig:       append([]byte(nil), cfg.AgentOtherConfig...), // defensive copy
-		agentType:              cfg.AgentType,
 		provider:               cfg.Provider,
 		model:                  cfg.Model,
 		modelRegistry:          cfg.ModelRegistry,

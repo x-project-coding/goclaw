@@ -225,22 +225,6 @@ func (m *AgentsMethods) handleUpdate(ctx context.Context, client *gateway.Client
 				slog.Warn("failed to update agent IDENTITY.md", "agent", params.AgentID, "error", err)
 			}
 
-			// For open agents: also update Name in all per-user IDENTITY.md copies.
-			// Per-user files take precedence in LoadContextFiles, so they must be updated too.
-			if params.Name != "" && ag.AgentType == store.AgentTypeOpen {
-				if userFiles, err := m.agentStore.ListUserContextFilesByName(ctx, ag.ID, "IDENTITY.md"); err == nil {
-					for _, uf := range userFiles {
-						updated := bootstrap.UpdateIdentityField(uf.Content, "Name", params.Name)
-						if updated == uf.Content {
-							continue // no change needed
-						}
-						if err := m.agentStore.SetUserContextFile(ctx, ag.ID, uf.UserID, "IDENTITY.md", updated); err != nil {
-							slog.Warn("failed to update user IDENTITY.md on rename", "agent", params.AgentID, "user", uf.UserID, "error", err)
-						}
-					}
-				}
-			}
-
 			// Invalidate interceptor cache so updated IDENTITY.md is served immediately.
 			if m.interceptor != nil {
 				m.interceptor.InvalidateAgent(ag.ID)

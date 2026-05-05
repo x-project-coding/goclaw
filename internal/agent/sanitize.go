@@ -21,8 +21,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // SanitizeAssistantContent applies the full sanitization pipeline to assistant
@@ -351,7 +349,7 @@ func stripMarkdownCode(s string) string {
 // Mentions inside markdown code blocks and inline code are excluded from counting,
 // as they typically appear in architecture explanations rather than actual leaks.
 func StripConfigLeak(content, agentType string) string {
-	if agentType != store.AgentTypePredefined || content == "" {
+	if agentType != "predefined" || content == "" {
 		return content
 	}
 

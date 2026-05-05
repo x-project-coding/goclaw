@@ -38,7 +38,7 @@ const agentSelectCols = `id, agent_key, display_name, frontmatter, owner_id, own
 	 self_evolve, skill_evolve, skill_nudge_interval,
 	 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 	 shell_deny_groups, kg_dedup_config,
-	 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
+	 is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
 
 // agentOwnerFilter mirrors the PG version: privileged roles (owner/root/admin)
 // see all agents; everyone else is scoped to their own owner_user_id. Missing or
@@ -93,8 +93,8 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		 self_evolve, skill_evolve, skill_nudge_interval,
 		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
-		 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		agent.ID, agent.AgentKey,
 		agent.DisplayName,
 		sql.NullString{String: agent.Frontmatter, Valid: agent.Frontmatter != ""},
@@ -106,7 +106,7 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		agent.SelfEvolve, agent.SkillEvolve, agent.SkillNudgeInterval,
 		jsonOrEmpty(agent.ReasoningConfig), jsonOrEmpty(agent.WorkspaceSharing), jsonOrEmpty(agent.ChatGPTOAuthRouting),
 		jsonOrEmpty(agent.ShellDenyGroups), jsonOrEmpty(agent.KGDedupConfig),
-		agent.AgentType, agent.IsDefault, agent.Status, agent.BudgetMonthlyCents,
+		agent.IsDefault, agent.Status, agent.BudgetMonthlyCents,
 		meta, now, now,
 	)
 	return err
@@ -310,7 +310,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 		&d.Emoji, &d.AgentDescription, &d.ThinkingLevel, &d.MaxTokens,
 		&d.SelfEvolve, &d.SkillEvolve, &d.SkillNudgeInterval,
 		&reasoningCfg, &wsCfg, &oauthCfg, &shellCfg, &kgCfg,
-		&d.AgentType, &d.IsDefault, &d.Status, &d.BudgetMonthlyCents,
+		&d.IsDefault, &d.Status, &d.BudgetMonthlyCents,
 		&metaCfg, createdAt, updatedAt,
 	)
 	if err != nil {

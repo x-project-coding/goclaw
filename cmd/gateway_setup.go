@@ -456,7 +456,7 @@ func loadBootstrapFiles(
 				slog.Info("bootstrap loaded from store", "count", len(dbFiles))
 			} else {
 				// DB empty → seed templates, then load
-				if _, seedErr := bootstrap.SeedToStore(bgCtx, pgStores.Agents, defaultAgent.ID, defaultAgent.AgentType); seedErr != nil {
+				if _, seedErr := bootstrap.SeedToStore(bgCtx, pgStores.Agents, defaultAgent.ID); seedErr != nil {
 					slog.Warn("failed to seed bootstrap to store", "error", seedErr)
 				} else {
 					contextFiles = bootstrap.LoadFromStore(bgCtx, pgStores.Agents, defaultAgent.ID)

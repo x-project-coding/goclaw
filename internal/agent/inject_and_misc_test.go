@@ -143,40 +143,6 @@ func TestDrainInjectChannel_MultipleMessages(t *testing.T) {
 	}
 }
 
-// ─── filterBootstrapTools ─────────────────────────────────────────────────
-
-func TestFilterBootstrapTools_AllowedNames(t *testing.T) {
-	input := []string{"write_file", "read_file", "exec", "Write"}
-	got := filterBootstrapTools(input)
-	// Only write_file and Write are in allowlist
-	for _, name := range got {
-		if !bootstrapToolAllowlist[name] {
-			t.Errorf("unexpected tool in filtered list: %q", name)
-		}
-	}
-	found := map[string]bool{}
-	for _, n := range got {
-		found[n] = true
-	}
-	if !found["write_file"] {
-		t.Error("write_file should be in bootstrap tools")
-	}
-}
-
-func TestFilterBootstrapTools_EmptyInput(t *testing.T) {
-	got := filterBootstrapTools(nil)
-	if got != nil {
-		t.Errorf("nil input should return nil, got %v", got)
-	}
-}
-
-func TestFilterBootstrapTools_NoAllowedTools(t *testing.T) {
-	got := filterBootstrapTools([]string{"exec", "read_file", "spawn"})
-	if len(got) != 0 {
-		t.Errorf("no allowed tools should return empty, got %v", got)
-	}
-}
-
 // ─── agentToolPolicyForTeam ───────────────────────────────────────────────
 
 func TestAgentToolPolicyForTeam_ReturnsUnchanged(t *testing.T) {

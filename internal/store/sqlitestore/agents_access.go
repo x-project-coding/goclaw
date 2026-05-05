@@ -92,14 +92,14 @@ func (s *SQLiteAgentStore) ListAccessible(ctx context.Context, userID string) ([
 		     owner_id = ?
 		     OR is_default = 1
 		     OR id IN (SELECT agent_id FROM agent_shares WHERE user_id = ?)
-		     OR (agent_type = 'predefined' AND id IN (
+		     OR id IN (
 		         SELECT agent_id FROM channel_instances ci
 		         WHERE ci.enabled = 1
 		         AND EXISTS (
 		             SELECT 1 FROM json_each(json_extract(ci.config, '$.allow_from'))
 		             WHERE json_each.value = ?
 		         )
-		     ))
+		     )
 		 )
 		 ORDER BY created_at DESC`, userID, userID, userID)
 	if err != nil {

@@ -15,8 +15,6 @@ const (
 	UserIDKey contextKey = "goclaw_user_id"
 	// AgentIDKey is the context key for the agent UUID.
 	AgentIDKey contextKey = "goclaw_agent_id"
-	// AgentTypeKey is the context key for the agent type ("open" or "predefined").
-	AgentTypeKey contextKey = "goclaw_agent_type"
 	// SenderIDKey is the original individual sender's ID (not group-scoped).
 	// In group chats, UserIDKey is group-scoped but SenderIDKey preserves
 	// the actual person who sent the message.
@@ -134,22 +132,6 @@ func AgentIDFromContext(ctx context.Context) uuid.UUID {
 		return rc.AgentID
 	}
 	return uuid.Nil
-}
-
-// WithAgentType returns a new context with the given agent type.
-func WithAgentType(ctx context.Context, t string) context.Context {
-	return context.WithValue(ctx, AgentTypeKey, t)
-}
-
-// AgentTypeFromContext extracts the agent type from context. Returns "" if not set.
-func AgentTypeFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(AgentTypeKey).(string); ok && v != "" {
-		return v
-	}
-	if rc := RunContextFromCtx(ctx); rc != nil {
-		return rc.AgentType
-	}
-	return ""
 }
 
 // WithAgentKey returns a new context with the agent key/name (string identifier).

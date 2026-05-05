@@ -66,8 +66,8 @@ func seedSecondAgent(t *testing.T, db *sql.DB, tenantID uuid.UUID) uuid.UUID {
 	agentKey := "test-" + agentID.String()[:8]
 
 	_, err := db.Exec(
-		`INSERT INTO agents (id, tenant_id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1, $2, $3, 'predefined', 'active', 'test', 'test-model', 'test-owner')`,
+		`INSERT INTO agents (id, tenant_id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1, $2, $3, 'active', 'test', 'test-model', 'test-owner')`,
 		agentID, tenantID, agentKey)
 	if err != nil {
 		t.Fatalf("seed second agent: %v", err)

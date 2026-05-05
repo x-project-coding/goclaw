@@ -186,46 +186,44 @@ func TestPermission_OwnerRecognition(t *testing.T) {
 	}
 }
 
-// INVARIANT: Config permission store MUST enforce tenant scoping.
-func TestPermission_ConfigPermissionTenantIsolation(t *testing.T) {
+// INVARIANT: Config permission store MUST scope grants per agent.
+// v4 is single-tenant; isolation boundary is the agent, not the tenant.
+func TestPermission_ConfigPermissionAgentIsolation(t *testing.T) {
 	db := testDB(t)
-	tenantA, agentA, tenantB, _ := seedTwoTenants(t, db)
-	ctxA := tenantCtx(tenantA)
-	ctxB := tenantCtx(tenantB)
+	agentA, agentB := seedTwoAgents(t, db)
+	ctx := emptyCtx()
 
 	cps := pg.NewPGConfigPermissionStore(db)
 
-	// Grant permission in tenant A using colon-delimited scope (matchWildcard requires :* format)
-	err := cps.Grant(ctxA, &store.ConfigPermission{
+	const userID = "user-a"
+
+	// Grant permission on agent A using colon-delimited scope.
+	if err := cps.Grant(ctx, &store.ConfigPermission{
 		AgentID:    agentA,
 		Scope:      "group:*",
 		ConfigType: "file_writer",
 		Permission: "allow",
-		UserID:     "user-a",
-	})
-	if err != nil {
+		UserID:     userID,
+	}); err != nil {
 		t.Fatalf("Grant: %v", err)
 	}
-	t.Cleanup(func() {
-		db.Exec("DELETE FROM agent_config_permissions WHERE agent_id = $1", agentA)
-	})
 
-	// Verify tenant A has permission (scope must match pattern: group:* matches group:telegram)
-	allowed, err := cps.CheckPermission(ctxA, agentA, "group:telegram", "file_writer", "user-a")
+	// Agent A has the permission (scope must match pattern: group:* matches group:telegram).
+	allowedA, err := cps.CheckPermission(ctx, agentA, "group:telegram", "file_writer", userID)
 	if err != nil {
 		t.Fatalf("CheckPermission A: %v", err)
 	}
-	if !allowed {
-		t.Error("tenant A should have permission on own agent")
+	if !allowedA {
+		t.Error("agent A should have permission on own grant")
 	}
 
-	// INVARIANT: Tenant B MUST NOT see tenant A's permissions
-	allowedB, err := cps.CheckPermission(ctxB, agentA, "group:telegram", "file_writer", "user-a")
+	// INVARIANT: Agent B MUST NOT inherit agent A's permission.
+	allowedB, err := cps.CheckPermission(ctx, agentB, "group:telegram", "file_writer", userID)
 	if err != nil {
 		t.Fatalf("CheckPermission B: %v", err)
 	}
 	if allowedB {
-		t.Errorf("INVARIANT VIOLATION: tenant B sees tenant A's permission")
+		t.Errorf("INVARIANT VIOLATION: agent B sees agent A's permission")
 	}
 }
 

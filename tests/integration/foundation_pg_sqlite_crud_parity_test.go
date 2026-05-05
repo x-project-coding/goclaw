@@ -134,8 +134,8 @@ func TestCrossStoreTeamCreateParity(t *testing.T) {
 	pgAgentID := uuid.New()
 	pgAgentKey := "parity-agent-" + pgAgentID.String()[:8]
 	if _, err := pgDB.Exec(
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1, $2, 'predefined', 'active', 'test', 'test-model', 'parity-owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1, $2, 'active', 'test', 'test-model', 'parity-owner')`,
 		pgAgentID, pgAgentKey,
 	); err != nil {
 		t.Fatalf("PG seed agent: %v", err)
@@ -148,8 +148,8 @@ func TestCrossStoreTeamCreateParity(t *testing.T) {
 	sqliteAgentID := uuid.New()
 	sqliteAgentKey := "parity-agent-" + sqliteAgentID.String()[:8]
 	if _, err := sqliteDB.Exec(
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?, ?, 'predefined', 'active', 'test', 'test-model', 'parity-owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES (?, ?, 'active', 'test', 'test-model', 'parity-owner')`,
 		sqliteAgentID.String(), sqliteAgentKey,
 	); err != nil {
 		t.Fatalf("SQLite seed agent: %v", err)

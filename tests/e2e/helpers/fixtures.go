@@ -115,9 +115,9 @@ func SeedAgent(t *testing.T, ownerID uuid.UUID, agentType string) *Agent {
 	}
 
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO agents (id, owner_id, owner_user_id, agent_key, agent_type, model, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'test/test-model', now(), now())`,
-		id, ownerID.String(), ownerID, agentKey, agentType)
+		INSERT INTO agents (id, owner_id, owner_user_id, agent_key, model, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'test/test-model', now(), now())`,
+		id, ownerID.String(), ownerID, agentKey)
 	if err != nil {
 		t.Fatalf("e2e: insert agent %s: %v", agentKey, err)
 	}

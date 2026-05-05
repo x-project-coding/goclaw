@@ -47,10 +47,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			ctx = store.WithCredentialUserID(ctx, credUserID)
 		}
 	}
-	// Inject agent type into context for interceptor routing
-	if l.agentType != "" {
-		ctx = store.WithAgentType(ctx, l.agentType)
-	}
 	// Inject self-evolve flag for predefined agents that can update SOUL.md
 	if l.selfEvolve {
 		ctx = store.WithSelfEvolve(ctx, true)
@@ -259,7 +255,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			// the v2 path in loop_pipeline_callbacks.go and the session_key
 			// anchor. See docs/agent-identity-conventions.md.
 			AgentID:   l.id,
-			AgentType: l.agentType,
 			UserID:    req.UserID,
 			ChatID:    req.ChatID,
 			PeerKind:  req.PeerKind,
@@ -343,7 +338,6 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		AgentKey:            l.id,
 		UserID:              req.UserID,
 		CredentialUserID:    credUserID,
-		AgentType:           l.agentType,
 		SenderID:            req.SenderID,
 		SelfEvolve:          l.selfEvolve,
 		SharedMemory:        store.IsSharedMemory(ctx),

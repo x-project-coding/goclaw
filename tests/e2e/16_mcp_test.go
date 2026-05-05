@@ -76,7 +76,6 @@ func createAgentForMCP(t *testing.T, ctx context.Context, api *helpers.APIClient
 	t.Helper()
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  "mcp-" + helpers.RandHex8(),
-		"agent_type": "open",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})

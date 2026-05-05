@@ -47,6 +47,31 @@ jobs:
       - run: go build ./...
       - run: go build -tags sqliteonly ./...
       - run: go vet ./...
+      - name: Grep gate — predefined-only agent kind
+        run: |
+          set -e
+          forbidden_go='agent_type|AgentTypeOpen|AgentTypePredefined|UserPredefinedFile|BOOTSTRAP_PREDEFINED|USER_PREDEFINED'
+          forbidden_web='agent_type|agentType'
+          # Allowlist:
+          #   - internal/http/agents.go + internal/gateway/methods/agents_create.go: payload-rejection probes
+          #   - internal/i18n/{keys,catalog_*}.go: error message text
+          #   - idx_evo_metrics_agent_type: unrelated index name on agent_evolution_metrics(metric_type)
+          go_hits=$(git ls-files 'internal/*.go' 'cmd/*.go' 'pkg/*.go' 'migrations/*.sql' \
+            | grep -v '_test\.go$' \
+            | xargs grep -nE "$forbidden_go" 2>/dev/null \
+            | grep -vE 'internal/http/agents\.go|internal/gateway/methods/agents_create\.go|internal/i18n/(keys|catalog_(en|vi|zh))\.go|idx_evo_metrics_agent_type' || true)
+          if [ -n "$go_hits" ]; then
+            echo "::error::predefined-only purge regression in Go/SQL:"
+            echo "$go_hits"
+            exit 1
+          fi
+          web_hits=$(git ls-files 'ui/web/src/*.ts' 'ui/web/src/*.tsx' 'ui/web/src/*.json' \
+            | xargs grep -nE "$forbidden_web" 2>/dev/null || true)
+          if [ -n "$web_hits" ]; then
+            echo "::error::predefined-only purge regression in ui/web:"
+            echo "$web_hits"
+            exit 1
+          fi
       # -timeout=5m caps each test binary so a deadlocked test fails fast
       # instead of blocking CI for the 10-minute default. Bumped from 90s
       # because real 1s retry backoffs in HTTPHandler and goja memory-bomb

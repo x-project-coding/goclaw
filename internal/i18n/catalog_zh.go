@@ -94,7 +94,7 @@ func init() {
 		MsgLinksNotConfigured: "Agent链接未配置",
 		MsgInvalidDirection:   "方向必须是 outbound、inbound 或 bidirectional",
 		MsgSourceTargetSame:   "源和目标必须是不同的Agent",
-		MsgCannotDelegateOpen: "无法委派给开放型Agent — 只有预定义Agent才能作为委派目标",
+		MsgAgentTypeRejected:  "不再接受 agent_type 字段；v4 仅支持预定义型 Agent",
 		MsgNoUpdatesProvided:  "未提供更新内容",
 		MsgInvalidLinkStatus:  "状态必须是 active 或 disabled",
 

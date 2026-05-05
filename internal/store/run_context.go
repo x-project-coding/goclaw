@@ -25,7 +25,6 @@ type RunContext struct {
 	AgentKey         string
 	UserID           string
 	CredentialUserID string // resolved tenant user for credential lookups (empty = use UserID)
-	AgentType        string
 	SenderID         string
 
 	// Flags

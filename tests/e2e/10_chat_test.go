@@ -62,7 +62,6 @@ func createAgentForChat(t *testing.T, ctx context.Context, api *helpers.APIClien
 	agentKey := "chat-" + helpers.RandHex8()
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  agentKey,
-		"agent_type": "open",
 		"model":      model,
 		"provider":   provider,
 	})

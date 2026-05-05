@@ -142,7 +142,7 @@ Check if a session has a running agent invocation.
 
 List all agents.
 
-**Response:** `{agents: [{id, name, key, emoji, avatar, agent_type, ...}]}`
+**Response:** `{agents: [{id, name, key, emoji, avatar, ...}]}`
 
 ### `agent`
 
@@ -176,7 +176,6 @@ Create a new agent (admin only).
   "name": "My Agent",
   "workspace": "~/agents/my-agent",
   "emoji": "🤖",
-  "agent_type": "open",
   "owner_ids": ["user-1"],
   "tools_config": {},
   "memory_config": {},

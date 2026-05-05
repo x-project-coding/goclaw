@@ -157,7 +157,7 @@ func (l *Loop) finalizeRun(
 				slog.Info("bootstrap auto-cleanup completed", "agent", l.id, "user", req.UserID, "turns", userTurns)
 				// Check if USER.md is still the blank template — nudge agent to fill it
 				if l.contextFileLoader != nil {
-					files := l.contextFileLoader(ctx, l.agentUUID, req.UserID, l.agentType)
+					files := l.contextFileLoader(ctx, l.agentUUID, req.UserID)
 					for _, f := range files {
 						if f.Path == bootstrap.UserFile && !isUserFilePopulated(f.Content) {
 							rs.pendingMsgs = append(rs.pendingMsgs, providers.Message{

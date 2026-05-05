@@ -89,39 +89,24 @@ func (r *defaultResolver) resolveTeam(p ResolveParams) *WorkspaceContext {
 	return wc
 }
 
-// resolvePersonal handles open agent (per-user) and predefined agent (shared) workspaces.
+// resolvePersonal returns the personal-scope workspace. v4 collapses the
+// open/predefined split — every personal agent shares its directory at
+// agent level, so the active path is always <base>/<agentID>.
 func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
 	base := p.BaseDir
 	agentDir := filepath.Join(base, sanitizeSegment(p.AgentID))
 
-	activePath := agentDir
-	shared := p.AgentType == "predefined"
-	if !shared {
-		segment := userChatSegment(p)
-		if segment != "" {
-			activePath = filepath.Join(agentDir, segment)
-		}
-	}
-
 	scope := sharingScope(p)
 	wc := &WorkspaceContext{
-		ActivePath:       activePath,
+		ActivePath:       agentDir,
 		Scope:            ScopePersonal,
 		OwnerID:          ownerID(p),
 		MemoryScope:      scope,
 		KGScope:          scope,
-		EnforcementLabel: DefaultEnforcementLabel(ScopePersonal, shared),
+		EnforcementLabel: DefaultEnforcementLabel(ScopePersonal, true),
 	}
 	ensureDir(wc.ActivePath)
 	return wc
-}
-
-// userChatSegment returns the isolation segment: chatID for group, userID for direct.
-func userChatSegment(p ResolveParams) string {
-	if p.PeerKind == "group" && p.ChatID != "" {
-		return sanitizeSegment(p.ChatID)
-	}
-	return sanitizeSegment(p.UserID)
 }
 
 // ownerID picks the identifying owner: userID or chatID.

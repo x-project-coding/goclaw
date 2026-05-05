@@ -61,7 +61,6 @@ func createTwoAgentsForTeams(t *testing.T, ctx context.Context, api *helpers.API
 	} {
 		res, err := api.POST(ctx, "/v1/agents", map[string]any{
 			"agent_key":  slot.name + "-" + helpers.RandHex8(),
-			"agent_type": "open",
 			"model":      "test/test-model",
 			"provider":   "openai",
 		})
@@ -289,7 +288,6 @@ func TestTeamsAddMember(t *testing.T) {
 	// Create a third agent to add as member.
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  "extra-" + helpers.RandHex8(),
-		"agent_type": "open",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})

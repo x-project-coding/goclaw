@@ -95,7 +95,7 @@ const (
 	MsgLinksNotConfigured = "error.links_not_configured" // "agent links not configured"
 	MsgInvalidDirection   = "error.invalid_direction"    // "direction must be outbound, inbound, or bidirectional"
 	MsgSourceTargetSame   = "error.source_target_same"   // "source and target must be different agents"
-	MsgCannotDelegateOpen = "error.cannot_delegate_open" // "cannot delegate to open agents — only predefined agents can be delegation targets"
+	MsgAgentTypeRejected  = "error.agent_type_rejected"  // "agent_type field is no longer accepted; agents are predefined-only in v4"
 	MsgNoUpdatesProvided  = "error.no_updates_provided"  // "no updates provided"
 	MsgInvalidLinkStatus  = "error.invalid_link_status"  // "status must be active or disabled"
 

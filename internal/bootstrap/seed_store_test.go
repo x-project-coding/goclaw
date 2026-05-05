@@ -146,7 +146,7 @@ func TestSeedUserFiles_PredefinedAgent_UsesAgentLevelUserMD(t *testing.T) {
 	// Simulate wizard writing USER.md at agent level via agents.files.set
 	as.agentFiles[UserFile] = wizardContent
 
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-alice", store.AgentTypePredefined, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-alice", false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestSeedUserFiles_PredefinedAgent_FallsBackToTemplateWhenNoAgentLevelUserMD
 	agentID := uuid.New()
 	// No agent-level USER.md — wizard did not write one
 
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-bob", store.AgentTypePredefined, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-bob", false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestSeedUserFiles_PredefinedAgent_DoesNotOverwriteExistingPerUserContent(t 
 	// Also set wizard content at agent level
 	as.agentFiles[UserFile] = "wizard content that should NOT override personal content"
 
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-charlie", store.AgentTypePredefined, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-charlie", false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
@@ -235,36 +235,32 @@ func TestSeedUserFiles_PredefinedAgent_DoesNotOverwriteExistingPerUserContent(t 
 	}
 }
 
-// TestSeedUserFiles_OpenAgent_UsesEmbeddedTemplate verifies that open agents
-// are completely unaffected — they still receive embedded templates per-user.
-func TestSeedUserFiles_OpenAgent_UsesEmbeddedTemplate(t *testing.T) {
+// TestSeedUserFiles_UsesEmbeddedTemplate verifies that when no agent-level
+// USER.md exists, the per-user seed falls back to the embedded template and
+// the canonical USER.md + BOOTSTRAP.md pair lands in user_context_files.
+func TestSeedUserFiles_UsesEmbeddedTemplate(t *testing.T) {
 	as := newSeedStub()
 	agentID := uuid.New()
-	// Open agents should never check agent_context_files for USER.md
 
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-dave", store.AgentTypeOpen, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-dave", false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
 
-	// Open agents seed the full set: AGENTS.md, SOUL.md, IDENTITY.md, USER.md, BOOTSTRAP.md
-	expectedFiles := map[string]bool{
-		AgentsFile: true, SoulFile: true, IdentityFile: true, UserFile: true, BootstrapFile: true,
-	}
+	expected := map[string]bool{UserFile: true, BootstrapFile: true}
 	for _, f := range seeded {
-		delete(expectedFiles, f)
+		delete(expected, f)
 	}
-	if len(expectedFiles) > 0 {
-		t.Errorf("open agent: missing seeded files: %v", expectedFiles)
+	if len(expected) > 0 {
+		t.Errorf("missing seeded files: %v", expected)
 	}
 
-	// USER.md must have been written using embedded template (non-empty)
 	got, ok := as.seededUserFiles[UserFile]
 	if !ok {
-		t.Fatal("open agent: USER.md was not written to user_context_files")
+		t.Fatal("USER.md was not written to user_context_files")
 	}
 	if got == "" {
-		t.Error("open agent: seeded USER.md should not be empty")
+		t.Error("seeded USER.md should not be empty")
 	}
 }
 
@@ -275,14 +271,14 @@ func TestSeedUserFiles_IdempotentOnSecondCall(t *testing.T) {
 	agentID := uuid.New()
 
 	// First call — seeds files
-	SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypePredefined, false, nil)
+	SeedUserFiles(context.Background(), as, agentID, "user-frank", false, nil)
 
 	// Simulate what the first call wrote (move seededUserFiles → userFiles)
 	maps.Copy(as.userFiles, as.seededUserFiles)
 	as.seededUserFiles = make(map[string]string)
 
 	// Second call — must seed nothing (all files already exist)
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypePredefined, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-frank", false, nil)
 	if err != nil {
 		t.Fatalf("second SeedUserFiles returned error: %v", err)
 	}
@@ -303,7 +299,7 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	agentID := uuid.New()
 
 	// Step 1: Seed initial files (new user, skipIfAnyExist=false)
-	SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, false, nil)
+	SeedUserFiles(context.Background(), as, agentID, "user-eve", false, nil)
 	maps.Copy(as.userFiles, as.seededUserFiles)
 	as.seededUserFiles = make(map[string]string)
 
@@ -311,7 +307,7 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	delete(as.userFiles, BootstrapFile)
 
 	// Step 3: skipIfAnyExist=true (existing profile) → must NOT re-seed
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, true, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-eve", true, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles(skipIfAnyExist=true) returned error: %v", err)
 	}
@@ -320,7 +316,7 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	}
 
 	// Step 4: skipIfAnyExist=false (force) → SHOULD re-seed missing BOOTSTRAP.md
-	seeded, err = SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, false, nil)
+	seeded, err = SeedUserFiles(context.Background(), as, agentID, "user-eve", false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles(skipIfAnyExist=false) returned error: %v", err)
 	}
@@ -342,7 +338,7 @@ func TestSeedUserFiles_SkipIfAnyExist_EmptyUser(t *testing.T) {
 	agentID := uuid.New()
 
 	// No existing user files → skipIfAnyExist=true should still seed
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-ghost", store.AgentTypePredefined, true, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-ghost", true, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}

@@ -161,7 +161,6 @@ func TestHandleCreate_UsesProvidedOwnerID(t *testing.T) {
 
 	req := buildCreateRequest(t, map[string]any{
 		"name":       "Test Agent",
-		"agent_type": "predefined",
 		"owner_ids":  []string{"8514594032"},
 	})
 
@@ -183,7 +182,6 @@ func TestHandleCreate_FallsBackToSystem_WhenOwnerIDsAbsent(t *testing.T) {
 
 	req := buildCreateRequest(t, map[string]any{
 		"name":       "Test Agent Two",
-		"agent_type": "predefined",
 		// owner_ids intentionally absent
 	})
 

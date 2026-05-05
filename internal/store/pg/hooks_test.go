@@ -57,8 +57,8 @@ func seedAgent(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
 	agentID := uuid.Must(uuid.NewV7())
 	_, err := db.Exec(
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1,$2,'predefined','active','test','test-model','owner') ON CONFLICT DO NOTHING`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1,$2,'active','test','test-model','owner') ON CONFLICT DO NOTHING`,
 		agentID, "hook-agent-"+agentID.String())
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)

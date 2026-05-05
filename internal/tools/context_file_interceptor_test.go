@@ -305,7 +305,6 @@ func TestInterceptor_AllowsCapabilitiesWrite(t *testing.T) {
 	)
 
 	ctx := store.WithAgentID(context.Background(), agentID)
-	ctx = store.WithAgentType(ctx, store.AgentTypePredefined)
 	ctx = store.WithUserID(ctx, "user-1")
 	ctx = store.WithSelfEvolve(ctx, true)
 
@@ -332,7 +331,6 @@ func TestInterceptor_BlocksCapabilitiesWithoutSelfEvolve(t *testing.T) {
 	)
 
 	ctx := store.WithAgentID(context.Background(), agentID)
-	ctx = store.WithAgentType(ctx, store.AgentTypePredefined)
 	ctx = store.WithUserID(ctx, "user-1")
 	// self_evolve NOT set (defaults to false)
 
@@ -363,7 +361,6 @@ func TestInterceptor_AllowsCapabilitiesRead(t *testing.T) {
 	)
 
 	ctx := store.WithAgentID(context.Background(), agentID)
-	ctx = store.WithAgentType(ctx, store.AgentTypePredefined)
 	ctx = store.WithUserID(ctx, "user-1")
 	ctx = store.WithSelfEvolve(ctx, true)
 
@@ -390,7 +387,6 @@ func TestInterceptor_BlocksCapabilitiesReadWithoutSelfEvolve(t *testing.T) {
 	)
 
 	ctx := store.WithAgentID(context.Background(), agentID)
-	ctx = store.WithAgentType(ctx, store.AgentTypePredefined)
 	ctx = store.WithUserID(ctx, "user-1")
 
 	_, _, err := intc.ReadFile(ctx, "CAPABILITIES.md")

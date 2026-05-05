@@ -882,7 +882,6 @@
         "properties": {
           "name": { "type": "string", "description": "Unique agent slug" },
           "display_name": { "type": "string" },
-          "agent_type": { "type": "string", "enum": ["open", "predefined"] },
           "description": { "type": "string" },
           "provider": { "type": "string", "description": "LLM provider name" },
           "model": { "type": "string", "description": "Model ID" },

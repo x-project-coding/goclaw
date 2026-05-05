@@ -397,7 +397,6 @@ func TestUsersDeleteCascadesToOwnedResources(t *testing.T) {
 	agentKey := "test-" + helpers.RandHex8()
 	res, err = api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  agentKey,
-		"agent_type": "open",
 		"model":      "test/test-model",
 		"provider":   "openai",
 		// owner_user_id is set server-side from the authenticated user's ID;

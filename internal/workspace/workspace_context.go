@@ -56,15 +56,14 @@ type Resolver interface {
 
 // ResolveParams captures all inputs needed to determine workspace.
 type ResolveParams struct {
-	AgentID   string
-	AgentType string // "open" | "predefined"
-	UserID    string
-	ChatID    string
-	PeerKind  string // "direct" | "group"
-	TeamID     *string
-	TeamConfig *TeamWorkspaceConfig
+	AgentID     string
+	UserID      string
+	ChatID      string
+	PeerKind    string // "direct" | "group"
+	TeamID      *string
+	TeamConfig  *TeamWorkspaceConfig
 	DelegateCtx *DelegateContext
-	BaseDir    string
+	BaseDir     string
 }
 
 // TeamWorkspaceConfig maps to team.settings JSON.

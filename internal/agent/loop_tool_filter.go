@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -58,18 +57,6 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 			}
 		}
 		toolDefs = filtered
-	}
-
-	// Bootstrap mode: restrict API tool definitions to write_file only (open agents).
-	// Predefined agents keep all tools — BOOTSTRAP.md guides behavior.
-	if hadBootstrap && l.agentType != store.AgentTypePredefined {
-		var bootstrapDefs []providers.ToolDefinition
-		for _, td := range toolDefs {
-			if bootstrapToolAllowlist[td.Function.Name] {
-				bootstrapDefs = append(bootstrapDefs, td)
-			}
-		}
-		toolDefs = bootstrapDefs
 	}
 
 	// Hide skill_manage from LLM when skill_evolve is off.

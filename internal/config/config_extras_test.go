@@ -112,7 +112,6 @@ func TestResolveAgent_Override(t *testing.T) {
 			Provider:  "openai",
 			Model:     "gpt-4o",
 			MaxTokens: 4096,
-			AgentType: "predefined",
 		},
 	}
 
@@ -125,9 +124,6 @@ func TestResolveAgent_Override(t *testing.T) {
 	}
 	if d.MaxTokens != 4096 {
 		t.Errorf("expected 4096, got %d", d.MaxTokens)
-	}
-	if d.AgentType != "predefined" {
-		t.Errorf("expected predefined, got %q", d.AgentType)
 	}
 	// Temperature should still be from defaults (not overridden)
 	if d.Temperature != DefaultTemperature {

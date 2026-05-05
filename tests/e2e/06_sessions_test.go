@@ -68,8 +68,8 @@ func seedSession(t *testing.T, ctx context.Context) string {
 
 	// Insert a minimal agent first so the FK holds.
 	_, dbErr := db.ExecContext(ctx, `
-		INSERT INTO agents (id, agent_key, agent_type, model, provider, status, created_at, updated_at)
-		VALUES ($1, $2, 'open', 'test/model', 'openai', 'active', now(), now())
+		INSERT INTO agents (id, agent_key, model, provider, status, created_at, updated_at)
+		VALUES ($1, $2, 'test/model', 'openai', 'active', now(), now())
 		ON CONFLICT DO NOTHING`,
 		agentID, "sess-agent-"+helpers.RandHex8(),
 	)

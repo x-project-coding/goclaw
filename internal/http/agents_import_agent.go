@@ -36,6 +36,10 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 	// Dedup: suffix with -N if key already exists
 	agentKey = h.dedupAgentKey(ctx, agentKey)
 
+	if _, ok := arc.agentConfig["agent_type"]; ok {
+		slog.Warn("agents.import.legacy_field_stripped", "field", "agent_type", "agent_key", agentKey)
+	}
+
 	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, userID)
 
 	if progressFn != nil {
@@ -85,7 +89,6 @@ func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, ag
 	unmarshalField(cfg, "frontmatter", &ag.Frontmatter)
 	unmarshalField(cfg, "provider", &ag.Provider)
 	unmarshalField(cfg, "model", &ag.Model)
-	unmarshalField(cfg, "agent_type", &ag.AgentType)
 	unmarshalField(cfg, "context_window", &ag.ContextWindow)
 	unmarshalField(cfg, "max_tool_iterations", &ag.MaxToolIterations)
 
@@ -146,9 +149,6 @@ func (h *AgentsHandler) buildAgentFromArchive(cfg map[string]json.RawMessage, ag
 		}
 	}
 
-	if ag.AgentType == "" {
-		ag.AgentType = store.AgentTypeOpen
-	}
 	if ag.ContextWindow <= 0 {
 		ag.ContextWindow = config.DefaultContextWindow
 	}

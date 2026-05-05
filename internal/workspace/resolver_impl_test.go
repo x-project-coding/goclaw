@@ -8,21 +8,23 @@ import (
 	"testing"
 )
 
-func TestResolve_PersonalOpen(t *testing.T) {
+// TestResolve_Personal verifies the v4 single personal-scope shape: every
+// personal agent shares its directory at agent level. The legacy open-agent
+// per-user / group-chat segmenting was removed when AgentType went away.
+func TestResolve_Personal(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
-		AgentID:    "agent-123",
-		AgentType:  "open",
-		UserID:     "user-456",
-		PeerKind:   "direct",
-		BaseDir:    base,
+		AgentID:  "agent-123",
+		UserID:   "user-456",
+		PeerKind: "direct",
+		BaseDir:  base,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := filepath.Join(base, "agent-123", "user-456")
+	want := filepath.Join(base, "agent-123")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -38,34 +40,11 @@ func TestResolve_PersonalOpen(t *testing.T) {
 	assertDirExists(t, wc.ActivePath)
 }
 
-func TestResolve_PersonalGroup(t *testing.T) {
-	base := t.TempDir()
-	r := NewResolver()
-	wc, err := r.Resolve(context.Background(), ResolveParams{
-		AgentID:    "agent-123",
-		AgentType:  "open",
-		UserID:     "user-456",
-		ChatID:     "chat-789",
-		PeerKind:   "group",
-		BaseDir:    base,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Group chat uses chatID for isolation
-	want := filepath.Join(base, "agent-123", "chat-789")
-	if wc.ActivePath != want {
-		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
-	}
-}
-
 func TestResolve_PredefinedShared(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
 		AgentID:    "agent-pre",
-		AgentType:  "predefined",
 		UserID:     "user-1",
 		PeerKind:   "direct",
 		BaseDir:    base,
@@ -87,7 +66,6 @@ func TestResolve_TeamShared(t *testing.T) {
 	teamID := "team-abc"
 	wc, err := r.Resolve(context.Background(), ResolveParams{
 		AgentID:    "agent-1",
-		AgentType:  "open",
 		UserID:     "user-1",
 		ChatID:     "chat-1",
 		PeerKind:   "direct",
@@ -120,7 +98,6 @@ func TestResolve_TeamIsolated(t *testing.T) {
 	teamID := "team-abc"
 	wc, err := r.Resolve(context.Background(), ResolveParams{
 		AgentID:    "agent-1",
-		AgentType:  "open",
 		UserID:     "user-1",
 		ChatID:     "chat-1",
 		PeerKind:   "direct",
@@ -153,7 +130,6 @@ func TestResolve_Delegation(t *testing.T) {
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
 		AgentID:   "agent-1",
-		AgentType: "open",
 		UserID:    "user-1",
 		BaseDir:   base,
 		DelegateCtx: &DelegateContext{
@@ -231,18 +207,17 @@ func TestResolve_DefaultUser(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
-		AgentID:   "agent-1",
-		AgentType: "open",
-		UserID:    "user-1",
-		PeerKind:  "direct",
-		BaseDir:   base,
+		AgentID:  "agent-1",
+		UserID:   "user-1",
+		PeerKind: "direct",
+		BaseDir:  base,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Workspace resolves to base/agent/user — no extra prefix in single-tenant model.
-	want := filepath.Join(base, "agent-1", "user-1")
+	// v4 personal scope shares the agent directory across users; no per-user segment.
+	want := filepath.Join(base, "agent-1")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
@@ -252,17 +227,16 @@ func TestResolve_SingleTenantPath(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
-		AgentID:   "agent-1",
-		AgentType: "open",
-		UserID:    "user-1",
-		PeerKind:  "direct",
-		BaseDir:   base,
+		AgentID:  "agent-1",
+		UserID:   "user-1",
+		PeerKind: "direct",
+		BaseDir:  base,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := filepath.Join(base, "agent-1", "user-1")
+	want := filepath.Join(base, "agent-1")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}

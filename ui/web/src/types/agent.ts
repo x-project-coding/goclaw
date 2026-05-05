@@ -139,7 +139,6 @@ export interface AgentData {
   max_tool_iterations: number;
   workspace: string;
   restrict_to_workspace: boolean;
-  agent_type: "open" | "predefined";
   is_default: boolean;
   status: string;
   created_at?: string;
@@ -216,7 +215,6 @@ export interface AgentInfo {
   avatar?: string;
   description?: string;
   workspace?: string;
-  agentType?: "open" | "predefined";
   status?: string;
 }
 

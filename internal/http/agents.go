@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -224,8 +225,24 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, err.Error()))
+		return
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(rawBody, &probe); err != nil {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, err.Error()))
+		return
+	}
+	if _, hasAgentType := probe["agent_type"]; hasAgentType {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgAgentTypeRejected))
+		return
+	}
+
 	var req store.AgentData
-	if !bindJSON(w, r, locale, &req) {
+	if err := json.Unmarshal(rawBody, &req); err != nil {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidRequest, err.Error()))
 		return
 	}
 
@@ -242,9 +259,6 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	req.OwnerID = userID
 
-	if req.AgentType == "" || req.AgentType == store.AgentTypeOpen {
-		req.AgentType = store.AgentTypePredefined // v3: open agents deprecated, default to predefined
-	}
 	if req.ContextWindow <= 0 {
 		req.ContextWindow = config.DefaultContextWindow
 	}
@@ -266,7 +280,7 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Check if predefined agent has a description for LLM summoning
 	description := req.AgentDescription
-	if req.AgentType == store.AgentTypePredefined && description != "" && h.summoner != nil {
+	if description != "" && h.summoner != nil {
 		req.Status = store.AgentStatusSummoning
 	} else if req.Status == "" {
 		req.Status = store.AgentStatusActive
@@ -295,7 +309,7 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	// Seed context files into agent_context_files (skipped for open agents).
 	// For summoning agents, templates serve as fallback if LLM fails.
-	if _, err := bootstrap.SeedToStore(r.Context(), h.agents, req.ID, req.AgentType); err != nil {
+	if _, err := bootstrap.SeedToStore(r.Context(), h.agents, req.ID); err != nil {
 		slog.Warn("failed to seed context files for new agent", "agent", req.AgentKey, "error", err)
 	}
 
@@ -523,21 +537,6 @@ func (h *AgentsHandler) syncIdentityName(ctx context.Context, ag *store.AgentDat
 	}
 	if err := h.agents.SetAgentContextFile(ctx, ag.ID, bootstrap.IdentityFile, newContent); err != nil {
 		slog.Warn("agents.update: failed to sync IDENTITY.md name", "agent", ag.AgentKey, "error", err)
-	}
-
-	// For open agents, also update per-user IDENTITY.md copies.
-	if ag.AgentType == store.AgentTypeOpen {
-		if userFiles, err := h.agents.ListUserContextFilesByName(ctx, ag.ID, bootstrap.IdentityFile); err == nil {
-			for _, uf := range userFiles {
-				updated := bootstrap.UpdateIdentityField(uf.Content, "Name", newName)
-				if updated == uf.Content {
-					continue
-				}
-				if err := h.agents.SetUserContextFile(ctx, ag.ID, uf.UserID, bootstrap.IdentityFile, updated); err != nil {
-					slog.Warn("agents.update: failed to sync user IDENTITY.md name", "agent", ag.AgentKey, "user", uf.UserID, "error", err)
-				}
-			}
-		}
 	}
 }
 

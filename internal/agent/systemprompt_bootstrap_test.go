@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
-	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // TestBuildSystemPrompt_BootstrapStates verifies the 4 bootstrap states
@@ -24,7 +23,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "open agent with BOOTSTRAP.md → FIRST RUN slim mode",
 			cfg: SystemPromptConfig{
 				IsBootstrap: true,
-				AgentType:   store.AgentTypeOpen,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
 					{Path: bootstrap.UserFile, Content: blankUserMD},
@@ -38,7 +36,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "predefined agent with BOOTSTRAP.md → FIRST RUN full capabilities",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
-				AgentType:   store.AgentTypePredefined,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
 					{Path: bootstrap.UserFile, Content: blankUserMD},
@@ -52,7 +49,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "no BOOTSTRAP.md + blank USER.md → USER PROFILE INCOMPLETE",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
-				AgentType:   store.AgentTypePredefined,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.UserFile, Content: blankUserMD},
 				},
@@ -65,7 +61,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "no BOOTSTRAP.md + populated USER.md → no nudge at all",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
-				AgentType:   store.AgentTypePredefined,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.UserFile, Content: populatedUserMD},
 				},
@@ -77,7 +72,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "open agent slim mode has write_file note",
 			cfg: SystemPromptConfig{
 				IsBootstrap: true,
-				AgentType:   store.AgentTypeOpen,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
 				},
@@ -89,7 +83,6 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			name: "predefined agent first run uses softened get-to-know copy",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
-				AgentType:   store.AgentTypePredefined,
 				ContextFiles: []bootstrap.ContextFile{
 					{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
 				},
@@ -132,7 +125,6 @@ func TestBuildSystemPrompt_PredefinedBootstrapSoftened(t *testing.T) {
 	baseCfg := func(channel string) SystemPromptConfig {
 		return SystemPromptConfig{
 			IsBootstrap: false,
-			AgentType:   store.AgentTypePredefined,
 			Channel:     channel,
 			ContextFiles: []bootstrap.ContextFile{
 				{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
@@ -208,7 +200,6 @@ func TestBuildSystemPrompt_PredefinedBootstrapSoftened(t *testing.T) {
 func TestBuildSystemPrompt_OpenBootstrapUnchanged(t *testing.T) {
 	cfg := SystemPromptConfig{
 		IsBootstrap: true,
-		AgentType:   store.AgentTypeOpen,
 		ContextFiles: []bootstrap.ContextFile{
 			{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
 		},
@@ -227,7 +218,6 @@ func TestBuildSystemPrompt_OpenBootstrapUnchanged(t *testing.T) {
 // bootstrap-related files at all, no nudge sections appear.
 func TestBuildSystemPrompt_NoBootstrapNoUser(t *testing.T) {
 	prompt := BuildSystemPrompt(SystemPromptConfig{
-		AgentType: store.AgentTypePredefined,
 		ToolNames: []string{"write_file"},
 	})
 

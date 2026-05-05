@@ -281,7 +281,6 @@ func TestWSChatStreamEvents(t *testing.T) {
 	agentKey := "ws-stream-" + helpers.RandHex8()
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  agentKey,
-		"agent_type": "open",
 		"model":      model,
 		"provider":   provider,
 	})

@@ -149,13 +149,6 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	// mode the kept inline tools still need descriptions in the system prompt.
 	mcpToolDescs := l.buildMCPToolDescs(toolNames)
 
-	// Bootstrap DM mode: only restrict tools for open agents (identity being created).
-	// Predefined agents keep full capabilities — BOOTSTRAP.md guides behavior.
-	if hadBootstrap && l.agentType != store.AgentTypePredefined {
-		toolNames = filterBootstrapTools(toolNames)
-		mcpToolDescs = nil
-	}
-
 	// Determine whether to inject team context into the system prompt.
 	// Team context (TEAM.md, workspace section, members roster) is injected when:
 	//   - This is a team-dispatched session (team: prefix), OR
@@ -225,7 +218,6 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		HasMemoryExpand:        hasMemoryExpand,
 		MCPToolDescs:           mcpToolDescs,
 		ContextFiles:           contextFiles,
-		AgentType:              l.agentType,
 		ExtraPrompt:            extraSystemPrompt,
 		SandboxEnabled:         l.sandboxEnabled,
 		SandboxContainerDir:    l.sandboxContainerDir,
@@ -235,7 +227,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		TTSAutoMode:            l.ttsAutoMode,
 		ProviderType:           providerTypeOf(l.provider),
 		CredentialCLIContext:   l.buildCredentialCLIContext(ctx),
-		IsBootstrap:            hadBootstrap && l.agentType != store.AgentTypePredefined,
+		IsBootstrap:            hadBootstrap,
 		DelegateTargets:        l.delegateTargets,
 		OrchMode:               l.orchMode,
 		ProviderContribution:   l.providerContribution(),
@@ -290,7 +282,7 @@ func (l *Loop) resolveContextFiles(ctx context.Context, userID string) []bootstr
 	if l.contextFileLoader == nil || userID == "" {
 		return l.contextFiles
 	}
-	userFiles := l.contextFileLoader(ctx, l.agentUUID, userID, l.agentType)
+	userFiles := l.contextFileLoader(ctx, l.agentUUID, userID)
 	if len(userFiles) == 0 {
 		return l.contextFiles
 	}

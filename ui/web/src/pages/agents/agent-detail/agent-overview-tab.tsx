@@ -144,7 +144,7 @@ export function AgentOverviewTab({ agent, onUpdate, heartbeat, onManageCodexPool
         </p>
       )}
 
-      {agent.agent_type === "predefined" && (
+      {(
         <EvolutionSection
           agentId={agent.id}
           selfEvolve={selfEvolve}

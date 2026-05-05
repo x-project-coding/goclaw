@@ -313,8 +313,8 @@ The system prompt is assembled dynamically from 19 sections. Two modes control t
 3. **Persona** -- SOUL.md and IDENTITY.md injected early in the "primacy zone" to prevent drift in long conversations.
 4. **Tooling** -- core tool descriptions, filtered by policy and sandbox status.
 5. **Credentialed CLI** -- optional secure CLI context for credentialed exec tool access.
-6. **Safety** -- defensive preamble for handling external content, identity anchoring for predefined agents.
-7. **Self-Evolution** -- rules for predefined agents to update SOUL.md (style/tone) from user feedback.
+6. **Safety** -- defensive preamble for handling external content, identity anchoring is always present (predefined-only in v4).
+7. **Self-Evolution** -- rules for self-evolving agents to update SOUL.md (style/tone) from user feedback.
 8. **Skills (inline)** -- skill content injected directly when the skill set is small (≤15 skills).
 9. **Skills (search mode)** -- use `skill_search` tool when the skill set is large.
 10. **MCP Tools (inline)** -- external integration tools with real descriptions.
@@ -601,10 +601,10 @@ flowchart TD
 ### Resolved Properties
 
 - **Provider**: looked up by name from the provider registry. Falls back to the first registered provider if not found.
-- **Bootstrap files**: loaded from the workspace directory. Standard files: AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, BOOTSTRAP.md. Additional files (MEMORY.md, USER_PREDEFINED.md, DELEGATION.md, TEAM.md, AVAILABILITY.md) loaded separately as needed. Per-user files (USER.md) are created on first chat.
+- **Bootstrap files**: loaded from the workspace directory. Standard files: AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, BOOTSTRAP.md. Additional files (MEMORY.md, DELEGATION.md, TEAM.md, AVAILABILITY.md) loaded separately as needed. Per-user files (USER.md) are created on first chat.
 - **Agent type**: `open` (per-user context, seeded from template files) or `predefined` (agent-level context plus per-user USER.md overlay).
 - **Per-user seeding**: Template files are seeded on first chat, idempotent — skips files that already exist. A database-level check distinguishes genuine new users from returning ones, triggering seeding only once.
-- **Dynamic context loading**: Context files are resolved based on agent type and request context, with truncated content for system prompt injection. Open agents load per-user workspace files; predefined agents load agent-level files plus per-user USER.md.
+- **Dynamic context loading**: Context files are resolved from agent-level templates plus per-user overrides (USER.md and BOOTSTRAP.md only); identity files (SOUL.md, IDENTITY.md, AGENTS.md, …) live agent-level shared.
 - **Custom tools**: Each agent gets its own isolated clone of the tool registry with any per-agent custom tools appended.
 - **Team context**: auto-resolved for agents that belong to a team. Lead agents get the team workspace as default workspace; non-lead members keep their own workspace with team workspace accessible via absolute path tool context.
 

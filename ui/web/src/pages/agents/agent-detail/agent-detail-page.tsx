@@ -82,7 +82,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
               <TabsTrigger value="permissions">{t("detail.tabs.permissions")}</TabsTrigger>
               <TabsTrigger value="evolution">{t("detail.tabs.evolution")}</TabsTrigger>
               <TabsTrigger value="hooks">{t("detail.tabs.hooks")}</TabsTrigger>
-              {agent.agent_type === "predefined" && (
+              {(
                 <TabsTrigger value="instances">{t("detail.tabs.instances")}</TabsTrigger>
               )}
             </TabsList>
@@ -133,7 +133,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
               />
             </TabsContent>
 
-            {agent.agent_type === "predefined" && (
+            {(
               <TabsContent value="instances" className="mt-4">
                 <AgentInstancesTab agentId={agentId} />
               </TabsContent>

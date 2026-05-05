@@ -339,7 +339,6 @@ func TestRBACMatrix(t *testing.T) {
 		api.SetToken(fx.memberToken)
 		res, err := api.POST(ctx, "/v1/agents", map[string]any{
 			"agent_key":  "member-" + helpers.RandHex8(),
-			"agent_type": "predefined",
 			"model":      "test/test-model",
 			"provider":   "openai",
 		})
@@ -352,7 +351,6 @@ func TestRBACMatrix(t *testing.T) {
 		api.SetToken(fx.rootToken)
 		res, err := api.POST(ctx, "/v1/agents", map[string]any{
 			"agent_key":  "root-owned-" + helpers.RandHex8(),
-			"agent_type": "predefined",
 			"model":      "test/test-model",
 			"provider":   "openai",
 		})
@@ -376,7 +374,6 @@ func TestRBACMatrix(t *testing.T) {
 		api.SetToken(fx.viewerToken)
 		res, err := api.POST(ctx, "/v1/agents", map[string]any{
 			"agent_key":  "viewer-" + helpers.RandHex8(),
-			"agent_type": "predefined",
 			"model":      "test/test-model",
 			"provider":   "openai",
 		})

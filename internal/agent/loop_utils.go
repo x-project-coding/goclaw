@@ -111,12 +111,12 @@ func (l *Loop) getOrCreateUserSetup(ctx context.Context, userID, channel string,
 			}
 			// Step 2: Seed context files (must run before buildMessages reads them).
 			// Passes isNew so SeedUserFiles knows whether to skip existing files.
-			if err := l.seedUserFiles(ctx, l.agentUUID, userID, l.agentType, isNew, channelMeta); err != nil {
+			if err := l.seedUserFiles(ctx, l.agentUUID, userID, isNew, channelMeta); err != nil {
 				slog.Warn("failed to seed user context files", "error", err)
 				// Seeding failed (e.g. SQLITE_BUSY after retries). Inject
 				// embedded bootstrap templates in-memory so the first turn
 				// still gets onboarding. DB seed will retry next session.
-				setup.fallbackBootstrap = bootstrap.EmbeddedUserFiles(l.agentType)
+				setup.fallbackBootstrap = bootstrap.EmbeddedUserFiles()
 			} else if l.cacheInvalidate != nil {
 				// SeedUserFiles writes via raw agentStore, bypassing the
 				// ContextFileInterceptor cache. Invalidate so LoadContextFiles
@@ -126,7 +126,7 @@ func (l *Loop) getOrCreateUserSetup(ctx context.Context, userID, channel string,
 			setup.seeded = true
 		} else if l.ensureUserFiles != nil {
 			// Legacy fallback: combined callback handles both profile + seed
-			ws, err := l.ensureUserFiles(ctx, l.agentUUID, userID, l.agentType, l.workspace, channel)
+			ws, err := l.ensureUserFiles(ctx, l.agentUUID, userID, l.workspace, channel)
 			if err != nil {
 				slog.Warn("failed to ensure user context files", "error", err)
 			} else if ws != "" {

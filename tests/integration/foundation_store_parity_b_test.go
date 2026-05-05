@@ -25,8 +25,8 @@ func TestFoundation_StoreMetadataParity_B(t *testing.T) {
 	pgAgentID := uuid.New()
 	pgAgentKey := "pb-" + pgAgentID.String()[:8]
 	if _, err := pgDB.ExecContext(ctx,
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES ($1,$2,'predefined','active','test','m','owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1,$2,'active','test','m','owner')`,
 		pgAgentID, pgAgentKey); err != nil {
 		t.Fatalf("PG seed agent: %v", err)
 	}
@@ -38,8 +38,8 @@ func TestFoundation_StoreMetadataParity_B(t *testing.T) {
 	sqlAgentID := uuid.New()
 	sqlAgentKey := "sb-" + sqlAgentID.String()[:8]
 	if _, err := sqliteDB.ExecContext(ctx,
-		`INSERT INTO agents (id, agent_key, agent_type, status, provider, model, owner_id)
-		 VALUES (?,?,'predefined','active','test','m','owner')`,
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES (?,?,'active','test','m','owner')`,
 		sqlAgentID.String(), sqlAgentKey); err != nil {
 		t.Fatalf("SQLite seed agent: %v", err)
 	}

@@ -29,7 +29,6 @@ Markdown files with embedded templates in `internal/bootstrap/templates/`. These
 | 6 | BOOTSTRAP.md | First-run ritual (deleted after completion) | Yes | No | — | both |
 
 **Additional per-agent file:**
-- USER_PREDEFINED.md (agent-level only): Baseline user-handling rules for predefined agents, shared across all users
 
 Subagent and cron sessions load only AGENTS.md + TOOLS.md (the `minimalAllowlist`).
 
@@ -94,9 +93,8 @@ Templates are embedded in the binary via Go `embed` (directory: `internal/bootst
 flowchart TD
     subgraph "Agent Level (SeedToStore)"
         SB["New agent created"] --> SB1{"Agent type = open?"}
-        SB1 -->|Yes| SKIP_AGENT["Skip agent-level files<br/>(open agents use per-user only)"]
-        SB1 -->|No| SB2["predefined agent"]
-        SB2 --> SB3["Seed to agent_context_files:<br/>AGENTS.md, SOUL.md, IDENTITY.md,<br/>USER_PREDEFINED.md"]
+                SB1 -->|No| SB2["predefined agent"]
+        SB2 --> SB3["Seed to agent_context_files:<br/>AGENTS.md, SOUL.md, IDENTITY.md,<br/>USER.md"]
         SB3 --> SB4["(skip USER.md, TOOLS.md,<br/>BOOTSTRAP.md)"]
         SB4 --> SB5{"File already has content?"}
         SB5 -->|Yes| SKIP2["Skip"]
@@ -129,11 +127,11 @@ Two agent types determine which context files live at the agent level versus the
 | Agent Type | Agent-Level Files | Per-User Files |
 |------------|-------------------|----------------|
 | `open` | None (all per-user) | AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, BOOTSTRAP.md |
-| `predefined` | AGENTS.md, SOUL.md, IDENTITY.md, USER_PREDEFINED.md (shared) | USER.md, BOOTSTRAP.md (personalized per-user) |
+| agents | AGENTS.md, SOUL.md, IDENTITY.md, USER.md (shared agent-level) | USER.md (overridden per-user), BOOTSTRAP.md (per-user, deleted after onboarding) |
 
 **Open agents:** Each user gets their own full set of context files with personal preferences and identity. Reading checks per-user copy first.
 
-**Predefined agents:** All users share the same agent-level persona, identity, and tools. Each user has their own USER.md (profile) and BOOTSTRAP.md (first-run ritual). USER_PREDEFINED.md provides baseline user-handling rules at the agent level, allowing the model to adjust behavior per-user while maintaining consistency.
+All users share the same agent-level persona, identity, and tools. Each user has their own USER.md (profile) and BOOTSTRAP.md (first-run ritual). The agent-level USER.md provides baseline user-handling rules, allowing the model to adjust behavior per-user while maintaining consistency.
 
 | Storage | Location |
 |---------|----------|
@@ -211,7 +209,7 @@ When the model attempts `read_file` on a virtual file, `filesystem.go` returns a
 
 ## 6. Context File Merging
 
-For **open agents**, per-user context files (from `user_context_files`) are merged with base context files (from the resolver) at runtime. Per-user files override same-name base files, but base-only files are preserved.
+v4 collapses the open/predefined split to a single agent kind. USER.md and BOOTSTRAP.md route to `user_context_files` (per-user); all other context files (SOUL.md, IDENTITY.md, AGENTS.md, …) live in `agent_context_files` (agent-level shared).
 
 ```
 Base files (resolver):     AGENTS.md, DELEGATION.md, TEAM.md

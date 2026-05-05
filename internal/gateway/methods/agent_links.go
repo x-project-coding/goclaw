@@ -149,12 +149,6 @@ func (m *AgentLinksMethods) handleCreate(ctx context.Context, client *gateway.Cl
 		return
 	}
 
-	// Delegation targets must be predefined agents (open agents have no agent-level context files)
-	if targetAgent.AgentType == store.AgentTypeOpen {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgCannotDelegateOpen)))
-		return
-	}
-
 	maxConcurrent := params.MaxConcurrent
 	if maxConcurrent <= 0 {
 		maxConcurrent = 3

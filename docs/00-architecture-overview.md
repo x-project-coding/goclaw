@@ -313,7 +313,7 @@ The `wireManagedExtras()` function in `cmd/gateway_managed.go` wires multi-tenan
 flowchart TD
     W1["1. ContextFileInterceptor<br/>Routes read_file / write_file to DB"] --> W2
     W2["2. User Seeding Callback<br/>Seeds per-user context files on first chat"] --> W3
-    W3["3. Context File Loader<br/>Loads per-user vs agent-level files by agent_type"] --> W4
+    W3["3. Context File Loader<br/>Loads agent-level + per-user USER.md/BOOTSTRAP.md"] --> W4
     W4["4. ManagedResolver<br/>Lazy-creates agent Loops from DB on cache miss"] --> W5
     W5["5. Virtual FS Interceptors<br/>Wire interceptors on read_file + write_file + memory tools"] --> W6
     W6["6. Memory Store Wiring<br/>Wire PGMemoryStore on memory_search + memory_get tools"] --> W7

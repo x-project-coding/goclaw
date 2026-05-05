@@ -389,7 +389,6 @@ func TestVaultAgentScopedDocCreate(t *testing.T) {
 	// Create an agent first.
 	res, err := api.POST(ctx, "/v1/agents", map[string]any{
 		"agent_key":  "vlt-" + helpers.RandHex8(),
-		"agent_type": "open",
 		"model":      "test/test-model",
 		"provider":   "openai",
 	})

@@ -1,9 +1,9 @@
 //go:build e2e
 
 // Package e2e_test exercises /v1/agents/* CRUD (internal/http/agents.go):
-// create open/predefined, list, get, update via PUT, delete, and per-user
-// share grants. Foundational — sessions, memory, and vault tests depend on
-// agents existing.
+// create, list, get, update via PUT, delete, and per-user share grants.
+// v4 supports a single agent kind (predefined). Foundational — sessions,
+// memory, and vault tests depend on agents existing.
 package e2e_test
 
 import (
@@ -52,13 +52,13 @@ func loginForAgents(t *testing.T, ctx context.Context, api *helpers.APIClient, e
 }
 
 // createAgentBody returns the minimum required body for POST /v1/agents.
-// agent_key must be a valid slug (lowercase, hyphens only).
-func createAgentBody(agentType string) map[string]any {
+// agent_key must be a valid slug (lowercase, hyphens only). v4 dropped the
+// agent_type field — predefined is the only kind.
+func createAgentBody() map[string]any {
 	return map[string]any{
-		"agent_key":  "test-" + helpers.RandHex8(),
-		"agent_type": agentType,
-		"model":      "test/test-model",
-		"provider":   "openai",
+		"agent_key": "test-" + helpers.RandHex8(),
+		"model":     "test/test-model",
+		"provider":  "openai",
 	}
 }
 
@@ -69,37 +69,7 @@ type agentResp struct {
 	Status   string `json:"status"`
 }
 
-// TestAgentCreateOpen — POST /v1/agents with agent_type=open → 201, id + agent_key present.
-// Note: the handler normalises "open" → "predefined" (v3 compat), but still returns 201.
-func TestAgentCreateOpen(t *testing.T) {
-	helpers.MustMigrateClean(t)
-	helpers.ResetDB(t)
-
-	gw := helpers.StartGateway(t)
-	api := helpers.NewAPIClient()
-	api.BaseURL = gw.BaseURL
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
-	api.SetToken(token)
-
-	body := createAgentBody("open")
-	res, err := api.POST(ctx, "/v1/agents", body)
-	mustOKAgents(t, "POST /v1/agents (open)", res, err, http.StatusCreated)
-
-	var agent agentResp
-	mustJSONAgents(t, res, &agent)
-	if agent.ID == "" {
-		t.Fatalf("create open: empty id")
-	}
-	if agent.AgentKey == "" {
-		t.Fatalf("create open: empty agent_key")
-	}
-}
-
-// TestAgentCreatePredefined — POST /v1/agents with agent_type=predefined → 201.
+// TestAgentCreatePredefined — POST /v1/agents → 201 (predefined is the only kind).
 func TestAgentCreatePredefined(t *testing.T) {
 	helpers.MustMigrateClean(t)
 	helpers.ResetDB(t)
@@ -114,9 +84,9 @@ func TestAgentCreatePredefined(t *testing.T) {
 	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
 	api.SetToken(token)
 
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	res, err := api.POST(ctx, "/v1/agents", body)
-	mustOKAgents(t, "POST /v1/agents (predefined)", res, err, http.StatusCreated)
+	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 
 	var agent agentResp
 	mustJSONAgents(t, res, &agent)
@@ -141,7 +111,7 @@ func TestAgentList(t *testing.T) {
 	api.SetToken(token)
 
 	// Create a known agent.
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	knownKey := body["agent_key"].(string)
 	res, err := api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
@@ -195,7 +165,7 @@ func TestAgentGet(t *testing.T) {
 	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
 	api.SetToken(token)
 
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	res, err := api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 	var created agentResp
@@ -229,7 +199,7 @@ func TestAgentPatch(t *testing.T) {
 	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
 	api.SetToken(token)
 
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	res, err := api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 	var created agentResp
@@ -269,7 +239,7 @@ func TestAgentDelete(t *testing.T) {
 	token := loginForAgents(t, ctx, api, helpers.RootEmail(), helpers.RootPassword())
 	api.SetToken(token)
 
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	res, err := api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 	var created agentResp
@@ -304,7 +274,7 @@ func TestAgentDeleteCascadesContext(t *testing.T) {
 	api.SetToken(token)
 
 	// Create an agent.
-	body := createAgentBody("open")
+	body := createAgentBody()
 	res, err := api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 	var created agentResp
@@ -375,7 +345,7 @@ func TestAgentShareWithUser(t *testing.T) {
 	mustJSONAgents(t, res, &memberUser)
 
 	// Create an agent as root.
-	body := createAgentBody("predefined")
+	body := createAgentBody()
 	res, err = api.POST(ctx, "/v1/agents", body)
 	mustOKAgents(t, "POST /v1/agents", res, err, http.StatusCreated)
 	var agent agentResp
