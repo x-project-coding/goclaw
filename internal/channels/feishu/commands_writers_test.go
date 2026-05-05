@@ -69,8 +69,12 @@ func (f *fakeConfigPermStore) List(_ context.Context, agentID uuid.UUID, configT
 	return out, nil
 }
 
-func (f *fakeConfigPermStore) ListFileWriters(ctx context.Context, agentID uuid.UUID, scope string) ([]store.ConfigPermission, error) {
-	return f.List(ctx, agentID, store.ConfigTypeFileWriter, scope)
+func (f *fakeConfigPermStore) ListWriters(ctx context.Context, agentID uuid.UUID, scope string, configType string) ([]store.ConfigPermission, error) {
+	return f.List(ctx, agentID, configType, scope)
+}
+
+func (f *fakeConfigPermStore) GetDenyGlobs(_ context.Context, _ uuid.UUID, _, _ string) ([]string, error) {
+	return store.DefaultDenyGlobs, nil
 }
 
 // newTestChannel builds a minimal Feishu Channel suitable for writer-command
@@ -189,7 +193,7 @@ func TestWriterCmd_BootstrapSelfGrantViaSelfMention(t *testing.T) {
 	}
 	assertReplyContains(t, *replies, "Added")
 
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 1 || got[0].UserID != "ou_alice" {
 		t.Errorf("expected 1 writer (ou_alice), got %+v", got)
 	}
@@ -215,7 +219,7 @@ func TestWriterCmd_BareAddWriterShowsUsageHint(t *testing.T) {
 	assertReplyContains(t, *replies, "reply to their message")
 
 	// Critical: no grant must be created.
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 0 {
 		t.Errorf("expected 0 writers (no accidental self-grant), got %+v", got)
 	}
@@ -273,7 +277,7 @@ func TestWriterCmd_ReplyToTargetResolution(t *testing.T) {
 	agentID := uuid.New()
 	_ = perm.Grant(context.Background(), &store.ConfigPermission{
 		AgentID: agentID, Scope: "group:feishu:oc_grp_1",
-		ConfigType: store.ConfigTypeFileWriter, UserID: "ou_alice", Permission: "allow",
+		ConfigType: store.ConfigTypeEditFile, UserID: "ou_alice", Permission: "allow",
 	})
 	ch := newTestChannel(t, srv.URL, perm, agentID)
 
@@ -288,7 +292,7 @@ func TestWriterCmd_ReplyToTargetResolution(t *testing.T) {
 	}
 	assertReplyContains(t, replies, "Added")
 
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 2 {
 		t.Errorf("expected 2 writers after reply-to grant, got %d: %+v", len(got), got)
 	}
@@ -313,7 +317,7 @@ func TestWriterCmd_NonWriterCannotGrant(t *testing.T) {
 	// Seed: alice is already a writer.
 	_ = perm.Grant(context.Background(), &store.ConfigPermission{
 		AgentID: agentID, Scope: "group:feishu:oc_grp_1",
-		ConfigType: store.ConfigTypeFileWriter, UserID: "ou_alice", Permission: "allow",
+		ConfigType: store.ConfigTypeEditFile, UserID: "ou_alice", Permission: "allow",
 	})
 	ch := newTestChannel(t, srv.URL, perm, agentID)
 
@@ -329,7 +333,7 @@ func TestWriterCmd_NonWriterCannotGrant(t *testing.T) {
 	assertReplyContains(t, *replies, "Only existing file writers")
 
 	// Verify no new grant was created (still just alice).
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 1 {
 		t.Errorf("expected writers unchanged (1), got %d", len(got))
 	}
@@ -343,7 +347,7 @@ func TestWriterCmd_WriterGrantsViaMention(t *testing.T) {
 	agentID := uuid.New()
 	_ = perm.Grant(context.Background(), &store.ConfigPermission{
 		AgentID: agentID, Scope: "group:feishu:oc_grp_1",
-		ConfigType: store.ConfigTypeFileWriter, UserID: "ou_alice", Permission: "allow",
+		ConfigType: store.ConfigTypeEditFile, UserID: "ou_alice", Permission: "allow",
 	})
 	ch := newTestChannel(t, srv.URL, perm, agentID)
 
@@ -358,7 +362,7 @@ func TestWriterCmd_WriterGrantsViaMention(t *testing.T) {
 	}
 	assertReplyContains(t, *replies, "Added")
 
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 2 {
 		t.Errorf("expected 2 writers after grant, got %d: %+v", len(got), got)
 	}
@@ -371,7 +375,7 @@ func TestWriterCmd_RemoveLastWriterRejected(t *testing.T) {
 	agentID := uuid.New()
 	_ = perm.Grant(context.Background(), &store.ConfigPermission{
 		AgentID: agentID, Scope: "group:feishu:oc_grp_1",
-		ConfigType: store.ConfigTypeFileWriter, UserID: "ou_alice", Permission: "allow",
+		ConfigType: store.ConfigTypeEditFile, UserID: "ou_alice", Permission: "allow",
 	})
 	ch := newTestChannel(t, srv.URL, perm, agentID)
 
@@ -386,7 +390,7 @@ func TestWriterCmd_RemoveLastWriterRejected(t *testing.T) {
 	}
 	assertReplyContains(t, *replies, "Cannot remove the last")
 
-	got, _ := perm.ListFileWriters(context.Background(), agentID, "group:feishu:oc_grp_1")
+	got, _ := perm.ListWriters(context.Background(), agentID, "group:feishu:oc_grp_1", store.ConfigTypeEditFile)
 	if len(got) != 1 {
 		t.Errorf("expected writers unchanged, got %d", len(got))
 	}
@@ -417,7 +421,7 @@ func TestWriterCmd_ListPopulated(t *testing.T) {
 	meta, _ := json.Marshal(map[string]string{"displayName": "Alice"})
 	_ = perm.Grant(context.Background(), &store.ConfigPermission{
 		AgentID: agentID, Scope: "group:feishu:oc_grp_1",
-		ConfigType: store.ConfigTypeFileWriter, UserID: "ou_alice", Permission: "allow",
+		ConfigType: store.ConfigTypeEditFile, UserID: "ou_alice", Permission: "allow",
 		Metadata: meta,
 	})
 	ch := newTestChannel(t, srv.URL, perm, agentID)

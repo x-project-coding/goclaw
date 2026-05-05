@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
@@ -91,6 +93,11 @@ func (sm *SubagentManager) Spawn(
 		CreatedAt:         time.Now().UnixMilli(),
 		spawnConfig:       cfg,
 	}
+	// Inherit project scope from parent agent context so sub-agent tasks remain
+	// scoped to the same project as the parent run.
+	if pid := store.ProjectIDFromContext(ctx); pid != uuid.Nil {
+		subTask.ProjectID = &pid
+	}
 	// Detach from parent's cancellation chain so subagent survives after parent run completes.
 	// WithoutCancel preserves all context values (agent ID, workspace, trace info, etc.)
 	// but parent Done() no longer propagates. Manual cancel via taskCancel() still works.
@@ -168,6 +175,10 @@ func (sm *SubagentManager) RunSync(
 		OriginRootSpanID: tracing.ParentSpanIDFromContext(ctx),
 		CreatedAt:        time.Now().UnixMilli(),
 		spawnConfig:      cfg,
+	}
+	// Inherit project scope from parent agent context.
+	if pid := store.ProjectIDFromContext(ctx); pid != uuid.Nil {
+		subTask.ProjectID = &pid
 	}
 	if sm.taskStore != nil {
 		subTask.dbID = store.GenNewID()

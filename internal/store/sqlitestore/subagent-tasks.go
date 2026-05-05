@@ -29,11 +29,11 @@ func NewSQLiteSubagentTaskStore(db *sql.DB) *SQLiteSubagentTaskStore {
 
 const subagentTaskInsertCols = `parent_agent_key, session_key, subject, description,
 	status, result, depth, model, provider, iterations, input_tokens, output_tokens,
-	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, metadata`
+	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, project_id, metadata`
 
 const subagentTaskSelectCols = `id, parent_agent_key, session_key, subject, description,
 	status, result, depth, model, provider, iterations, input_tokens, output_tokens,
-	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by,
+	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, project_id,
 	completed_at, archived_at, COALESCE(metadata, '{}'), created_at, updated_at`
 
 // Create persists a new subagent task at spawn time.
@@ -47,14 +47,14 @@ func (s *SQLiteSubagentTaskStore) Create(ctx context.Context, task *store.Subage
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	q := fmt.Sprintf(`INSERT OR IGNORE INTO subagent_tasks (id, %s, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, subagentTaskInsertCols)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, subagentTaskInsertCols)
 
 	_, err := s.db.ExecContext(ctx, q,
 		task.ID, task.ParentAgentKey, task.SessionKey, task.Subject, task.Description,
 		task.Status, task.Result, task.Depth, task.Model, task.Provider,
 		task.Iterations, task.InputTokens, task.OutputTokens,
 		task.OriginChannel, task.OriginChatID, task.OriginPeerKind, task.OriginUserID,
-		task.SpawnedBy, metaJSON,
+		task.SpawnedBy, nilUUID(task.ProjectID), metaJSON,
 		now, now,
 	)
 	return err
@@ -71,7 +71,7 @@ func scanTask(row interface{ Scan(...any) error }) (*store.SubagentTaskData, err
 		&t.ID, &t.ParentAgentKey, &t.SessionKey, &t.Subject, &t.Description,
 		&t.Status, &t.Result, &t.Depth, &t.Model, &t.Provider,
 		&t.Iterations, &t.InputTokens, &t.OutputTokens,
-		&t.OriginChannel, &t.OriginChatID, &t.OriginPeerKind, &t.OriginUserID, &t.SpawnedBy,
+		&t.OriginChannel, &t.OriginChatID, &t.OriginPeerKind, &t.OriginUserID, &t.SpawnedBy, &t.ProjectID,
 		&completedAt, &archivedAt, &metaJSON, &createdAt, &updatedAt,
 	)
 	if err != nil {

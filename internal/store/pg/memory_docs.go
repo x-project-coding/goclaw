@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type PGMemoryStore struct {
 	provider store.EmbeddingProvider
 	mu       sync.RWMutex   // protects cfg from concurrent read/write
 	cfg      PGMemoryConfig
+	fsWriter memory.FSWriter // nil = FS-backed mode disabled (content stored in DB fallback)
 }
 
 // PGMemoryConfig configures the PG memory store.
@@ -46,34 +48,62 @@ func NewPGMemoryStore(db *sql.DB, cfg PGMemoryConfig) *PGMemoryStore {
 	return &PGMemoryStore{db: db, cfg: cfg}
 }
 
+// SetFSWriter attaches a filesystem writer to the store.
+// When set, GetDocument reads content from FS and PutDocument writes to FS.
+// Must be called before the store is used; not safe for concurrent mutation.
+func (s *PGMemoryStore) SetFSWriter(w memory.FSWriter) {
+	s.fsWriter = w
+}
+
 func (s *PGMemoryStore) GetDocument(ctx context.Context, agentID, userID, path string) (string, error) {
+	if s.fsWriter != nil {
+		scope := memory.ScopeKey{AgentID: agentID, UserID: userID}
+		data, _, err := s.fsWriter.Read(ctx, scope, path)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
+
+	// Legacy path: no FSWriter configured — should not happen in v4 greenfield
+	// but kept as a safe fallback so tests without FSWriter wiring still compile.
 	aid, err := parseUUID(agentID)
 	if err != nil {
 		return "", fmt.Errorf("memory get document: %w", err)
 	}
-	var content string
-
+	var filePath string
 	if store.IsSharedMemory(ctx) {
-		// Shared: no user_id filter
 		err = s.db.QueryRowContext(ctx,
-			"SELECT content FROM memory_documents WHERE agent_id = $1 AND path = $2 ORDER BY updated_at DESC LIMIT 1",
-			aid, path).Scan(&content)
+			"SELECT file_path FROM memory_documents WHERE agent_id = $1 AND path = $2 ORDER BY updated_at DESC LIMIT 1",
+			aid, path).Scan(&filePath)
 	} else if userID == "" {
 		err = s.db.QueryRowContext(ctx,
-			"SELECT content FROM memory_documents WHERE agent_id = $1 AND path = $2 AND user_id IS NULL",
-			aid, path).Scan(&content)
+			"SELECT file_path FROM memory_documents WHERE agent_id = $1 AND path = $2 AND user_id IS NULL",
+			aid, path).Scan(&filePath)
 	} else {
 		err = s.db.QueryRowContext(ctx,
-			"SELECT content FROM memory_documents WHERE agent_id = $1 AND path = $2 AND user_id = $3",
-			aid, path, userID).Scan(&content)
+			"SELECT file_path FROM memory_documents WHERE agent_id = $1 AND path = $2 AND user_id = $3",
+			aid, path, userID).Scan(&filePath)
 	}
 	if err != nil {
 		return "", err
 	}
-	return content, nil
+	data, readErr := os.ReadFile(filePath)
+	if readErr != nil {
+		return "", fmt.Errorf("memory get document: read file %s: %w", filePath, readErr)
+	}
+	return string(data), nil
 }
 
 func (s *PGMemoryStore) PutDocument(ctx context.Context, agentID, userID, path, content string) error {
+	if s.fsWriter != nil {
+		scope := memory.ScopeKey{AgentID: agentID, UserID: userID}
+		_, err := s.fsWriter.Write(ctx, scope, path, []byte(content), -1 /* unconditional */)
+		return err
+	}
+
+	// Legacy path: direct DB write without FSWriter.
+	// file_path and content_hash are stored; version starts at 1.
 	aid, err := parseUUID(agentID)
 	if err != nil {
 		return fmt.Errorf("memory put document: %w", err)
@@ -88,11 +118,11 @@ func (s *PGMemoryStore) PutDocument(ctx context.Context, agentID, userID, path, 
 	}
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT (agent_id, COALESCE(user_id::text, ''), path)
-		 DO UPDATE SET content = EXCLUDED.content, hash = EXCLUDED.hash, updated_at = EXCLUDED.updated_at`,
-		id, aid, uid, path, content, hash, now,
+		`INSERT INTO memory_documents (id, agent_id, user_id, path, file_path, content_hash, version, updated_at)
+		 VALUES ($1, $2, $3, $4, '', $5, 1, $6)
+		 ON CONFLICT (agent_id, COALESCE(team_id::text,''), COALESCE(user_id::text,''), COALESCE(contact_id::text,''), COALESCE(project_id::text,''), path)
+		 DO UPDATE SET content_hash = EXCLUDED.content_hash, updated_at = EXCLUDED.updated_at`,
+		id, aid, uid, path, hash, now,
 	)
 	return err
 }
@@ -137,13 +167,13 @@ func (s *PGMemoryStore) ListDocuments(ctx context.Context, agentID, userID strin
 	var args []any
 	if store.IsSharedMemory(ctx) {
 		// Shared: list ALL docs for agent (global + per-user from all users)
-		q = "SELECT agent_id, path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1"
+		q = "SELECT agent_id, path, content_hash AS hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1"
 		args = []any{aid}
 	} else if userID == "" {
-		q = "SELECT agent_id, path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1 AND user_id IS NULL"
+		q = "SELECT agent_id, path, content_hash AS hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1 AND user_id IS NULL"
 		args = []any{aid}
 	} else {
-		q = "SELECT agent_id, path, hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1 AND (user_id IS NULL OR user_id::text = $2)"
+		q = "SELECT agent_id, path, content_hash AS hash, user_id, updated_at FROM memory_documents WHERE agent_id = $1 AND (user_id IS NULL OR user_id::text = $2)"
 		args = []any{aid, userID}
 	}
 
@@ -315,7 +345,7 @@ func (s *PGMemoryStore) IndexDocument(ctx context.Context, agentID, userID, path
 			// Insert with embedding via raw SQL (pgvector)
 			s.db.ExecContext(ctx,
 				`INSERT INTO memory_chunks (id, agent_id, document_id, user_id, path, start_line, end_line, hash, text, embedding, updated_at)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11)`,
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::halfvec, $11)`,
 				chunkID, aid, docID, uid, path, tc.StartLine, tc.EndLine, hash, tc.Text,
 				vectorToString(embeddings[i]), now,
 			)
@@ -407,7 +437,7 @@ func (s *PGMemoryStore) BackfillEmbeddings(ctx context.Context) (int, error) {
 			}
 			vecStr := vectorToString(embeddings[i])
 			if _, err := s.db.ExecContext(ctx,
-				"UPDATE memory_chunks SET embedding = $1::vector WHERE id = $2",
+				"UPDATE memory_chunks SET embedding = $1::halfvec WHERE id = $2",
 				vecStr, chunk.ID,
 			); err != nil {
 				return total, fmt.Errorf("update chunk embedding id=%s: %w", chunk.ID, err)

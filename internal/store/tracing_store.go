@@ -63,6 +63,7 @@ type TraceData struct {
 	Metadata          json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 	Tags              []string        `json:"tags,omitempty" db:"tags"`
 	TeamID            *uuid.UUID      `json:"team_id,omitempty" db:"team_id"`
+	ContactID         *uuid.UUID      `json:"contact_id,omitempty" db:"contact_id"` // channel contact that triggered this trace
 	CreatedAt         time.Time       `json:"created_at" db:"created_at"`
 }
 
@@ -93,6 +94,7 @@ type SpanData struct {
 	OutputPreview string          `json:"output_preview,omitempty" db:"output_preview"`
 	Metadata  json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 	TeamID    *uuid.UUID      `json:"team_id,omitempty" db:"team_id"`
+	ContactID *uuid.UUID      `json:"contact_id,omitempty" db:"contact_id"` // channel contact that triggered this span
 	CreatedAt time.Time       `json:"created_at" db:"created_at"`
 }
 

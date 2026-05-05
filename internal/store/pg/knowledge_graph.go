@@ -43,8 +43,9 @@ func (s *PGKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *store.
 	var actualID uuid.UUID
 	if err = s.db.QueryRowContext(ctx, `
 		INSERT INTO kg_entities
-			(id, agent_id, user_id, external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+			(id, agent_id, user_id, team_id, contact_id, project_id,
+			 external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
 		ON CONFLICT (agent_id, (COALESCE(user_id::text, '')), external_id) DO UPDATE SET
 			name        = EXCLUDED.name,
 			entity_type = EXCLUDED.entity_type,
@@ -54,7 +55,8 @@ func (s *PGKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *store.
 			confidence  = EXCLUDED.confidence,
 			updated_at  = EXCLUDED.updated_at
 		RETURNING id`,
-		id, aid, nilStr(entity.UserID), entity.ExternalID, entity.Name, entity.EntityType,
+		id, aid, nilStr(entity.UserID), nilStr(entity.TeamID), nilStr(entity.ContactID), nilStr(entity.ProjectID),
+		entity.ExternalID, entity.Name, entity.EntityType,
 		entity.Description, props, entity.SourceID, entity.Confidence, now,
 	).Scan(&actualID); err != nil {
 		return err
@@ -314,10 +316,10 @@ func (s *PGKnowledgeGraphStore) vectorSearchEntities(ctx context.Context, embedd
 	q := fmt.Sprintf(`
 		SELECT id, agent_id, user_id, external_id, name, entity_type, description,
 		       properties, source_id, confidence, created_at, updated_at,
-		       1 - (embedding <=> $%d::vector) AS score
+		       1 - (embedding <=> $%d::halfvec) AS score
 		FROM kg_entities
 		WHERE %s
-		ORDER BY embedding <=> $%d::vector LIMIT $%d`, idx, where, idx, idx+1)
+		ORDER BY embedding <=> $%d::halfvec LIMIT $%d`, idx, where, idx, idx+1)
 
 	var sRows []scoredEntityRow
 	if err = pkgSqlxDB.SelectContext(ctx, &sRows, q, args...); err != nil {

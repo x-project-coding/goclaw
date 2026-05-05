@@ -117,6 +117,10 @@ func (t *MemorySearchTool) Execute(ctx context.Context, args map[string]any) *Re
 			searchOpts.MinScore = mc.MinScore
 		}
 	}
+	// Build 5D scope filter so search only returns chunks from the same scope bucket.
+	// Mirrors the pattern used by episodic auto-inject to prevent cross-team leaks.
+	searchOpts.Scope = memorySearchScope(ctx)
+
 	agentStr := agentID.String()
 	results, err := t.memStore.Search(ctx, query, agentStr, userID, searchOpts)
 	if err != nil {
@@ -341,6 +345,30 @@ func (t *MemoryGetTool) Execute(ctx context.Context, args map[string]any) *Resul
 		"text": text,
 	}, "", "  ")
 	return NewResult(string(data))
+}
+
+// memorySearchScope builds a MemoryScope from the current request context.
+// Returns nil when no 5D scope dimensions are active (agent-broad search is fine).
+// Mirrors the episodic auto-inject scope logic so both memory tiers apply the same bucket filter.
+func memorySearchScope(ctx context.Context) *store.MemoryScope {
+	teamID := store.TeamIDFromContext(ctx)
+	contactID := store.ContactIDFromContext(ctx)
+	projectID := store.ProjectIDFromContext(ctx)
+
+	if teamID == uuid.Nil && contactID == uuid.Nil && projectID == uuid.Nil {
+		return nil
+	}
+	scope := &store.MemoryScope{}
+	if teamID != uuid.Nil {
+		scope.TeamID = &teamID
+	}
+	if contactID != uuid.Nil {
+		scope.ContactID = &contactID
+	}
+	if projectID != uuid.Nil {
+		scope.ProjectID = &projectID
+	}
+	return scope
 }
 
 // extractLines extracts a range of lines from content.

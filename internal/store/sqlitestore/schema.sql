@@ -419,6 +419,8 @@ CREATE TABLE IF NOT EXISTS team_tasks (
     comment_count       INT          NOT NULL DEFAULT 0,
     attachment_count    INT          NOT NULL DEFAULT 0,
     custom_scope        TEXT,
+    embedding           BLOB,
+    embedding_norm      REAL,
     created_at          TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at          TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -524,62 +526,84 @@ CREATE INDEX IF NOT EXISTS idx_agent_sessions_project    ON agent_sessions(proje
 -- Section 5: Memory
 -- ============================================================
 
--- Note: embedding (vector) column omitted.
+-- Note: halfvec embedding stored as BLOB (6144 bytes, float16 little-endian).
 CREATE TABLE IF NOT EXISTS memory_documents (
     id           TEXT         NOT NULL PRIMARY KEY,
-    agent_id     TEXT         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
-    user_id      TEXT         REFERENCES users(id)                ON DELETE SET NULL,
+    agent_id     TEXT         NOT NULL REFERENCES agents(id)           ON DELETE CASCADE,
+    team_id      TEXT         REFERENCES agent_teams(id)               ON DELETE CASCADE,
+    user_id      TEXT         REFERENCES users(id)                     ON DELETE CASCADE,
+    contact_id   TEXT         REFERENCES channel_contacts(id)          ON DELETE CASCADE,
+    project_id   TEXT         REFERENCES projects(id)                  ON DELETE SET NULL,
     path         VARCHAR(500) NOT NULL,
-    content      TEXT         NOT NULL DEFAULT '',
-    hash         VARCHAR(64)  NOT NULL,
-    team_id      TEXT         REFERENCES agent_teams(id)          ON DELETE SET NULL,
-    custom_scope TEXT,
+    file_path    VARCHAR(500) NOT NULL DEFAULT '',
+    content_hash VARCHAR(64)  NOT NULL DEFAULT '',
+    version      INT          NOT NULL DEFAULT 1,
     metadata     TEXT         NOT NULL DEFAULT '{}',
     created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_memdoc_unique ON memory_documents(agent_id, COALESCE(user_id, ''), path);
-CREATE INDEX IF NOT EXISTS idx_memdoc_agent_user    ON memory_documents(agent_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_memdoc_team          ON memory_documents(team_id) WHERE team_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memdoc_unique ON memory_documents(
+    agent_id,
+    COALESCE(team_id,    ''),
+    COALESCE(user_id,    ''),
+    COALESCE(contact_id, ''),
+    COALESCE(project_id, ''),
+    path
+);
+CREATE INDEX IF NOT EXISTS idx_memdoc_agent_user ON memory_documents(agent_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_memdoc_team       ON memory_documents(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memdoc_user       ON memory_documents(user_id)    WHERE user_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memdoc_contact    ON memory_documents(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memdoc_project    ON memory_documents(project_id) WHERE project_id IS NOT NULL;
 
--- Note: embedding (vector) and tsv (tsvector) columns omitted.
+-- Note: embedding stored as BLOB (halfvec(3072) = 6144 bytes float16); tsv omitted.
 CREATE TABLE IF NOT EXISTS memory_chunks (
-    id           TEXT         NOT NULL PRIMARY KEY,
-    agent_id     TEXT         NOT NULL REFERENCES agents(id)           ON DELETE CASCADE,
-    document_id  TEXT         REFERENCES memory_documents(id)          ON DELETE CASCADE,
-    user_id      TEXT         REFERENCES users(id)                     ON DELETE SET NULL,
-    path         TEXT         NOT NULL,
-    start_line   INT          NOT NULL DEFAULT 0,
-    end_line     INT          NOT NULL DEFAULT 0,
-    hash         VARCHAR(64)  NOT NULL,
-    text         TEXT         NOT NULL,
-    team_id      TEXT         REFERENCES agent_teams(id)               ON DELETE SET NULL,
-    custom_scope TEXT,
-    created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    id             TEXT         NOT NULL PRIMARY KEY,
+    agent_id       TEXT         NOT NULL REFERENCES agents(id)           ON DELETE CASCADE,
+    document_id    TEXT         REFERENCES memory_documents(id)          ON DELETE CASCADE,
+    team_id        TEXT         REFERENCES agent_teams(id)               ON DELETE CASCADE,
+    user_id        TEXT         REFERENCES users(id)                     ON DELETE CASCADE,
+    contact_id     TEXT         REFERENCES channel_contacts(id)          ON DELETE CASCADE,
+    project_id     TEXT         REFERENCES projects(id)                  ON DELETE SET NULL,
+    path           TEXT         NOT NULL,
+    start_line     INT          NOT NULL DEFAULT 0,
+    end_line       INT          NOT NULL DEFAULT 0,
+    hash           VARCHAR(64)  NOT NULL,
+    text           TEXT         NOT NULL,
+    embedding      BLOB,
+    embedding_norm REAL,
+    created_at     TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at     TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_mem_agent_user ON memory_chunks(agent_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_mem_global     ON memory_chunks(agent_id) WHERE user_id IS NULL;
-CREATE INDEX IF NOT EXISTS idx_mem_document   ON memory_chunks(document_id);
-CREATE INDEX IF NOT EXISTS idx_memchunk_team  ON memory_chunks(team_id)  WHERE team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_mem_agent_user   ON memory_chunks(agent_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_mem_global       ON memory_chunks(agent_id)    WHERE user_id    IS NULL;
+CREATE INDEX IF NOT EXISTS idx_mem_document     ON memory_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_memchunk_team    ON memory_chunks(team_id)     WHERE team_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memchunk_contact ON memory_chunks(contact_id)  WHERE contact_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memchunk_project ON memory_chunks(project_id)  WHERE project_id IS NOT NULL;
 
--- Note: embedding (vector) column omitted.
+-- Note: embedding stored as BLOB (halfvec(3072)).
 CREATE TABLE IF NOT EXISTS embedding_cache (
-    hash       VARCHAR(64)  NOT NULL,
-    provider   VARCHAR(50)  NOT NULL,
-    model      VARCHAR(200) NOT NULL,
-    dims       INT          NOT NULL DEFAULT 0,
-    created_at TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    hash           VARCHAR(64)  NOT NULL,
+    provider       VARCHAR(50)  NOT NULL,
+    model          VARCHAR(200) NOT NULL,
+    dims           INT          NOT NULL DEFAULT 0,
+    embedding      BLOB,
+    embedding_norm REAL,
+    created_at     TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at     TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (hash, provider, model)
 );
 
 CREATE TABLE IF NOT EXISTS episodic_summaries (
     id               TEXT         NOT NULL PRIMARY KEY,
-    agent_id         TEXT         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_id          TEXT         REFERENCES users(id) ON DELETE SET NULL,
+    agent_id         TEXT         NOT NULL REFERENCES agents(id)          ON DELETE CASCADE,
+    user_id          TEXT         REFERENCES users(id)                    ON DELETE CASCADE,
+    team_id          TEXT         REFERENCES agent_teams(id)              ON DELETE CASCADE,
+    contact_id       TEXT         REFERENCES channel_contacts(id)         ON DELETE CASCADE,
+    project_id       TEXT         REFERENCES projects(id)                 ON DELETE SET NULL,
     session_key      TEXT         NOT NULL,
     summary          TEXT         NOT NULL,
     l0_abstract      TEXT         NOT NULL DEFAULT '',
@@ -597,8 +621,17 @@ CREATE TABLE IF NOT EXISTS episodic_summaries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_episodic_agent_user ON episodic_summaries(agent_id, user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_episodic_source_dedup ON episodic_summaries(agent_id, user_id, source_id)
-    WHERE source_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_episodic_source_dedup ON episodic_summaries(
+    agent_id,
+    COALESCE(user_id,    ''),
+    COALESCE(team_id,    ''),
+    COALESCE(contact_id, ''),
+    COALESCE(project_id, ''),
+    source_id
+) WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodic_team    ON episodic_summaries(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodic_contact ON episodic_summaries(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodic_project ON episodic_summaries(project_id) WHERE project_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodic_unpromoted ON episodic_summaries(agent_id, user_id, created_at)
     WHERE promoted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_episodic_recall_unpromoted ON episodic_summaries(agent_id, user_id, recall_score DESC)
@@ -608,11 +641,14 @@ CREATE INDEX IF NOT EXISTS idx_episodic_recall_unpromoted ON episodic_summaries(
 -- Section 6: Knowledge Graph
 -- ============================================================
 
--- Note: embedding (vector) column omitted.
+-- Note: embedding stored as BLOB (halfvec(3072) = 6144 bytes float16).
 CREATE TABLE IF NOT EXISTS kg_entities (
     id          TEXT         NOT NULL PRIMARY KEY,
-    agent_id    TEXT         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
-    user_id     TEXT         REFERENCES users(id)                ON DELETE SET NULL,
+    agent_id    TEXT         NOT NULL REFERENCES agents(id)           ON DELETE CASCADE,
+    user_id     TEXT         REFERENCES users(id)                     ON DELETE CASCADE,
+    team_id     TEXT         REFERENCES agent_teams(id)               ON DELETE CASCADE,
+    contact_id  TEXT         REFERENCES channel_contacts(id)          ON DELETE CASCADE,
+    project_id  TEXT         REFERENCES projects(id)                  ON DELETE SET NULL,
     external_id VARCHAR(255) NOT NULL,
     name        TEXT         NOT NULL,
     entity_type VARCHAR(100) NOT NULL,
@@ -620,7 +656,8 @@ CREATE TABLE IF NOT EXISTS kg_entities (
     properties  TEXT         DEFAULT '{}',
     source_id   VARCHAR(255) DEFAULT '',
     confidence  REAL         NOT NULL DEFAULT 1.0,
-    team_id     TEXT         REFERENCES agent_teams(id)          ON DELETE SET NULL,
+    embedding      BLOB,
+    embedding_norm REAL,
     created_at  TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at  TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     valid_from  TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -628,10 +665,12 @@ CREATE TABLE IF NOT EXISTS kg_entities (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_entities_unique ON kg_entities(agent_id, COALESCE(user_id, ''), external_id);
-CREATE INDEX IF NOT EXISTS idx_kg_entities_scope          ON kg_entities(agent_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_kg_entities_type           ON kg_entities(agent_id, user_id, entity_type);
-CREATE INDEX IF NOT EXISTS idx_kg_entities_current        ON kg_entities(agent_id, user_id) WHERE valid_until IS NULL;
-CREATE INDEX IF NOT EXISTS idx_kg_entities_team           ON kg_entities(team_id)           WHERE team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_kg_entities_scope   ON kg_entities(agent_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_kg_entities_type    ON kg_entities(agent_id, user_id, entity_type);
+CREATE INDEX IF NOT EXISTS idx_kg_entities_current ON kg_entities(agent_id, user_id) WHERE valid_until IS NULL;
+CREATE INDEX IF NOT EXISTS idx_kg_entities_team    ON kg_entities(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_kg_contact          ON kg_entities(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_kg_project          ON kg_entities(project_id) WHERE project_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS kg_relations (
     id               TEXT         NOT NULL PRIMARY KEY,
@@ -676,23 +715,25 @@ CREATE INDEX IF NOT EXISTS idx_kg_dedup_agent ON kg_dedup_candidates(agent_id, s
 -- Scope consistency enforced via BEFORE INSERT/UPDATE triggers below
 -- (SQLite cannot express multi-column CHECK constraints spanning expressions).
 CREATE TABLE IF NOT EXISTS vault_documents (
-    id            TEXT NOT NULL PRIMARY KEY,
-    agent_id      TEXT REFERENCES agents(id)      ON DELETE SET NULL,
-    owner_user_id TEXT REFERENCES users(id)       ON DELETE SET NULL,
-    team_id       TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
-    chat_id       TEXT,
-    scope         TEXT NOT NULL DEFAULT 'personal'
-                  CHECK (scope IN ('personal', 'team', 'shared', 'custom')),
-    custom_scope  TEXT,
-    path          TEXT NOT NULL,
-    path_basename TEXT NOT NULL DEFAULT '',
-    title         TEXT NOT NULL DEFAULT '',
-    doc_type      TEXT NOT NULL DEFAULT 'note',
-    content_hash  TEXT NOT NULL DEFAULT '',
-    summary       TEXT NOT NULL DEFAULT '',
-    metadata      TEXT DEFAULT '{}',
-    created_at    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at    TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    id             TEXT NOT NULL PRIMARY KEY,
+    agent_id       TEXT REFERENCES agents(id)      ON DELETE SET NULL,
+    owner_user_id  TEXT REFERENCES users(id)       ON DELETE SET NULL,
+    team_id        TEXT REFERENCES agent_teams(id) ON DELETE SET NULL,
+    chat_id        TEXT,
+    scope          TEXT NOT NULL DEFAULT 'personal'
+                   CHECK (scope IN ('personal', 'team', 'shared', 'custom')),
+    custom_scope   TEXT,
+    path           TEXT NOT NULL,
+    path_basename  TEXT NOT NULL DEFAULT '',
+    title          TEXT NOT NULL DEFAULT '',
+    doc_type       TEXT NOT NULL DEFAULT 'note',
+    content_hash   TEXT NOT NULL DEFAULT '',
+    summary        TEXT NOT NULL DEFAULT '',
+    metadata       TEXT DEFAULT '{}',
+    embedding      BLOB,
+    embedding_norm REAL,
+    created_at     TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at     TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vault_docs_unique_path
@@ -776,6 +817,8 @@ CREATE TABLE IF NOT EXISTS skills (
     pinned          INTEGER      NOT NULL DEFAULT 0,
     usage_count     INTEGER      NOT NULL DEFAULT 0,
     metadata        TEXT         NOT NULL DEFAULT '{}',
+    embedding       BLOB,
+    embedding_norm  REAL,
     created_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -1075,9 +1118,21 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     enabled      INTEGER      NOT NULL DEFAULT 1,
     created_by   VARCHAR(255) NOT NULL,
     metadata     TEXT         NOT NULL DEFAULT '{}',
+    -- Scope columns: exactly one of {both NULL (global), team_id only, project_id only}
+    team_id      TEXT         NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+    project_id   TEXT         NULL REFERENCES projects(id)    ON DELETE CASCADE,
     created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    -- 3-state scope mutex: global (both NULL), team-scoped, or project-scoped.
+    CONSTRAINT mcp_servers_scope_exclusive CHECK (
+        (team_id IS NULL     AND project_id IS NULL)     OR
+        (team_id IS NOT NULL AND project_id IS NULL)     OR
+        (team_id IS NULL     AND project_id IS NOT NULL)
+    )
 );
+
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_team    ON mcp_servers(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_project ON mcp_servers(project_id) WHERE project_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS mcp_agent_grants (
     id               TEXT         NOT NULL PRIMARY KEY,
@@ -1121,8 +1176,30 @@ CREATE TABLE IF NOT EXISTS mcp_access_requests (
     reviewed_by  VARCHAR(255),
     reviewed_at  TEXT,
     review_note  TEXT,
-    created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CONSTRAINT mcp_access_requests_scope_check
+        CHECK (scope IN ('agent', 'user')),
+    CONSTRAINT mcp_access_requests_scope_shape_check
+        CHECK (
+            (scope = 'agent' AND agent_id IS NOT NULL AND user_id IS NULL) OR
+            (scope = 'user'  AND user_id  IS NOT NULL AND agent_id IS NULL)
+        ),
+    CONSTRAINT mcp_access_requests_status_check
+        CHECK (status IN ('pending', 'granted', 'denied', 'revoked'))
 );
+
+-- Partial UNIQUE index emulating NULLS NOT DISTINCT via COALESCE sentinel.
+-- The zero-UUID sentinel '00000000-0000-0000-0000-000000000000' is reserved
+-- and will never appear as a real agent_id or user_id (uuid_v7 is never all-zero).
+-- WHERE status='pending' limits deduplication to in-flight requests only —
+-- denied/granted/revoked rows are kept as audit history.
+CREATE UNIQUE INDEX IF NOT EXISTS mcp_access_requests_unique_pending
+    ON mcp_access_requests(
+        server_id,
+        COALESCE(agent_id, '00000000-0000-0000-0000-000000000000'),
+        COALESCE(user_id,  '00000000-0000-0000-0000-000000000000')
+    )
+    WHERE status = 'pending';
 
 CREATE INDEX IF NOT EXISTS idx_mcp_requests_status ON mcp_access_requests(status) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_mcp_requests_server ON mcp_access_requests(server_id);
@@ -1171,6 +1248,7 @@ CREATE TABLE IF NOT EXISTS traces (
     tags                TEXT,
     parent_trace_id     TEXT         REFERENCES traces(id) ON DELETE SET NULL,
     team_id             TEXT         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    contact_id          TEXT         REFERENCES channel_contacts(id) ON DELETE SET NULL,
     created_at          TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -1182,6 +1260,7 @@ CREATE INDEX IF NOT EXISTS idx_traces_parent      ON traces(parent_trace_id)    
 CREATE INDEX IF NOT EXISTS idx_traces_quota       ON traces(user_id,     created_at DESC) WHERE parent_trace_id IS NULL AND user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_traces_start_root  ON traces(start_time DESC)              WHERE parent_trace_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_traces_team        ON traces(team_id,     created_at DESC) WHERE team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_traces_contact     ON traces(contact_id)                   WHERE contact_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS spans (
     id             TEXT         NOT NULL PRIMARY KEY,
@@ -1209,6 +1288,7 @@ CREATE TABLE IF NOT EXISTS spans (
     output_preview TEXT,
     metadata       TEXT,
     team_id        TEXT         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    contact_id     TEXT         REFERENCES channel_contacts(id) ON DELETE SET NULL,
     created_at     TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -1220,6 +1300,7 @@ CREATE INDEX IF NOT EXISTS idx_spans_type       ON spans(span_type,   created_at
 CREATE INDEX IF NOT EXISTS idx_spans_model      ON spans(model,       created_at DESC) WHERE model IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_spans_error      ON spans(status)                       WHERE status = 'error';
 CREATE INDEX IF NOT EXISTS idx_spans_team       ON spans(team_id)                      WHERE team_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_spans_contact    ON spans(contact_id)                   WHERE contact_id IS NOT NULL;
 
 -- ============================================================
 -- Section 13: Tools (builtin, secure CLI, subagent tasks)
@@ -1314,6 +1395,7 @@ CREATE TABLE IF NOT EXISTS subagent_tasks (
     archived_at      TEXT,
     metadata         TEXT         NOT NULL DEFAULT '{}',
     custom_scope     TEXT,
+    project_id       TEXT         REFERENCES projects(id) ON DELETE SET NULL,
     created_at       TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -1321,6 +1403,7 @@ CREATE TABLE IF NOT EXISTS subagent_tasks (
 CREATE INDEX IF NOT EXISTS idx_subagent_tasks_parent_status ON subagent_tasks(parent_agent_key, status);
 CREATE INDEX IF NOT EXISTS idx_subagent_tasks_session       ON subagent_tasks(session_key);
 CREATE INDEX IF NOT EXISTS idx_subagent_tasks_created       ON subagent_tasks(created_at);
+CREATE INDEX IF NOT EXISTS idx_subagent_tasks_project       ON subagent_tasks(project_id) WHERE project_id IS NOT NULL;
 
 -- ============================================================
 -- Section 14: Audit & Config
@@ -1385,11 +1468,12 @@ CREATE TABLE IF NOT EXISTS agent_config_permissions (
     id          TEXT         NOT NULL PRIMARY KEY,
     agent_id    TEXT         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     scope       VARCHAR(255) NOT NULL,
-    config_type VARCHAR(50)  NOT NULL,
+    config_type VARCHAR(50)  NOT NULL CHECK (config_type IN ('write_file','edit_file','delete_file','cron','heartbeat','*')),
     user_id     VARCHAR(255) NOT NULL,
     permission  VARCHAR(10)  NOT NULL,
     granted_by  VARCHAR(255),
     metadata    TEXT         DEFAULT '{}',
+    deny_globs  TEXT         NOT NULL DEFAULT '[".env*","secrets/**",".git/**","*.key","*.pem"]',
     created_at  TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at  TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(agent_id, scope, config_type, user_id)

@@ -48,6 +48,28 @@ func (a *pgAutoInjector) Inject(ctx context.Context, params InjectParams) (*Inje
 	// follow-up semantics and returns materially better matches.
 	searchQuery := buildRecallQuery(params.UserMessage, params.RecentContext)
 
+	// Build 5D scope filter so auto-inject only returns memories tagged with the
+	// same scope as the current session (prevents cross-team/cross-project leaks).
+	var scope *store.EpisodicScope
+	if params.TeamID != "" || params.ContactID != "" || params.ProjectID != "" {
+		scope = &store.EpisodicScope{}
+		if params.TeamID != "" {
+			if tid, err := uuid.Parse(params.TeamID); err == nil {
+				scope.TeamID = &tid
+			}
+		}
+		if params.ContactID != "" {
+			if cid, err := uuid.Parse(params.ContactID); err == nil {
+				scope.ContactID = &cid
+			}
+		}
+		if params.ProjectID != "" {
+			if pid, err := uuid.Parse(params.ProjectID); err == nil {
+				scope.ProjectID = &pid
+			}
+		}
+	}
+
 	// Search with FTS bias (faster than vector for auto-inject)
 	results, err := a.episodicStore.Search(ctx, searchQuery, params.AgentID, params.UserID,
 		store.EpisodicSearchOptions{
@@ -55,6 +77,7 @@ func (a *pgAutoInjector) Inject(ctx context.Context, params InjectParams) (*Inje
 			MinScore:     threshold,
 			VectorWeight: 0.3,
 			TextWeight:   0.7,
+			Scope:        scope,
 		})
 	if err != nil {
 		return nil, fmt.Errorf("auto-inject search: %w", err)

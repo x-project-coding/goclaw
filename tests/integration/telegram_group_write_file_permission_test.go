@@ -7,7 +7,7 @@
 //	UserID   = "group:telegram:<chatID>"  (scope / memory namespace)
 //	SenderID = "<numeric>"                (acting principal)
 //
-// CheckFileWriterPermission must evaluate the grant against the SENDER, not
+// CheckEditFilePermission must evaluate the grant against the SENDER, not
 // the group principal. This test mirrors gateway_consumer_normal.go:84-99
 // context-build and commands_writers.go:80-93 grant shape exactly, to
 // guarantee the harness matches production ingress.
@@ -42,7 +42,7 @@ func TestTelegramGroupWriteFilePermission_GrantedSender(t *testing.T) {
 	if err := permStore.Grant(ctxGrant, &store.ConfigPermission{
 		AgentID:    agentID,
 		Scope:      scopeFromCmd,
-		ConfigType: store.ConfigTypeFileWriter,
+		ConfigType: store.ConfigTypeEditFile,
 		UserID:     senderNumID,
 		Permission: "allow",
 		GrantedBy:  strPtr("test-admin"),
@@ -56,7 +56,7 @@ func TestTelegramGroupWriteFilePermission_GrantedSender(t *testing.T) {
 	ctx = store.WithSenderID(ctx, senderNumID)
 	ctx = store.WithAgentID(ctx, agentID)
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("granted sender expected nil, got: %v", err)
 	}
 }
@@ -80,7 +80,7 @@ func TestTelegramGroupWriteFilePermission_UngrantedSender(t *testing.T) {
 	ctx = store.WithSenderID(ctx, uninvitedNum)
 	ctx = store.WithAgentID(ctx, agentID)
 
-	err := store.CheckFileWriterPermission(ctx, permStore)
+	err := store.CheckEditFilePermission(ctx, permStore)
 	if err == nil {
 		t.Fatalf("expected permission denied, got nil")
 	}
@@ -106,7 +106,7 @@ func TestTelegramGroupWriteFilePermission_NoAgent_FailOpen(t *testing.T) {
 	ctx = store.WithSenderID(ctx, "42")
 	// Deliberately NO WithAgentID — exercises the fail-open branch.
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("fail-open path expected nil (no agent in ctx), got: %v", err)
 	}
 	// Note: a production-grade assertion here would require a log-capture
@@ -127,7 +127,7 @@ func TestTelegramGroupWriteFilePermission_DMContextPasses(t *testing.T) {
 	ctx = store.WithSenderID(ctx, "42")
 	ctx = store.WithAgentID(ctx, agentID)
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("DM context expected nil, got: %v", err)
 	}
 }
@@ -151,7 +151,7 @@ func TestTelegramGroupWriteFilePermission_DelimitedSender(t *testing.T) {
 	if err := permStore.Grant(ctxGrant, &store.ConfigPermission{
 		AgentID:    agentID,
 		Scope:      "group:telegram:" + chatID,
-		ConfigType: store.ConfigTypeFileWriter,
+		ConfigType: store.ConfigTypeEditFile,
 		UserID:     senderNumID,
 		Permission: "allow",
 		GrantedBy:  strPtr("test-admin"),
@@ -164,7 +164,7 @@ func TestTelegramGroupWriteFilePermission_DelimitedSender(t *testing.T) {
 	ctx = store.WithSenderID(ctx, senderNumID+"|displayname")
 	ctx = store.WithAgentID(ctx, agentID)
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("delimited sender expected nil after split, got: %v", err)
 	}
 }
@@ -186,7 +186,7 @@ func TestTelegramGroupWriteFilePermission_EmptySenderDenied(t *testing.T) {
 	ctx = store.WithAgentID(ctx, agentID)
 	// Deliberately no WithSenderID.
 
-	err := store.CheckFileWriterPermission(ctx, permStore)
+	err := store.CheckEditFilePermission(ctx, permStore)
 	if err == nil {
 		t.Fatalf("empty SenderID in group context expected deny, got nil")
 	}
@@ -221,7 +221,7 @@ func TestTelegramGroupWriteFilePermission_SyntheticSendersDenied(t *testing.T) {
 			ctx = store.WithSenderID(ctx, syntheticID)
 			ctx = store.WithAgentID(ctx, agentID)
 
-			err := store.CheckFileWriterPermission(ctx, permStore)
+			err := store.CheckEditFilePermission(ctx, permStore)
 			if err == nil {
 				t.Fatalf("synthetic sender %q expected deny, got nil", syntheticID)
 			}
@@ -252,7 +252,7 @@ func TestTelegramGroupWriteFilePermission_PropagatedSenderAllowed(t *testing.T) 
 	if err := permStore.Grant(ctxGrant, &store.ConfigPermission{
 		AgentID:    agentID,
 		Scope:      "group:telegram:" + chatID,
-		ConfigType: store.ConfigTypeFileWriter,
+		ConfigType: store.ConfigTypeEditFile,
 		UserID:     realSenderID,
 		Permission: "allow",
 		GrantedBy:  strPtr("test-admin"),
@@ -269,7 +269,7 @@ func TestTelegramGroupWriteFilePermission_PropagatedSenderAllowed(t *testing.T) 
 	ctx = store.WithSenderID(ctx, realSenderID) // propagated from MetaOriginSenderID
 	ctx = store.WithAgentID(ctx, agentID)
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("propagated real sender expected allow, got: %v", err)
 	}
 }
@@ -288,7 +288,7 @@ func TestTelegramGroupWriteFilePermission_DMEmptySenderPasses(t *testing.T) {
 	// No SenderID. DM context has no group: prefix → pre-empty branch.
 	ctx = store.WithAgentID(ctx, agentID)
 
-	if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+	if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 		t.Errorf("DM empty sender expected nil, got: %v", err)
 	}
 }
@@ -314,7 +314,7 @@ func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
 			// NB: no SenderID set — normally this would DENY, but the role
 			// bypass kicks in before the synthetic-sender check.
 
-			if err := store.CheckFileWriterPermission(ctx, permStore); err != nil {
+			if err := store.CheckEditFilePermission(ctx, permStore); err != nil {
 				t.Errorf("role=%q expected bypass (nil), got: %v", role, err)
 			}
 			if err := store.CheckCronPermission(ctx, permStore); err != nil {
@@ -349,7 +349,7 @@ func TestTelegramGroupWriteFilePermission_ViewerRoleDoesNotBypass(t *testing.T) 
 			// Empty sender — with viewer/empty role, should fall through to
 			// the synthetic-sender DENY.
 
-			err := store.CheckFileWriterPermission(ctx, permStore)
+			err := store.CheckEditFilePermission(ctx, permStore)
 			if err == nil {
 				t.Fatalf("role=%q expected deny (no bypass), got nil", role)
 			}

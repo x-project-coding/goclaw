@@ -43,6 +43,7 @@ func (sm *SubagentManager) emitLLMSpanStart(ctx context.Context, start time.Time
 		span.ParentSpanID = &parentID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	if collector.Verbose() && len(messages) > 0 {
 		if b, err := json.Marshal(messages); err == nil {
@@ -132,6 +133,7 @@ func (sm *SubagentManager) emitToolSpanStart(ctx context.Context, start time.Tim
 		span.ParentSpanID = &parentID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	collector.EmitSpan(span)
 	return spanID
@@ -200,6 +202,7 @@ func (sm *SubagentManager) emitSubagentSpanStart(ctx context.Context, spanID uui
 		span.ParentSpanID = &parentSpanID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	collector.EmitSpan(span)
 }

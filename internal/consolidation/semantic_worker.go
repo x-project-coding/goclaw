@@ -41,16 +41,21 @@ func (w *semanticWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		return nil
 	}
 
-	// Set temporal fields + scoping on extracted entities
+	// Set temporal fields + scoping on extracted entities.
+	// Team/contact/project scope is inherited from the episodic summary that triggered this event.
 	now := time.Now().UTC()
 	for i := range result.Entities {
 		result.Entities[i].AgentID = event.AgentID
 		result.Entities[i].UserID = event.UserID
+		result.Entities[i].TeamID = payload.TeamID
+		result.Entities[i].ContactID = payload.ContactID
+		result.Entities[i].ProjectID = payload.ProjectID
 		result.Entities[i].ValidFrom = &now
 	}
 	for i := range result.Relations {
 		result.Relations[i].AgentID = event.AgentID
 		result.Relations[i].UserID = event.UserID
+		result.Relations[i].TeamID = payload.TeamID
 		result.Relations[i].ValidFrom = &now
 	}
 

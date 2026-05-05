@@ -31,9 +31,10 @@ func (r *documentInfoRow) toDocumentInfo() store.DocumentInfo {
 }
 
 // documentDetailRow is an sqlx scan struct for the GetDocumentDetail query.
+// Content is no longer stored in the DB — it is loaded from FilePath after scan.
 type documentDetailRow struct {
 	Path          string    `db:"path"`
-	Content       string    `db:"content"`
+	FilePath      string    `db:"file_path"`
 	Hash          string    `db:"hash"`
 	UserID        *string   `db:"user_id"`
 	CreatedAt     time.Time `db:"created_at"`
@@ -45,7 +46,6 @@ type documentDetailRow struct {
 func (r *documentDetailRow) toDocumentDetail() store.DocumentDetail {
 	d := store.DocumentDetail{
 		Path:          r.Path,
-		Content:       r.Content,
 		Hash:          r.Hash,
 		ChunkCount:    r.ChunkCount,
 		EmbeddedCount: r.EmbeddedCount,

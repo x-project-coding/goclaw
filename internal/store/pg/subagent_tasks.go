@@ -25,7 +25,7 @@ func NewPGSubagentTaskStore(db *sql.DB) *PGSubagentTaskStore {
 
 const subagentTaskInsertCols = `parent_agent_key, session_key, subject, description,
 	status, result, depth, model, provider, iterations, input_tokens, output_tokens,
-	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, metadata`
+	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, project_id, metadata`
 
 // Create persists a new subagent task at spawn time.
 func (s *PGSubagentTaskStore) Create(ctx context.Context, task *store.SubagentTaskData) error {
@@ -37,7 +37,7 @@ func (s *PGSubagentTaskStore) Create(ctx context.Context, task *store.SubagentTa
 	}
 
 	q := fmt.Sprintf(`INSERT INTO subagent_tasks (id, %s)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 		ON CONFLICT (id) DO NOTHING`, subagentTaskInsertCols)
 
 	_, err := s.db.ExecContext(ctx, q,
@@ -45,14 +45,14 @@ func (s *PGSubagentTaskStore) Create(ctx context.Context, task *store.SubagentTa
 		task.Status, task.Result, task.Depth, task.Model, task.Provider,
 		task.Iterations, task.InputTokens, task.OutputTokens,
 		task.OriginChannel, task.OriginChatID, task.OriginPeerKind, task.OriginUserID,
-		task.SpawnedBy, metaJSON,
+		task.SpawnedBy, nilUUID(task.ProjectID), metaJSON,
 	)
 	return err
 }
 
 const subagentTaskSelectCols = `id, parent_agent_key, session_key, subject, description,
 	status, result, depth, model, provider, iterations, input_tokens, output_tokens,
-	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by,
+	origin_channel, origin_chat_id, origin_peer_kind, origin_user_id, spawned_by, project_id,
 	completed_at, archived_at, COALESCE(metadata, '{}'), created_at, updated_at`
 
 // scanTask scans a single row into SubagentTaskData.
@@ -63,7 +63,7 @@ func scanTask(row interface{ Scan(...any) error }) (*store.SubagentTaskData, err
 		&t.ID, &t.ParentAgentKey, &t.SessionKey, &t.Subject, &t.Description,
 		&t.Status, &t.Result, &t.Depth, &t.Model, &t.Provider,
 		&t.Iterations, &t.InputTokens, &t.OutputTokens,
-		&t.OriginChannel, &t.OriginChatID, &t.OriginPeerKind, &t.OriginUserID, &t.SpawnedBy,
+		&t.OriginChannel, &t.OriginChatID, &t.OriginPeerKind, &t.OriginUserID, &t.SpawnedBy, &t.ProjectID,
 		&t.CompletedAt, &t.ArchivedAt, &metaJSON, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {

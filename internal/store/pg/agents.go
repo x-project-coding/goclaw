@@ -44,7 +44,7 @@ func (s *PGAgentStore) generateAgentEmbedding(ctx context.Context, agentID uuid.
 		return
 	}
 	vecStr := vectorToString(embeddings[0])
-	if _, err := s.db.ExecContext(ctx, `UPDATE agents SET embedding = $1::vector WHERE id = $2`, vecStr, agentID); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE agents SET embedding = $1::halfvec WHERE id = $2`, vecStr, agentID); err != nil {
 		slog.Warn("agent embedding update failed", "agent", agentID, "error", err)
 	}
 }
@@ -77,7 +77,7 @@ func (s *PGAgentStore) BackfillAgentEmbeddings(ctx context.Context) (int, error)
 			continue
 		}
 		vecStr := vectorToString(embeddings[0])
-		if _, err := s.db.ExecContext(ctx, `UPDATE agents SET embedding = $1::vector WHERE id = $2`, vecStr, ag.ID); err != nil {
+		if _, err := s.db.ExecContext(ctx, `UPDATE agents SET embedding = $1::halfvec WHERE id = $2`, vecStr, ag.ID); err != nil {
 			continue
 		}
 		updated++

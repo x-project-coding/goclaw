@@ -402,7 +402,7 @@ func (m *TeamsMethods) dispatchTaskToAgent(ctx context.Context, task *store.Team
 	// caller's sender (rarely set) then fall back to the stored origin sender
 	// from the task at creation time. Without this, group-scope tasks
 	// dispatched from the dashboard would hit the empty-sender DENY rule in
-	// CheckFileWriterPermission (#915 Flow F).
+	// CheckEditFilePermission (#915 Flow F).
 	if dispatchSender := store.SenderIDFromContext(ctx); dispatchSender != "" {
 		meta["origin_sender_id"] = dispatchSender
 	} else if task.Metadata != nil {

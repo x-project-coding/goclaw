@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -109,7 +110,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) *Result {
 
 	// Group write permission check
 	if t.permStore != nil {
-		if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
+		if err := store.CheckEditFilePermission(ctx, t.permStore); err != nil {
 			return ErrorResult(err.Error())
 		}
 	}
@@ -176,6 +177,12 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) *Result {
 		return ErrorResult(err.Error())
 	}
 	if err := checkDeniedPath(resolved, t.workspace, t.deniedPrefixes); err != nil {
+		return ErrorResult(err.Error())
+	}
+
+	// Deny-glob layer: overrides a grant for protected paths (e.g. .env*, secrets/**).
+	relPath := workspaceRelPath(resolved, workspace)
+	if err := permissions.CheckDenyGlobs(ctx, t.permStore, relPath); err != nil {
 		return ErrorResult(err.Error())
 	}
 

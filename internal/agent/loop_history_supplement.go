@@ -60,19 +60,21 @@ func (l *Loop) buildMCPToolDescs(toolNames []string) map[string]string {
 // buildGroupWriterPrompt builds the system prompt section for group file writer restrictions.
 // For non-writers: injects refusal instructions + removes SOUL.md/AGENTS.md from context files.
 func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID string, files []bootstrap.ContextFile) (string, []bootstrap.ContextFile) {
-	writers, err := l.configPermStore.ListFileWriters(ctx, l.agentUUID, groupID)
+	// Post-split semantic: "writers" surface = edit_file holders (broadest practical write authority granted via /addwriter).
+	// KISS: single concept "writers" in LLM prompt; granular write_file/delete_file grants exist but are not surfaced here.
+	writers, err := l.configPermStore.ListWriters(ctx, l.agentUUID, groupID, store.ConfigTypeEditFile)
 	if err != nil {
 		return "", files // fail-open
 	}
 
 	// Discord guilds: also fetch guild-wide wildcard writers (guild:{guildID}:*).
 	// Per-user scope (guild:{guildID}:user:{userID}) won't find guild-wide grants
-	// because ListFileWriters uses exact SQL match.
+	// because ListWriters uses exact SQL match.
 	if strings.HasPrefix(groupID, "guild:") {
 		parts := strings.SplitN(groupID, ":", 3) // ["guild", "{guildID}", "user:..."]
 		if len(parts) >= 2 {
 			guildWildcard := parts[0] + ":" + parts[1] + ":*"
-			if guildWriters, gErr := l.configPermStore.ListFileWriters(ctx, l.agentUUID, guildWildcard); gErr == nil {
+			if guildWriters, gErr := l.configPermStore.ListWriters(ctx, l.agentUUID, guildWildcard, store.ConfigTypeEditFile); gErr == nil {
 				writers = append(writers, guildWriters...)
 			}
 			// Deduplicate by UserID (user may have both guild-wide and per-user grants).

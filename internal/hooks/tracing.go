@@ -64,6 +64,7 @@ func EmitHookSpan(
 		Error:      errMsg,
 		Metadata:   metadata,
 		TeamID:     tracing.TraceTeamIDPtrFromContext(ctx),
+		ContactID:  tracing.TraceContactIDPtrFromContext(ctx),
 		CreatedAt:  end,
 	}
 

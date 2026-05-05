@@ -46,13 +46,15 @@ func (s *SQLiteEpisodicStore) Create(ctx context.Context, ep *store.EpisodicSumm
 
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO episodic_summaries
-			(id, agent_id, user_id, session_key, summary, key_topics,
+			(id, agent_id, user_id, team_id, contact_id, project_id,
+			 session_key, summary, key_topics,
 			 turn_count, token_count, l0_abstract, source_id, source_type,
 			 created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (agent_id, user_id, source_id) WHERE source_id IS NOT NULL DO NOTHING`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT DO NOTHING`,
 		id.String(), ep.AgentID.String(),
-		ep.UserID, ep.SessionKey, ep.Summary, topics,
+		ep.UserID, uuidPtrStr(ep.TeamID), uuidPtrStr(ep.ContactID), uuidPtrStr(ep.ProjectID),
+		ep.SessionKey, ep.Summary, topics,
 		ep.TurnCount, ep.TokenCount, ep.L0Abstract,
 		ep.SourceID, ep.SourceType,
 		now.Format(time.RFC3339Nano), expiresAt)

@@ -102,6 +102,7 @@ func (l *Loop) emitLLMSpanStart(ctx context.Context, start time.Time, iteration 
 		span.AgentID = &l.agentUUID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	// Include input messages preview as truncated JSON.
 	if len(messages) > 0 {
@@ -243,6 +244,7 @@ func (l *Loop) emitToolSpanStart(ctx context.Context, start time.Time, toolName,
 		span.AgentID = &l.agentUUID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	collector.EmitSpan(span)
 	return spanID
@@ -345,6 +347,7 @@ func (l *Loop) emitAgentSpanStart(ctx context.Context, agentSpanID uuid.UUID, st
 		span.AgentID = &l.agentUUID
 	}
 	span.TeamID = tracing.TraceTeamIDPtrFromContext(ctx)
+	span.ContactID = tracing.TraceContactIDPtrFromContext(ctx)
 
 	collector.EmitSpan(span)
 }

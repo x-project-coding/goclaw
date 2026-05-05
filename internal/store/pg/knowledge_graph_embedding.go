@@ -87,7 +87,7 @@ func (s *PGKnowledgeGraphStore) BackfillKGEmbeddings(ctx context.Context) (int, 
 			}
 			vecStr := vectorToString(emb)
 			if _, err := s.db.ExecContext(ctx,
-				`UPDATE kg_entities SET embedding = $1::vector WHERE id = $2`,
+				`UPDATE kg_entities SET embedding = $1::halfvec WHERE id = $2`,
 				vecStr, pending[i].id,
 			); err != nil {
 				slog.Warn("kg entity embedding update failed", "entity_id", pending[i].id, "error", err)
@@ -128,7 +128,7 @@ func (s *PGKnowledgeGraphStore) EmbedEntity(ctx context.Context, entityID, name,
 	}
 	vecStr := vectorToString(embeddings[0])
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE kg_entities SET embedding = $1::vector WHERE id = $2`,
+		`UPDATE kg_entities SET embedding = $1::halfvec WHERE id = $2`,
 		vecStr, eid,
 	); err != nil {
 		slog.Warn("kg entity embedding failed", "entity_id", entityID, "error", err)

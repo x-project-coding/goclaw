@@ -145,7 +145,7 @@ func (t *CronTool) Execute(ctx context.Context, args map[string]any) *Result {
 	// Group cron permission check for mutation actions
 	if t.permStore != nil && (action == "add" || action == "update" || action == "remove") {
 		if err := store.CheckCronPermission(ctx, t.permStore); err != nil {
-			return ErrorResult("permission denied: only users with cron or file_writer permission can manage cron jobs in group chats")
+			return ErrorResult(err.Error())
 		}
 	}
 

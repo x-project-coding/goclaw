@@ -36,11 +36,11 @@ func (s *PGSkillStore) SearchByEmbedding(ctx context.Context, embedding []float3
 	orderN := nextParam
 	limitN := orderN + 1
 	q := fmt.Sprintf(`SELECT name, slug, COALESCE(description, '') AS description, version, file_path,
-			1 - (embedding <=> $1::vector) AS score
+			1 - (embedding <=> $1::halfvec) AS score
 		FROM skills
 		WHERE status = 'active' AND enabled = true AND embedding IS NOT NULL
 		  AND visibility != 'private'%s
-		ORDER BY embedding <=> $%d::vector
+		ORDER BY embedding <=> $%d::halfvec
 		LIMIT $%d`, scopeCond, orderN, limitN)
 
 	args := append([]any{vecStr}, tcArgs...)
@@ -104,7 +104,7 @@ func (s *PGSkillStore) BackfillSkillEmbeddings(ctx context.Context) (int, error)
 		}
 		vecStr := vectorToString(embeddings[0])
 		_, err = s.db.ExecContext(ctx,
-			`UPDATE skills SET embedding = $1::vector WHERE id = $2`, vecStr, sk.ID)
+			`UPDATE skills SET embedding = $1::halfvec WHERE id = $2`, vecStr, sk.ID)
 		if err != nil {
 			slog.Warn("skill embedding update failed", "skill", sk.Name, "error", err)
 			continue
@@ -135,7 +135,7 @@ func (s *PGSkillStore) generateEmbedding(ctx context.Context, slug, name, descri
 	}
 	vecStr := vectorToString(embeddings[0])
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE skills SET embedding = $1::vector WHERE slug = $2 AND status = 'active'`, vecStr, slug)
+		`UPDATE skills SET embedding = $1::halfvec WHERE slug = $2 AND status = 'active'`, vecStr, slug)
 	if err != nil {
 		slog.Warn("skill embedding store failed", "skill", name, "error", err)
 	}

@@ -38,16 +38,14 @@ func (s *SQLiteKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *st
 	now := time.Now().UTC()
 	id := uuid.Must(uuid.NewV7()).String()
 
-	sc, scArgs := kgUserClauseFor(ctx, entity.UserID)
-	_ = sc // used only for reads; upsert conflict key uses explicit columns
-
 	var actualID string
 	err = s.db.QueryRowContext(ctx, `
 		INSERT INTO kg_entities
-			(id, agent_id, user_id, external_id, name, entity_type, description,
+			(id, agent_id, user_id, team_id, contact_id, project_id,
+			 external_id, name, entity_type, description,
 			 properties, source_id, confidence, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(agent_id, user_id, external_id) DO UPDATE SET
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(agent_id, COALESCE(user_id,''), external_id) DO UPDATE SET
 			name        = excluded.name,
 			entity_type = excluded.entity_type,
 			description = excluded.description,
@@ -56,15 +54,15 @@ func (s *SQLiteKnowledgeGraphStore) UpsertEntity(ctx context.Context, entity *st
 			confidence  = excluded.confidence,
 			updated_at  = excluded.updated_at
 		RETURNING id`,
-		id, entity.AgentID, entity.UserID, entity.ExternalID,
-		entity.Name, entity.EntityType, entity.Description,
+		id, entity.AgentID, nilStr(entity.UserID),
+		nilStr(entity.TeamID), nilStr(entity.ContactID), nilStr(entity.ProjectID),
+		entity.ExternalID, entity.Name, entity.EntityType, entity.Description,
 		string(props), entity.SourceID, entity.Confidence, now, now,
 	).Scan(&actualID)
 	if err != nil {
 		return err
 	}
 	entity.ID = actualID
-	_ = scArgs
 	return nil
 }
 

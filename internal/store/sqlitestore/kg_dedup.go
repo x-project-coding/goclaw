@@ -35,6 +35,7 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
 	// Upsert entities; build external_id → DB ID lookup for resolving relation endpoints.
+	// Team/contact/project scope is inherited from the caller (semantic worker threads from episodic row).
 	extIDtoDBID := make(map[string]string, len(entities))
 	for i := range entities {
 		e := &entities[i]
@@ -50,10 +51,11 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 		var actualID string
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO kg_entities
-				(id, agent_id, user_id, external_id, name, entity_type, description,
+				(id, agent_id, user_id, team_id, contact_id, project_id,
+				 external_id, name, entity_type, description,
 				 properties, source_id, confidence, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(agent_id, user_id, external_id) DO UPDATE SET
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(agent_id, COALESCE(user_id,''), external_id) DO UPDATE SET
 				name        = excluded.name,
 				entity_type = excluded.entity_type,
 				description = excluded.description,
@@ -62,7 +64,9 @@ func (s *SQLiteKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentI
 				confidence  = excluded.confidence,
 				updated_at  = excluded.updated_at
 			RETURNING id`,
-			newID, agentID, userID, e.ExternalID, e.Name, e.EntityType,
+			newID, agentID, nilStr(userID),
+			nilStr(e.TeamID), nilStr(e.ContactID), nilStr(e.ProjectID),
+			e.ExternalID, e.Name, e.EntityType,
 			e.Description, string(props), e.SourceID, e.Confidence, now, now,
 		).Scan(&actualID); err != nil {
 			return nil, fmt.Errorf("ingest entity %q: %w", e.ExternalID, err)

@@ -93,7 +93,8 @@ func (c *Channel) handleWriterCommand(ctx context.Context, message *telego.Messa
 	// Fetch existing writers (cached 60s) for both permission check and remove guard.
 	// Bootstrap exception: if no writers exist yet, the first /addwriter caller
 	// is allowed to bootstrap the allowlist.
-	existingWriters, _ := c.configPermStore.ListFileWriters(ctx, agentID, groupID)
+	// /addwriter grants edit_file (broadest practical write authority); /removewriter revokes all three split gates.
+	existingWriters, _ := c.configPermStore.ListWriters(ctx, agentID, groupID, store.ConfigTypeEditFile)
 
 	if len(existingWriters) > 0 {
 		isWriter := false
@@ -135,7 +136,7 @@ func (c *Channel) handleWriterCommand(ctx context.Context, message *telego.Messa
 		if err := c.configPermStore.Grant(ctx, &store.ConfigPermission{
 			AgentID:    agentID,
 			Scope:      groupID,
-			ConfigType: store.ConfigTypeFileWriter,
+			ConfigType: store.ConfigTypeEditFile,
 			UserID:     targetID,
 			Permission: "allow",
 			Metadata:   meta,
@@ -152,7 +153,10 @@ func (c *Channel) handleWriterCommand(ctx context.Context, message *telego.Messa
 			send("Cannot remove the last file writer.")
 			return
 		}
-		if err := c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeFileWriter, targetID); err != nil {
+		// Revoke all three split file gates (idempotent — missing rows ignored).
+		_ = c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeWriteFile, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeDeleteFile, targetID)
+		if err := c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeEditFile, targetID); err != nil {
 			slog.Warn("remove writer failed", "error", err, "target", targetID)
 			send("Failed to remove writer. Please try again.")
 			return
@@ -190,7 +194,7 @@ func (c *Channel) handleListWriters(ctx context.Context, chatID int64, chatIDStr
 
 	groupID := fmt.Sprintf("group:%s:%s", c.Name(), chatIDStr)
 
-	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeFileWriter, groupID)
+	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeEditFile, groupID)
 	if err != nil {
 		slog.Warn("list writers failed", "error", err)
 		send("Failed to list writers. Please try again.")
@@ -257,7 +261,7 @@ func (c *Channel) asyncHealWriterMetadata(agentID uuid.UUID, chatIDStr, groupID 
 			if err := c.configPermStore.Grant(context.Background(), &store.ConfigPermission{
 				AgentID:    agentID,
 				Scope:      groupID,
-				ConfigType: store.ConfigTypeFileWriter,
+				ConfigType: store.ConfigTypeEditFile,
 				UserID:     w.UserID,
 				Permission: "allow",
 				Metadata:   meta,

@@ -99,7 +99,8 @@ func (c *Channel) handleWriterCommand(m *discordgo.MessageCreate, action string)
 	// Fetch existing writers (cached 60s) for both permission check and remove guard.
 	// Bootstrap exception: if no writers exist yet, the first !addwriter caller
 	// is allowed to bootstrap the allowlist.
-	existingWriters, _ := c.configPermStore.ListFileWriters(ctx, agentID, scope)
+	// /addwriter grants edit_file (broadest practical write authority); /removewriter revokes all three split gates.
+	existingWriters, _ := c.configPermStore.ListWriters(ctx, agentID, scope, store.ConfigTypeEditFile)
 
 	if len(existingWriters) > 0 {
 		isWriter := false
@@ -153,7 +154,7 @@ func (c *Channel) handleWriterCommand(m *discordgo.MessageCreate, action string)
 		if err := c.configPermStore.Grant(ctx, &store.ConfigPermission{
 			AgentID:    agentID,
 			Scope:      scope,
-			ConfigType: store.ConfigTypeFileWriter,
+			ConfigType: store.ConfigTypeEditFile,
 			UserID:     targetID,
 			Permission: "allow",
 			Metadata:   meta,
@@ -171,14 +172,19 @@ func (c *Channel) handleWriterCommand(m *discordgo.MessageCreate, action string)
 			return
 		}
 		// Revoke guild-wide permission.
-		if err := c.configPermStore.Revoke(ctx, agentID, scope, store.ConfigTypeFileWriter, targetID); err != nil {
+		// Revoke all three split file gates (idempotent — missing rows ignored).
+		_ = c.configPermStore.Revoke(ctx, agentID, scope, store.ConfigTypeWriteFile, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, scope, store.ConfigTypeDeleteFile, targetID)
+		if err := c.configPermStore.Revoke(ctx, agentID, scope, store.ConfigTypeEditFile, targetID); err != nil {
 			slog.Warn("discord remove writer failed", "error", err, "target", targetID)
 			send("Failed to remove writer. Please try again.")
 			return
 		}
-		// Also revoke per-user scoped permission if it exists (guild:{guildID}:user:{userID}).
+		// Also revoke per-user scoped permissions if they exist (guild:{guildID}:user:{userID}).
 		perUserScope := fmt.Sprintf("guild:%s:user:%s", m.GuildID, targetID)
-		_ = c.configPermStore.Revoke(ctx, agentID, perUserScope, store.ConfigTypeFileWriter, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, perUserScope, store.ConfigTypeWriteFile, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, perUserScope, store.ConfigTypeEditFile, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, perUserScope, store.ConfigTypeDeleteFile, targetID)
 		send(fmt.Sprintf("Removed %s from file writers.", targetName))
 	}
 }
@@ -214,7 +220,7 @@ func (c *Channel) handleListWriters(m *discordgo.MessageCreate) {
 	// via matchWildcard in CheckPermission.
 	scope := fmt.Sprintf("guild:%s:*", m.GuildID)
 
-	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeFileWriter, scope)
+	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeEditFile, scope)
 	if err != nil {
 		slog.Warn("discord list writers failed", "error", err)
 		send("Failed to list writers. Please try again.")

@@ -24,7 +24,7 @@ type ChannelInstancesHandler struct {
 	configPermStore store.ConfigPermissionStore
 	contactStore    store.ContactStore
 	msgBus          *bus.MessageBus
-	memberResolver  channels.MemberResolver // optional — enriches file_writer metadata on addwriter
+	memberResolver  channels.MemberResolver // optional — enriches edit_file metadata on addwriter
 }
 
 // NewChannelInstancesHandler creates a handler for channel instance management endpoints.
@@ -322,7 +322,7 @@ func (h *ChannelInstancesHandler) handleWriterGroups(w http.ResponseWriter, r *h
 	if !ok {
 		return
 	}
-	perms, err := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeFileWriter, "")
+	perms, err := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeEditFile, "")
 	if err != nil {
 		slog.Error("channel_instances.writer_groups", "error", err)
 		locale := store.LocaleFromContext(r.Context())
@@ -358,7 +358,7 @@ func (h *ChannelInstancesHandler) handleListWriters(w http.ResponseWriter, r *ht
 		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "group_id"))
 		return
 	}
-	perms, err := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeFileWriter, groupID)
+	perms, err := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeEditFile, groupID)
 	if err != nil {
 		slog.Error("channel_instances.list_writers", "error", err)
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToList, "writers"))
@@ -424,7 +424,7 @@ func (h *ChannelInstancesHandler) handleAddWriter(w http.ResponseWriter, r *http
 	if err := h.configPermStore.Grant(r.Context(), &store.ConfigPermission{
 		AgentID:    agentID,
 		Scope:      body.GroupID,
-		ConfigType: store.ConfigTypeFileWriter,
+		ConfigType: store.ConfigTypeEditFile,
 		UserID:     body.UserID,
 		Permission: "allow",
 		Metadata:   meta,
@@ -449,7 +449,7 @@ func (h *ChannelInstancesHandler) handleRemoveWriter(w http.ResponseWriter, r *h
 		return
 	}
 	// Prevent removing the last writer (same guard as Telegram /removewriter)
-	writers, _ := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeFileWriter, groupID)
+	writers, _ := h.configPermStore.List(r.Context(), agentID, store.ConfigTypeEditFile, groupID)
 	allowCount := 0
 	for _, p := range writers {
 		if p.Permission == "allow" {
@@ -460,7 +460,10 @@ func (h *ChannelInstancesHandler) handleRemoveWriter(w http.ResponseWriter, r *h
 		writeError(w, http.StatusConflict, protocol.ErrFailedPrecondition, i18n.T(locale, i18n.MsgCannotRemoveLastWriter))
 		return
 	}
-	if err := h.configPermStore.Revoke(r.Context(), agentID, groupID, store.ConfigTypeFileWriter, userID); err != nil {
+	// Revoke all three split file gates for the target (idempotent — missing rows ignored).
+	_ = h.configPermStore.Revoke(r.Context(), agentID, groupID, store.ConfigTypeWriteFile, userID)
+	_ = h.configPermStore.Revoke(r.Context(), agentID, groupID, store.ConfigTypeDeleteFile, userID)
+	if err := h.configPermStore.Revoke(r.Context(), agentID, groupID, store.ConfigTypeEditFile, userID); err != nil {
 		slog.Error("channel_instances.remove_writer", "error", err)
 		writeError(w, http.StatusInternalServerError, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToDelete, "writer", "internal error"))
 		return

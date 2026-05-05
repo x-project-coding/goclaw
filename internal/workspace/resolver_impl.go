@@ -151,7 +151,15 @@ func sharingScope(p ResolveParams) string {
 	return "user"
 }
 
-// sanitizeSegment makes a string safe for filesystem path use.
+// SanitizeSegment makes a string safe for filesystem path use.
+// Replaces any character that is not ASCII alphanumeric, hyphen, or underscore
+// with '_'. Used by both the workspace resolver and the FS-backed memory writer
+// to build scope-derived directory paths safely.
+func SanitizeSegment(s string) string {
+	return sanitizeSegment(s)
+}
+
+// sanitizeSegment is the internal implementation; exported as SanitizeSegment.
 // Mirrors tools.SanitizePathSegment without importing tools package.
 func sanitizeSegment(s string) string {
 	var b strings.Builder

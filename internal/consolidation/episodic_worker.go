@@ -103,22 +103,50 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		SourceType: "session",
 		ExpiresAt:  &expiresAt,
 	}
+	// Propagate 5D scope from the session payload so the episodic row is tagged
+	// with the correct scope dimensions, enabling cross-tenant isolation in reads.
+	if payload.TeamID != "" {
+		if tid, err := uuid.Parse(payload.TeamID); err == nil {
+			ep.TeamID = &tid
+		}
+	}
+	if payload.ContactID != "" {
+		if cid, err := uuid.Parse(payload.ContactID); err == nil {
+			ep.ContactID = &cid
+		}
+	}
+	if payload.ProjectID != "" {
+		if pid, err := uuid.Parse(payload.ProjectID); err == nil {
+			ep.ProjectID = &pid
+		}
+	}
 	if err := w.store.Create(ctx, ep); err != nil {
 		return fmt.Errorf("episodic: create: %w", err)
 	}
 
-	// Publish episodic.created event for downstream semantic extraction
+	// Publish episodic.created event for downstream semantic extraction.
+	// Thread the intersected 5D scope so KG workers can tag entities correctly.
+	createdPayload := &eventbus.EpisodicCreatedPayload{
+		EpisodicID:  ep.ID.String(),
+		SessionKey:  payload.SessionKey,
+		Summary:     summary,
+		KeyEntities: entities,
+	}
+	if ep.TeamID != nil {
+		createdPayload.TeamID = ep.TeamID.String()
+	}
+	if ep.ContactID != nil {
+		createdPayload.ContactID = ep.ContactID.String()
+	}
+	if ep.ProjectID != nil {
+		createdPayload.ProjectID = ep.ProjectID.String()
+	}
 	w.eventBus.Publish(eventbus.DomainEvent{
 		Type:     eventbus.EventEpisodicCreated,
 		SourceID: ep.ID.String(),
 		AgentID:  event.AgentID,
 		UserID:   event.UserID,
-		Payload: &eventbus.EpisodicCreatedPayload{
-			EpisodicID:  ep.ID.String(),
-			SessionKey:  payload.SessionKey,
-			Summary:     summary,
-			KeyEntities: entities,
-		},
+		Payload:  createdPayload,
 	})
 
 	slog.Info("episodic: created summary", "session", payload.SessionKey, "l0_len", len(l0))

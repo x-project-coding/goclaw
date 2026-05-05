@@ -111,7 +111,9 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *Result
 	if t.permStore != nil {
 		base := filepath.Base(path)
 		if base == bootstrap.SoulFile || base == bootstrap.AgentsFile {
-			if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
+			// edit_file gate doubles as read-gate for protected files: ability to modify implies
+			// read access; non-editors get a permission denied response (existing behavior).
+			if err := store.CheckEditFilePermission(ctx, t.permStore); err != nil {
 				return ErrorResult(fmt.Sprintf("permission denied: %s is restricted in this group", base))
 			}
 		}

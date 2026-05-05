@@ -85,16 +85,16 @@ type LLMProviderData struct {
 	Metadata     json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
-// RequiredMemoryEmbeddingDimensions is the fixed vector size used by the pgvector memory schema.
-// All memory embeddings must match this dimensionality until the schema supports variable sizes.
-const RequiredMemoryEmbeddingDimensions = 1536
+// RequiredMemoryEmbeddingDimensions is the halfvec(3072) dimension used by the memory schema.
+// All memory embeddings must match this dimensionality. Uses OpenAI text-embedding-3-large.
+const RequiredMemoryEmbeddingDimensions = 3072
 
 // EmbeddingSettings holds embedding-specific configuration stored in provider settings JSONB.
 type EmbeddingSettings struct {
 	Enabled    bool   `json:"enabled" db:"-"`
-	Model      string `json:"model,omitempty" db:"-"`      // e.g. "text-embedding-3-small"
+	Model      string `json:"model,omitempty" db:"-"`      // e.g. "text-embedding-3-large" (3072 dims)
 	APIBase    string `json:"api_base,omitempty" db:"-"`   // override if embedding endpoint differs from chat
-	Dimensions int    `json:"dimensions,omitempty" db:"-"` // truncate output to N dims (e.g. 1536); 0 = model default
+	Dimensions int    `json:"dimensions,omitempty" db:"-"` // truncate output to N dims (e.g. 3072); 0 = model default
 }
 
 // ProviderReasoningConfig holds provider-owned default reasoning settings.

@@ -18,7 +18,7 @@ type ConfigPermissionsMethods struct {
 	permStore      store.ConfigPermissionStore
 	agentStore     store.AgentStore
 	agentRouter    *agent.Router           // cache-aware agent resolver; nil = DB-only fallback
-	memberResolver channels.MemberResolver // optional — enriches file_writer metadata on grant
+	memberResolver channels.MemberResolver // optional — enriches edit_file metadata on grant
 }
 
 func NewConfigPermissionsMethods(ps store.ConfigPermissionStore, as store.AgentStore) *ConfigPermissionsMethods {
@@ -31,7 +31,7 @@ func (m *ConfigPermissionsMethods) SetAgentRouter(r *agent.Router) {
 }
 
 // SetMemberResolver wires a channel member resolver so Grant can auto-enrich
-// file_writer metadata when the caller supplies none (e.g. Web UI path).
+// edit_file metadata when the caller supplies none (e.g. Web UI path).
 func (m *ConfigPermissionsMethods) SetMemberResolver(r channels.MemberResolver) {
 	m.memberResolver = r
 }
@@ -118,14 +118,33 @@ func (m *ConfigPermissionsMethods) handleGrant(ctx context.Context, client *gate
 		}
 	}
 
-	// Auto-enrich file_writer metadata for group scopes when caller supplied none.
+	// Auto-enrich edit_file metadata for group scopes when caller supplied none.
+	// Applies to all three split file gates (write_file, edit_file, delete_file).
 	// Best-effort: failure (bot offline, user left group, channel not supported)
 	// leaves params.Metadata as-is and the store's own fallback ("{}") applies.
 	metadata := params.Metadata
-	if params.ConfigType == store.ConfigTypeFileWriter && channels.IsEmptyWriterMetadata(metadata) {
+	isFileGate := params.ConfigType == store.ConfigTypeWriteFile ||
+		params.ConfigType == store.ConfigTypeEditFile ||
+		params.ConfigType == store.ConfigTypeDeleteFile
+	if isFileGate && channels.IsEmptyWriterMetadata(metadata) {
 		if enriched, ok := channels.EnrichFileWriterMetadata(ctx, m.memberResolver, params.Scope, params.UserID); ok {
 			metadata = enriched
 		}
+	}
+
+	// Validate config_type against the accepted set; reject unknown values fail-closed.
+	validConfigTypes := map[string]bool{
+		store.ConfigTypeWriteFile:  true,
+		store.ConfigTypeEditFile:   true,
+		store.ConfigTypeDeleteFile: true,
+		store.ConfigTypeCron:       true,
+		store.ConfigTypeHeartbeat:  true,
+		"*":                        true,
+	}
+	if !validConfigTypes[params.ConfigType] {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest,
+			"invalid configType: must be one of write_file, edit_file, delete_file, cron, heartbeat, *"))
+		return
 	}
 
 	perm := &store.ConfigPermission{

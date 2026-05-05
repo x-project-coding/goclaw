@@ -19,10 +19,40 @@ type episodicScored struct {
 	createdAt  time.Time
 }
 
+// appendEpisodicScopeFilter appends the 5D scope WHERE clauses for PG queries.
+// Each active dimension uses exact-match with NULL-safe semantics:
+//   - non-nil field: AND column = $N
+//   - nil field: no clause added (dimension inactive, matches all values)
+//
+// This function is used by both ftsSearch and vectorSearch.
+// p is the next parameter index; the updated p is returned.
+func appendEpisodicScopeFilter(q string, args []any, p int, scope *store.EpisodicScope) (string, []any, int) {
+	if scope == nil {
+		return q, args, p
+	}
+	if scope.TeamID != nil {
+		q += fmt.Sprintf(" AND team_id = $%d", p)
+		args = append(args, *scope.TeamID)
+		p++
+	}
+	if scope.ContactID != nil {
+		q += fmt.Sprintf(" AND contact_id = $%d", p)
+		args = append(args, *scope.ContactID)
+		p++
+	}
+	if scope.ProjectID != nil {
+		q += fmt.Sprintf(" AND project_id = $%d", p)
+		args = append(args, *scope.ProjectID)
+		p++
+	}
+	return q, args, p
+}
+
 // ftsSearch performs full-text search on episodic summaries.
 // Uses the stored search_vector column (GIN-indexed, 'english' config).
 // When userID is empty, returns results across all users (admin view).
-func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID string, limit int) []episodicScored {
+// scope restricts results to the 5D scope bucket when non-nil.
+func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID string, limit int, scope *store.EpisodicScope) []episodicScored {
 	q := `SELECT id, session_key, l0_abstract,
 	        ts_rank(search_vector, plainto_tsquery('english', $1)) AS score, created_at
 		FROM episodic_summaries
@@ -36,6 +66,7 @@ func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID 
 		args = append(args, userID)
 		p++
 	}
+	q, args, p = appendEpisodicScopeFilter(q, args, p, scope)
 	q += fmt.Sprintf(" ORDER BY score DESC LIMIT $%d", p)
 	args = append(args, limit)
 
@@ -52,7 +83,8 @@ func (s *PGEpisodicStore) ftsSearch(ctx context.Context, query, agentID, userID 
 
 // vectorSearch performs cosine similarity search on episodic embeddings.
 // When userID is empty, returns results across all users (admin view).
-func (s *PGEpisodicStore) vectorSearch(ctx context.Context, embedding []float32, agentID, userID string, limit int) []episodicScored {
+// scope restricts results to the 5D scope bucket when non-nil.
+func (s *PGEpisodicStore) vectorSearch(ctx context.Context, embedding []float32, agentID, userID string, limit int, scope *store.EpisodicScope) []episodicScored {
 	vecStr := vectorToString(embedding)
 	q := `SELECT id, session_key, l0_abstract, 1 - (embedding <=> $1) AS score, created_at
 		FROM episodic_summaries
@@ -66,6 +98,7 @@ func (s *PGEpisodicStore) vectorSearch(ctx context.Context, embedding []float32,
 		args = append(args, userID)
 		p++
 	}
+	q, args, p = appendEpisodicScopeFilter(q, args, p, scope)
 	q += fmt.Sprintf(" ORDER BY embedding <=> $1 LIMIT $%d", p)
 	args = append(args, limit)
 

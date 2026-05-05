@@ -48,13 +48,14 @@ func (s *PGEpisodicStore) Create(ctx context.Context, ep *store.EpisodicSummary)
 
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO episodic_summaries
-			(id, agent_id, user_id, session_key, summary, key_topics,
+			(id, agent_id, user_id, team_id, contact_id, project_id,
+			 session_key, summary, key_topics,
 			 turn_count, token_count, embedding, l0_abstract, source_id,
 			 source_type, created_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-		ON CONFLICT (agent_id, user_id, source_id) WHERE source_id IS NOT NULL DO NOTHING`,
-		id, ep.AgentID, ep.UserID, ep.SessionKey,
-		ep.Summary, topics, ep.TurnCount, ep.TokenCount,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		ON CONFLICT DO NOTHING`,
+		id, ep.AgentID, ep.UserID, ep.TeamID, ep.ContactID, ep.ProjectID,
+		ep.SessionKey, ep.Summary, topics, ep.TurnCount, ep.TokenCount,
 		embStr, ep.L0Abstract, ep.SourceID, ep.SourceType, now, ep.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("episodic create: %w", err)
@@ -136,14 +137,14 @@ func (s *PGEpisodicStore) Search(ctx context.Context, query, agentID, userID str
 	}
 
 	// FTS search.
-	ftsResults := s.ftsSearch(ctx, query, agentID, userID, maxResults*2)
+	ftsResults := s.ftsSearch(ctx, query, agentID, userID, maxResults*2, opts.Scope)
 
 	// Vector search (if embedding provider available).
 	var vecResults []episodicScored
 	if s.embProvider != nil {
 		vecs, err := s.embProvider.Embed(ctx, []string{query})
 		if err == nil && len(vecs) > 0 {
-			vecResults = s.vectorSearch(ctx, vecs[0], agentID, userID, maxResults*2)
+			vecResults = s.vectorSearch(ctx, vecs[0], agentID, userID, maxResults*2, opts.Scope)
 		}
 	}
 

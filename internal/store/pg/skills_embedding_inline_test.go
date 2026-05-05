@@ -15,11 +15,11 @@ func buildSkillEmbeddingQueryString(scopeCond string, orderN, limitN int) string
 		cond = fmt.Sprintf(" AND (source = 'builtin' OR (%s))", expr)
 	}
 	return fmt.Sprintf(`SELECT name, slug, COALESCE(description, '') AS description, version, file_path,
-			1 - (embedding <=> $1::vector) AS score
+			1 - (embedding <=> $1::halfvec) AS score
 		FROM skills
 		WHERE status = 'active' AND enabled = true AND embedding IS NOT NULL
 		  AND visibility != 'private'%s
-		ORDER BY embedding <=> $%d::vector
+		ORDER BY embedding <=> $%d::halfvec
 		LIMIT $%d`, cond, orderN, limitN)
 }
 
@@ -28,11 +28,11 @@ func buildSkillEmbeddingQueryString(scopeCond string, orderN, limitN int) string
 func TestSkillEmbeddingSQL_NoScope(t *testing.T) {
 	got := buildSkillEmbeddingQueryString("", 2, 3)
 	want := `SELECT name, slug, COALESCE(description, '') AS description, version, file_path,
-			1 - (embedding <=> $1::vector) AS score
+			1 - (embedding <=> $1::halfvec) AS score
 		FROM skills
 		WHERE status = 'active' AND enabled = true AND embedding IS NOT NULL
 		  AND visibility != 'private'
-		ORDER BY embedding <=> $2::vector
+		ORDER BY embedding <=> $2::halfvec
 		LIMIT $3`
 	if got != want {
 		t.Fatalf("SQL mismatch (no scope):\nwant: %q\n got: %q", want, got)
@@ -45,11 +45,11 @@ func TestSkillEmbeddingSQL_WithProjectScope(t *testing.T) {
 	scope := " AND project_id = $2"
 	got := buildSkillEmbeddingQueryString(scope, 3, 4)
 	want := `SELECT name, slug, COALESCE(description, '') AS description, version, file_path,
-			1 - (embedding <=> $1::vector) AS score
+			1 - (embedding <=> $1::halfvec) AS score
 		FROM skills
 		WHERE status = 'active' AND enabled = true AND embedding IS NOT NULL
 		  AND visibility != 'private' AND (source = 'builtin' OR (project_id = $2))
-		ORDER BY embedding <=> $3::vector
+		ORDER BY embedding <=> $3::halfvec
 		LIMIT $4`
 	if got != want {
 		t.Fatalf("SQL mismatch (project scope):\nwant: %q\n got: %q", want, got)

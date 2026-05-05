@@ -8,6 +8,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -207,17 +208,26 @@ func (l *Loop) finalizeRun(
 
 	// V3: emit session.completed for consolidation pipeline (episodic → semantic → dreaming)
 	if l.domainBus != nil {
+		// Resolve 5D scope from context so downstream workers tag records correctly.
+		scPayload := &eventbus.SessionCompletedPayload{
+			SessionKey:      req.SessionKey,
+			MessageCount:    len(history) + len(rs.pendingMsgs),
+			TokensUsed:      rs.totalUsage.PromptTokens + rs.totalUsage.CompletionTokens,
+			CompactionCount: l.sessions.GetCompactionCount(ctx, req.SessionKey),
+			TeamID:          req.TeamID,
+		}
+		if cid := store.ContactIDFromContext(ctx); cid != uuid.Nil {
+			scPayload.ContactID = cid.String()
+		}
+		if pid := store.ProjectIDFromContext(ctx); pid != uuid.Nil {
+			scPayload.ProjectID = pid.String()
+		}
 		l.domainBus.Publish(eventbus.DomainEvent{
 			Type:     eventbus.EventSessionCompleted,
 			AgentID:  l.agentUUID.String(),
 			UserID:   req.UserID,
 			SourceID: req.SessionKey,
-			Payload: &eventbus.SessionCompletedPayload{
-				SessionKey:      req.SessionKey,
-				MessageCount:    len(history) + len(rs.pendingMsgs),
-				TokensUsed:      rs.totalUsage.PromptTokens + rs.totalUsage.CompletionTokens,
-				CompactionCount: l.sessions.GetCompactionCount(ctx, req.SessionKey),
-			},
+			Payload:  scPayload,
 		})
 	}
 

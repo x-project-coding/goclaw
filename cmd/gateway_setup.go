@@ -75,12 +75,14 @@ func setupToolRegistry(
 		toolsReg.Register(tools.NewSandboxedWriteFileTool(workspace, agentCfg.RestrictToWorkspace, sandboxMgr))
 		toolsReg.Register(tools.NewSandboxedListFilesTool(workspace, agentCfg.RestrictToWorkspace, sandboxMgr))
 		toolsReg.Register(tools.NewSandboxedEditTool(workspace, agentCfg.RestrictToWorkspace, sandboxMgr))
+		toolsReg.Register(tools.NewDeleteFileTool(workspace, agentCfg.RestrictToWorkspace)) // no sandboxed variant: delete is host-only
 		toolsReg.Register(tools.NewSandboxedExecTool(workspace, agentCfg.RestrictToWorkspace, sandboxMgr))
 	} else {
 		toolsReg.Register(tools.NewReadFileTool(workspace, agentCfg.RestrictToWorkspace))
 		toolsReg.Register(tools.NewWriteFileTool(workspace, agentCfg.RestrictToWorkspace))
 		toolsReg.Register(tools.NewListFilesTool(workspace, agentCfg.RestrictToWorkspace))
 		toolsReg.Register(tools.NewEditTool(workspace, agentCfg.RestrictToWorkspace))
+		toolsReg.Register(tools.NewDeleteFileTool(workspace, agentCfg.RestrictToWorkspace))
 		toolsReg.Register(tools.NewExecTool(workspace, agentCfg.RestrictToWorkspace))
 	}
 

@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS team_tasks (
     tsv                 tsvector GENERATED ALWAYS AS (
         to_tsvector('simple', coalesce(subject,'') || ' ' || coalesce(description,''))
     ) STORED,
-    embedding           vector(1536),
+    embedding           halfvec(3072),
     created_at          TIMESTAMPTZ  DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -393,7 +393,7 @@ CREATE INDEX idx_tt_followup             ON team_tasks(followup_at)       WHERE 
 CREATE INDEX idx_tt_owner_status         ON team_tasks(team_id, owner_agent_id, status);
 CREATE INDEX idx_tt_blocked_by           ON team_tasks USING gin(blocked_by);
 CREATE INDEX idx_tt_tsv                  ON team_tasks USING gin(tsv);
-CREATE INDEX idx_tt_embedding            ON team_tasks USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_tt_embedding            ON team_tasks USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 CREATE TABLE IF NOT EXISTS team_task_comments (
     id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -553,53 +553,70 @@ CREATE INDEX idx_agent_sessions_project     ON agent_sessions(project_id) WHERE 
 
 CREATE TABLE IF NOT EXISTS memory_documents (
     id           UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    agent_id     UUID         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
-    user_id      UUID         REFERENCES users(id)                ON DELETE SET NULL,
+    agent_id     UUID         NOT NULL REFERENCES agents(id)            ON DELETE CASCADE,
+    team_id      UUID         REFERENCES agent_teams(id)                ON DELETE CASCADE,
+    user_id      UUID         REFERENCES users(id)                      ON DELETE CASCADE,
+    contact_id   UUID         REFERENCES channel_contacts(id)           ON DELETE CASCADE,
+    project_id   UUID         REFERENCES projects(id)                   ON DELETE SET NULL,
     path         VARCHAR(500) NOT NULL,
-    content      TEXT         NOT NULL DEFAULT '',
-    hash         VARCHAR(64)  NOT NULL,
-    team_id      UUID         REFERENCES agent_teams(id)          ON DELETE SET NULL,
-    custom_scope TEXT,
+    file_path    VARCHAR(500) NOT NULL DEFAULT '',
+    content_hash VARCHAR(64)  NOT NULL DEFAULT '',
+    version      INT          NOT NULL DEFAULT 1,
     metadata     JSONB        NOT NULL DEFAULT '{}',
     created_at   TIMESTAMPTZ  DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_memdoc_unique     ON memory_documents(agent_id, COALESCE(user_id::text,''), path);
-CREATE INDEX idx_memdoc_agent_user        ON memory_documents(agent_id, user_id);
-CREATE INDEX idx_memdoc_team              ON memory_documents(team_id)  WHERE team_id IS NOT NULL;
+-- 5D scope unique: same agent cannot have two docs at the same path under the same full scope.
+-- COALESCE collapses NULLs so that (agent, NULL, NULL, NULL, NULL, path) is a single unique slot.
+CREATE UNIQUE INDEX idx_memdoc_unique ON memory_documents(
+    agent_id,
+    COALESCE(team_id::text,    ''),
+    COALESCE(user_id::text,    ''),
+    COALESCE(contact_id::text, ''),
+    COALESCE(project_id::text, ''),
+    path
+);
+CREATE INDEX idx_memdoc_agent_user ON memory_documents(agent_id, user_id);
+CREATE INDEX idx_memdoc_team       ON memory_documents(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_memdoc_user       ON memory_documents(user_id)    WHERE user_id    IS NOT NULL;
+CREATE INDEX idx_memdoc_contact    ON memory_documents(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX idx_memdoc_project    ON memory_documents(project_id) WHERE project_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS memory_chunks (
-    id          UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    agent_id    UUID         NOT NULL REFERENCES agents(id)           ON DELETE CASCADE,
-    document_id UUID         REFERENCES memory_documents(id)          ON DELETE CASCADE,
-    user_id     UUID         REFERENCES users(id)                     ON DELETE SET NULL,
-    path        TEXT         NOT NULL,
-    start_line  INT          NOT NULL DEFAULT 0,
-    end_line    INT          NOT NULL DEFAULT 0,
-    hash        VARCHAR(64)  NOT NULL,
-    text        TEXT         NOT NULL,
-    team_id     UUID         REFERENCES agent_teams(id)               ON DELETE SET NULL,
-    custom_scope TEXT,
-    embedding   vector(1536),
-    tsv         tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text,''))) STORED,
-    created_at  TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ  DEFAULT NOW()
+    id           UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    agent_id     UUID         NOT NULL REFERENCES agents(id)            ON DELETE CASCADE,
+    document_id  UUID         REFERENCES memory_documents(id)           ON DELETE CASCADE,
+    team_id      UUID         REFERENCES agent_teams(id)                ON DELETE CASCADE,
+    user_id      UUID         REFERENCES users(id)                      ON DELETE CASCADE,
+    contact_id   UUID         REFERENCES channel_contacts(id)           ON DELETE CASCADE,
+    project_id   UUID         REFERENCES projects(id)                   ON DELETE SET NULL,
+    path         TEXT         NOT NULL,
+    start_line   INT          NOT NULL DEFAULT 0,
+    end_line     INT          NOT NULL DEFAULT 0,
+    hash         VARCHAR(64)  NOT NULL,
+    text         TEXT         NOT NULL,
+    embedding    halfvec(3072),
+    tsv          tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text,''))) STORED,
+    created_at   TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
 
-CREATE INDEX idx_mem_agent_user  ON memory_chunks(agent_id, user_id);
-CREATE INDEX idx_mem_global      ON memory_chunks(agent_id)       WHERE user_id IS NULL;
-CREATE INDEX idx_mem_document    ON memory_chunks(document_id);
-CREATE INDEX idx_memchunk_team   ON memory_chunks(team_id)        WHERE team_id IS NOT NULL;
-CREATE INDEX idx_mem_embedding   ON memory_chunks USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
-CREATE INDEX idx_mem_tsv         ON memory_chunks USING gin(tsv);
+CREATE INDEX idx_mem_agent_user   ON memory_chunks(agent_id, user_id);
+CREATE INDEX idx_mem_global       ON memory_chunks(agent_id)        WHERE user_id    IS NULL;
+CREATE INDEX idx_mem_document     ON memory_chunks(document_id);
+CREATE INDEX idx_memchunk_team    ON memory_chunks(team_id)         WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_memchunk_contact ON memory_chunks(contact_id)      WHERE contact_id IS NOT NULL;
+CREATE INDEX idx_memchunk_project ON memory_chunks(project_id)      WHERE project_id IS NOT NULL;
+CREATE INDEX idx_mem_embedding    ON memory_chunks USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_mem_tsv          ON memory_chunks USING gin(tsv);
 
 CREATE TABLE IF NOT EXISTS embedding_cache (
     hash       VARCHAR(64)  NOT NULL,
     provider   VARCHAR(50)  NOT NULL,
     model      VARCHAR(200) NOT NULL,
     dims       INT          NOT NULL DEFAULT 0,
-    embedding  vector(1536),
+    embedding  halfvec(3072),
     created_at TIMESTAMPTZ  DEFAULT NOW(),
     updated_at TIMESTAMPTZ  DEFAULT NOW(),
     PRIMARY KEY (hash, provider, model)
@@ -607,8 +624,11 @@ CREATE TABLE IF NOT EXISTS embedding_cache (
 
 CREATE TABLE IF NOT EXISTS episodic_summaries (
     id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    agent_id         UUID         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_id          UUID         REFERENCES users(id) ON DELETE SET NULL,
+    agent_id         UUID         NOT NULL REFERENCES agents(id)          ON DELETE CASCADE,
+    user_id          UUID         REFERENCES users(id)                    ON DELETE CASCADE,
+    team_id          UUID         REFERENCES agent_teams(id)              ON DELETE CASCADE,
+    contact_id       UUID         REFERENCES channel_contacts(id)         ON DELETE CASCADE,
+    project_id       UUID         REFERENCES projects(id)                 ON DELETE SET NULL,
     session_key      TEXT         NOT NULL,
     summary          TEXT         NOT NULL,
     l0_abstract      TEXT         NOT NULL DEFAULT '',
@@ -625,9 +645,20 @@ CREATE TABLE IF NOT EXISTS episodic_summaries (
     last_recalled_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_episodic_agent_user    ON episodic_summaries(agent_id, user_id);
-CREATE UNIQUE INDEX idx_episodic_source_dedup ON episodic_summaries(agent_id, user_id, source_id)
-    WHERE source_id IS NOT NULL;
+CREATE INDEX idx_episodic_agent_user ON episodic_summaries(agent_id, user_id);
+-- 5D-aware dedup: same agent cannot have two episodic summaries for the same source
+-- under the same full scope. COALESCE collapses NULLs for index uniqueness.
+CREATE UNIQUE INDEX idx_episodic_source_dedup ON episodic_summaries(
+    agent_id,
+    COALESCE(user_id::text,    ''),
+    COALESCE(team_id::text,    ''),
+    COALESCE(contact_id::text, ''),
+    COALESCE(project_id::text, ''),
+    source_id
+) WHERE source_id IS NOT NULL;
+CREATE INDEX idx_episodic_team    ON episodic_summaries(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_episodic_contact ON episodic_summaries(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX idx_episodic_project ON episodic_summaries(project_id) WHERE project_id IS NOT NULL;
 CREATE INDEX idx_episodic_unpromoted    ON episodic_summaries(agent_id, user_id, created_at)
     WHERE promoted_at IS NULL;
 CREATE INDEX idx_episodic_recall_unpromoted ON episodic_summaries(agent_id, user_id, recall_score DESC)
@@ -639,8 +670,11 @@ CREATE INDEX idx_episodic_recall_unpromoted ON episodic_summaries(agent_id, user
 
 CREATE TABLE IF NOT EXISTS kg_entities (
     id          UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    agent_id    UUID         NOT NULL REFERENCES agents(id)      ON DELETE CASCADE,
-    user_id     UUID         REFERENCES users(id)                ON DELETE SET NULL,
+    agent_id    UUID         NOT NULL REFERENCES agents(id)       ON DELETE CASCADE,
+    user_id     UUID         REFERENCES users(id)                 ON DELETE CASCADE,
+    team_id     UUID         REFERENCES agent_teams(id)           ON DELETE CASCADE,
+    contact_id  UUID         REFERENCES channel_contacts(id)      ON DELETE CASCADE,
+    project_id  UUID         REFERENCES projects(id)              ON DELETE SET NULL,
     external_id VARCHAR(255) NOT NULL,
     name        TEXT         NOT NULL,
     entity_type VARCHAR(100) NOT NULL,
@@ -648,8 +682,7 @@ CREATE TABLE IF NOT EXISTS kg_entities (
     properties  JSONB        DEFAULT '{}',
     source_id   VARCHAR(255) DEFAULT '',
     confidence  REAL         NOT NULL DEFAULT 1.0,
-    team_id     UUID         REFERENCES agent_teams(id)          ON DELETE SET NULL,
-    embedding   vector(1536),
+    embedding   halfvec(3072),
     created_at  TIMESTAMPTZ  DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  DEFAULT NOW(),
     valid_from  TIMESTAMPTZ  DEFAULT NOW(),
@@ -660,8 +693,10 @@ CREATE UNIQUE INDEX idx_kg_entities_unique ON kg_entities(agent_id, COALESCE(use
 CREATE INDEX idx_kg_entities_scope   ON kg_entities(agent_id, user_id);
 CREATE INDEX idx_kg_entities_type    ON kg_entities(agent_id, user_id, entity_type);
 CREATE INDEX idx_kg_entities_current ON kg_entities(agent_id, user_id) WHERE valid_until IS NULL;
-CREATE INDEX idx_kg_entities_team    ON kg_entities(team_id)           WHERE team_id IS NOT NULL;
-CREATE INDEX idx_kg_embedding        ON kg_entities USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_kg_entities_team    ON kg_entities(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_kg_contact          ON kg_entities(contact_id) WHERE contact_id IS NOT NULL;
+CREATE INDEX idx_kg_project          ON kg_entities(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX idx_kg_embedding        ON kg_entities USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 CREATE TABLE IF NOT EXISTS kg_relations (
     id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -718,7 +753,7 @@ CREATE TABLE IF NOT EXISTS vault_documents (
     content_hash  TEXT         NOT NULL DEFAULT '',
     summary       TEXT         NOT NULL DEFAULT '',
     metadata      JSONB        DEFAULT '{}',
-    embedding     vector(1536),
+    embedding     halfvec(3072),
     tsv           tsvector GENERATED ALWAYS AS (
         to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(path,''))
     ) STORED,
@@ -745,7 +780,7 @@ CREATE INDEX idx_vault_docs_team_chat    ON vault_documents(team_id, chat_id) WH
 CREATE INDEX idx_vault_docs_basename     ON vault_documents(path_basename);
 CREATE INDEX idx_vault_docs_path_prefix  ON vault_documents(path);
 CREATE INDEX idx_vault_docs_tsv          ON vault_documents USING gin(tsv);
-CREATE INDEX idx_vault_docs_embedding    ON vault_documents USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_vault_docs_embedding    ON vault_documents USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
 CREATE INDEX idx_vault_docs_delegation   ON vault_documents((metadata->>'delegation_id'))
     WHERE metadata->>'delegation_id' IS NOT NULL;
 
@@ -799,7 +834,7 @@ CREATE TABLE IF NOT EXISTS skills (
                     CHECK (source IN ('builtin', 'hub-verified', 'hub-unverified', 'agent-created', 'user-uploaded')),
     deps            JSONB        NOT NULL DEFAULT '{}',
     enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
-    embedding       vector(1536),
+    embedding       halfvec(3072),
     last_used_at    TIMESTAMPTZ,
     last_viewed_at  TIMESTAMPTZ,
     last_patched_at TIMESTAMPTZ,
@@ -816,7 +851,7 @@ CREATE INDEX idx_skills_visibility        ON skills(visibility)  WHERE status = 
 CREATE INDEX idx_skills_source            ON skills(source)      WHERE status = 'active';
 CREATE INDEX idx_skills_enabled           ON skills(enabled)     WHERE enabled = FALSE;
 CREATE INDEX idx_skills_pinned            ON skills(pinned)      WHERE pinned = TRUE;
-CREATE INDEX idx_skills_embedding         ON skills USING hnsw(embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_skills_embedding         ON skills USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 CREATE TABLE IF NOT EXISTS skill_agent_grants (
     id             UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -1106,9 +1141,21 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     enabled      BOOLEAN      NOT NULL DEFAULT TRUE,
     created_by   VARCHAR(255) NOT NULL,
     metadata     JSONB        NOT NULL DEFAULT '{}',
+    -- Scope columns: exactly one of {both NULL (global), team_id only, project_id only}
+    team_id      UUID         NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+    project_id   UUID         NULL REFERENCES projects(id)    ON DELETE CASCADE,
     created_at   TIMESTAMPTZ  DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ  DEFAULT NOW()
+    updated_at   TIMESTAMPTZ  DEFAULT NOW(),
+    -- 3-state scope mutex: global (both NULL), team-scoped, or project-scoped — never both set.
+    CONSTRAINT mcp_servers_scope_exclusive CHECK (
+        (team_id IS NULL     AND project_id IS NULL)     OR
+        (team_id IS NOT NULL AND project_id IS NULL)     OR
+        (team_id IS NULL     AND project_id IS NOT NULL)
+    )
 );
+
+CREATE INDEX idx_mcp_servers_team    ON mcp_servers(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_mcp_servers_project ON mcp_servers(project_id) WHERE project_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS mcp_agent_grants (
     id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -1152,8 +1199,27 @@ CREATE TABLE IF NOT EXISTS mcp_access_requests (
     reviewed_by  VARCHAR(255),
     reviewed_at  TIMESTAMPTZ,
     review_note  TEXT,
-    created_at   TIMESTAMPTZ  DEFAULT NOW()
+    created_at   TIMESTAMPTZ  DEFAULT NOW(),
+    CONSTRAINT mcp_access_requests_scope_check
+        CHECK (scope IN ('agent', 'user')),
+    CONSTRAINT mcp_access_requests_scope_shape_check
+        CHECK (
+            (scope = 'agent' AND agent_id IS NOT NULL AND user_id IS NULL) OR
+            (scope = 'user'  AND user_id  IS NOT NULL AND agent_id IS NULL)
+        ),
+    CONSTRAINT mcp_access_requests_status_check
+        CHECK (status IN ('pending', 'granted', 'denied', 'revoked'))
 );
+
+-- Partial UNIQUE index: prevents duplicate pending requests for the same
+-- (server, agent, user) tuple while allowing re-request after deny or revoke.
+-- NULLS NOT DISTINCT treats NULL agent_id or user_id as equal for uniqueness
+-- within the pending subset, so two agent-scope pending rows with the same
+-- server+agent (user_id NULL both) are correctly de-duplicated.
+CREATE UNIQUE INDEX mcp_access_requests_unique_pending
+    ON mcp_access_requests (server_id, agent_id, user_id)
+    NULLS NOT DISTINCT
+    WHERE status = 'pending';
 
 CREATE INDEX idx_mcp_requests_status ON mcp_access_requests(status) WHERE status = 'pending';
 CREATE INDEX idx_mcp_requests_server ON mcp_access_requests(server_id);
@@ -1202,6 +1268,7 @@ CREATE TABLE IF NOT EXISTS traces (
     tags                JSONB,
     parent_trace_id     UUID         REFERENCES traces(id) ON DELETE SET NULL,
     team_id             UUID         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    contact_id          UUID         REFERENCES channel_contacts(id) ON DELETE SET NULL,
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
@@ -1213,6 +1280,7 @@ CREATE INDEX idx_traces_parent      ON traces(parent_trace_id)                WH
 CREATE INDEX idx_traces_quota       ON traces(user_id,       created_at DESC) WHERE parent_trace_id IS NULL AND user_id IS NOT NULL;
 CREATE INDEX idx_traces_start_root  ON traces(start_time DESC)                WHERE parent_trace_id IS NULL;
 CREATE INDEX idx_traces_team        ON traces(team_id,       created_at DESC) WHERE team_id IS NOT NULL;
+CREATE INDEX idx_traces_contact     ON traces(contact_id)                     WHERE contact_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS spans (
     id             UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -1240,6 +1308,7 @@ CREATE TABLE IF NOT EXISTS spans (
     output_preview TEXT,
     metadata       JSONB,
     team_id        UUID         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    contact_id     UUID         REFERENCES channel_contacts(id) ON DELETE SET NULL,
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
@@ -1251,6 +1320,7 @@ CREATE INDEX idx_spans_type       ON spans(span_type,   created_at DESC);
 CREATE INDEX idx_spans_model      ON spans(model,        created_at DESC) WHERE model IS NOT NULL;
 CREATE INDEX idx_spans_error      ON spans(status)                        WHERE status = 'error';
 CREATE INDEX idx_spans_team       ON spans(team_id)                       WHERE team_id IS NOT NULL;
+CREATE INDEX idx_spans_contact    ON spans(contact_id)                    WHERE contact_id IS NOT NULL;
 
 -- ============================================================
 -- Section 13: Tools (builtin, secure CLI, subagent tasks)
@@ -1345,6 +1415,7 @@ CREATE TABLE IF NOT EXISTS subagent_tasks (
     archived_at      TIMESTAMPTZ,
     metadata         JSONB        NOT NULL DEFAULT '{}',
     custom_scope     TEXT,
+    project_id       UUID         REFERENCES projects(id) ON DELETE SET NULL,
     created_at       TIMESTAMPTZ  DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -1352,6 +1423,7 @@ CREATE TABLE IF NOT EXISTS subagent_tasks (
 CREATE INDEX idx_subagent_tasks_parent_status ON subagent_tasks(parent_agent_key, status);
 CREATE INDEX idx_subagent_tasks_session       ON subagent_tasks(session_key);
 CREATE INDEX idx_subagent_tasks_created       ON subagent_tasks(created_at);
+CREATE INDEX idx_subagent_tasks_project       ON subagent_tasks(project_id) WHERE project_id IS NOT NULL;
 
 -- ============================================================
 -- Section 14: Audit & Config
@@ -1418,11 +1490,12 @@ CREATE TABLE IF NOT EXISTS agent_config_permissions (
     id          UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     agent_id    UUID         NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     scope       VARCHAR(255) NOT NULL,
-    config_type VARCHAR(50)  NOT NULL,
+    config_type VARCHAR(50)  NOT NULL CHECK (config_type IN ('write_file','edit_file','delete_file','cron','heartbeat','*')),
     user_id     VARCHAR(255) NOT NULL,
     permission  VARCHAR(10)  NOT NULL,
     granted_by  VARCHAR(255),
     metadata    JSONB        DEFAULT '{}',
+    deny_globs  TEXT[]       NOT NULL DEFAULT ARRAY['.env*','secrets/**','.git/**','*.key','*.pem']::TEXT[],
     created_at  TIMESTAMPTZ  DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  DEFAULT NOW(),
     UNIQUE(agent_id, scope, config_type, user_id)

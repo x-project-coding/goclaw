@@ -13,7 +13,7 @@ import (
 
 // ResolveMember implements channels.ChannelMemberResolver — fetches a
 // group member profile via Bot API `getChatMember`. Used by the gateway
-// to auto-enrich file_writer permission metadata when a caller grants
+// to auto-enrich edit_file permission metadata when a caller grants
 // access without providing displayName/username (e.g. Web UI path).
 func (c *Channel) ResolveMember(ctx context.Context, chatID, userID string) (channels.MemberInfo, error) {
 	if c.bot == nil {

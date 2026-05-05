@@ -8,6 +8,31 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// appendMemoryScopeFilter appends 5D scope WHERE clauses to a memory_chunks query.
+// Each active dimension uses exact-match; nil fields are skipped (no clause added).
+// p is the next parameter index; the updated p is returned.
+func appendMemoryScopeFilter(q string, args []any, p int, scope *store.MemoryScope) (string, []any, int) {
+	if scope == nil {
+		return q, args, p
+	}
+	if scope.TeamID != nil {
+		q += fmt.Sprintf(" AND team_id = $%d", p)
+		args = append(args, *scope.TeamID)
+		p++
+	}
+	if scope.ContactID != nil {
+		q += fmt.Sprintf(" AND contact_id = $%d", p)
+		args = append(args, *scope.ContactID)
+		p++
+	}
+	if scope.ProjectID != nil {
+		q += fmt.Sprintf(" AND project_id = $%d", p)
+		args = append(args, *scope.ProjectID)
+		p++
+	}
+	return q, args, p
+}
+
 // Search performs hybrid search (FTS + vector) over memory_chunks.
 // Merges global (user_id IS NULL) + per-user chunks, with user boost.
 func (s *PGMemoryStore) Search(ctx context.Context, query string, agentID, userID string, opts store.MemorySearchOptions) ([]store.MemorySearchResult, error) {
@@ -22,7 +47,7 @@ func (s *PGMemoryStore) Search(ctx context.Context, query string, agentID, userI
 	}
 
 	// FTS search using tsvector
-	ftsResults, err := s.ftsSearch(ctx, query, aid, userID, maxResults*2)
+	ftsResults, err := s.ftsSearch(ctx, query, aid, userID, maxResults*2, opts.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +57,7 @@ func (s *PGMemoryStore) Search(ctx context.Context, query string, agentID, userI
 	if s.provider != nil {
 		embeddings, err := s.provider.Embed(ctx, []string{query})
 		if err == nil && len(embeddings) > 0 {
-			vecResults, err = s.vectorSearch(ctx, embeddings[0], aid, userID, maxResults*2)
+			vecResults, err = s.vectorSearch(ctx, embeddings[0], aid, userID, maxResults*2, opts.Scope)
 			if err != nil {
 				vecResults = nil
 			}
@@ -81,35 +106,27 @@ type scoredChunk struct {
 	UserID    *string
 }
 
-func (s *PGMemoryStore) ftsSearch(ctx context.Context, query string, agentID any, userID string, limit int) ([]scoredChunk, error) {
-	var q string
-	var args []any
+func (s *PGMemoryStore) ftsSearch(ctx context.Context, query string, agentID any, userID string, limit int, scope *store.MemoryScope) ([]scoredChunk, error) {
+	q := `SELECT path, start_line, end_line, text, user_id,
+			ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
+		FROM memory_chunks
+		WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)`
+	args := []any{query, agentID, query}
+	p := 4
 
 	if store.IsSharedMemory(ctx) {
 		// Shared: no user_id filter — search ALL chunks for agent
-		q = `SELECT path, start_line, end_line, text, user_id,
-				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
-			ORDER BY score DESC LIMIT $4`
-		args = []any{query, agentID, query, limit}
 	} else if userID != "" {
-		q = `SELECT path, start_line, end_line, text, user_id,
-				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
-			AND (user_id IS NULL OR user_id::text = $4)
-			ORDER BY score DESC LIMIT $5`
-		args = []any{query, agentID, query, userID, limit}
+		q += fmt.Sprintf(" AND (user_id IS NULL OR user_id::text = $%d)", p)
+		args = append(args, userID)
+		p++
 	} else {
-		q = `SELECT path, start_line, end_line, text, user_id,
-				ts_rank(tsv, plainto_tsquery('simple', $1)) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND tsv @@ plainto_tsquery('simple', $3)
-			AND user_id IS NULL
-			ORDER BY score DESC LIMIT $4`
-		args = []any{query, agentID, query, limit}
+		q += " AND user_id IS NULL"
 	}
+
+	q, args, p = appendMemoryScopeFilter(q, args, p, scope)
+	q += fmt.Sprintf(" ORDER BY score DESC LIMIT $%d", p)
+	args = append(args, limit)
 
 	var rows []scoredChunkRow
 	if err := pkgSqlxDB.SelectContext(ctx, &rows, q, args...); err != nil {
@@ -122,37 +139,29 @@ func (s *PGMemoryStore) ftsSearch(ctx context.Context, query string, agentID any
 	return results, nil
 }
 
-func (s *PGMemoryStore) vectorSearch(ctx context.Context, embedding []float32, agentID any, userID string, limit int) ([]scoredChunk, error) {
+func (s *PGMemoryStore) vectorSearch(ctx context.Context, embedding []float32, agentID any, userID string, limit int, scope *store.MemoryScope) ([]scoredChunk, error) {
 	vecStr := vectorToString(embedding)
 
-	var q string
-	var args []any
+	q := `SELECT path, start_line, end_line, text, user_id,
+			1 - (embedding <=> $1::halfvec) AS score
+		FROM memory_chunks
+		WHERE agent_id = $2 AND embedding IS NOT NULL`
+	args := []any{vecStr, agentID}
+	p := 3
 
 	if store.IsSharedMemory(ctx) {
 		// Shared: no user_id filter — search ALL chunks for agent
-		q = `SELECT path, start_line, end_line, text, user_id,
-				1 - (embedding <=> $1::vector) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND embedding IS NOT NULL
-			ORDER BY embedding <=> $3::vector LIMIT $4`
-		args = []any{vecStr, agentID, vecStr, limit}
 	} else if userID != "" {
-		q = `SELECT path, start_line, end_line, text, user_id,
-				1 - (embedding <=> $1::vector) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND embedding IS NOT NULL
-			AND (user_id IS NULL OR user_id::text = $3)
-			ORDER BY embedding <=> $4::vector LIMIT $5`
-		args = []any{vecStr, agentID, userID, vecStr, limit}
+		q += fmt.Sprintf(" AND (user_id IS NULL OR user_id::text = $%d)", p)
+		args = append(args, userID)
+		p++
 	} else {
-		q = `SELECT path, start_line, end_line, text, user_id,
-				1 - (embedding <=> $1::vector) AS score
-			FROM memory_chunks
-			WHERE agent_id = $2 AND embedding IS NOT NULL
-			AND user_id IS NULL
-			ORDER BY embedding <=> $3::vector LIMIT $4`
-		args = []any{vecStr, agentID, vecStr, limit}
+		q += " AND user_id IS NULL"
 	}
+
+	q, args, p = appendMemoryScopeFilter(q, args, p, scope)
+	q += fmt.Sprintf(" ORDER BY embedding <=> $1::halfvec LIMIT $%d", p)
+	args = append(args, limit)
 
 	var rows []scoredChunkRow
 	if err := pkgSqlxDB.SelectContext(ctx, &rows, q, args...); err != nil {

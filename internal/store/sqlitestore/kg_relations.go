@@ -23,13 +23,13 @@ func (s *SQLiteKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO kg_relations
-			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id,
+			(id, agent_id, user_id, team_id, source_entity_id, relation_type, target_entity_id,
 			 confidence, properties, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(agent_id, COALESCE(user_id,''), source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = excluded.confidence,
 			properties  = excluded.properties`,
-		id, relation.AgentID, relation.UserID,
+		id, relation.AgentID, nilStr(relation.UserID), nilStr(relation.TeamID),
 		relation.SourceEntityID, relation.RelationType, relation.TargetEntityID,
 		relation.Confidence, string(props), now,
 	)
@@ -103,13 +103,13 @@ func upsertRelationTx(ctx context.Context, tx *sql.Tx, agentID, userID string, r
 	id := uuid.Must(uuid.NewV7()).String()
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO kg_relations
-			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id,
+			(id, agent_id, user_id, team_id, source_entity_id, relation_type, target_entity_id,
 			 confidence, properties, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(agent_id, COALESCE(user_id,''), source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = excluded.confidence,
 			properties  = excluded.properties`,
-		id, agentID, userID,
+		id, agentID, nilStr(userID), nilStr(r.TeamID),
 		r.SourceEntityID, r.RelationType, r.TargetEntityID,
 		r.Confidence, string(props), now,
 	)

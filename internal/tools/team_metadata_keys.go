@@ -9,7 +9,7 @@ const (
 	MetaOriginChatID     = "origin_chat_id"
 	MetaOriginUserID     = "origin_user_id"
 	// MetaOriginSenderID carries the real acting sender through announce re-ingress
-	// so permission checks (e.g. CheckFileWriterPermission) attribute to the
+	// so permission checks (e.g. CheckEditFilePermission) attribute to the
 	// original user rather than a synthetic "subagent:<id>" / "notification:system" string.
 	MetaOriginSenderID   = "origin_sender_id"
 	// MetaOriginRole carries the caller's RBAC role through dispatch + re-ingress

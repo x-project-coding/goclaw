@@ -41,6 +41,15 @@ var tableHasUpdatedAt = base.TableHasUpdatedAt
 
 // --- SQLite-specific helpers ---
 
+// uuidPtrStr converts *uuid.UUID to its string representation for SQLite storage.
+// Returns nil when the pointer is nil (stores NULL in the DB).
+func uuidPtrStr(id *uuid.UUID) any {
+	if id == nil {
+		return nil
+	}
+	return id.String()
+}
+
 // jsonStringArray converts a Go string slice to a JSON array string for SQLite storage.
 // SQLite stores arrays as JSON text (no native array type).
 func jsonStringArray(arr []string) string {

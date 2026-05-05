@@ -31,14 +31,14 @@ func (s *SQLiteTracingStore) CreateTrace(ctx context.Context, trace *store.Trace
 		`INSERT INTO traces (id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, total_cost, span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 status, error, metadata, tags, team_id, contact_id, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		trace.ID, nilUUID(trace.ParentTraceID), nilUUID(trace.AgentID), nilStr(trace.UserID), nilStr(trace.SessionKey),
 		nilStr(trace.RunID), trace.StartTime, nilTime(trace.EndTime),
 		nilInt(trace.DurationMS), nilStr(trace.Name), nilStr(trace.Channel),
 		nilStr(trace.InputPreview), nilStr(trace.OutputPreview),
 		trace.TotalInputTokens, trace.TotalOutputTokens, trace.TotalCost, trace.SpanCount, trace.LLMCallCount, trace.ToolCallCount,
-		trace.Status, nilStr(trace.Error), jsonOrEmpty(trace.Metadata), jsonStringArray(trace.Tags), nilUUID(trace.TeamID), trace.CreatedAt,
+		trace.Status, nilStr(trace.Error), jsonOrEmpty(trace.Metadata), jsonStringArray(trace.Tags), nilUUID(trace.TeamID), nilUUID(trace.ContactID), trace.CreatedAt,
 	)
 	return err
 }
@@ -51,7 +51,7 @@ func (s *SQLiteTracingStore) GetTrace(ctx context.Context, traceID uuid.UUID) (*
 	query := `SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0), span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at
+		 status, error, metadata, tags, team_id, contact_id, created_at
 		 FROM traces WHERE id = ?`
 	return scanTraceRow(s.db.QueryRowContext(ctx, query, traceID))
 }
@@ -103,7 +103,7 @@ func (s *SQLiteTracingStore) ListTraces(ctx context.Context, opts store.TraceLis
 	q := `SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0), span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at
+		 status, error, metadata, tags, team_id, contact_id, created_at
 		 FROM traces` + where +
 		fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d OFFSET %d", limit, opts.Offset)
 
@@ -119,7 +119,7 @@ func (s *SQLiteTracingStore) ListChildTraces(ctx context.Context, parentTraceID 
 	q := `SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0), span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at
+		 status, error, metadata, tags, team_id, contact_id, created_at
 		 FROM traces WHERE parent_trace_id = ? ORDER BY created_at`
 	rows, err := s.db.QueryContext(ctx, q, parentTraceID)
 	if err != nil {

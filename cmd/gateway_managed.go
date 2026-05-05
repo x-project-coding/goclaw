@@ -19,6 +19,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	hookbuiltin "github.com/nextlevelbuilder/goclaw/internal/hooks/builtin"
 	"github.com/nextlevelbuilder/goclaw/internal/orchestration"
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	kg "github.com/nextlevelbuilder/goclaw/internal/knowledgegraph"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
@@ -335,7 +336,7 @@ func wireExtras(
 
 	// Wire config perm store for file writer permission checks
 	if stores.ConfigPermissions != nil {
-		for _, toolName := range []string{"read_file", "write_file", "edit", "cron"} {
+		for _, toolName := range []string{"read_file", "write_file", "edit", "delete_file", "cron"} {
 			if t, ok := toolsReg.Get(toolName); ok {
 				if cpa, ok := t.(tools.ConfigPermAware); ok {
 					cpa.SetConfigPermStore(stores.ConfigPermissions)
@@ -344,6 +345,14 @@ func wireExtras(
 		}
 		if contextFileInterceptor != nil {
 			contextFileInterceptor.SetConfigPermStore(stores.ConfigPermissions)
+		}
+		// Hook glob cache invalidation into grant/revoke so admin deny_glob extensions
+		// take effect within the current RPC round-trip (no 60s TTL wait).
+		type grantHookRegistrar interface {
+			RegisterGrantHook(fn func(agentID uuid.UUID))
+		}
+		if r, ok := stores.ConfigPermissions.(grantHookRegistrar); ok {
+			r.RegisterGrantHook(permissions.HookGlobCacheInvalidate())
 		}
 	}
 

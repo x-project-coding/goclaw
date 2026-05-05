@@ -2,11 +2,14 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -115,10 +118,42 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return ErrorResult("path is required")
 	}
 
-	// Group write permission check
-	if t.permStore != nil {
-		if err := store.CheckFileWriterPermission(ctx, t.permStore); err != nil {
+	// Deny-glob layer — applied first, before any interceptor or disk write.
+	// Uses the base filename for paths without workspace context (e.g. absolute
+	// paths or interceptor-handled virtual paths). For workspace-relative paths
+	// the raw value is used directly, which covers the common case of
+	// ".env", "secrets/key.pem", etc. that an agent might supply.
+	{
+		rawRel := filepath.ToSlash(filepath.Base(path))
+		if !filepath.IsAbs(path) {
+			rawRel = filepath.ToSlash(path)
+		}
+		if err := permissions.CheckDenyGlobs(ctx, t.permStore, rawRel); err != nil {
 			return ErrorResult(err.Error())
+		}
+	}
+
+	// Group write permission check: new files require write_file grant; existing files require edit_file.
+	// Stat the workspace-resolved path so that relative paths hit the correct directory.
+	// TOCTOU accepted: gate is advisory; OS perms still apply.
+	if t.permStore != nil {
+		ws := ToolWorkspaceFromCtx(ctx)
+		if ws == "" {
+			ws = t.workspace
+		}
+		statPath := path
+		if !filepath.IsAbs(path) {
+			statPath = filepath.Join(ws, path)
+		}
+		_, statErr := os.Stat(statPath)
+		if errors.Is(statErr, fs.ErrNotExist) {
+			if err := store.CheckWriteFilePermission(ctx, t.permStore); err != nil {
+				return ErrorResult(err.Error())
+			}
+		} else {
+			if err := store.CheckEditFilePermission(ctx, t.permStore); err != nil {
+				return ErrorResult(err.Error())
+			}
 		}
 	}
 
@@ -175,6 +210,12 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 		return ErrorResult(err.Error())
 	}
 	if err := checkDeniedPath(resolved, t.workspace, t.deniedPrefixes); err != nil {
+		return ErrorResult(err.Error())
+	}
+
+	// Deny-glob layer: overrides a grant for protected paths (e.g. .env*, secrets/**).
+	relPath := workspaceRelPath(resolved, workspace)
+	if err := permissions.CheckDenyGlobs(ctx, t.permStore, relPath); err != nil {
 		return ErrorResult(err.Error())
 	}
 

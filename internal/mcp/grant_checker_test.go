@@ -59,6 +59,16 @@ func (m *mockMCPStore) ListPendingRequests(ctx context.Context) ([]store.MCPAcce
 func (m *mockMCPStore) ReviewRequest(ctx context.Context, requestID uuid.UUID, approved bool, reviewedBy, note string) error {
 	return nil
 }
+func (m *mockMCPStore) MarkGranted(ctx context.Context, requestID uuid.UUID, reviewedBy string) error {
+	return nil
+}
+func (m *mockMCPStore) MarkDenied(ctx context.Context, requestID uuid.UUID, reviewedBy, note string) error {
+	return nil
+}
+func (m *mockMCPStore) MarkRevoked(ctx context.Context, requestID uuid.UUID) error { return nil }
+func (m *mockMCPStore) ListAccessibleServers(ctx context.Context, agentID uuid.UUID, teamID, projectID *uuid.UUID) ([]store.MCPServerData, error) {
+	return nil, nil
+}
 func (m *mockMCPStore) GetUserCredentials(ctx context.Context, serverID uuid.UUID, userID string) (*store.MCPUserCredentials, error) {
 	return nil, nil
 }

@@ -61,8 +61,9 @@ type SubagentTask struct {
 	CreatedAt        int64  `json:"createdAt"`
 	CompletedAt      int64  `json:"completedAt,omitempty"`
 	Media            []bus.MediaFile `json:"-"` // media files from tool results
-	OriginTraceID    uuid.UUID `json:"-"` // parent trace for announce linking
-	OriginRootSpanID uuid.UUID `json:"-"` // parent agent's root span ID
+	OriginTraceID    uuid.UUID  `json:"-"` // parent trace for announce linking
+	OriginRootSpanID uuid.UUID  `json:"-"` // parent agent's root span ID
+	ProjectID        *uuid.UUID `json:"project_id,omitempty"` // project scope inherited from parent agent
 	cancelFunc       context.CancelFunc `json:"-"` // per-task context cancel
 	spawnConfig      SubagentConfig `json:"-"` // resolved config at spawn time (per-agent override merged)
 	dbID             uuid.UUID `json:"-"` // persistent DB UUID (zero if not persisted)

@@ -89,7 +89,7 @@ func (s *PGVaultStore) FindSimilarDocs(ctx context.Context, agentID, docID strin
 	}
 
 	q := `SELECT ` + vaultDocSelectCols + `,
-			1 - (embedding <=> $1::vector) AS score
+			1 - (embedding <=> $1::halfvec) AS score
 		FROM vault_documents
 		WHERE id != $2 AND embedding IS NOT NULL`
 	args := []any{*embStr, did}
@@ -100,7 +100,7 @@ func (s *PGVaultStore) FindSimilarDocs(ctx context.Context, agentID, docID strin
 		args = append(args, *aid)
 		p++
 	}
-	q += fmt.Sprintf(" ORDER BY embedding <=> $1::vector LIMIT $%d", p)
+	q += fmt.Sprintf(" ORDER BY embedding <=> $1::halfvec LIMIT $%d", p)
 	args = append(args, limit)
 
 	var scanned []vaultSearchRow

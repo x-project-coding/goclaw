@@ -174,7 +174,8 @@ func (c *Channel) handleFeishuWriterCommand(parentCtx context.Context, mc *messa
 	groupID := fmt.Sprintf("group:%s:%s", c.Name(), mc.ChatID)
 	senderID := mc.SenderID // Feishu open_id has no suffix (Telegram's "|username" strip not needed)
 
-	existingWriters, _ := c.configPermStore.ListFileWriters(ctx, agentID, groupID)
+	// /addwriter grants edit_file (broadest practical write authority); /removewriter revokes all three split gates.
+	existingWriters, _ := c.configPermStore.ListWriters(ctx, agentID, groupID, store.ConfigTypeEditFile)
 
 	// Authorization gate: only existing writers can manage the allowlist.
 	// Empty-writer groups allow the very first caller to seed the list —
@@ -216,7 +217,7 @@ func (c *Channel) handleFeishuWriterCommand(parentCtx context.Context, mc *messa
 		if err := c.configPermStore.Grant(ctx, &store.ConfigPermission{
 			AgentID:    agentID,
 			Scope:      groupID,
-			ConfigType: store.ConfigTypeFileWriter,
+			ConfigType: store.ConfigTypeEditFile,
 			UserID:     targetID,
 			Permission: "allow",
 			Metadata:   meta,
@@ -232,7 +233,10 @@ func (c *Channel) handleFeishuWriterCommand(parentCtx context.Context, mc *messa
 			c.sendCommandReply(ctx, mc, "Cannot remove the last file writer.")
 			return
 		}
-		if err := c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeFileWriter, targetID); err != nil {
+		// Revoke all three split file gates (idempotent — missing rows ignored).
+		_ = c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeWriteFile, targetID)
+		_ = c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeDeleteFile, targetID)
+		if err := c.configPermStore.Revoke(ctx, agentID, groupID, store.ConfigTypeEditFile, targetID); err != nil {
 			slog.Warn("feishu.writer_cmd.remove_failed", "error", err, "target", targetID)
 			c.sendCommandReply(ctx, mc, "Failed to remove writer. Please try again.")
 			return
@@ -261,7 +265,7 @@ func (c *Channel) handleFeishuListWriters(parentCtx context.Context, mc *message
 	}
 
 	groupID := fmt.Sprintf("group:%s:%s", c.Name(), mc.ChatID)
-	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeFileWriter, groupID)
+	writers, err := c.configPermStore.List(ctx, agentID, store.ConfigTypeEditFile, groupID)
 	if err != nil {
 		slog.Warn("feishu.writer_cmd.list_failed", "error", err)
 		c.sendCommandReply(ctx, mc, "Failed to list writers. Please try again.")

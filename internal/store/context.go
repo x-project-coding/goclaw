@@ -42,6 +42,16 @@ const (
 	SenderNameKey contextKey = "goclaw_sender_name"
 	// AgentAudioKey carries the immutable agent audio snapshot for TTS tool dispatch.
 	AgentAudioKey contextKey = "goclaw_agent_audio"
+	// ContactIDKey carries the resolved channel_contacts UUID for the current request.
+	// Set by channel ingress before the agent loop; used by trace/span emit to populate contact_id.
+	ContactIDKey contextKey = "goclaw_contact_id"
+	// ProjectIDKey carries the active project UUID for the current request.
+	// Set from session.ProjectID or channel contact.DefaultProjectID; used by subagent task dispatch.
+	ProjectIDKey contextKey = "goclaw_project_id"
+	// TeamIDKey carries the active agent_team UUID for the current request.
+	// Set from the team run context before the agent loop so that memory store
+	// queries can scope reads to the correct team bucket without a re-query.
+	TeamIDKey contextKey = "goclaw_team_id"
 )
 
 // AgentAudioSnapshot is an immutable snapshot of agent audio config carried through
@@ -343,4 +353,52 @@ func RoleFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// WithContactID returns a new context with the resolved channel contact UUID.
+// Call this in channel ingress before dispatching to the agent loop so that
+// trace/span emit can populate contact_id without an extra DB lookup.
+func WithContactID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ContactIDKey, id)
+}
+
+// ContactIDFromContext extracts the channel contact UUID from context.
+// Returns uuid.Nil if not set (non-channel invocation paths).
+func ContactIDFromContext(ctx context.Context) uuid.UUID {
+	if v, ok := ctx.Value(ContactIDKey).(uuid.UUID); ok && v != uuid.Nil {
+		return v
+	}
+	return uuid.Nil
+}
+
+// WithProjectID returns a new context with the active project UUID.
+// Set from session.ProjectID or channel contact.DefaultProjectID so that
+// subagent task dispatch can inherit the project scope without a re-query.
+func WithProjectID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ProjectIDKey, id)
+}
+
+// ProjectIDFromContext extracts the active project UUID from context.
+// Returns uuid.Nil when no project is bound (legacy sessions, non-project flows).
+func ProjectIDFromContext(ctx context.Context) uuid.UUID {
+	if v, ok := ctx.Value(ProjectIDKey).(uuid.UUID); ok && v != uuid.Nil {
+		return v
+	}
+	return uuid.Nil
+}
+
+// WithTeamID returns a new context with the active agent_team UUID.
+// Set this in the team run context before dispatching to the agent loop so that
+// memory store queries can scope reads to the correct team bucket.
+func WithTeamID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, TeamIDKey, id)
+}
+
+// TeamIDFromContext extracts the active team UUID from context.
+// Returns uuid.Nil when no team is bound (non-team invocation paths).
+func TeamIDFromContext(ctx context.Context) uuid.UUID {
+	if v, ok := ctx.Value(TeamIDKey).(uuid.UUID); ok && v != uuid.Nil {
+		return v
+	}
+	return uuid.Nil
 }

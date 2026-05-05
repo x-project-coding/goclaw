@@ -62,6 +62,7 @@ func (sm *SubagentManager) persistCreate(ctx context.Context, task *SubagentTask
 		OriginChatID:   originChatID,
 		OriginPeerKind: originPeerKind,
 		OriginUserID:   originUserID,
+		ProjectID:      task.ProjectID,
 	}
 
 	if err := sm.taskStore.Create(dbCtx, data); err != nil {

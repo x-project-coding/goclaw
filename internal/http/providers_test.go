@@ -250,15 +250,15 @@ func TestProvidersHandlerCreateRejectsIncompatibleEmbeddingDimensions(t *testing
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status code = %d, want %d", w.Code, http.StatusBadRequest)
 	}
-	if !strings.Contains(w.Body.String(), "1536") {
-		t.Fatalf("response body = %q, want mention of 1536", w.Body.String())
+	if !strings.Contains(w.Body.String(), "3072") {
+		t.Fatalf("response body = %q, want mention of 3072", w.Body.String())
 	}
 	if len(providerStore.providers) != 0 {
 		t.Fatalf("provider store mutated on invalid create: %#v", providerStore.providers)
 	}
 }
 
-func TestProvidersHandlerCreateAllows1536EmbeddingDimensions(t *testing.T) {
+func TestProvidersHandlerCreateAllows3072EmbeddingDimensions(t *testing.T) {
 	token := setupProvidersAdminToken(t)
 	providerStore := newMockProviderStore()
 	handler := NewProvidersHandler(providerStore, newMockSecretsStore(), nil, "")
@@ -274,8 +274,8 @@ func TestProvidersHandlerCreateAllows1536EmbeddingDimensions(t *testing.T) {
 		"settings": {
 			"embedding": {
 				"enabled": true,
-				"model": "gemini-embedding-001",
-				"dimensions": 1536
+				"model": "text-embedding-3-large",
+				"dimensions": 3072
 			}
 		}
 	}`

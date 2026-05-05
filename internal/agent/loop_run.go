@@ -41,6 +41,14 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		Payload: map[string]any{"message": req.Message},
 	})
 
+	// Propagate 5D scope from request into context so tools (memory, episodic)
+	// can apply the correct bucket filter without re-querying session data.
+	if req.TeamID != "" {
+		if tid, err := uuid.Parse(req.TeamID); err == nil {
+			ctx = store.WithTeamID(ctx, tid)
+		}
+	}
+
 	// Create trace
 	var traceID uuid.UUID
 	isChildTrace := req.ParentTraceID != uuid.Nil && l.traceCollector != nil
@@ -94,6 +102,10 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 			if tid, err := uuid.Parse(req.TeamID); err == nil {
 				trace.TeamID = &tid
 			}
+		}
+		// Propagate channel contact to trace for channel-originated invocations.
+		if cid := store.ContactIDFromContext(ctx); cid != uuid.Nil {
+			trace.ContactID = &cid
 		}
 		if err := l.traceCollector.CreateTrace(ctx, trace); err != nil {
 			slog.Warn("tracing: failed to create trace", "error", err)

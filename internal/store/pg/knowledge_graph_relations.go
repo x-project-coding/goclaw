@@ -33,12 +33,12 @@ func (s *PGKnowledgeGraphStore) UpsertRelation(ctx context.Context, relation *st
 	now := time.Now()
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO kg_relations
-			(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
+			(id, agent_id, user_id, team_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (agent_id, COALESCE(user_id::text,''), source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 			confidence  = EXCLUDED.confidence,
 			properties  = EXCLUDED.properties`,
-		id, aid, nilStr(relation.UserID), src, relation.RelationType, tgt, relation.Confidence, props, now,
+		id, aid, nilStr(relation.UserID), nilStr(relation.TeamID), src, relation.RelationType, tgt, relation.Confidence, props, now,
 	)
 	return err
 }
@@ -178,7 +178,8 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 
 	now := time.Now()
 
-	// Upsert entities and build external_id → DB UUID lookup for relations
+	// Upsert entities and build external_id → DB UUID lookup for relations.
+	// Team/contact/project scope is inherited from the caller (semantic worker threads from episodic row).
 	extIDToUUID := make(map[string]uuid.UUID, len(entities))
 	for i := range entities {
 		e := &entities[i]
@@ -190,9 +191,10 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 		var actualID uuid.UUID
 		if err := tx.QueryRowContext(ctx, `
 			INSERT INTO kg_entities
-				(id, agent_id, user_id, external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-			ON CONFLICT (agent_id, user_id, external_id) DO UPDATE SET
+				(id, agent_id, user_id, team_id, contact_id, project_id,
+				 external_id, name, entity_type, description, properties, source_id, confidence, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+			ON CONFLICT (agent_id, (COALESCE(user_id::text, '')), external_id) DO UPDATE SET
 				name        = EXCLUDED.name,
 				entity_type = EXCLUDED.entity_type,
 				description = EXCLUDED.description,
@@ -201,7 +203,8 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 				confidence  = EXCLUDED.confidence,
 				updated_at  = EXCLUDED.updated_at
 			RETURNING id`,
-			id, aid, userID, e.ExternalID, e.Name, e.EntityType,
+			id, aid, nilStr(userID), nilStr(e.TeamID), nilStr(e.ContactID), nilStr(e.ProjectID),
+			e.ExternalID, e.Name, e.EntityType,
 			e.Description, props, e.SourceID, e.Confidence, now,
 		).Scan(&actualID); err != nil {
 			return nil, err
@@ -227,7 +230,7 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 				}
 				vecStr := vectorToString(emb)
 				if _, err := tx.ExecContext(ctx,
-					`UPDATE kg_entities SET embedding = $1::vector WHERE id = $2`,
+					`UPDATE kg_entities SET embedding = $1::halfvec WHERE id = $2`,
 					vecStr, ids[i],
 				); err != nil {
 					slog.Warn("kg entity embedding update failed", "entity_id", ids[i], "error", err)
@@ -250,12 +253,12 @@ func (s *PGKnowledgeGraphStore) IngestExtraction(ctx context.Context, agentID, u
 		id := uuid.Must(uuid.NewV7())
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO kg_relations
-				(id, agent_id, user_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			ON CONFLICT (agent_id, user_id, source_entity_id, relation_type, target_entity_id) DO UPDATE SET
+				(id, agent_id, user_id, team_id, source_entity_id, relation_type, target_entity_id, confidence, properties, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			ON CONFLICT (agent_id, COALESCE(user_id::text,''), source_entity_id, relation_type, target_entity_id) DO UPDATE SET
 				confidence  = EXCLUDED.confidence,
 				properties  = EXCLUDED.properties`,
-			id, aid, userID, src, r.RelationType, tgt, r.Confidence, props, now,
+			id, aid, nilStr(userID), nilStr(r.TeamID), src, r.RelationType, tgt, r.Confidence, props, now,
 		); err != nil {
 			return nil, err
 		}

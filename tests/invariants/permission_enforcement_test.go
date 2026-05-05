@@ -201,7 +201,7 @@ func TestPermission_ConfigPermissionAgentIsolation(t *testing.T) {
 	if err := cps.Grant(ctx, &store.ConfigPermission{
 		AgentID:    agentA,
 		Scope:      "group:*",
-		ConfigType: "file_writer",
+		ConfigType: "edit_file",
 		Permission: "allow",
 		UserID:     userID,
 	}); err != nil {
@@ -209,7 +209,7 @@ func TestPermission_ConfigPermissionAgentIsolation(t *testing.T) {
 	}
 
 	// Agent A has the permission (scope must match pattern: group:* matches group:telegram).
-	allowedA, err := cps.CheckPermission(ctx, agentA, "group:telegram", "file_writer", userID)
+	allowedA, err := cps.CheckPermission(ctx, agentA, "group:telegram", "edit_file", userID)
 	if err != nil {
 		t.Fatalf("CheckPermission A: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestPermission_ConfigPermissionAgentIsolation(t *testing.T) {
 	}
 
 	// INVARIANT: Agent B MUST NOT inherit agent A's permission.
-	allowedB, err := cps.CheckPermission(ctx, agentB, "group:telegram", "file_writer", userID)
+	allowedB, err := cps.CheckPermission(ctx, agentB, "group:telegram", "edit_file", userID)
 	if err != nil {
 		t.Fatalf("CheckPermission B: %v", err)
 	}

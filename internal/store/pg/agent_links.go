@@ -259,7 +259,7 @@ func (s *PGAgentLinkStore) SearchDelegateTargetsByEmbedding(ctx context.Context,
 		     (l.target_agent_id = $1 AND l.direction IN ('inbound', 'bidirectional'))
 		   )
 		   AND CASE WHEN l.source_agent_id = $1 THEN ta.embedding ELSE sa.embedding END IS NOT NULL
-		 ORDER BY (CASE WHEN l.source_agent_id = $1 THEN ta.embedding ELSE sa.embedding END) <=> $2::vector
+		 ORDER BY (CASE WHEN l.source_agent_id = $1 THEN ta.embedding ELSE sa.embedding END) <=> $2::halfvec
 		 LIMIT $3`, fromAgentID, vecStr, limit)
 	if err != nil {
 		return nil, err

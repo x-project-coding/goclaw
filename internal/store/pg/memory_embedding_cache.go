@@ -58,7 +58,7 @@ func (s *PGMemoryStore) lookupEmbeddingCache(ctx context.Context, hashes []strin
 }
 
 // writeEmbeddingCache batch-upserts embedding cache entries.
-// Gracefully skips on dimension mismatch (schema uses vector(1536)).
+// Gracefully skips on dimension mismatch (schema uses halfvec(3072)).
 func (s *PGMemoryStore) writeEmbeddingCache(ctx context.Context, entries []embeddingCacheEntry, provider, model string) error {
 	if len(entries) == 0 {
 		return nil
@@ -80,7 +80,7 @@ func (s *PGMemoryStore) writeEmbeddingCache(ctx context.Context, entries []embed
 				sb.WriteByte(',')
 			}
 			base := i * 6
-			fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d::vector,$%d,$%d,$%d)",
+			fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d::halfvec,$%d,$%d,$%d)",
 				base+1, base+2, base+3, base+4, base+5, base+6, base+6)
 			args = append(args, e.Hash, provider, model, vectorToString(e.Embedding), len(e.Embedding), now)
 		}

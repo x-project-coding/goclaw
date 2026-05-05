@@ -30,14 +30,14 @@ func (s *PGTracingStore) CreateTrace(ctx context.Context, trace *store.TraceData
 		`INSERT INTO traces (id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, total_cost, span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+		 status, error, metadata, tags, team_id, contact_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
 		trace.ID, nilUUID(trace.ParentTraceID), nilUUID(trace.AgentID), nilStr(trace.UserID), nilStr(trace.SessionKey),
 		nilStr(trace.RunID), trace.StartTime, nilTime(trace.EndTime),
 		nilInt(trace.DurationMS), nilStr(trace.Name), nilStr(trace.Channel),
 		nilStr(trace.InputPreview), nilStr(trace.OutputPreview),
 		trace.TotalInputTokens, trace.TotalOutputTokens, trace.TotalCost, trace.SpanCount, trace.LLMCallCount, trace.ToolCallCount,
-		trace.Status, nilStr(trace.Error), jsonOrEmpty(trace.Metadata), pqStringArray(trace.Tags), nilUUID(trace.TeamID), trace.CreatedAt,
+		trace.Status, nilStr(trace.Error), jsonOrEmpty(trace.Metadata), pqStringArray(trace.Tags), nilUUID(trace.TeamID), nilUUID(trace.ContactID), trace.CreatedAt,
 	)
 	return err
 }
@@ -52,7 +52,7 @@ func (s *PGTracingStore) GetTrace(ctx context.Context, traceID uuid.UUID) (*stor
 		`SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0) AS total_cost, span_count, llm_call_count, tool_call_count,
-		 status, error, COALESCE(metadata, '{}'::jsonb) AS metadata, COALESCE(tags, '{}') AS tags, team_id, created_at
+		 status, error, COALESCE(metadata, '{}'::jsonb) AS metadata, COALESCE(tags, '{}') AS tags, team_id, contact_id, created_at
 		 FROM traces WHERE id = $1`, traceID); err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (s *PGTracingStore) ListTraces(ctx context.Context, opts store.TraceListOpt
 	q := `SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0) AS total_cost, span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at
+		 status, error, metadata, tags, team_id, contact_id, created_at
 		 FROM traces` + where
 
 	limit := opts.Limit
@@ -133,7 +133,7 @@ func (s *PGTracingStore) ListChildTraces(ctx context.Context, parentTraceID uuid
 		`SELECT id, parent_trace_id, agent_id, user_id, session_key, run_id, start_time, end_time,
 		 duration_ms, name, channel, input_preview, output_preview,
 		 total_input_tokens, total_output_tokens, COALESCE(total_cost, 0) AS total_cost, span_count, llm_call_count, tool_call_count,
-		 status, error, metadata, tags, team_id, created_at
+		 status, error, metadata, tags, team_id, contact_id, created_at
 		 FROM traces WHERE parent_trace_id = $1 ORDER BY created_at`, parentTraceID); err != nil {
 		return nil, err
 	}
@@ -149,13 +149,13 @@ func (s *PGTracingStore) CreateSpan(ctx context.Context, span *store.SpanData) e
 		 start_time, end_time, duration_ms, status, error, level,
 		 model, provider, input_tokens, output_tokens, finish_reason,
 		 model_params, tool_name, tool_call_id, input_preview, output_preview,
-		 metadata, team_id, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+		 metadata, team_id, contact_id, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
 		span.ID, span.TraceID, span.ParentSpanID, span.AgentID, span.SpanType, nilStr(span.Name),
 		span.StartTime, nilTime(span.EndTime), nilInt(span.DurationMS), span.Status, nilStr(span.Error), span.Level,
 		nilStr(span.Model), nilStr(span.Provider), nilInt(span.InputTokens), nilInt(span.OutputTokens), nilStr(span.FinishReason),
 		jsonOrNull(span.ModelParams), nilStr(span.ToolName), nilStr(span.ToolCallID), nilStr(span.InputPreview), nilStr(span.OutputPreview),
-		jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt,
+		jsonOrNull(span.Metadata), nilUUID(span.TeamID), nilUUID(span.ContactID), span.CreatedAt,
 	)
 	return err
 }
@@ -172,7 +172,7 @@ func (s *PGTracingStore) GetTraceSpans(ctx context.Context, traceID uuid.UUID) (
 		 model, provider, input_tokens, output_tokens, finish_reason,
 		 COALESCE(model_params, '{}'::jsonb) AS model_params,
 		 tool_name, tool_call_id, input_preview, output_preview,
-		 COALESCE(metadata, '{}'::jsonb) AS metadata, team_id, created_at
+		 COALESCE(metadata, '{}'::jsonb) AS metadata, team_id, contact_id, created_at
 		 FROM spans WHERE trace_id = $1 ORDER BY start_time`, traceID)
 	if err != nil {
 		return nil, err
@@ -186,7 +186,7 @@ func (s *PGTracingStore) BatchCreateSpans(ctx context.Context, spans []store.Spa
 	}
 
 	// Build multi-row INSERT
-	const cols = 25
+	const cols = 26
 	valueGroups := make([]string, len(spans))
 	args := make([]any, 0, len(spans)*cols)
 
@@ -207,7 +207,7 @@ func (s *PGTracingStore) BatchCreateSpans(ctx context.Context, spans []store.Spa
 			span.StartTime, nilTime(span.EndTime), nilInt(span.DurationMS), span.Status, nilStr(span.Error), span.Level,
 			nilStr(span.Model), nilStr(span.Provider), nilInt(span.InputTokens), nilInt(span.OutputTokens), nilStr(span.FinishReason),
 			jsonOrNull(span.ModelParams), nilStr(span.ToolName), nilStr(span.ToolCallID), nilStr(span.InputPreview), nilStr(span.OutputPreview),
-			jsonOrNull(span.Metadata), nilUUID(span.TeamID), span.CreatedAt,
+			jsonOrNull(span.Metadata), nilUUID(span.TeamID), nilUUID(span.ContactID), span.CreatedAt,
 		)
 	}
 
@@ -215,7 +215,7 @@ func (s *PGTracingStore) BatchCreateSpans(ctx context.Context, spans []store.Spa
 		 start_time, end_time, duration_ms, status, error, level,
 		 model, provider, input_tokens, output_tokens, finish_reason,
 		 model_params, tool_name, tool_call_id, input_preview, output_preview,
-		 metadata, team_id, created_at)
+		 metadata, team_id, contact_id, created_at)
 		 VALUES ` + strings.Join(valueGroups, ", ")
 
 	_, err := s.db.ExecContext(ctx, q, args...)

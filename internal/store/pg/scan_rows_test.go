@@ -86,12 +86,14 @@ func TestDocumentDetailRow_ToDocumentDetail(t *testing.T) {
 	updated := time.Unix(1700000100, 0)
 	uid := "user-7"
 	r := documentDetailRow{
-		Path: "/p.md", Content: "body", Hash: "h",
+		Path: "/p.md", FilePath: "/ws/p.md", Hash: "h",
 		UserID: &uid, CreatedAt: created, UpdatedAt: updated,
 		ChunkCount: 5, EmbeddedCount: 3,
 	}
 	got := r.toDocumentDetail()
-	if got.Path != "/p.md" || got.Content != "body" {
+	// Content is now populated from FS (FilePath), not inline in DB row.
+	// toDocumentDetail() leaves Content empty; caller fills it from os.ReadFile.
+	if got.Path != "/p.md" || got.Content != "" {
 		t.Errorf("%+v", got)
 	}
 	if got.UserID != "user-7" {

@@ -126,10 +126,10 @@ func (s *PGKnowledgeGraphStore) knnNeighbors(ctx context.Context, agentID uuid.U
 	args = append(args, embeddingStr, limit)
 	q := fmt.Sprintf(`
 		SELECT id, name, confidence,
-		       1 - (embedding <=> $%d::vector) AS similarity
+		       1 - (embedding <=> $%d::halfvec) AS similarity
 		FROM kg_entities
 		WHERE %s
-		ORDER BY embedding <=> $%d::vector
+		ORDER BY embedding <=> $%d::halfvec
 		LIMIT $%d`, idx, where, idx, idx+1)
 
 	var nRows []knnNeighborRow

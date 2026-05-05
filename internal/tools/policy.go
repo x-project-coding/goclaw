@@ -15,7 +15,7 @@ import (
 var builtinToolGroups = map[string][]string{
 	"memory":     {"memory_search", "memory_get"},
 	"web":        {"web_search", "web_fetch"},
-	"fs":         {"read_file", "write_file", "list_files", "edit"},
+	"fs":         {"read_file", "write_file", "list_files", "edit", "delete_file"},
 	"runtime":    {"exec"},
 	"sessions":   {"sessions_list", "sessions_history", "sessions_send", "spawn", "session_status"},
 	"ui":         {"browser"},
@@ -25,7 +25,7 @@ var builtinToolGroups = map[string][]string{
 	"vault":      {"vault_search", "vault_read"},
 	// Composite group: all goclaw native tools (excludes MCP/custom plugins).
 	"goclaw": {
-		"read_file", "write_file", "list_files", "edit", "exec",
+		"read_file", "write_file", "list_files", "edit", "delete_file", "exec",
 		"web_search", "web_fetch", "browser",
 		"memory_search", "memory_get", "memory_expand",
 		"knowledge_graph_search", "vault_search", "vault_read",

@@ -13,6 +13,21 @@ import (
 
 // GrantChecker verifies if an agent/user still has access to an MCP server tool.
 // Used by BridgeTool.Execute to recheck grants at runtime.
+//
+// Gate model (Option A — locked):
+//   - Tool-name allowlist (tool_allow / tool_deny per mcp_agent_grants row) is the
+//     FINAL gatekeeper for MCP tool access.
+//   - MCP tool calls are NOT cross-gated against agent_config_permissions
+//     (write_file / edit_file / delete_file action gates). Those gates control
+//     direct tool invocations; MCP bridges are a separate execution path.
+//   - Trade-off: an MCP wrapper tool that internally writes files can execute even
+//     if the agent's action gate denies write_file. This collision is domain-specific
+//     and rare; admins control it by curating tool_allow / tool_deny on the per-agent
+//     grant for each MCP server.
+//   - Do NOT silently add action_allow cross-gate to mcp_agent_grants without
+//     revisiting this decision and updating tests — it would change isolation semantics.
+//   - Admin assist UI reads mcp_servers.metadata["primitives"] to surface collision
+//     risk to the admin during server registration. See MCPServerData.Metadata doc.
 type GrantChecker interface {
 	// IsAllowed returns true if the agent+user combination has access to the
 	// specified serverID and toolName. Returns false if grant was revoked.

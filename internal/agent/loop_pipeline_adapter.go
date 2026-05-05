@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/memory"
@@ -175,18 +176,26 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.P
 				if compactionCount > 0 {
 					summary = l.sessions.GetSummary(ctx, sessionKey)
 				}
+				scPayload := &eventbus.SessionCompletedPayload{
+					SessionKey:      sessionKey,
+					MessageCount:    msgCount,
+					TokensUsed:      tokensUsed,
+					CompactionCount: compactionCount,
+					Summary:         summary,
+					TeamID:          req.TeamID,
+				}
+				if cid := store.ContactIDFromContext(ctx); cid != uuid.Nil {
+					scPayload.ContactID = cid.String()
+				}
+				if pid := store.ProjectIDFromContext(ctx); pid != uuid.Nil {
+					scPayload.ProjectID = pid.String()
+				}
 				l.domainBus.Publish(eventbus.DomainEvent{
-					Type:    eventbus.EventSessionCompleted,
-					AgentID: l.agentUUID.String(),
-					UserID:  req.UserID,
+					Type:     eventbus.EventSessionCompleted,
+					AgentID:  l.agentUUID.String(),
+					UserID:   req.UserID,
 					SourceID: sessionKey,
-					Payload: &eventbus.SessionCompletedPayload{
-						SessionKey:      sessionKey,
-						MessageCount:    msgCount,
-						TokensUsed:      tokensUsed,
-						CompactionCount: compactionCount,
-						Summary:         summary,
-					},
+					Payload:  scPayload,
 				})
 			}
 		},

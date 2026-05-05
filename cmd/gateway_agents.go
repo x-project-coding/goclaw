@@ -109,7 +109,7 @@ func buildEmbeddingProvider(
 	providerReg *providers.Registry,
 ) memory.EmbeddingProvider {
 	// Resolve model: embedding settings → memCfg override → default
-	model := "text-embedding-3-small"
+	model := "text-embedding-3-large" // 3072 dims, matches halfvec(3072) schema
 	if es != nil && es.Model != "" {
 		model = es.Model
 	}

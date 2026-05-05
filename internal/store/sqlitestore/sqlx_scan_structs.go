@@ -59,8 +59,11 @@ type mcpServerRow struct {
 	Enabled     bool            `json:"enabled" db:"enabled"`
 	CreatedBy   string          `json:"created_by" db:"created_by"`
 	Metadata    json.RawMessage `json:"metadata" db:"metadata"`
-	CreatedAt   sqliteTime      `json:"created_at" db:"created_at"`
-	UpdatedAt   sqliteTime      `json:"updated_at" db:"updated_at"`
+	// Scope columns (nullable FK to agent_teams / projects)
+	TeamID    *uuid.UUID `json:"team_id" db:"team_id"`
+	ProjectID *uuid.UUID `json:"project_id" db:"project_id"`
+	CreatedAt sqliteTime `json:"created_at" db:"created_at"`
+	UpdatedAt sqliteTime `json:"updated_at" db:"updated_at"`
 }
 
 func (r *mcpServerRow) toMCPServerData() store.MCPServerData {
@@ -81,5 +84,7 @@ func (r *mcpServerRow) toMCPServerData() store.MCPServerData {
 		Enabled:     r.Enabled,
 		CreatedBy:   r.CreatedBy,
 		Metadata:    r.Metadata,
+		TeamID:      r.TeamID,
+		ProjectID:   r.ProjectID,
 	}
 }

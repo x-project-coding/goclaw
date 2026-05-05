@@ -49,20 +49,34 @@ type DomainEvent struct {
 // --- Typed payloads, one per EventType ---
 
 // SessionCompletedPayload is emitted after session end or compaction.
+// The 5D scope fields carry the intersected scope from the session so that
+// downstream episodic and semantic workers can tag their records correctly.
+// Empty string means the dimension is not bound (agent-broad).
 type SessionCompletedPayload struct {
 	SessionKey      string
 	MessageCount    int
 	TokensUsed      int
 	Summary         string // compaction summary if available
 	CompactionCount int    // tracks how many times compaction ran
+
+	// 5D scope — populated from session/request context at publish time.
+	TeamID    string // empty = not team-scoped
+	ContactID string // empty = not contact-scoped
+	ProjectID string // empty = not project-scoped
 }
 
 // EpisodicCreatedPayload is emitted after episodic summary is stored.
+// TeamID, ContactID, ProjectID carry the intersected 5D scope of the summary
+// so downstream workers (semantic, dreaming) can propagate scope to KG entities.
 type EpisodicCreatedPayload struct {
 	EpisodicID  string
 	SessionKey  string
 	Summary     string
 	KeyEntities []string
+	// 5D scope inherited from the summary row (empty = agent-broad)
+	TeamID    string
+	ContactID string
+	ProjectID string
 }
 
 // EntityUpsertedPayload is emitted after KG entity upsert.

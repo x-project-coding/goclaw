@@ -45,7 +45,7 @@ func SanitizeWriterLabel(s string) string {
 }
 
 // WriterMeta is the canonical shape stored in ConfigPermission.Metadata for
-// file_writer grants. Kept local to avoid a store→channels dependency; the
+// edit_file grants. Kept local to avoid a store→channels dependency; the
 // field tags must stay in sync with what /addwriter + enrichment emit.
 type writerMetaShape struct {
 	DisplayName string `json:"displayName"`
@@ -102,7 +102,7 @@ func IsEmptyWriterMetadata(m json.RawMessage) bool {
 	return false
 }
 
-// ParseGroupScope splits a file_writer scope into (channelName, chatID).
+// ParseGroupScope splits a permission scope into (channelName, chatID).
 // Returns ok=false for any shape other than "group:<name>:<chatID>".
 func ParseGroupScope(scope string) (channelName, chatID string, ok bool) {
 	if !strings.HasPrefix(scope, "group:") {

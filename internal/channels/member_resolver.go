@@ -6,7 +6,7 @@ import (
 )
 
 // MemberInfo carries the minimal chat-member profile used by the gateway
-// to enrich file_writer permission metadata on grant.
+// to enrich edit_file permission metadata on grant.
 type MemberInfo struct {
 	Username    string
 	DisplayName string

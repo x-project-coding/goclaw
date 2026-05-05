@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +16,8 @@ import (
 )
 
 const mcpServerSelectCols = `id, name, display_name, transport, command, args, url, headers, env,
-		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, metadata, created_at, updated_at`
+		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, metadata,
+		 team_id, project_id, created_at, updated_at`
 
 // SQLiteMCPServerStore implements store.MCPServerStore backed by SQLite.
 type SQLiteMCPServerStore struct {
@@ -32,6 +32,10 @@ func NewSQLiteMCPServerStore(db *sql.DB, encryptionKey string) *SQLiteMCPServerS
 func (s *SQLiteMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPServerData) error {
 	if err := store.ValidateUserID(srv.CreatedBy); err != nil {
 		return err
+	}
+	// App-layer mutex guard: team_id and project_id cannot both be set.
+	if srv.TeamID != nil && srv.ProjectID != nil {
+		return fmt.Errorf("mcp server: team_id and project_id cannot both be set (scope mutex)")
 	}
 	if srv.ID == uuid.Nil {
 		srv.ID = store.GenNewID()
@@ -58,12 +62,14 @@ func (s *SQLiteMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPS
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (id, name, display_name, transport, command, args, url, headers, env,
-		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, metadata, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, metadata,
+		 team_id, project_id, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		srv.ID, srv.Name, nilStr(srv.DisplayName), srv.Transport, nilStr(srv.Command),
 		jsonOrEmpty(srv.Args), nilStr(srv.URL), encHeaders, encEnv,
 		nilStr(apiKey), nilStr(srv.ToolPrefix), srv.TimeoutSec,
-		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, meta, now, now,
+		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, meta,
+		srv.TeamID, srv.ProjectID, now, now,
 	)
 	return err
 }
@@ -88,19 +94,6 @@ func (s *SQLiteMCPServerStore) GetServerByName(ctx context.Context, name string)
 	srv := row.toMCPServerData()
 	s.decryptServerFields(&srv)
 	return &srv, nil
-}
-
-// decryptServerFields decrypts api_key, headers, and env after scan.
-func (s *SQLiteMCPServerStore) decryptServerFields(srv *store.MCPServerData) {
-	srv.Headers = s.decryptJSON(srv.Headers)
-	srv.Env = s.decryptJSON(srv.Env)
-	if srv.APIKey != "" && s.encKey != "" {
-		if decrypted, err := crypto.Decrypt(srv.APIKey, s.encKey); err == nil {
-			srv.APIKey = decrypted
-		} else {
-			slog.Warn("mcp: failed to decrypt api key", "server", srv.Name, "error", err)
-		}
-	}
 }
 
 func (s *SQLiteMCPServerStore) ListServers(ctx context.Context) ([]store.MCPServerData, error) {
@@ -151,34 +144,49 @@ func (s *SQLiteMCPServerStore) DeleteServer(ctx context.Context, id uuid.UUID) e
 	return err
 }
 
-// encryptJSON encrypts a JSON blob by wrapping ciphertext as a JSON string.
-// Unencrypted: {"key":"val"} (JSON object). Encrypted: "aes-gcm:..." (JSON string).
-func (s *SQLiteMCPServerStore) encryptJSON(data []byte) []byte {
-	if s.encKey == "" || len(data) == 0 || string(data) == "{}" || string(data) == "null" {
-		return data
+// ListAccessibleServers returns servers the agent can reach, filtered by scope context.
+// Visibility = global UNION team-scoped (if teamID non-nil) UNION project-scoped
+// (if projectID non-nil), intersected with active agent grants.
+// Uses ? placeholders; scope columns (team_id, project_id) added in Phase 04 schema.
+func (s *SQLiteMCPServerStore) ListAccessibleServers(ctx context.Context, agentID uuid.UUID, teamID, projectID *uuid.UUID) ([]store.MCPServerData, error) {
+	var teamStr, projectStr *string
+	if teamID != nil {
+		v := teamID.String()
+		teamStr = &v
 	}
-	enc, err := crypto.Encrypt(string(data), s.encKey)
+	if projectID != nil {
+		v := projectID.String()
+		projectStr = &v
+	}
+
+	var rows []mcpServerRow
+	err := pkgSqlxDB.SelectContext(ctx, &rows,
+		`SELECT `+mcpServerSelectCols+`
+		 FROM mcp_servers
+		 WHERE id IN (
+		   SELECT s.id FROM mcp_servers s
+		   INNER JOIN mcp_agent_grants g ON g.server_id = s.id
+		   WHERE g.agent_id = ?
+		     AND g.enabled = 1
+		     AND s.enabled = 1
+		     AND (
+		           (s.team_id IS NULL AND s.project_id IS NULL)
+		        OR (? IS NOT NULL AND s.team_id    = ?)
+		        OR (? IS NOT NULL AND s.project_id = ?)
+		     )
+		 )
+		 ORDER BY name`,
+		agentID, teamStr, teamStr, projectStr, projectStr,
+	)
 	if err != nil {
-		slog.Warn("mcp: failed to encrypt json", "error", err)
-		return data
+		return nil, err
 	}
-	wrapped, _ := json.Marshal(enc)
-	return wrapped
+	result := make([]store.MCPServerData, 0, len(rows))
+	for _, r := range rows {
+		srv := r.toMCPServerData()
+		s.decryptServerFields(&srv)
+		result = append(result, srv)
+	}
+	return result, nil
 }
 
-// decryptJSON decrypts a JSON blob if it is an encrypted JSON string.
-func (s *SQLiteMCPServerStore) decryptJSON(data []byte) []byte {
-	if s.encKey == "" || len(data) == 0 || data[0] != '"' {
-		return data
-	}
-	var encStr string
-	if json.Unmarshal(data, &encStr) != nil {
-		return data
-	}
-	dec, err := crypto.Decrypt(encStr, s.encKey)
-	if err != nil {
-		slog.Warn("mcp: failed to decrypt json", "error", err)
-		return data
-	}
-	return []byte(dec)
-}
