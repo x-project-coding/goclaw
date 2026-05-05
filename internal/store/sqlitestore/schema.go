@@ -14,22 +14,57 @@ import (
 var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version for v4.
-// v4 greenfield reset: single full schema in schema.sql, no incremental patches.
-// Bump this and add an entry to migrations when a future column/table change is needed.
-const SchemaVersion = 1
+// Bump this and add an entry to migrations when schema changes are needed.
+// v1 → v2: adds user_key/kind/channel_type to users, team_key to agent_teams,
+// and metadata to all 13 entity tables (foundation rebuild).
+const SchemaVersion = 2
 
-// migrations maps version → SQL to apply when upgrading FROM that version.
+// migrations maps version → ordered slice of SQL statements to apply when
+// upgrading FROM that version to the next.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
 // Existing DBs are patched incrementally via these steps.
 //
-// Example: to add a column in a future v4.x release:
-//
-//	var migrations = map[int]string{
-//	    1: `ALTER TABLE agents ADD COLUMN new_col TEXT DEFAULT '';`,
-//	}
-//
-// Then bump SchemaVersion to 2.
-var migrations = map[int]string{}
+// Add future migrations as: migrations[N] = []string{...} and bump SchemaVersion.
+var migrations = map[int][]string{
+	// Upgrade v1 → v2: foundation identity + metadata columns.
+	// Adds stable slug identifiers (user_key, team_key), identity kind columns,
+	// and a generic metadata JSONB-equivalent column to all main entity tables.
+	// The shape constraint CHECK (kind/channel_type coherence) cannot be added
+	// to an existing column via SQLite ALTER TABLE; new rows on upgraded DBs
+	// are validated at the application layer. Fresh DBs get the full constraint
+	// via schema.sql.
+	1: {
+		// --- users: identity slug + kind ---
+		`ALTER TABLE users ADD COLUMN user_key    VARCHAR(100) NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN kind        VARCHAR(20)  NOT NULL DEFAULT 'human' CHECK (kind IN ('human','channel'))`,
+		`ALTER TABLE users ADD COLUMN channel_type VARCHAR(20) NULL`,
+		`ALTER TABLE users ADD COLUMN metadata    TEXT         NOT NULL DEFAULT '{}'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_key ON users(user_key)`,
+		// --- agent_teams: team slug ---
+		`ALTER TABLE agent_teams ADD COLUMN team_key VARCHAR(100) NOT NULL DEFAULT ''`,
+		`ALTER TABLE agent_teams ADD COLUMN metadata TEXT        NOT NULL DEFAULT '{}'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_teams_team_key ON agent_teams(team_key)`,
+		// --- 11 remaining entity tables: metadata column ---
+		`ALTER TABLE agents            ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE agent_shares      ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE agent_links       ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE memory_documents  ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE skills            ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE skill_versions    ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE channel_instances ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE mcp_servers       ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE cron_jobs         ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE llm_providers     ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE system_configs    ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE user_sessions     ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'`,
+		// --- best-effort slug backfill for legacy rows ---
+		// Derives user_key from email local-part (lowercase, strip dots/plus).
+		// May produce collisions on legacy data; application layer regenerates
+		// unique slugs on next gateway start if needed.
+		`UPDATE users SET user_key = lower(replace(replace(substr(email, 1, instr(email||'@', '@')-1), '.', ''), '+', '')) WHERE user_key = ''`,
+		`UPDATE agent_teams SET team_key = lower(replace(replace(name, ' ', '-'), '_', '-')) WHERE team_key = ''`,
+	},
+}
 
 // EnsureSchema creates tables if they don't exist and applies incremental migrations.
 //
@@ -74,7 +109,7 @@ func EnsureSchema(db *sql.DB) error {
 	if current < SchemaVersion {
 		slog.Info("sqlite: migrating schema", "from", current, "to", SchemaVersion)
 		for v := current; v < SchemaVersion; v++ {
-			patch, ok := migrations[v]
+			stmts, ok := migrations[v]
 			if !ok {
 				return fmt.Errorf("sqlite: missing migration for version %d → %d", v, v+1)
 			}
@@ -82,9 +117,11 @@ func EnsureSchema(db *sql.DB) error {
 			if txErr != nil {
 				return fmt.Errorf("begin migration tx v%d: %w", v, txErr)
 			}
-			if _, err := tx.Exec(patch); err != nil {
-				tx.Rollback()
-				return fmt.Errorf("apply migration v%d: %w", v, err)
+			for _, stmt := range stmts {
+				if _, err := tx.Exec(stmt); err != nil {
+					tx.Rollback()
+					return fmt.Errorf("apply migration v%d stmt %q: %w", v, stmt[:min(40, len(stmt))], err)
+				}
 			}
 			if _, err := tx.Exec(
 				"UPDATE schema_version SET version = ? WHERE version = ?", v+1, v,

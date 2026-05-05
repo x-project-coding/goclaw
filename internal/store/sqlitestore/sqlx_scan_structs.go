@@ -21,6 +21,7 @@ type providerRow struct {
 	APIKey       string          `json:"api_key" db:"api_key"`
 	Enabled      bool            `json:"enabled" db:"enabled"`
 	Settings     json.RawMessage `json:"settings" db:"settings"`
+	Metadata     json.RawMessage `json:"metadata" db:"metadata"`
 	CreatedAt    sqliteTime      `json:"created_at" db:"created_at"`
 	UpdatedAt    sqliteTime      `json:"updated_at" db:"updated_at"`
 }
@@ -35,6 +36,7 @@ func (r *providerRow) toLLMProviderData() store.LLMProviderData {
 		APIKey:       r.APIKey,
 		Enabled:      r.Enabled,
 		Settings:     r.Settings,
+		Metadata:     r.Metadata,
 	}
 }
 
@@ -56,6 +58,7 @@ type mcpServerRow struct {
 	Settings    json.RawMessage `json:"settings" db:"settings"`
 	Enabled     bool            `json:"enabled" db:"enabled"`
 	CreatedBy   string          `json:"created_by" db:"created_by"`
+	Metadata    json.RawMessage `json:"metadata" db:"metadata"`
 	CreatedAt   sqliteTime      `json:"created_at" db:"created_at"`
 	UpdatedAt   sqliteTime      `json:"updated_at" db:"updated_at"`
 }
@@ -77,5 +80,6 @@ func (r *mcpServerRow) toMCPServerData() store.MCPServerData {
 		Settings:    r.Settings,
 		Enabled:     r.Enabled,
 		CreatedBy:   r.CreatedBy,
+		Metadata:    r.Metadata,
 	}
 }
