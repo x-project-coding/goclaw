@@ -19,6 +19,7 @@ For system design see `docs/00-architecture-overview.md`; for API contract see `
 | `internal/gateway/` | WS + HTTP server, client, method router |
 | `internal/http/` | HTTP API handlers (`/v1/*`) |
 | `internal/i18n/` | Backend message catalog (EN/VI/ZH) + `T(locale, key, args)` |
+| `internal/identity/` | Slug generation (user_key, team_key from email/name) — v4 Phase B |
 | `internal/memory/` | pgvector 3-tier memory system |
 | `internal/mcp/` | Model Context Protocol bridge |
 | `internal/permissions/` | RBAC: admin / operator / viewer |

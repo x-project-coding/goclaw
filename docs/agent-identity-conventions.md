@@ -125,14 +125,15 @@ Relevant tests:
 - `agent/router_cache_canonicalize_test.go`, `router_invalidate_collision_test.go`, `router_isrunning_test.go` — router cache strategy.
 - `gateway/methods/agent_resolve_cached_test.go` — cache-aware resolver.
 
-## 5. How this applies to teams and tenants
+## 5. How this applies to teams, tenants, and users
 
-The dual-identity pattern is a **codebase-wide convention**, not agent-specific:
+The dual-identity pattern is a **codebase-wide convention**, not agent-specific (v4 Phase B):
 
 | Entity | UUID field | Key field | Notes |
 |---|---|---|---|
 | Agent | `agents.id uuid` | `agents.agent_key text` | Dual-tenant: same key across tenants is allowed |
-| Team | `agent_teams.id uuid` | (no key field) | Teams use UUID only; no slug or key field |
+| Team | `agent_teams.id uuid` | `agent_teams.team_key text` | v4 Phase B: auto-generated from name, UNIQUE, immutable |
+| User | `users.id uuid` | `users.user_key text` | v4 Phase B: auto-generated from email local-part, UNIQUE, immutable |
 | Tenant | `tenants.id uuid` | `tenants.tenant_slug text` | Slug used in URLs and onboarding wizard |
 | Session | `sessions.session_key text` | (no separate UUID) | Session key is the only identifier — safe by construction |
 

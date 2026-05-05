@@ -4,6 +4,41 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## v4 rc1 Phase B Foundation — 2026-05-05
+
+### Schema & Identity
+
+**Greenfield foundation for v4 rebuild.** Single-tenant, slug-based identity + metadata standard.
+
+- **Slug identity:** `users.user_key` (auto from email local-part), `agent_teams.team_key` (auto from team name), both UNIQUE + immutable post-create, used as workspace folder identifiers. Generation in `internal/identity/slug.go` (deterministic, no DB import).
+- **User kind discriminator:** `users.kind` (enum: 'human', 'channel'), `users.channel_type VARCHAR(20) NULL` for future channel-type extensibility. Shape constraint enforced: human must have NULL channel_type; channel must have non-NULL. Mutations atomic via `UserStore.SetKind()`.
+- **Metadata JSONB standard:** `metadata JSONB NOT NULL DEFAULT '{}'` (PG) / `metadata TEXT NOT NULL DEFAULT '{}'` (SQLite) on 13 entity tables: agents, agent_teams, agent_shares, agent_links, memory_documents, skills, skill_versions, channel_instances, mcp_servers, cron_jobs, llm_providers, system_configs, user_sessions. Extensibility point for future feature-specific data without schema migrations.
+
+### Tenant Purge Complete
+
+- **Last live tenant code removed:** `buildSkillEmbeddingTenantCond` helper deleted. Grep gate `make check-tenant-purge` confirms zero functional tenant residue.
+- **SQLite parity:** SchemaVersion 1→2, migration map covers all new columns for legacy desktop DBs. Fresh DB applies via `schema.sql` directly.
+- **v3 residue cleanup:** 4 SQLite integration test files deleted (multi-tenant features not ported to v4).
+
+### Schema Changes (Dual DB)
+
+**PostgreSQL:** `migrations/000001_initial.up.sql` greenfield file (1418 LOC) — no ALTER files, all tables created fresh.
+**SQLite:** `internal/store/sqlitestore/schema.sql` (1387 LOC) + incremental migration map, parity verified by `parity_test.go`.
+
+### Build & Test Gates
+
+- `go build ./...` ✓ (PG build)
+- `go build -tags sqliteonly ./...` ✓ (Desktop/SQLite build)
+- `go vet ./...` ✓
+- `make check-tenant-purge` ✓ (grep-zero gate)
+- `make test-foundation` ✓ (~45 integration tests, all GREEN)
+
+### Unblocks
+
+Plans #2-11 in v4 rc1 now proceed (foundation locked).
+
+---
+
 ## v3.11.3 — 2026-04-26
 
 ### Fixes

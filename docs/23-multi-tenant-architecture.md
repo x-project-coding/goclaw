@@ -1,5 +1,7 @@
 # Multi-Tenant Integration Guide
 
+**v4 Note:** This document describes the v3 architecture. v4 rc1 is single-tenant (multi-tenant scaffolding removed in Phase B). This guide is retained as architectural reference; see `docs/agent-identity-conventions.md` for v4 identity patterns.
+
 GoClaw is an **AI agent gateway** — it handles agents, chat, sessions, tools, MCP servers, and memory. It supports two deployment modes:
 
 1. **Personal / Single-tenant** — Use GoClaw directly as your AI backend. Built-in dashboard included.

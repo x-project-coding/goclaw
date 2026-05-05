@@ -185,6 +185,25 @@ OTel and Tailscale variants are not pre-built — build from source with the app
 - **Tool gating:** `TeamActionPolicy` in `internal/tools/team_action_policy.go` — lite blocks comment/review/approve/reject/attach/ask_user. `skill_manage`/`publish_skill` not registered in lite
 - **File serving:** 2-layer path isolation in `internal/http/files.go` — workspace boundary (all editions) + tenant scope (standard only with RBAC)
 
+## [IMPORTANT] When Uncertain, Scout — Don't Guess
+
+**Default rule for any non-trivial design / brainstorm / planning work:** if you are unsure about how something works in the codebase (existing scope, schema, control flow, integration), **spawn an Explore scout agent**. Do not infer, guess, or extrapolate from partial reads.
+
+Triggers — when to scout:
+- Designing schema changes that touch tables you haven't read end-to-end (columns, FKs, constraints)
+- Proposing API/RPC contracts when the existing handler shape is not memorized
+- Asserting behavior of a subsystem (channels, memory, hooks, MCP, cron, etc.) without re-reading its current code
+- User asks "how does X work today?" and you have not opened the relevant files in this session
+- Planning ripple effects across multiple subsystems — scout each independently before integrating
+- Re-scoping or revisiting an earlier decision (treat as fresh question)
+
+Anti-patterns:
+- ❌ "I think the table has column X" — grep it
+- ❌ "It probably routes through Y handler" — read the file
+- ❌ "Likely the same as v3 pattern" — verify v4 didn't refactor it
+
+Scout cost is low; hallucinated facts in design docs cost rebuild cycles. Bias toward over-scouting in brainstorm/planning phases.
+
 ## Plan Verification Rules
 
 Apply before finalizing any multi-phase plan. Trust-but-verify between scout → planner → final plan.
@@ -287,6 +306,29 @@ A theoretical gap is only a real gap if the code's real usage pattern produces t
 2. **Walk each scenario the reviewer flagged** through that lens. Does scenario X actually produce the bad outcome (stale decision / wrong result / security hole)? Often the answer is "theoretically yes, practically no."
 3. **Separate real risks from abstract ones.** Apply fixes for real risks; document non-risks with a short rationale; surface borderline cases to the user instead of auto-accepting.
 4. **Look for the failure mode the reviewer missed.** Often the more realistic bug sits one step away from what the review flagged (e.g. typo in a static list that makes the fingerprint query return zero rows — more likely than any of the "DDL width" cases the reviewer listed).
+
+## [IMPORTANT] v4 Rebuild Discipline — Workflow-First, Not KISS/YAGNI Default
+
+**v4 is a one-shot greenfield rebuild.** Decisions lock in for years. There is no "iterate later" because the rebuild itself IS the iteration. Default KISS / YAGNI thinking causes choices that look fine for rc1 but accrue maintenance debt, performance regression, or wire-format breaks once production load arrives.
+
+**Discipline for every non-trivial design choice in v4 plan/audit work:**
+
+1. **Workflow-walk BEFORE trade-off analysis.** Trace the concrete sequence first — read path, write path, cache hit, cache miss, migration, edge cases. Identify which paths actually exist and where data crosses each boundary (DB↔Go, Go↔HTTP, web↔backend, …). Trade-off comparison is meaningless until you know which path the metric applies to.
+2. **Verify with grep / Read existing code, not analytical reasoning alone.** "It probably works like X" is the failure mode. Open the file, confirm the query pattern, the field shape, the call graph.
+3. **Don't accept subagent / red-team / brainstorm framings as immutable.** Re-question the premise. If a finding says "fabricated SDK", the right question is not "SDK or no SDK?" — it is "do we even need the path that SDK serves?".
+4. **When user pushes back, re-derive from first principles — do NOT swing.** Reactive correction (KISS → over-engineer → KISS …) is a sign you skipped step 1. Going back to the workflow walk is the right response, not flipping the conclusion.
+5. **Evaluate long-term: maintenance, future features, production load, multi-tenant scale.** "Enough for rc1" is the wrong bar in a once-in-a-while rebuild. Bar is "still correct + maintainable when v4 has been in production 2 years and feature set has doubled".
+6. **Idea triage takes effort. Spend it.** Every architectural choice in v4 — schema shape, scope keys, encoding format, API contract — deserves explicit walk through real usage, not template comparison.
+
+**Anti-patterns that should trigger you to stop and re-walk:**
+- Reaching for KISS or YAGNI as the deciding rationale before you have walked the workflow.
+- Picking option B because user disagreed with option A, without re-deriving why.
+- Trade-off table with "performance" or "consistency" rows where you cannot point to a concrete operation that benefits.
+- Conclusions that depend on a subagent's framing of the choice instead of the actual code paths.
+
+**Apply this discipline retroactively:** when revisiting prior plan decisions, re-walk the workflow even if the decision is "verified" — verification was against an earlier framing that may not reflect actual usage.
+
+This rule has higher priority than the global "YAGNI / KISS / DRY" instruction for v4 rebuild work specifically. The global rule still applies elsewhere.
 
 ## [IMPORTANT] Code Comments & Artifact Naming — No Plan References
 

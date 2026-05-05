@@ -73,6 +73,59 @@ The `Stores` struct is the top-level container holding all PostgreSQL-backed sto
 
 ---
 
+## 2b. Metadata JSONB Standard (v4 Phase B)
+
+**v4 rc1 Phase B** establishes `metadata` as a standard extensibility column across 13 entity tables. This provides a structured way to attach feature-specific data without schema migrations.
+
+### Table Coverage
+
+| Table | Type | Metadata use |
+|-------|------|---|
+| `agents` | Entity | Agent-specific runtime settings, feature flags |
+| `agent_teams` | Entity | Team metadata, workspace settings |
+| `agent_shares` | Junction | Share-level overrides, permissions metadata |
+| `agent_links` | Junction | Link-specific routing, version tracking |
+| `memory_documents` | Memory | Document tagging, source attribution |
+| `skills` | Entity | Skill-specific config, feature flags |
+| `skill_versions` | History | Version-level metadata, changelog |
+| `channel_instances` | Config | Channel-specific overrides, account metadata |
+| `mcp_servers` | Config | Server capabilities, transport-specific settings |
+| `cron_jobs` | Schedule | Job metadata, execution tracking |
+| `llm_providers` | Config | Provider-specific overrides, feature gates |
+| `system_configs` | Config | Tenant-wide settings extensions |
+| `user_sessions` | Session | Session-level metadata, context tracking |
+
+### Schema Pattern
+
+**PostgreSQL:**
+```sql
+ALTER TABLE agents ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}';
+```
+
+**SQLite:**
+```sql
+ALTER TABLE agents ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}';
+```
+
+### Store API Pattern
+
+Stores read metadata via `BuildMapUpdate()` helper (handles JSONB + TEXT dually). On insert, `metadata` defaults to `{}`. Example:
+
+```go
+type Agent struct {
+    ID       uuid.UUID
+    AgentKey string
+    Metadata json.RawMessage  // or map[string]any for some types
+}
+
+// In store implementation:
+agent.Metadata = json.RawMessage(`{}`)  // fresh entity defaults
+```
+
+**Never mutate metadata in-place.** Always reconstruct and UPDATE the full object to preserve atomicity.
+
+---
+
 ## 3. Session Caching
 
 The session store uses an in-memory write-behind cache to minimize database I/O during the agent tool loop. All reads and writes happen in memory; data is flushed to the persistent backend only when `Save()` is called at the end of a run.
