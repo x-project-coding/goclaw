@@ -177,15 +177,15 @@ func (s *SQLiteProjectGrantStore) ResolveProjectRole(ctx context.Context, userID
 
 // --- scan helpers ---
 
-func scanSQLiteGrant(row *sql.Row) (*store.ProjectGrant, error) {
+// grantRowScanner is satisfied by both *sql.Row and *sql.Rows.
+type grantRowScanner interface{ Scan(dest ...any) error }
+
+// scanSQLiteGrantFrom scans one project grant row from any Scanner (sql.Row or sql.Rows).
+func scanSQLiteGrantFrom(r grantRowScanner) (*store.ProjectGrant, error) {
 	var g store.ProjectGrant
 	var userID, teamID, grantedBy sql.NullString
 	createdAt := &sqliteTime{}
-	err := row.Scan(
-		&g.ID, &g.ProjectID, &userID, &teamID,
-		&g.Role, &grantedBy, createdAt,
-	)
-	if err != nil {
+	if err := r.Scan(&g.ID, &g.ProjectID, &userID, &teamID, &g.Role, &grantedBy, createdAt); err != nil {
 		return nil, err
 	}
 	if userID.Valid {
@@ -201,34 +201,13 @@ func scanSQLiteGrant(row *sql.Row) (*store.ProjectGrant, error) {
 	return &g, nil
 }
 
-func scanSQLiteGrantRow(rows *sql.Rows) (*store.ProjectGrant, error) {
-	var g store.ProjectGrant
-	var userID, teamID, grantedBy sql.NullString
-	createdAt := &sqliteTime{}
-	err := rows.Scan(
-		&g.ID, &g.ProjectID, &userID, &teamID,
-		&g.Role, &grantedBy, createdAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if userID.Valid {
-		g.UserID = &userID.String
-	}
-	if teamID.Valid {
-		g.TeamID = &teamID.String
-	}
-	if grantedBy.Valid {
-		g.GrantedBy = &grantedBy.String
-	}
-	g.CreatedAt = createdAt.Time
-	return &g, nil
-}
+// scanSQLiteGrant scans a single *sql.Row result.
+func scanSQLiteGrant(row *sql.Row) (*store.ProjectGrant, error) { return scanSQLiteGrantFrom(row) }
 
 func scanSQLiteGrantRows(rows *sql.Rows) ([]*store.ProjectGrant, error) {
 	var grants []*store.ProjectGrant
 	for rows.Next() {
-		g, err := scanSQLiteGrantRow(rows)
+		g, err := scanSQLiteGrantFrom(rows)
 		if err != nil {
 			return nil, err
 		}

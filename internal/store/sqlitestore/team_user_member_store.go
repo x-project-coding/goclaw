@@ -5,6 +5,7 @@ package sqlitestore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -92,7 +93,7 @@ func (s *SQLiteTeamUserMemberStore) GetRole(ctx context.Context, teamID, userID 
 		teamID, userID,
 	).Scan(&role)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", false, nil
 		}
 		return "", false, fmt.Errorf("team_user_members get role: %w", err)

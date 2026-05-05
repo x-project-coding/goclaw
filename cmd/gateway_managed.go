@@ -230,6 +230,7 @@ func wireExtras(
 		TracingStore:           stores.Tracing,
 		MemoryStore:            stores.Memory,
 		ContactStore:           stores.Contacts,
+		ProjectStore:           stores.Projects,
 		SystemConfigs:          stores.SystemConfigs,
 		Workspace:              workspace,
 		TTSAutoMode:            appCfg.Tts.Auto,

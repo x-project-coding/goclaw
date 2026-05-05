@@ -106,6 +106,9 @@ type ResolverDeps struct {
 	// Contact store for user identity resolution (channel contacts).
 	ContactStore store.ContactStore
 
+	// Project store for project metadata lookups (slug → workspace path).
+	ProjectStore store.ProjectStore
+
 	// System config store for global settings (allowed_paths, etc.)
 	SystemConfigs store.SystemConfigStore
 
@@ -492,6 +495,8 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			DelegateTargets:        delegateTargets,
 			EvolutionMetricsStore:  evoMetricsStore,
 			UserResolver:           newContactResolver(deps.ContactStore),
+			ContactStore:           deps.ContactStore,
+			ProjectStore:           deps.ProjectStore,
 		})
 
 		slog.Info("resolved agent from DB", "agent", agentKey, "model", ag.Model, "provider", ag.Provider)

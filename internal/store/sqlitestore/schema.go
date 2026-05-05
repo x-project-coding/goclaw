@@ -26,6 +26,10 @@ var schemaSQL string
 // v8 → v9: adds project_id FK (SET NULL) to agent_sessions for per-session project binding.
 // v9 → v10: adds default_project_id FK (SET NULL) to channel_contacts for group-chat project default.
 // v10 → v11: widens idx_projects_status to cover all status values (was active-only partial index).
+// Note: projects.owner_user_id ON DELETE RESTRICT was added to schema.sql for fresh DBs but does NOT
+// have a v11→v12 incremental migration. SQLite cannot alter FK actions on existing tables without a
+// full table-rebuild. The practical behavior is identical: SQLite's default NO ACTION (for FKs with
+// PRAGMA foreign_keys=ON) already prevents deletion of owner users that have projects, same as RESTRICT.
 const SchemaVersion = 11
 
 // migrations maps version → ordered slice of SQL statements to apply when

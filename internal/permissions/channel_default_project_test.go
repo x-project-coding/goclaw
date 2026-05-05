@@ -209,10 +209,6 @@ func TestCanSetChannelDefaultProject_ProjectOwner(t *testing.T) {
 	callerID := e.seedUser(t)
 	projectID := e.seedProject(t, callerID) // callerID is the project owner
 	contactID := e.seedGroupContact(t, "")
-	// Project owner implicitly has access (owner row counted as editor via grants resolver),
-	// but for the permission gate we also need CanAccessProject to pass.
-	// Seed a viewer grant so the grants resolver returns a role for callerID.
-	e.addViewerGrant(t, projectID, callerID)
 
 	pid := uuid.Must(uuid.Parse(projectID))
 	ok, err := permissions.CanSetChannelDefaultProject(
@@ -224,7 +220,29 @@ func TestCanSetChannelDefaultProject_ProjectOwner(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !ok {
-		t.Error("project owner with access must be allowed")
+		t.Error("project owner must be allowed without an explicit grant")
+	}
+}
+
+// TestCanSetChannelDefaultProject_OwnerOnly proves the owner path: no explicit
+// project grant is needed — the resolver's owner leg (rank 3) is sufficient.
+func TestCanSetChannelDefaultProject_OwnerOnly(t *testing.T) {
+	e := newChannelPermEnv(t)
+	callerID := e.seedUser(t)
+	projectID := e.seedProject(t, callerID) // callerID is the owner, no grant added
+	contactID := e.seedGroupContact(t, "")
+
+	pid := uuid.Must(uuid.Parse(projectID))
+	ok, err := permissions.CanSetChannelDefaultProject(
+		e.ctx, e.deps(),
+		permissions.RoleMember, callerID,
+		contactID, &pid,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("owner without an explicit grant must still pass CanSetChannelDefaultProject")
 	}
 }
 

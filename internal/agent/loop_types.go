@@ -252,6 +252,13 @@ type Loop struct {
 	// v3 evolution metrics store (nil = disabled)
 	evolutionMetricsStore store.EvolutionMetricsStore
 
+	// contactStore is used to look up channel contact records (e.g. default_project_id).
+	// Kept separate from userResolver to avoid narrowing the full ContactStore interface.
+	contactStore store.ContactStore
+
+	// projectStore is used to fetch project metadata (slug) for workspace resolution.
+	projectStore store.ProjectStore
+
 	// User identity resolver: maps channel contacts to merged tenant users for credential lookups.
 	userResolver UserIdentityResolver
 
@@ -448,6 +455,14 @@ type LoopConfig struct {
 
 	// User identity resolver for credential lookups (maps channel contacts → tenant users)
 	UserResolver UserIdentityResolver
+
+	// ContactStore for channel contact lookups (default_project_id, etc.).
+	// When nil, the contact-based project default (Layer 1) is skipped.
+	ContactStore store.ContactStore
+
+	// ProjectStore for project metadata lookups (slug → workspace path).
+	// When nil, project-priority workspace resolution is skipped.
+	ProjectStore store.ProjectStore
 }
 
 const defaultMaxTokens = config.DefaultMaxTokens
@@ -575,6 +590,8 @@ func NewLoop(cfg LoopConfig) *Loop {
 		delegateTargets:        cfg.DelegateTargets,
 		evolutionMetricsStore:  cfg.EvolutionMetricsStore,
 		userResolver:           cfg.UserResolver,
+		contactStore:           cfg.ContactStore,
+		projectStore:           cfg.ProjectStore,
 	}
 }
 

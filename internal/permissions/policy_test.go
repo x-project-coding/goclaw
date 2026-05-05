@@ -127,6 +127,9 @@ func TestCanAccess_WriteMethods(t *testing.T) {
 		protocol.MethodSessionsDelete,
 		protocol.MethodSessionsCompact,
 		protocol.MethodCronCreate,
+		// Project-binding write methods: member can call, viewer cannot.
+		protocol.MethodSessionsUpdateProject,
+		protocol.MethodChannelsContactsSetDefaultProject,
 	}
 	for _, method := range writeMethods {
 		t.Run(method, func(t *testing.T) {

@@ -48,11 +48,11 @@ func (r *defaultResolver) resolveProject(p ResolveParams) (*WorkspaceContext, er
 	ensureDir(path)
 	wc := &WorkspaceContext{
 		ActivePath:       path,
-		Scope:            ScopePersonal, // project sessions are user-scoped
+		Scope:            ScopeProject,
 		OwnerID:          ownerID(p),
 		MemoryScope:      "user",
 		KGScope:          "user",
-		EnforcementLabel: DefaultEnforcementLabel(ScopePersonal, false),
+		EnforcementLabel: DefaultEnforcementLabel(ScopeProject, false),
 		ProjectID:        p.ProjectID,
 		ProjectSlug:      p.ProjectSlug,
 	}

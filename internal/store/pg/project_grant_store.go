@@ -162,14 +162,14 @@ func (s *PGProjectGrantStore) ResolveProjectRole(ctx context.Context, userID, pr
 
 // --- scan helpers ---
 
-func scanPGGrant(row *sql.Row) (*store.ProjectGrant, error) {
+// grantScanner is satisfied by both *sql.Row and *sql.Rows.
+type grantScanner interface{ Scan(dest ...any) error }
+
+// scanGrant scans one project grant row from any Scanner (sql.Row or sql.Rows).
+func scanGrant(r grantScanner) (*store.ProjectGrant, error) {
 	var g store.ProjectGrant
 	var userID, teamID, grantedBy sql.NullString
-	err := row.Scan(
-		&g.ID, &g.ProjectID, &userID, &teamID,
-		&g.Role, &grantedBy, &g.CreatedAt,
-	)
-	if err != nil {
+	if err := r.Scan(&g.ID, &g.ProjectID, &userID, &teamID, &g.Role, &grantedBy, &g.CreatedAt); err != nil {
 		return nil, err
 	}
 	if userID.Valid {
@@ -184,32 +184,13 @@ func scanPGGrant(row *sql.Row) (*store.ProjectGrant, error) {
 	return &g, nil
 }
 
-func scanPGGrantRow(rows *sql.Rows) (*store.ProjectGrant, error) {
-	var g store.ProjectGrant
-	var userID, teamID, grantedBy sql.NullString
-	err := rows.Scan(
-		&g.ID, &g.ProjectID, &userID, &teamID,
-		&g.Role, &grantedBy, &g.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if userID.Valid {
-		g.UserID = &userID.String
-	}
-	if teamID.Valid {
-		g.TeamID = &teamID.String
-	}
-	if grantedBy.Valid {
-		g.GrantedBy = &grantedBy.String
-	}
-	return &g, nil
-}
+// scanPGGrant scans a single *sql.Row result.
+func scanPGGrant(row *sql.Row) (*store.ProjectGrant, error) { return scanGrant(row) }
 
 func scanPGGrantRows(rows *sql.Rows) ([]*store.ProjectGrant, error) {
 	var grants []*store.ProjectGrant
 	for rows.Next() {
-		g, err := scanPGGrantRow(rows)
+		g, err := scanGrant(rows)
 		if err != nil {
 			return nil, err
 		}

@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS projects (
                       CHECK (slug GLOB '[a-z0-9]*' AND slug NOT GLOB '*[^a-z0-9-]*' AND
                              length(slug) >= 3 AND length(slug) <= 100 AND
                              substr(slug, 1, 1) != '-' AND substr(slug, length(slug), 1) != '-'),
-    owner_user_id TEXT         NOT NULL REFERENCES users(id),
+    owner_user_id TEXT         NOT NULL REFERENCES users(id) ON DELETE RESTRICT, -- transfer or archive project before user deletion
     status        VARCHAR(20)  NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active', 'archived')),
     metadata      TEXT         NOT NULL DEFAULT '{}',
@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS project_grants (
     )
 );
 
+-- PG UNIQUE NULLS NOT DISTINCT (project_id, user_id, team_id) is split into two partial indexes here
+-- because SQLite has no NULLS-NOT-DISTINCT primitive. The XOR CHECK guarantees columns are disjoint.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_project_grants_unique_user
     ON project_grants(project_id, user_id) WHERE user_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_project_grants_unique_team

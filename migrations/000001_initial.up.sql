@@ -472,7 +472,7 @@ CREATE TABLE IF NOT EXISTS projects (
     id            UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     slug          VARCHAR(100) NOT NULL UNIQUE
                       CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$'),
-    owner_user_id UUID         NOT NULL REFERENCES users(id),
+    owner_user_id UUID         NOT NULL REFERENCES users(id) ON DELETE RESTRICT, -- transfer or archive project before user deletion
     status        VARCHAR(20)  NOT NULL DEFAULT 'active'
                       CHECK (status IN ('active', 'archived')),
     metadata      JSONB        NOT NULL DEFAULT '{}',

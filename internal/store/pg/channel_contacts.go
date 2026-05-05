@@ -198,9 +198,16 @@ func (s *PGContactStore) GetContactByID(ctx context.Context, id uuid.UUID) (*sto
 // UpdateDefaultProject sets or clears the default_project_id on a channel contact.
 // Pass nil to clear the binding. Permission check is the caller's responsibility.
 func (s *PGContactStore) UpdateDefaultProject(ctx context.Context, contactID uuid.UUID, projectID *uuid.UUID) error {
+	if projectID == nil {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE channel_contacts SET default_project_id = NULL WHERE id = $1`,
+			contactID,
+		)
+		return err
+	}
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE channel_contacts SET default_project_id = $1 WHERE id = $2`,
-		projectID, contactID,
+		*projectID, contactID,
 	)
 	return err
 }

@@ -10,8 +10,6 @@ import (
 // resolvePersonal must no longer branch on AgentType — the field is gone
 // from ResolveParams. ActivePath collapses to <base>/<agent>; per-user
 // chat segments under personal scope are removed.
-//
-// RED until Phase 04 lands.
 func TestResolve_PersonalAlwaysShared(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()

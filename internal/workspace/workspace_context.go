@@ -17,6 +17,7 @@ const (
 	ScopePersonal Scope = "personal"  // single user, isolated
 	ScopeTeam     Scope = "team"      // team context, shared or isolated
 	ScopeDelegate Scope = "delegate"  // delegated task, scoped access
+	ScopeProject  Scope = "project"   // session bound to a project workspace
 )
 
 // WorkspaceContext is resolved ONCE at run start, immutable for the entire run.
@@ -114,6 +115,8 @@ func DefaultEnforcementLabel(scope Scope, shared bool) string {
 			return "You are working in a shared team workspace. Other members can see your files."
 		}
 		return "You are working in an isolated team workspace."
+	case ScopeProject:
+		return "You are working in a project workspace. Files are scoped to this project."
 	default:
 		return "You are working in the user's personal workspace."
 	}

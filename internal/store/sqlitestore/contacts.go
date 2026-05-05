@@ -198,9 +198,16 @@ func (s *SQLiteContactStore) GetContactByID(ctx context.Context, id uuid.UUID) (
 // UpdateDefaultProject sets or clears the default_project_id on a channel contact.
 // Pass nil to clear the binding. Permission check is the caller's responsibility.
 func (s *SQLiteContactStore) UpdateDefaultProject(ctx context.Context, contactID uuid.UUID, projectID *uuid.UUID) error {
+	if projectID == nil {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE channel_contacts SET default_project_id = NULL WHERE id = ?`,
+			contactID,
+		)
+		return err
+	}
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE channel_contacts SET default_project_id = ? WHERE id = ?`,
-		projectID, contactID,
+		*projectID, contactID,
 	)
 	return err
 }

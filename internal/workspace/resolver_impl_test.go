@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // TestResolve_Personal verifies the v4 single personal-scope shape: every
@@ -181,6 +183,7 @@ func TestResolve_EnforcementLabel(t *testing.T) {
 		{"team_shared", ScopeTeam, true, "shared team workspace"},
 		{"team_isolated", ScopeTeam, false, "isolated team workspace"},
 		{"delegate", ScopeDelegate, false, "delegated task"},
+		{"project", ScopeProject, false, "project workspace"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -221,6 +224,46 @@ func TestResolve_DefaultUser(t *testing.T) {
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
+}
+
+// TestResolve_ProjectPriority verifies that when ProjectID + ProjectSlug are set
+// the workspace resolver routes the session to the project workspace path and
+// returns ScopeProject — not the personal or team branch.
+func TestResolve_ProjectPriority(t *testing.T) {
+	base := t.TempDir()
+	// Override workspace root so ProjectWorkspacePath resolves under base.
+	t.Setenv("GOCLAW_WORKSPACE_ROOT", base)
+
+	projectID := uuid.MustParse("01900000-0000-7000-8000-000000000001")
+	slug := "my-project"
+
+	r := NewResolver()
+	wc, err := r.Resolve(context.Background(), ResolveParams{
+		AgentID:     "agent-1",
+		UserID:      "user-1",
+		PeerKind:    "direct",
+		BaseDir:     base,
+		ProjectID:   &projectID,
+		ProjectSlug: slug,
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if wc.Scope != ScopeProject {
+		t.Errorf("Scope = %q, want project", wc.Scope)
+	}
+	if wc.ProjectID == nil || *wc.ProjectID != projectID {
+		t.Errorf("ProjectID = %v, want %v", wc.ProjectID, projectID)
+	}
+	if wc.ProjectSlug != slug {
+		t.Errorf("ProjectSlug = %q, want %q", wc.ProjectSlug, slug)
+	}
+	// Active path must be under <base>/projects/<slug>
+	want := filepath.Join(base, "projects", slug)
+	if wc.ActivePath != want {
+		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
+	}
+	assertDirExists(t, wc.ActivePath)
 }
 
 func TestResolve_SingleTenantPath(t *testing.T) {
