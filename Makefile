@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null 
 LDFLAGS  = -s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=$(VERSION)
 BINARY   = goclaw
 
-.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing e2e-pg-up e2e-pg-down test-e2e test-e2e-short test-e2e-full test-release-gate
+.PHONY: build build-full build-tui run clean version up up-build down logs reset test vet check-web dev migrate setup ci desktop-dev desktop-build desktop-dmg test-hooks test-hooks-unit test-hooks-e2e test-hooks-chaos test-hooks-rbac test-hooks-tracing e2e-pg-up e2e-pg-down test-e2e test-e2e-short test-e2e-full test-release-gate test-foundation
 
 # Build backend only (API-only, no embedded web UI)
 build:
@@ -85,9 +85,27 @@ reset: version-file
 test:
 	go test -race -timeout=5m ./...
 
+# ── Purity Gates ──
+
+# Verify no live GoClaw tenant_id / tenantCond code remains in source.
+# STT proxy external API fields (stt_tenant_id) are excluded — they are
+# external wire format, not GoClaw multi-tenancy.
+check-tenant-purge:
+	@sh scripts/check-tenant-purge.sh
+
+# ── Foundation Tests ──
+# Greenfield bootstrap, tenant-purge regression, and 13-entity metadata parity.
+# Runs on both PG and SQLite stores. Requires TEST_DATABASE_URL pointing at a
+# pgvector:pg18 container on port 5433 (same as the integration test suite).
+test-foundation: check-tenant-purge
+	TEST_DATABASE_URL="$${TEST_DATABASE_URL:-postgres://postgres:test@localhost:5433/goclaw_test?sslmode=disable}" \
+	go test -race -count=1 -timeout=90s -tags integration -run "^TestFoundation_" ./tests/integration/...
+	TEST_DATABASE_URL="$${TEST_DATABASE_URL:-postgres://postgres:test@localhost:5433/goclaw_test?sslmode=disable}" \
+	go test -race -count=1 -timeout=90s -tags "sqliteonly integration" -run "^TestFoundation_|^TestCrossStore|^TestSQLite" ./tests/integration/...
+
 # ── Layered Testing ──
 # P0: Invariant tests - tenant isolation, permission enforcement (MUST pass)
-test-invariants:
+test-invariants: test-foundation
 	go test -race -timeout=90s -tags integration ./tests/invariants/...
 
 # P1: Contract tests - API schema validation (MUST pass)
