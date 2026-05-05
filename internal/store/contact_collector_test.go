@@ -110,8 +110,8 @@ func TestContactCollector_DifferentInstances(t *testing.T) {
 	}
 }
 
-// TestContactCollector_ZeroTenantID verifies Desktop/single-tenant mode still works.
-func TestContactCollector_ZeroTenantID(t *testing.T) {
+// TestContactCollector_SingleTenant verifies dedup works in single-user (desktop) mode.
+func TestContactCollector_SingleTenant(t *testing.T) {
 	mock := &mockContactStore{}
 	c := NewContactCollector(mock, cache.NewInMemoryCache[bool]())
 

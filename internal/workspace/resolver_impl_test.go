@@ -227,7 +227,7 @@ func TestResolve_EmptyBaseDir(t *testing.T) {
 	}
 }
 
-func TestResolve_MasterTenant(t *testing.T) {
+func TestResolve_DefaultUser(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{
@@ -241,14 +241,14 @@ func TestResolve_MasterTenant(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Master tenant = base dir (no tenants/ prefix)
+	// Workspace resolves to base/agent/user — no extra prefix in single-tenant model.
 	want := filepath.Join(base, "agent-1", "user-1")
 	if wc.ActivePath != want {
 		t.Errorf("ActivePath = %q, want %q", wc.ActivePath, want)
 	}
 }
 
-func TestResolve_EmptyTenantID(t *testing.T) {
+func TestResolve_SingleTenantPath(t *testing.T) {
 	base := t.TempDir()
 	r := NewResolver()
 	wc, err := r.Resolve(context.Background(), ResolveParams{

@@ -23,7 +23,7 @@ var (
 // channel-scoped proxy STT provider for each non-empty URL. Emits a deprecation
 // warning once per channel per manager. Safe to call multiple times (idempotent).
 //
-// Channel override wins over tenant builtin_tools[stt] per Decision 2.
+// Channel-level STT config overrides any global builtin_tools[stt] setting.
 func BridgeLegacySTT(mgr *Manager, cfg *config.Config) {
 	type chanEntry struct {
 		Name string

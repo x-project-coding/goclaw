@@ -12,7 +12,7 @@ import (
 )
 
 // fakeDialect is an in-memory Dialect for deterministic deduct tests.
-// Models tenant_hook_budget row per (tenant_id, month_start).
+// Models the hook_budget row for a single user+month.
 type fakeDialect struct {
 	// row represents the current stored state for the single tenant under test.
 	total     int64

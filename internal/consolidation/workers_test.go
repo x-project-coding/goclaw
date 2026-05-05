@@ -414,8 +414,8 @@ func TestEpisodicWorkerHandle_NonUUIDAgentID(t *testing.T) {
 	}
 }
 
-// TestEpisodicWorkerHandle_NonUUIDUserID mirrors the agent_id/tenant_id guard
-// for user_id. v4 schema treats user_id as UUID; non-UUID strings reaching the
+// TestEpisodicWorkerHandle_NonUUIDUserID mirrors the agent_id guard for user_id.
+// v4 schema treats user_id as UUID; non-UUID strings reaching the
 // store would surface as confusing PG type errors instead of a clear handler
 // error. The worker rejects bad UserID at entry — store is never touched.
 func TestEpisodicWorkerHandle_NonUUIDUserID(t *testing.T) {

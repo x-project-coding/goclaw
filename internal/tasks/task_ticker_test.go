@@ -18,10 +18,9 @@ import (
 
 // ─── minimal stub stores ───────────────────────────────────────────────────
 
-// getTeamCall records ctx metadata for each GetTeam call (tenant propagation assertions).
+// getTeamCall records the TeamID passed to each GetTeam call for call-count assertions.
 type getTeamCall struct {
-	TeamID   uuid.UUID
-	TenantID uuid.UUID
+	TeamID uuid.UUID
 }
 
 // stubTeamStore satisfies store.TeamStore by embedding the interface and only
@@ -53,7 +52,7 @@ type stubTeamStore struct {
 	getTeamFunc func(ctx context.Context, id uuid.UUID) (*store.TeamData, error)
 	getTaskFunc func(ctx context.Context, id uuid.UUID) (*store.TeamTaskData, error)
 
-	// captured calls for tenant propagation assertions (protected by mu)
+	// captured calls for GetTeam call-count assertions (protected by mu)
 	getTeamCalls []getTeamCall
 }
 
@@ -95,8 +94,7 @@ func (s *stubTeamStore) IncrementFollowupCount(_ context.Context, _ uuid.UUID, _
 func (s *stubTeamStore) GetTeam(ctx context.Context, id uuid.UUID) (*store.TeamData, error) {
 	s.mu.Lock()
 	s.getTeamCalls = append(s.getTeamCalls, getTeamCall{
-		TeamID:   id,
-		TenantID: uuid.Nil,
+		TeamID: id,
 	})
 	s.mu.Unlock()
 	if s.getTeamFunc != nil {
@@ -524,7 +522,7 @@ func TestFollowupOutboundMessage_OmitsLocalKeyWhenMissing(t *testing.T) {
 	}
 }
 
-// ─── notifyLeaders: nil-team and tenant propagation ──────────────────────────
+// ─── notifyLeaders: nil-team and team caching ────────────────────────────────
 
 // TestNotifyLeaders_NilTeam_NoPanic verifies that when GetTeam returns (nil, nil)
 // the scope is skipped gracefully — no panic, no publishes.
@@ -557,7 +555,7 @@ func TestNotifyLeaders_NilTeam_NoPanic(t *testing.T) {
 
 // TestNotifyLeaders_CachedOnSameTeam verifies that two scopes with the same team
 // result in only one GetTeam call (cache hit on team key).
-func TestNotifyLeaders_CachedOnSameTenant(t *testing.T) {
+func TestNotifyLeaders_CachedOnSameTeam(t *testing.T) {
 	teamID := uuid.New()
 	leadID := uuid.New()
 
