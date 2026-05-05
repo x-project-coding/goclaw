@@ -91,6 +91,21 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user    ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS user_sessions_family_idx  ON user_sessions(family_id);
 
+-- Mirror of password_reset_tokens (PG migration). Single-use time-bounded
+-- tokens; raw value mailed once, only SHA-256 hex stored. used_at NULL = active.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id         TEXT NOT NULL PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at    TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash);
+CREATE INDEX        IF NOT EXISTS idx_password_reset_user        ON password_reset_tokens(user_id);
+CREATE INDEX        IF NOT EXISTS idx_password_reset_active      ON password_reset_tokens(token_hash) WHERE used_at IS NULL;
+
 -- Note: tsv (tsvector) column omitted — no FTS5 generated column in SQLite.
 CREATE TABLE IF NOT EXISTS agents (
     id                    TEXT         NOT NULL PRIMARY KEY,

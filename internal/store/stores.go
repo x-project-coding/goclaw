@@ -38,6 +38,7 @@ type Stores struct {
 	// User-scoped stores.
 	Users           UsersStore
 	UserSessions    UserSessionsStore
+	PasswordReset   PasswordResetStore
 	SkillVersions   SkillVersionsStore
 	CuratorRuns     CuratorRunsStore
 	CuratorEvents   CuratorEventsStore

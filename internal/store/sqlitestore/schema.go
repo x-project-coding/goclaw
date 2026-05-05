@@ -17,7 +17,8 @@ var schemaSQL string
 // Bump this and add an entry to migrations when schema changes are needed.
 // v1 → v2: adds user_key/kind/channel_type to users, team_key to agent_teams,
 // and metadata to all 13 entity tables (foundation rebuild).
-const SchemaVersion = 2
+// v2 → v3: adds password_reset_tokens table for self-serve password reset.
+const SchemaVersion = 3
 
 // migrations maps version → ordered slice of SQL statements to apply when
 // upgrading FROM that version to the next.
@@ -63,6 +64,21 @@ var migrations = map[int][]string{
 		// unique slugs on next gateway start if needed.
 		`UPDATE users SET user_key = lower(replace(replace(substr(email, 1, instr(email||'@', '@')-1), '.', ''), '+', '')) WHERE user_key = ''`,
 		`UPDATE agent_teams SET team_key = lower(replace(replace(name, ' ', '-'), '_', '-')) WHERE team_key = ''`,
+	},
+	// Upgrade v2 → v3: password_reset_tokens table for self-serve password reset.
+	// Single-use, time-bounded; raw token mailed once, only SHA-256 hex stored.
+	2: {
+		`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+			id         TEXT NOT NULL PRIMARY KEY,
+			user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			token_hash TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			used_at    TEXT,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_password_reset_user   ON password_reset_tokens(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_password_reset_active ON password_reset_tokens(token_hash) WHERE used_at IS NULL`,
 	},
 }
 

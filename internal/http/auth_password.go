@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/auth"
+	"github.com/nextlevelbuilder/goclaw/internal/email"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -37,27 +38,40 @@ func init() {
 //	POST /v1/auth/refresh
 //	POST /v1/auth/logout
 //	GET  /v1/auth/me
+//	POST /v1/auth/password-reset/request
+//	POST /v1/auth/password-reset/confirm
 type AuthHandler struct {
-	users      store.UsersStore
-	sessions   store.UserSessionsStore
-	jwtKs      *auth.JWTKeyset
-	accessTTL  time.Duration
-	refreshTTL time.Duration
+	users       store.UsersStore
+	sessions    store.UserSessionsStore
+	resetTokens store.PasswordResetStore
+	emailer     email.Dispatcher
+	jwtKs       *auth.JWTKeyset
+	accessTTL   time.Duration
+	refreshTTL  time.Duration
+	webURL      string // base URL the password-reset email links into; e.g. https://app.example.com
 }
 
-// NewAuthHandler constructs an AuthHandler.
+// NewAuthHandler constructs an AuthHandler. resetTokens / emailer / webURL
+// are required by the password-reset endpoints; pass non-nil values when those
+// routes are registered.
 func NewAuthHandler(
 	users store.UsersStore,
 	sessions store.UserSessionsStore,
+	resetTokens store.PasswordResetStore,
+	emailer email.Dispatcher,
 	jwtKs *auth.JWTKeyset,
 	accessTTL, refreshTTL time.Duration,
+	webURL string,
 ) *AuthHandler {
 	return &AuthHandler{
-		users:      users,
-		sessions:   sessions,
-		jwtKs:      jwtKs,
-		accessTTL:  accessTTL,
-		refreshTTL: refreshTTL,
+		users:       users,
+		sessions:    sessions,
+		resetTokens: resetTokens,
+		emailer:     emailer,
+		jwtKs:       jwtKs,
+		accessTTL:   accessTTL,
+		refreshTTL:  refreshTTL,
+		webURL:      webURL,
 	}
 }
 
@@ -68,6 +82,8 @@ func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/auth/logout", requireAuth(permissions.RoleViewer, h.handleLogout))
 	mux.HandleFunc("/v1/auth/me", requireAuth(permissions.RoleViewer, h.handleMe))
 	mux.HandleFunc("/v1/auth/change-password", requireAuth(permissions.RoleViewer, h.handleChangePassword))
+	mux.HandleFunc("/v1/auth/password-reset/request", loginRateLimitMiddleware(h.handlePasswordResetRequest))
+	mux.HandleFunc("/v1/auth/password-reset/confirm", h.handlePasswordResetConfirm)
 	mux.HandleFunc("/v1/users/me", requireAuth(permissions.RoleViewer, h.handleUpdateMe))
 }
 
@@ -394,17 +410,13 @@ func (h *AuthHandler) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "hash error"})
 		return
 	}
-	if err := h.users.Update(r.Context(), uid, map[string]any{"password_hash": newHash}); err != nil {
-		slog.Error("user.password_update_failed", "err", err, "user_id", uid)
+	// Atomic: password update + session revoke share one transaction. Any
+	// failure rolls back both, so the client never gets a 200 response while
+	// old refresh tokens remain valid.
+	if err := h.users.ChangePasswordAndRevokeSessions(r.Context(), uid, newHash); err != nil {
+		slog.Warn("security.password_change_atomic_failed", "err", err, "user_id", uid)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
 		return
-	}
-	// Force re-login on every device. Includes the current session — caller
-	// must redirect to /login. This trades minor UX cost for clean session
-	// hygiene after a credential rotation.
-	if err := auth.RevokeAllForUser(r.Context(), h.sessions, uid); err != nil {
-		// Non-fatal: password changed, but session revoke failed. Log + warn.
-		slog.Error("user.password_changed_revoke_failed", "err", err, "user_id", uid)
 	}
 	slog.Info("auth.password_changed", "user_id", uid, "ip", r.RemoteAddr)
 	w.WriteHeader(http.StatusNoContent)

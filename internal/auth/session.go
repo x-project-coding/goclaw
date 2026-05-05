@@ -145,26 +145,19 @@ func RotateRefresh(
 	return newRawToken, newSess, nil
 }
 
-// RevokeAllForUser revokes all active sessions for a user. Used by
-// POST /v1/auth/logout and the reset-password CLI command.
+// RevokeAllForUser revokes all active sessions for a user via a single bulk
+// UPDATE. Used by POST /v1/auth/logout and the reset-password CLI command.
+// Returns a non-nil error if the bulk update fails — callers MUST treat that
+// as a hard failure (do not return success to the client). For the password
+// change path use UsersStore.ChangePasswordAndRevokeSessions which composes
+// the same primitive inside a cross-store transaction.
 func RevokeAllForUser(
 	ctx context.Context,
 	sessStore store.UserSessionsStore,
 	userID uuid.UUID,
 ) error {
-	sessions, err := sessStore.ListActiveByUser(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("auth: list active sessions: %w", err)
-	}
-	for _, s := range sessions {
-		if rErr := sessStore.Revoke(ctx, s.ID); rErr != nil {
-			// Log and continue — best-effort revocation.
-			slog.Warn("security.auth.revoke_session_failed",
-				"session_id", s.ID,
-				"user_id", userID,
-				"err", rErr,
-			)
-		}
+	if err := sessStore.RevokeAllActiveByUser(ctx, sessStore.DB(), userID); err != nil {
+		return fmt.Errorf("auth: revoke all sessions: %w", err)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -16,12 +17,83 @@ import (
 
 // SQLiteUsersStore implements store.UsersStore on SQLite.
 type SQLiteUsersStore struct {
-	db *sql.DB
+	db          *sql.DB
+	sessions    store.UserSessionsStore  // wired via UseSessions; required by ChangePasswordAndRevokeSessions / ConfirmPasswordReset
+	resetTokens store.PasswordResetStore // wired via UseResetTokens; required by ConfirmPasswordReset
 }
 
-// NewSQLiteUsersStore returns a UsersStore backed by SQLite.
+// NewSQLiteUsersStore returns a UsersStore backed by SQLite. Wire the sessions
+// store via UseSessions before calling ChangePasswordAndRevokeSessions.
+// Wire the reset-tokens store via UseResetTokens before ConfirmPasswordReset.
 func NewSQLiteUsersStore(db *sql.DB) *SQLiteUsersStore {
 	return &SQLiteUsersStore{db: db}
+}
+
+// UseSessions wires the user-sessions store reference required by
+// ChangePasswordAndRevokeSessions / ConfirmPasswordReset.
+func (s *SQLiteUsersStore) UseSessions(sessions store.UserSessionsStore) {
+	s.sessions = sessions
+}
+
+// UseResetTokens wires the password-reset store reference required by
+// ConfirmPasswordReset.
+func (s *SQLiteUsersStore) UseResetTokens(rs store.PasswordResetStore) {
+	s.resetTokens = rs
+}
+
+// ConfirmPasswordReset composes Phase 02 MarkUsed + UPDATE users + Phase 01
+// bulk session revoke inside one transaction. Any failure rolls back all
+// three writes — token stays unused, password unchanged, sessions active.
+func (s *SQLiteUsersStore) ConfirmPasswordReset(ctx context.Context, codeHash, newHash string) error {
+	if s.sessions == nil {
+		return fmt.Errorf("sqlite users: sessions store not wired (call UseSessions)")
+	}
+	if s.resetTokens == nil {
+		return fmt.Errorf("sqlite users: reset-tokens store not wired (call UseResetTokens)")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	userID, err := s.resetTokens.MarkUsed(ctx, tx, codeHash)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,
+		newHash, now, userID); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if err := s.sessions.RevokeAllActiveByUser(ctx, tx, userID); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
+	return tx.Commit()
+}
+
+// ChangePasswordAndRevokeSessions atomically updates password_hash and revokes
+// every active refresh session for the user inside one transaction.
+func (s *SQLiteUsersStore) ChangePasswordAndRevokeSessions(ctx context.Context, userID uuid.UUID, newHash string) error {
+	if s.sessions == nil {
+		return fmt.Errorf("sqlite users: sessions store not wired (call UseSessions)")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,
+		newHash, now, userID); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if err := s.sessions.RevokeAllActiveByUser(ctx, tx, userID); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
+	return tx.Commit()
 }
 
 const usersSelectColumns = `id, email, display_name, password_hash, role, status,

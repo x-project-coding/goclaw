@@ -42,6 +42,7 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 // Config is the root configuration for the GoClaw Gateway.
 type Config struct {
 	DataDir   string          `json:"data_dir,omitempty"` // persistent data directory (default: ~/.goclaw/data)
+	WebURL    string          `json:"web_url,omitempty"`  // base URL the web UI is served from; embedded in password-reset / invite emails
 	Agents    AgentsConfig    `json:"agents"`
 	Channels  ChannelsConfig  `json:"channels"`
 	Providers ProvidersConfig `json:"providers"`

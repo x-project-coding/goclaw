@@ -246,5 +246,9 @@ func init() {
 		MsgAccessTokenInvalid:   "access token invalid",
 		MsgCurrentPasswordWrong: "current password is incorrect",
 		MsgDisplayNameInvalid:   "display name must be between 2 and 64 characters",
+
+		MsgPasswordResetInvalidToken: "invalid or expired reset token",
+		MsgPasswordResetEmailSubject: "Reset your password",
+		MsgPasswordResetEmailBody:    "Click the link to reset your password: %s\nThis link expires in 1 hour.",
 	})
 }

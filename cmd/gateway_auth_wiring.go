@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/auth"
+	"github.com/nextlevelbuilder/goclaw/internal/email"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 )
 
@@ -57,11 +58,18 @@ func (d *gatewayDeps) wireAuthBootstrap(ctx context.Context) error {
 	accessTTL := envDuration("GOCLAW_JWT_ACCESS_TTL", 15*time.Minute)
 	refreshTTL := envDuration("GOCLAW_JWT_REFRESH_TTL", 30*24*time.Hour)
 
+	// rc1: only the stderr-stub Dispatcher exists. Real SMTP wiring lands
+	// post-rc1; the stub keeps every reset/invite path alive in dev/local.
+	if d.emailer == nil {
+		d.emailer = email.NewStderrDispatcher(slog.Default())
+	}
+
 	d.server.SetBootstrapHandler(httpapi.NewBootstrapHandler(
 		users, sessions, d.pgStores.DB, ks, accessTTL, refreshTTL,
 	))
 	d.server.SetAuthHandler(httpapi.NewAuthHandler(
-		users, sessions, ks, accessTTL, refreshTTL,
+		users, sessions, d.pgStores.PasswordReset, d.emailer,
+		ks, accessTTL, refreshTTL, d.cfg.WebURL,
 	))
 	d.server.SetUsersHandler(httpapi.NewUsersHandler(users))
 	d.server.SetHooksBudgetHandler(httpapi.NewHooksBudgetHandler(d.pgStores.UserHookBudget))

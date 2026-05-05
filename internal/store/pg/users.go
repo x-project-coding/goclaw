@@ -14,12 +14,83 @@ import (
 
 // PGUsersStore implements store.UsersStore on PostgreSQL.
 type PGUsersStore struct {
-	db *sql.DB
+	db          *sql.DB
+	sessions    store.UserSessionsStore  // wired via UseSessions; required by ChangePasswordAndRevokeSessions / ConfirmPasswordReset
+	resetTokens store.PasswordResetStore // wired via UseResetTokens; required by ConfirmPasswordReset
 }
 
-// NewPGUsersStore returns a UsersStore backed by Postgres.
+// NewPGUsersStore returns a UsersStore backed by Postgres. Wire the sessions
+// store via UseSessions before calling ChangePasswordAndRevokeSessions.
+// Wire the reset-tokens store via UseResetTokens before ConfirmPasswordReset.
 func NewPGUsersStore(db *sql.DB) *PGUsersStore {
 	return &PGUsersStore{db: db}
+}
+
+// UseSessions wires the user-sessions store reference required by
+// ChangePasswordAndRevokeSessions / ConfirmPasswordReset. Factory wiring
+// calls this after both stores are constructed (avoids constructor signature
+// churn for test callers).
+func (s *PGUsersStore) UseSessions(sessions store.UserSessionsStore) {
+	s.sessions = sessions
+}
+
+// UseResetTokens wires the password-reset store reference required by
+// ConfirmPasswordReset.
+func (s *PGUsersStore) UseResetTokens(rs store.PasswordResetStore) {
+	s.resetTokens = rs
+}
+
+// ConfirmPasswordReset composes Phase 02 MarkUsed + UPDATE users + Phase 01
+// bulk session revoke inside one transaction. Any failure rolls back all
+// three writes — token stays unused, password unchanged, sessions active.
+func (s *PGUsersStore) ConfirmPasswordReset(ctx context.Context, codeHash, newHash string) error {
+	if s.sessions == nil {
+		return fmt.Errorf("pg users: sessions store not wired (call UseSessions)")
+	}
+	if s.resetTokens == nil {
+		return fmt.Errorf("pg users: reset-tokens store not wired (call UseResetTokens)")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	userID, err := s.resetTokens.MarkUsed(ctx, tx, codeHash)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
+		newHash, userID); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if err := s.sessions.RevokeAllActiveByUser(ctx, tx, userID); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
+	return tx.Commit()
+}
+
+// ChangePasswordAndRevokeSessions atomically updates password_hash and revokes
+// every active refresh session for the user inside one transaction.
+func (s *PGUsersStore) ChangePasswordAndRevokeSessions(ctx context.Context, userID uuid.UUID, newHash string) error {
+	if s.sessions == nil {
+		return fmt.Errorf("pg users: sessions store not wired (call UseSessions)")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
+		newHash, userID); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	if err := s.sessions.RevokeAllActiveByUser(ctx, tx, userID); err != nil {
+		return fmt.Errorf("revoke sessions: %w", err)
+	}
+	return tx.Commit()
 }
 
 const usersSelectColumns = `id, email, display_name, password_hash, role, status,

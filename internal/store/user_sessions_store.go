@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/nextlevelbuilder/goclaw/internal/store/base"
 )
 
 // UserSession mirrors a row of `user_sessions` — the refresh-token registry.
@@ -36,4 +38,13 @@ type UserSessionsStore interface {
 	Revoke(ctx context.Context, id uuid.UUID) error
 	RevokeFamily(ctx context.Context, familyID uuid.UUID) error
 	ListActiveByUser(ctx context.Context, userID uuid.UUID) ([]UserSession, error)
+	// RevokeAllActiveByUser bulk-revokes every active session for userID via a
+	// single UPDATE. Caller controls the executor: pass the store's own DB for
+	// stand-alone use, or an active *sql.Tx when composing into a cross-store
+	// transaction (see UsersStore.ChangePasswordAndRevokeSessions).
+	RevokeAllActiveByUser(ctx context.Context, exec base.Executor, userID uuid.UUID) error
+	// DB exposes the underlying executor so cross-store helpers can pair this
+	// store's writes with another store's writes inside one transaction without
+	// each store having to re-implement the bulk SQL.
+	DB() base.Executor
 }

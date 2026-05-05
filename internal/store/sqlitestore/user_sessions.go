@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/store/base"
 )
 
 // SQLiteUserSessionsStore implements store.UserSessionsStore on SQLite.
@@ -81,6 +82,24 @@ func (s *SQLiteUserSessionsStore) Revoke(ctx context.Context, id uuid.UUID) erro
 	}
 	return nil
 }
+
+// RevokeAllActiveByUser bulk-revokes every active session for the user via a
+// single UPDATE. Pass s.DB() for stand-alone use, or an active *sql.Tx when
+// composing inside a cross-store transaction.
+func (s *SQLiteUserSessionsStore) RevokeAllActiveByUser(ctx context.Context, exec base.Executor, userID uuid.UUID) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := exec.ExecContext(ctx,
+		`UPDATE user_sessions SET revoked_at = ?
+		   WHERE user_id = ? AND revoked_at IS NULL`, now, userID)
+	if err != nil {
+		return fmt.Errorf("user_sessions revoke all active: %w", err)
+	}
+	return nil
+}
+
+// DB exposes the underlying *sql.DB as a base.Executor so cross-store helpers
+// can wrap their writes and this store's writes inside one transaction.
+func (s *SQLiteUserSessionsStore) DB() base.Executor { return s.db }
 
 func (s *SQLiteUserSessionsStore) RevokeFamily(ctx context.Context, familyID uuid.UUID) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)

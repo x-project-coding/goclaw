@@ -23,6 +23,12 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		skillsDir = config.ResolvedDataDirFromEnv() + "/skills-store"
 	}
 
+	users := NewPGUsersStore(db)
+	userSessions := NewPGUserSessionsStore(db)
+	resetTokens := NewPGPasswordResetStore(db)
+	users.UseSessions(userSessions)
+	users.UseResetTokens(resetTokens)
+
 	return &store.Stores{
 		DB:        db,
 		Sessions:  NewPGSessionStore(db),
@@ -55,8 +61,9 @@ func NewPGStores(cfg store.StoreConfig) (*store.Stores, error) {
 		Episodic:              NewPGEpisodicStore(db),
 		EvolutionMetrics:      NewPGEvolutionMetricsStore(db),
 		EvolutionSuggestions:  NewPGEvolutionSuggestionStore(db),
-		Users:          NewPGUsersStore(db),
-		UserSessions:   NewPGUserSessionsStore(db),
+		Users:          users,
+		UserSessions:   userSessions,
+		PasswordReset:  resetTokens,
 		SkillVersions:  NewPGSkillVersionsStore(db),
 		CuratorRuns:    NewPGCuratorRunsStore(db),
 		CuratorEvents:  NewPGCuratorEventsStore(db),

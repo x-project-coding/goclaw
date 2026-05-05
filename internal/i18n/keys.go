@@ -240,6 +240,11 @@ const (
 	MsgCurrentPasswordWrong = "error.current_password_wrong" // "current password is incorrect"
 	MsgDisplayNameInvalid   = "error.display_name_invalid"   // "display name must be 2-64 characters"
 
+	// --- Password reset ---
+	MsgPasswordResetInvalidToken = "error.password_reset_invalid_token" // "invalid or expired reset token"
+	MsgPasswordResetEmailSubject = "password_reset.email_subject"       // "Reset your password"
+	MsgPasswordResetEmailBody    = "password_reset.email_body"          // "Click the link to reset your password: %s\nLink expires in 1 hour."
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard = "hook.command_disabled_standard" // "command-type hooks are only available on Lite edition"

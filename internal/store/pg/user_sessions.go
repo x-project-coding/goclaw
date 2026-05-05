@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/store/base"
 )
 
 // PGUserSessionsStore implements store.UserSessionsStore on PostgreSQL.
@@ -79,6 +80,23 @@ func (s *PGUserSessionsStore) Revoke(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// RevokeAllActiveByUser bulk-revokes every active session for the user via a
+// single UPDATE. Pass s.DB() for stand-alone use, or an active *sql.Tx when
+// composing inside a cross-store transaction.
+func (s *PGUserSessionsStore) RevokeAllActiveByUser(ctx context.Context, exec base.Executor, userID uuid.UUID) error {
+	_, err := exec.ExecContext(ctx,
+		`UPDATE user_sessions SET revoked_at = now()
+		   WHERE user_id = $1 AND revoked_at IS NULL`, userID)
+	if err != nil {
+		return fmt.Errorf("user_sessions revoke all active: %w", err)
+	}
+	return nil
+}
+
+// DB exposes the underlying *sql.DB as a base.Executor so cross-store helpers
+// can wrap their writes and this store's writes inside one transaction.
+func (s *PGUserSessionsStore) DB() base.Executor { return s.db }
 
 func (s *PGUserSessionsStore) RevokeFamily(ctx context.Context, familyID uuid.UUID) error {
 	_, err := s.db.ExecContext(ctx,

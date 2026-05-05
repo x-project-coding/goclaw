@@ -35,6 +35,12 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		slog.Warn("securecli: encryption key empty, store disabled")
 	}
 
+	users := NewSQLiteUsersStore(db)
+	userSessions := NewSQLiteUserSessionsStore(db)
+	resetTokens := NewSQLitePasswordResetStore(db)
+	users.UseSessions(userSessions)
+	users.UseResetTokens(resetTokens)
+
 	return &store.Stores{
 		DB:                    db,
 		Sessions:              NewSQLiteSessionStore(db),
@@ -67,8 +73,9 @@ func NewSQLiteStores(cfg store.StoreConfig) (*store.Stores, error) {
 		EvolutionSuggestions: NewSQLiteEvolutionSuggestionStore(db),
 		KnowledgeGraph:       NewSQLiteKnowledgeGraphStore(db),
 		Vault:                NewSQLiteVaultStore(db),
-		Users:          NewSQLiteUsersStore(db),
-		UserSessions:   NewSQLiteUserSessionsStore(db),
+		Users:          users,
+		UserSessions:   userSessions,
+		PasswordReset:  resetTokens,
 		SkillVersions:  NewSQLiteSkillVersionsStore(db),
 		CuratorRuns:    NewSQLiteCuratorRunsStore(db),
 		CuratorEvents:  NewSQLiteCuratorEventsStore(db),

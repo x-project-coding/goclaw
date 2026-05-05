@@ -246,5 +246,9 @@ func init() {
 		MsgAccessTokenInvalid:   "访问令牌无效",
 		MsgCurrentPasswordWrong: "当前密码不正确",
 		MsgDisplayNameInvalid:   "显示名称必须为 2 到 64 个字符",
+
+		MsgPasswordResetInvalidToken: "重置令牌无效或已过期",
+		MsgPasswordResetEmailSubject: "重置您的密码",
+		MsgPasswordResetEmailBody:    "点击链接以重置您的密码：%s\n此链接将在 1 小时后失效。",
 	})
 }

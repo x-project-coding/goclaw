@@ -246,5 +246,9 @@ func init() {
 		MsgAccessTokenInvalid:   "access token không hợp lệ",
 		MsgCurrentPasswordWrong: "mật khẩu hiện tại không đúng",
 		MsgDisplayNameInvalid:   "tên hiển thị phải từ 2 đến 64 ký tự",
+
+		MsgPasswordResetInvalidToken: "token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn",
+		MsgPasswordResetEmailSubject: "Đặt lại mật khẩu",
+		MsgPasswordResetEmailBody:    "Bấm vào liên kết để đặt lại mật khẩu: %s\nLiên kết hết hạn sau 1 giờ.",
 	})
 }

@@ -105,6 +105,23 @@ CREATE INDEX idx_user_sessions_expires   ON user_sessions(expires_at) WHERE revo
 -- Enables efficient family-revocation: UPDATE ... WHERE family_id = $1
 CREATE INDEX user_sessions_family_idx    ON user_sessions(family_id);
 
+-- Single-use, time-bounded password-reset tokens. Raw token mailed/displayed
+-- once; only the SHA-256 hex hash is persisted. used_at NULL = active. The
+-- partial idx_password_reset_active index keeps validation lookups fast even
+-- after the table grows historic rows.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id          UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    user_id     UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  VARCHAR(128) NOT NULL,
+    expires_at  TIMESTAMPTZ  NOT NULL,
+    used_at     TIMESTAMPTZ  NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_password_reset_token_hash ON password_reset_tokens(token_hash);
+CREATE INDEX idx_password_reset_user              ON password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_active            ON password_reset_tokens(token_hash) WHERE used_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS agents (
     id                    UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     agent_key             VARCHAR(100) NOT NULL,

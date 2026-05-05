@@ -60,4 +60,18 @@ type UsersStore interface {
 	// The DB shape constraint guarantees the pair is always coherent:
 	// kind='human' requires channelType=nil; kind='channel' requires non-nil.
 	SetKind(ctx context.Context, id uuid.UUID, kind string, channelType *string) error
+	// ChangePasswordAndRevokeSessions atomically updates password_hash and
+	// revokes every active refresh session for the user inside a single
+	// transaction. On any error the password is NOT updated AND sessions stay
+	// active. Implementations require a UserSessionsStore reference wired via
+	// UseSessions before this method is callable.
+	ChangePasswordAndRevokeSessions(ctx context.Context, userID uuid.UUID, newHash string) error
+	// ConfirmPasswordReset chains the Phase 02 atomic MarkUsed primitive with
+	// the Phase 01 password+revoke primitive inside a single transaction:
+	// MarkUsed RETURNING user_id → UPDATE users.password_hash → bulk
+	// RevokeAllActiveByUser. Returns ErrPasswordResetNotFound if codeHash is
+	// missing/expired/used; on any error the password and sessions are
+	// untouched. Implementations require both UserSessionsStore (UseSessions)
+	// and PasswordResetStore (UseResetTokens) wired before this is callable.
+	ConfirmPasswordReset(ctx context.Context, codeHash, newHash string) error
 }

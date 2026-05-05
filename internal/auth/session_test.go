@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/store/base"
 )
 
 // fakeSessionStore is an in-memory implementation of store.UserSessionsStore
@@ -85,6 +87,32 @@ func (f *fakeSessionStore) ListActiveByUser(_ context.Context, userID uuid.UUID)
 	}
 	return out, nil
 }
+
+// fakeExecutor satisfies base.Executor for in-memory tests — never invoked
+// because RevokeAllActiveByUser short-circuits on the fake's own state.
+type fakeExecutor struct{}
+
+func (fakeExecutor) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+func (fakeExecutor) QueryRowContext(_ context.Context, _ string, _ ...any) *sql.Row {
+	return nil
+}
+
+func (f *fakeSessionStore) RevokeAllActiveByUser(_ context.Context, _ base.Executor, userID uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	for _, s := range f.rows {
+		if s.UserID == userID && s.RevokedAt == nil {
+			s.RevokedAt = &now
+		}
+	}
+	return nil
+}
+
+func (f *fakeSessionStore) DB() base.Executor { return fakeExecutor{} }
 
 // revokeFamilyCalledWith returns true if RevokeFamily was called with familyID.
 func (f *fakeSessionStore) revokeFamilyCalledWith(familyID uuid.UUID) bool {
