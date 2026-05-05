@@ -201,14 +201,14 @@ func (s *PGSessionStore) Save(ctx context.Context, key string) error {
 			memory_flush_compaction_count = $9, memory_flush_at = $10,
 			label = $11, spawned_by = $12, spawn_depth = $13,
 			agent_id = $14, user_id = $15, metadata = $16, updated_at = $17,
-			team_id = $18
-		 WHERE session_key = $19`,
+			team_id = $18, project_id = $19
+		 WHERE session_key = $20`,
 		msgsJSON, nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
 		snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
 		snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
 		nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
 		nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
-		snapshot.TeamID,
+		snapshot.TeamID, snapshot.ProjectID,
 		key,
 	)
 	if err != nil {
@@ -220,8 +220,8 @@ func (s *PGSessionStore) Save(ctx context.Context, key string) error {
 			`INSERT INTO agent_sessions (id, session_key, messages, summary, model, provider, channel,
 				input_tokens, output_tokens, compaction_count,
 				memory_flush_compaction_count, memory_flush_at,
-				label, spawned_by, spawn_depth, agent_id, user_id, metadata, updated_at, team_id, created_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+				label, spawned_by, spawn_depth, agent_id, user_id, metadata, updated_at, team_id, project_id, created_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 			 ON CONFLICT (session_key) DO UPDATE SET
 				messages = EXCLUDED.messages, summary = EXCLUDED.summary, model = EXCLUDED.model,
 				provider = EXCLUDED.provider, channel = EXCLUDED.channel,
@@ -231,14 +231,14 @@ func (s *PGSessionStore) Save(ctx context.Context, key string) error {
 				memory_flush_at = EXCLUDED.memory_flush_at,
 				label = EXCLUDED.label, spawned_by = EXCLUDED.spawned_by, spawn_depth = EXCLUDED.spawn_depth,
 				agent_id = EXCLUDED.agent_id, user_id = EXCLUDED.user_id, metadata = EXCLUDED.metadata,
-				updated_at = EXCLUDED.updated_at, team_id = EXCLUDED.team_id`,
+				updated_at = EXCLUDED.updated_at, team_id = EXCLUDED.team_id, project_id = EXCLUDED.project_id`,
 			uuid.Must(uuid.NewV7()), key, msgsJSON,
 			nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
 			snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
 			snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
 			nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
 			nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
-			snapshot.TeamID, snapshot.Updated,
+			snapshot.TeamID, snapshot.ProjectID, snapshot.Updated,
 		)
 		return err
 	}

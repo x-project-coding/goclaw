@@ -249,6 +249,9 @@ const (
 	MsgInvalidShareTarget = "error.invalid_share_target" // "share target must be exactly one of user_id or team_id"
 	MsgInvalidShareRole   = "error.invalid_share_role"   // "share role must be one of viewer, member, editor"
 
+	// --- Channel default project ---
+	MsgChannelDefaultProjectDenied = "permissions.channel_default_project.denied" // "You don't have permission to set this project as default for this channel"
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard = "hook.command_disabled_standard" // "command-type hooks are only available on Lite edition"

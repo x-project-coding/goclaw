@@ -85,6 +85,7 @@ DROP TABLE IF EXISTS team_task_events      CASCADE;
 DROP TABLE IF EXISTS team_task_comments    CASCADE;
 DROP TABLE IF EXISTS team_tasks            CASCADE;
 DROP TABLE IF EXISTS team_user_grants      CASCADE;
+DROP TABLE IF EXISTS team_user_members     CASCADE;
 DROP TABLE IF EXISTS agent_team_members    CASCADE;
 
 -- API Keys & Links
@@ -100,6 +101,10 @@ DROP TABLE IF EXISTS agent_shares          CASCADE;
 
 -- Teams (parent of many above — drop after children)
 DROP TABLE IF EXISTS agent_teams CASCADE;
+
+-- Projects (grants reference projects — drop before projects)
+DROP TABLE IF EXISTS project_grants CASCADE;
+DROP TABLE IF EXISTS projects       CASCADE;
 
 -- Agents
 DROP TABLE IF EXISTS agents CASCADE;

@@ -39,6 +39,9 @@ func (n *nopSessionStore) SetHistory(_ context.Context, _ string, _ []providers.
 func (n *nopSessionStore) Reset(_ context.Context, _ string)               {}
 func (n *nopSessionStore) Delete(_ context.Context, _ string) error        { return nil }
 func (n *nopSessionStore) Save(_ context.Context, _ string) error          { return nil }
+func (n *nopSessionStore) UpdateProject(_ context.Context, _ string, _ *uuid.UUID) error {
+	return nil
+}
 
 // SessionMetadataStore methods
 func (n *nopSessionStore) UpdateMetadata(_ context.Context, _, _, _, _ string)      {}

@@ -133,9 +133,9 @@ func (s *PGSessionStore) GetOrCreate(ctx context.Context, key string) *store.Ses
 
 	msgsJSON, _ := json.Marshal([]providers.Message{})
 	s.db.ExecContext(ctx,
-		`INSERT INTO agent_sessions (id, session_key, messages, created_at, updated_at, team_id)
-		 VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (session_key) DO NOTHING`,
-		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now, teamID,
+		`INSERT INTO agent_sessions (id, session_key, messages, created_at, updated_at, team_id, project_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (session_key) DO NOTHING`,
+		uuid.Must(uuid.NewV7()), key, msgsJSON, now, now, teamID, nil,
 	)
 
 	return data
@@ -334,7 +334,7 @@ func (s *PGSessionStore) loadFromDB(ctx context.Context, key string) *store.Sess
 	var sessionKey string
 	var msgsJSON []byte
 	var summary, model, provider, channel, label, spawnedBy *string
-	var agentID, userID, teamID *uuid.UUID
+	var agentID, userID, teamID, projectID *uuid.UUID
 	var inputTokens, outputTokens int64
 	var compactionCount, memoryFlushCompactionCount, spawnDepth int
 	var memoryFlushAt int64
@@ -346,13 +346,13 @@ func (s *PGSessionStore) loadFromDB(ctx context.Context, key string) *store.Sess
 		 input_tokens, output_tokens, compaction_count,
 		 memory_flush_compaction_count, memory_flush_at,
 		 label, spawned_by, spawn_depth, agent_id, user_id,
-		 COALESCE(metadata, '{}'), created_at, updated_at, team_id
+		 COALESCE(metadata, '{}'), created_at, updated_at, team_id, project_id
 		 FROM agent_sessions WHERE session_key = $1`, key,
 	).Scan(&sessionKey, &msgsJSON, &summary, &model, &provider, &channel,
 		&inputTokens, &outputTokens, &compactionCount,
 		&memoryFlushCompactionCount, &memoryFlushAt,
 		&label, &spawnedBy, &spawnDepth, &agentID, &userID,
-		&metaJSON, &createdAt, &updatedAt, &teamID)
+		&metaJSON, &createdAt, &updatedAt, &teamID, &projectID)
 	if err != nil {
 		return nil
 	}
@@ -386,6 +386,7 @@ func (s *PGSessionStore) loadFromDB(ctx context.Context, key string) *store.Sess
 		AgentUUID:                  derefUUID(agentID),
 		UserID:                     uuidPtrToStr(userID),
 		TeamID:                     teamID,
+		ProjectID:                  projectID,
 		Model:                      derefStr(model),
 		Provider:                   derefStr(provider),
 		Channel:                    derefStr(channel),

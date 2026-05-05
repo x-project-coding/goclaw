@@ -94,6 +94,10 @@ func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, i
 		if input.TeamID != "" {
 			teamID = &input.TeamID
 		}
+		// TODO: populate ResolveParams.ProjectID and ResolveParams.ProjectSlug
+		// from the session's project_id column to activate the project-priority
+		// workspace branch. Requires a session store read + project slug lookup
+		// before this call. Until wired, project-bound sessions use personal workspace.
 		return resolver.Resolve(ctx, workspace.ResolveParams{
 			AgentID:   l.id,
 			UserID:    input.UserID,

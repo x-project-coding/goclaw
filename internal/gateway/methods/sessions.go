@@ -4,24 +4,28 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // SessionsMethods handles sessions.list, sessions.preview, sessions.patch, sessions.delete, sessions.reset.
 type SessionsMethods struct {
-	sessions store.SessionStore
-	eventBus bus.EventPublisher
-	cfg      *config.Config
+	sessions      store.SessionStore
+	projectGrants store.ProjectGrantStore
+	eventBus      bus.EventPublisher
+	cfg           *config.Config
 }
 
-func NewSessionsMethods(sess store.SessionStore, eventBus bus.EventPublisher, cfg *config.Config) *SessionsMethods {
-	return &SessionsMethods{sessions: sess, eventBus: eventBus, cfg: cfg}
+func NewSessionsMethods(sess store.SessionStore, projectGrants store.ProjectGrantStore, eventBus bus.EventPublisher, cfg *config.Config) *SessionsMethods {
+	return &SessionsMethods{sessions: sess, projectGrants: projectGrants, eventBus: eventBus, cfg: cfg}
 }
 
 func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
@@ -31,6 +35,7 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 	router.Register(protocol.MethodSessionsDelete, m.handleDelete)
 	router.Register(protocol.MethodSessionsReset, m.handleReset)
 	router.Register(protocol.MethodSessionsCompact, m.handleCompact)
+	router.Register(protocol.MethodSessionsUpdateProject, m.handleUpdateProject)
 }
 
 type sessionsListParams struct {
@@ -291,4 +296,71 @@ func (m *SessionsMethods) handleCompact(ctx context.Context, client *gateway.Cli
 		"kept":     keepLast,
 	}))
 	emitAudit(m.eventBus, client, "session.compacted", "session", params.Key)
+}
+
+// handleUpdateProject binds or unbinds a session from a project.
+// Callers must hold at least member role on the target project.
+// Send projectId="" or omit it to clear the binding.
+func (m *SessionsMethods) handleUpdateProject(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	var params struct {
+		Key       string `json:"key"`
+		ProjectID string `json:"projectId"` // empty string → clear binding
+	}
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+		return
+	}
+
+	if params.Key == "" {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "key")))
+		return
+	}
+
+	// Session ownership check for non-admin callers.
+	if !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, client.UserID()) {
+		sess := m.sessions.Get(ctx, params.Key)
+		if sess == nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrNotFound, i18n.T(locale, i18n.MsgNotFound, "session", params.Key)))
+			return
+		}
+		if sess.UserID != client.UserID() {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+			return
+		}
+	}
+
+	// Resolve target project_id (nil = clear binding).
+	var projectID *uuid.UUID
+	if params.ProjectID != "" {
+		pid, err := uuid.Parse(params.ProjectID)
+		if err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "projectId")))
+			return
+		}
+
+		// Caller must have at least member access to bind a session to a project.
+		ok, err := permissions.CanAccessProject(ctx, m.projectGrants, client.UserID(), params.ProjectID, permissions.ProjectRoleMember)
+		if err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+			return
+		}
+		if !ok {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "project")))
+			return
+		}
+		projectID = &pid
+	}
+
+	if err := m.sessions.UpdateProject(ctx, params.Key, projectID); err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
+		"ok":        true,
+		"key":       params.Key,
+		"projectId": params.ProjectID,
+	}))
+	emitAudit(m.eventBus, client, "session.project_updated", "session", params.Key)
 }

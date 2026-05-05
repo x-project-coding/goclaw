@@ -240,7 +240,10 @@ func (m *mockSessionStore) TruncateHistory(context.Context, string, int) {}
 func (m *mockSessionStore) SetHistory(context.Context, string, []providers.Message) {}
 func (m *mockSessionStore) Reset(context.Context, string) {}
 func (m *mockSessionStore) Delete(context.Context, string) error { return nil }
-func (m *mockSessionStore) Save(context.Context, string) error { return nil }
+func (m *mockSessionStore) Save(context.Context, string) error   { return nil }
+func (m *mockSessionStore) UpdateProject(_ context.Context, _ string, _ *uuid.UUID) error {
+	return nil
+}
 
 // mockDomainEventBus implements eventbus.DomainEventBus for testing.
 type mockDomainEventBus struct {

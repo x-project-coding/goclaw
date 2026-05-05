@@ -253,5 +253,7 @@ func init() {
 
 		MsgInvalidShareTarget: "共享目标必须是 user_id 或 team_id 之一",
 		MsgInvalidShareRole:   "共享角色必须是 viewer、member 或 editor",
+
+		MsgChannelDefaultProjectDenied: "您无权将此项目设为此频道的默认项目",
 	})
 }

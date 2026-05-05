@@ -253,5 +253,7 @@ func init() {
 
 		MsgInvalidShareTarget: "mục tiêu chia sẻ phải là một trong user_id hoặc team_id",
 		MsgInvalidShareRole:   "vai trò chia sẻ phải là viewer, member hoặc editor",
+
+		MsgChannelDefaultProjectDenied: "Bạn không có quyền đặt dự án này làm mặc định cho kênh này",
 	})
 }

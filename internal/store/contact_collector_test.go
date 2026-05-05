@@ -70,6 +70,9 @@ func (m *mockContactStore) GetSenderIDsByContactIDs(_ context.Context, _ []uuid.
 func (m *mockContactStore) MergeUserAggregate(_ context.Context, _ MergeUserAggregateRequest) error {
 	return nil
 }
+func (m *mockContactStore) UpdateDefaultProject(_ context.Context, _ uuid.UUID, _ *uuid.UUID) error {
+	return nil
+}
 
 func (m *mockContactStore) upsertCount() int {
 	m.mu.Lock()

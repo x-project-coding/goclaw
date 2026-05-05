@@ -247,6 +247,13 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 			}
 		}
 		resolver := workspace.NewResolver()
+		// TODO: to activate the project-priority branch in the workspace resolver,
+		// read session.ProjectID from the session store here and, when non-nil,
+		// look up the project slug (store.Projects.Get), then set
+		// ResolveParams.ProjectID and ResolveParams.ProjectSlug before calling
+		// Resolve. Also call resolveSessionProject(session, contact) to pick up
+		// the channel-contact default. Until that wiring lands, project-bound
+		// sessions fall through to personal/team workspace resolution.
 		wc, wsErr := resolver.Resolve(ctx, workspace.ResolveParams{
 			// Filesystem path segment must use agent_key, not UUID — matches
 			// the v2 path in loop_pipeline_callbacks.go and the session_key
@@ -366,4 +373,25 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		ctx:                  ctx,
 		resolvedTeamSettings: resolvedTeamSettings,
 	}, nil
+}
+
+// resolveSessionProject returns the effective project UUID for a session using
+// a two-layer COALESCE chain:
+//
+//  1. session_project_override from session metadata — deferred post-rc1.
+//     This branch is intentionally left as a nil placeholder; enabling it
+//     would activate Layer 2 (/project switch bot command) before it is ready.
+//  2. channel_contacts.default_project_id — the group-chat default (Layer 1).
+//
+// Returns nil when no project is bound.
+// The unused first parameter reserves the signature for Layer 2 expansion.
+func resolveSessionProject(_ any, contact *store.ChannelContact) *uuid.UUID {
+	// Layer 2: session_project_override via bot command — deferred to post-rc1.
+	// _ = sessionMetadataOverride  // placeholder only — do not read session metadata here.
+
+	// Layer 1: channel default.
+	if contact != nil && contact.DefaultProjectID != nil {
+		return contact.DefaultProjectID
+	}
+	return nil
 }

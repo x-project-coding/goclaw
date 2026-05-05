@@ -20,7 +20,13 @@ var schemaSQL string
 // v2 → v3: adds password_reset_tokens table for self-serve password reset.
 // v3 → v4: splits agents.workspace_sharing JSONB into share_workspace + share_memory BOOL.
 // v4 → v5: rebuilds agent_shares with target mutex (user XOR team), role enum, FK created_by, updated_at.
-const SchemaVersion = 5
+// v5 → v6: adds projects table (top-level entity, owner FK to users, immutable slug, status check).
+// v6 → v7: adds team_user_members join table (user↔team membership with role + added_by audit trail).
+// v7 → v8: adds project_grants table (project-level access control for users and teams).
+// v8 → v9: adds project_id FK (SET NULL) to agent_sessions for per-session project binding.
+// v9 → v10: adds default_project_id FK (SET NULL) to channel_contacts for group-chat project default.
+// v10 → v11: widens idx_projects_status to cover all status values (was active-only partial index).
+const SchemaVersion = 11
 
 // migrations maps version → ordered slice of SQL statements to apply when
 // upgrading FROM that version to the next.
@@ -114,6 +120,85 @@ var migrations = map[int][]string{
 		`CREATE INDEX idx_agent_shares_agent ON agent_shares(agent_id)`,
 		`CREATE UNIQUE INDEX idx_agent_shares_user ON agent_shares(agent_id, shared_with_user_id) WHERE shared_with_user_id IS NOT NULL`,
 		`CREATE UNIQUE INDEX idx_agent_shares_team ON agent_shares(agent_id, shared_with_team_id) WHERE shared_with_team_id IS NOT NULL`,
+	},
+	// Upgrade v5 → v6: adds projects table for top-level project entities.
+	// Slug is immutable post-create (FS path coupling). Archive via status.
+	5: {
+		`CREATE TABLE IF NOT EXISTS projects (
+			id            TEXT         NOT NULL PRIMARY KEY,
+			slug          VARCHAR(100) NOT NULL UNIQUE
+			                  CHECK (slug GLOB '[a-z0-9]*' AND slug NOT GLOB '*[^a-z0-9-]*' AND
+			                         length(slug) >= 3 AND length(slug) <= 100 AND
+			                         substr(slug, 1, 1) != '-' AND substr(slug, length(slug), 1) != '-'),
+			owner_user_id TEXT         NOT NULL REFERENCES users(id),
+			status        VARCHAR(20)  NOT NULL DEFAULT 'active'
+			                  CHECK (status IN ('active', 'archived')),
+			metadata      TEXT         NOT NULL DEFAULT '{}',
+			created_at    TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at    TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_projects_owner  ON projects(owner_user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`,
+	},
+	// Upgrade v6 → v7: adds team_user_members join table.
+	// User↔team membership with role enum and added_by audit trail.
+	// Composite PK (team_id, user_id) prevents duplicate membership rows.
+	6: {
+		`CREATE TABLE IF NOT EXISTS team_user_members (
+			team_id    TEXT        NOT NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+			user_id    TEXT        NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
+			role       VARCHAR(20) NOT NULL CHECK (role IN ('viewer', 'member', 'admin')),
+			added_by   TEXT        REFERENCES users(id) ON DELETE SET NULL,
+			created_at TEXT        NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			PRIMARY KEY (team_id, user_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_team_user_members_user ON team_user_members(user_id)`,
+	},
+	// Upgrade v7 → v8: adds project_grants table for project-level access control.
+	// Exactly one of user_id/team_id must be set (XOR via CHECK constraint).
+	// Separate partial unique indexes replicate PG UNIQUE NULLS NOT DISTINCT behaviour.
+	7: {
+		`CREATE TABLE IF NOT EXISTS project_grants (
+			id          TEXT        NOT NULL PRIMARY KEY,
+			project_id  TEXT        NOT NULL REFERENCES projects(id)     ON DELETE CASCADE,
+			user_id     TEXT                 REFERENCES users(id)        ON DELETE CASCADE,
+			team_id     TEXT                 REFERENCES agent_teams(id)  ON DELETE CASCADE,
+			role        VARCHAR(20) NOT NULL CHECK (role IN ('viewer', 'member', 'editor')),
+			granted_by  TEXT                 REFERENCES users(id)        ON DELETE SET NULL,
+			created_at  TEXT        NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			CHECK (
+				(user_id IS NOT NULL AND team_id IS NULL) OR
+				(user_id IS NULL     AND team_id IS NOT NULL)
+			)
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_project_grants_unique_user
+		    ON project_grants(project_id, user_id) WHERE user_id IS NOT NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_project_grants_unique_team
+		    ON project_grants(project_id, team_id) WHERE team_id IS NOT NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_project_grants_project ON project_grants(project_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_project_grants_user ON project_grants(user_id) WHERE user_id IS NOT NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_project_grants_team ON project_grants(team_id) WHERE team_id IS NOT NULL`,
+	},
+	// Upgrade v8 → v9: adds project_id FK to agent_sessions.
+	// Nullable (SET NULL on project delete) so legacy sessions without a project
+	// continue to work unchanged. Index is partial — only rows with a project set.
+	8: {
+		`ALTER TABLE agent_sessions ADD COLUMN project_id TEXT NULL REFERENCES projects(id) ON DELETE SET NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_sessions_project ON agent_sessions(project_id) WHERE project_id IS NOT NULL`,
+	},
+	// Upgrade v9 → v10: adds default_project_id FK to channel_contacts.
+	// Group contacts can have a default project; FK SET NULL on project delete
+	// so existing contacts remain valid without a project binding.
+	9: {
+		`ALTER TABLE channel_contacts ADD COLUMN default_project_id TEXT NULL REFERENCES projects(id) ON DELETE SET NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_channel_contacts_default_project ON channel_contacts(default_project_id) WHERE default_project_id IS NOT NULL`,
+	},
+	// Upgrade v10 → v11: widen idx_projects_status to cover both active and archived rows.
+	// The original partial index (WHERE status = 'active') did not benefit queries
+	// filtering on archived status. Drop and recreate as a full index on (status).
+	10: {
+		`DROP INDEX IF EXISTS idx_projects_status`,
+		`CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)`,
 	},
 }
 

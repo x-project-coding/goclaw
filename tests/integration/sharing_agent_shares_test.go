@@ -52,9 +52,9 @@ func seedTeamForShares(t *testing.T, db *sql.DB, ownerID uuid.UUID) uuid.UUID {
 	id := uuid.New()
 	suffix := id.String()[:8]
 	_, err := db.Exec(
-		`INSERT INTO agent_teams (id, team_key, name, owner_user_id, lead_agent_id)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		id, "team-"+suffix, "Team "+suffix, ownerID, leadAgent,
+		`INSERT INTO agent_teams (id, team_key, name, owner_user_id, lead_agent_id, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, "team-"+suffix, "Team "+suffix, ownerID, leadAgent, ownerID.String(),
 	)
 	if err != nil {
 		t.Fatalf("seed team: %v", err)

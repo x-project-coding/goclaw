@@ -82,15 +82,22 @@ func contactWhereSQLite(_ context.Context, opts store.ContactListOpts) (string, 
 
 const contactSelectCols = `id, channel_type, channel_instance, sender_id, user_id,
 		display_name, username, avatar_url, peer_kind, contact_type, thread_id, thread_type, merged_id,
-		first_seen_at, last_seen_at`
+		default_project_id, first_seen_at, last_seen_at`
 
 func scanContact(rows *sql.Rows) (store.ChannelContact, error) {
 	var c store.ChannelContact
+	firstSeen, lastSeen := &sqliteTime{}, &sqliteTime{}
 	err := rows.Scan(
 		&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
-		&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType, &c.ThreadID, &c.ThreadType, &c.MergedID,
-		&c.FirstSeenAt, &c.LastSeenAt,
+		&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType,
+		&c.ThreadID, &c.ThreadType, &c.MergedID,
+		&c.DefaultProjectID,
+		firstSeen, lastSeen,
 	)
+	if err == nil {
+		c.FirstSeenAt = firstSeen.Time
+		c.LastSeenAt = lastSeen.Time
+	}
 	return c, err
 }
 
@@ -168,19 +175,34 @@ func (s *SQLiteContactStore) GetContactsBySenderIDs(ctx context.Context, senderI
 }
 
 func (s *SQLiteContactStore) GetContactByID(ctx context.Context, id uuid.UUID) (*store.ChannelContact, error) {
-	row := s.db.QueryRowContext(ctx,
+	rows, err := s.db.QueryContext(ctx,
 		`SELECT `+contactSelectCols+`
 		FROM channel_contacts WHERE id = ?`, id)
-	var c store.ChannelContact
-	if err := row.Scan(
-		&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
-		&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType,
-		&c.ThreadID, &c.ThreadType, &c.MergedID,
-		&c.FirstSeenAt, &c.LastSeenAt,
-	); err != nil {
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, sql.ErrNoRows
+	}
+	c, err := scanContact(rows)
+	if err != nil {
 		return nil, err
 	}
 	return &c, nil
+}
+
+// UpdateDefaultProject sets or clears the default_project_id on a channel contact.
+// Pass nil to clear the binding. Permission check is the caller's responsibility.
+func (s *SQLiteContactStore) UpdateDefaultProject(ctx context.Context, contactID uuid.UUID, projectID *uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE channel_contacts SET default_project_id = ? WHERE id = ?`,
+		projectID, contactID,
+	)
+	return err
 }
 
 func (s *SQLiteContactStore) GetSenderIDsByContactIDs(ctx context.Context, contactIDs []uuid.UUID) ([]string, error) {

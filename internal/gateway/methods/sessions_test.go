@@ -99,7 +99,7 @@ func (s *stubEventPub) Broadcast(_ bus.Event)                    {}
 func buildSessionMethods(t *testing.T, sess *stubSessionStore) *SessionsMethods {
 	t.Helper()
 	cfg := &config.Config{}
-	return NewSessionsMethods(sess, &stubEventPub{}, cfg)
+	return NewSessionsMethods(sess, nil, &stubEventPub{}, cfg)
 }
 
 func sessionReqFrame(t *testing.T, method string, params map[string]any) *protocol.RequestFrame {

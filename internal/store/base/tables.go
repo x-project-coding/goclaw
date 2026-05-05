@@ -21,6 +21,7 @@ var TablesWithUpdatedAt = map[string]bool{
 	"hooks":          true,
 	"users":          true,
 	"user_hook_budget": true,
+	"projects":       true,
 }
 
 // TableHasUpdatedAt returns true if the table has an updated_at column.

@@ -78,12 +78,28 @@ func contactWhereClause(_ context.Context, opts store.ContactListOpts) (string, 
 	return where, args, argIdx
 }
 
+// contactSelectCols is the canonical column list for channel_contacts SELECT queries.
+const contactSelectCols = `id, channel_type, channel_instance, sender_id, user_id,
+		display_name, username, avatar_url, peer_kind, contact_type, thread_id, thread_type, merged_id,
+		default_project_id, first_seen_at, last_seen_at`
+
+// scanContact reads a ChannelContact from a sql.Rows cursor.
+func scanPGContact(rows *sql.Rows) (store.ChannelContact, error) {
+	var c store.ChannelContact
+	err := rows.Scan(
+		&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
+		&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType,
+		&c.ThreadID, &c.ThreadType, &c.MergedID,
+		&c.DefaultProjectID,
+		&c.FirstSeenAt, &c.LastSeenAt,
+	)
+	return c, err
+}
+
 func (s *PGContactStore) ListContacts(ctx context.Context, opts store.ContactListOpts) ([]store.ChannelContact, error) {
 	where, args, argIdx := contactWhereClause(ctx, opts)
 
-	query := `SELECT id, channel_type, channel_instance, sender_id, user_id,
-		display_name, username, avatar_url, peer_kind, contact_type, thread_id, thread_type, merged_id,
-		first_seen_at, last_seen_at
+	query := `SELECT ` + contactSelectCols + `
 		FROM channel_contacts` + where + " ORDER BY last_seen_at DESC"
 
 	limit := opts.Limit
@@ -107,12 +123,8 @@ func (s *PGContactStore) ListContacts(ctx context.Context, opts store.ContactLis
 
 	var contacts []store.ChannelContact
 	for rows.Next() {
-		var c store.ChannelContact
-		if err := rows.Scan(
-			&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
-			&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType, &c.ThreadID, &c.ThreadType, &c.MergedID,
-			&c.FirstSeenAt, &c.LastSeenAt,
-		); err != nil {
+		c, err := scanPGContact(rows)
+		if err != nil {
 			return nil, err
 		}
 		contacts = append(contacts, c)
@@ -140,9 +152,7 @@ func (s *PGContactStore) GetContactsBySenderIDs(ctx context.Context, senderIDs [
 	}
 
 	query := fmt.Sprintf(`SELECT DISTINCT ON (sender_id)
-		id, channel_type, channel_instance, sender_id, user_id,
-		display_name, username, avatar_url, peer_kind, contact_type, thread_id, thread_type, merged_id,
-		first_seen_at, last_seen_at
+		`+contactSelectCols+`
 		FROM channel_contacts
 		WHERE sender_id IN (%s)
 		ORDER BY sender_id, last_seen_at DESC`, strings.Join(placeholders, ","))
@@ -155,12 +165,8 @@ func (s *PGContactStore) GetContactsBySenderIDs(ctx context.Context, senderIDs [
 
 	result := make(map[string]store.ChannelContact, len(senderIDs))
 	for rows.Next() {
-		var c store.ChannelContact
-		if err := rows.Scan(
-			&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
-			&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType, &c.ThreadID, &c.ThreadType, &c.MergedID,
-			&c.FirstSeenAt, &c.LastSeenAt,
-		); err != nil {
+		c, err := scanPGContact(rows)
+		if err != nil {
 			return nil, err
 		}
 		result[c.SenderID] = c
@@ -169,22 +175,34 @@ func (s *PGContactStore) GetContactsBySenderIDs(ctx context.Context, senderIDs [
 }
 
 func (s *PGContactStore) GetContactByID(ctx context.Context, id uuid.UUID) (*store.ChannelContact, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, channel_type, channel_instance, sender_id, user_id,
-			display_name, username, avatar_url, peer_kind, contact_type,
-			thread_id, thread_type, merged_id,
-			first_seen_at, last_seen_at
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+contactSelectCols+`
 		FROM channel_contacts WHERE id = $1`, id)
-	var c store.ChannelContact
-	if err := row.Scan(
-		&c.ID, &c.ChannelType, &c.ChannelInstance, &c.SenderID, &c.UserID,
-		&c.DisplayName, &c.Username, &c.AvatarURL, &c.PeerKind, &c.ContactType,
-		&c.ThreadID, &c.ThreadType, &c.MergedID,
-		&c.FirstSeenAt, &c.LastSeenAt,
-	); err != nil {
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, sql.ErrNoRows
+	}
+	c, err := scanPGContact(rows)
+	if err != nil {
 		return nil, err
 	}
 	return &c, nil
+}
+
+// UpdateDefaultProject sets or clears the default_project_id on a channel contact.
+// Pass nil to clear the binding. Permission check is the caller's responsibility.
+func (s *PGContactStore) UpdateDefaultProject(ctx context.Context, contactID uuid.UUID, projectID *uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE channel_contacts SET default_project_id = $1 WHERE id = $2`,
+		projectID, contactID,
+	)
+	return err
 }
 
 func (s *PGContactStore) GetSenderIDsByContactIDs(ctx context.Context, contactIDs []uuid.UUID) ([]string, error) {

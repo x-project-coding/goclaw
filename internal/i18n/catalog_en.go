@@ -253,5 +253,7 @@ func init() {
 
 		MsgInvalidShareTarget: "share target must be exactly one of user_id or team_id",
 		MsgInvalidShareRole:   "share role must be one of viewer, member, editor",
+
+		MsgChannelDefaultProjectDenied: "You don't have permission to set this project as default for this channel",
 	})
 }

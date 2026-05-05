@@ -34,12 +34,13 @@ const (
 	MethodConfigDefaults = "config.defaults"
 
 	// Sessions
-	MethodSessionsList    = "sessions.list"
-	MethodSessionsPreview = "sessions.preview"
-	MethodSessionsPatch   = "sessions.patch"
-	MethodSessionsDelete  = "sessions.delete"
-	MethodSessionsReset   = "sessions.reset"
-	MethodSessionsCompact = "sessions.compact"
+	MethodSessionsList          = "sessions.list"
+	MethodSessionsPreview       = "sessions.preview"
+	MethodSessionsPatch         = "sessions.patch"
+	MethodSessionsDelete        = "sessions.delete"
+	MethodSessionsReset         = "sessions.reset"
+	MethodSessionsCompact       = "sessions.compact"
+	MethodSessionsUpdateProject = "sessions.update_project"
 
 	// System
 	MethodConnect = "connect"
@@ -112,6 +113,11 @@ const (
 	MethodChannelInstancesCreate = "channels.instances.create"
 	MethodChannelInstancesUpdate = "channels.instances.update"
 	MethodChannelInstancesDelete = "channels.instances.delete"
+)
+
+// Channel contacts management
+const (
+	MethodChannelsContactsSetDefaultProject = "channels.contacts.set_default_project"
 )
 
 // Agent links (inter-agent delegation)

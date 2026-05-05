@@ -2,8 +2,11 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
@@ -64,4 +67,25 @@ func (s *PGSessionStore) Delete(ctx context.Context, key string) error {
 
 	_, err := s.db.ExecContext(ctx, "DELETE FROM agent_sessions WHERE session_key = $1", key)
 	return err
+}
+
+// UpdateProject sets the project_id FK on an existing session row.
+// Pass nil to clear the binding. Updates the in-memory cache when present.
+// Permission verification is the caller's responsibility.
+func (s *PGSessionStore) UpdateProject(ctx context.Context, sessionKey string, projectID *uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE agent_sessions SET project_id = $1 WHERE session_key = $2`,
+		projectID, sessionKey,
+	)
+	if err != nil {
+		return fmt.Errorf("session update project: %w", err)
+	}
+
+	// Sync the in-memory cache entry if present.
+	s.mu.Lock()
+	if data, ok := s.cache[sessionCacheKey(ctx, sessionKey)]; ok {
+		data.ProjectID = projectID
+	}
+	s.mu.Unlock()
+	return nil
 }

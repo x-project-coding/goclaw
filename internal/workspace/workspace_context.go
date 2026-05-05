@@ -4,7 +4,11 @@
 // V3 design: Phase 1B — foundation interface.
 package workspace
 
-import "context"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 // Scope defines workspace access boundary.
 type Scope string
@@ -46,6 +50,14 @@ type WorkspaceContext struct {
 
 	// EnforcementLabel is injected into system prompt verbatim.
 	EnforcementLabel string
+
+	// ProjectID is set when the session is bound to a project.
+	// nil means no project binding — falls through to standard 6-scenario resolution.
+	ProjectID *uuid.UUID
+
+	// ProjectSlug is the URL-safe slug used for filesystem path resolution.
+	// Empty when ProjectID is nil.
+	ProjectSlug string
 }
 
 // Resolver produces a WorkspaceContext from request parameters.
@@ -64,6 +76,12 @@ type ResolveParams struct {
 	TeamConfig  *TeamWorkspaceConfig
 	DelegateCtx *DelegateContext
 	BaseDir     string
+
+	// ProjectID and ProjectSlug activate the project-workspace branch.
+	// When both are set, the session's active path is resolved under
+	// <workspaceRoot>/projects/<slug> regardless of team/personal scenario.
+	ProjectID   *uuid.UUID
+	ProjectSlug string
 }
 
 // TeamWorkspaceConfig maps to team.settings JSON.

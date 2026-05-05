@@ -35,6 +35,9 @@ type Stores struct {
 	Episodic               EpisodicStore
 	EvolutionMetrics       EvolutionMetricsStore
 	EvolutionSuggestions   EvolutionSuggestionStore
+	Projects        ProjectStore
+	ProjectGrants   ProjectGrantStore
+	TeamUserMembers TeamUserMemberStore
 	// User-scoped stores.
 	Users           UsersStore
 	UserSessions    UserSessionsStore

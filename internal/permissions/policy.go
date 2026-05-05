@@ -311,6 +311,12 @@ func isWriteMethod(method string) bool {
 		protocol.MethodApprovalsApprove,
 		protocol.MethodApprovalsDeny,
 
+		// Session project binding.
+		protocol.MethodSessionsUpdateProject,
+
+		// Channel contact default project binding.
+		protocol.MethodChannelsContactsSetDefaultProject,
+
 		// TTS synthesis — invokes provider API (quota/credentials).
 		protocol.MethodTTSConvert,
 

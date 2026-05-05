@@ -5,6 +5,7 @@ package sqlitestore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -54,14 +55,14 @@ func (s *SQLiteSessionStore) Save(ctx context.Context, key string) error {
 			memory_flush_compaction_count = ?, memory_flush_at = ?,
 			label = ?, spawned_by = ?, spawn_depth = ?,
 			agent_id = ?, user_id = ?, metadata = ?, updated_at = ?,
-			team_id = ?
+			team_id = ?, project_id = ?
 		 WHERE session_key = ?`,
 		msgsJSON, nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
 		snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
 		snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
 		nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
 		nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
-		snapshot.TeamID,
+		snapshot.TeamID, snapshot.ProjectID,
 		key,
 	)
 	if err != nil {
@@ -73,8 +74,8 @@ func (s *SQLiteSessionStore) Save(ctx context.Context, key string) error {
 			`INSERT INTO agent_sessions (id, session_key, messages, summary, model, provider, channel,
 				input_tokens, output_tokens, compaction_count,
 				memory_flush_compaction_count, memory_flush_at,
-				label, spawned_by, spawn_depth, agent_id, user_id, metadata, updated_at, team_id, created_at)
-			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				label, spawned_by, spawn_depth, agent_id, user_id, metadata, updated_at, team_id, project_id, created_at)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			 ON CONFLICT(session_key) DO UPDATE SET
 				messages = excluded.messages, summary = excluded.summary, model = excluded.model,
 				provider = excluded.provider, channel = excluded.channel,
@@ -84,14 +85,14 @@ func (s *SQLiteSessionStore) Save(ctx context.Context, key string) error {
 				memory_flush_at = excluded.memory_flush_at,
 				label = excluded.label, spawned_by = excluded.spawned_by, spawn_depth = excluded.spawn_depth,
 				agent_id = excluded.agent_id, user_id = excluded.user_id, metadata = excluded.metadata,
-				updated_at = excluded.updated_at, team_id = excluded.team_id`,
+				updated_at = excluded.updated_at, team_id = excluded.team_id, project_id = excluded.project_id`,
 			uuid.Must(uuid.NewV7()), key, msgsJSON,
 			nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
 			snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
 			snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
 			nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
 			nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
-			snapshot.TeamID, snapshot.Updated,
+			snapshot.TeamID, snapshot.ProjectID, snapshot.Updated,
 		)
 		return err
 	}
@@ -152,6 +153,27 @@ func (s *SQLiteSessionStore) Delete(ctx context.Context, key string) error {
 
 	_, err := s.db.ExecContext(ctx, "DELETE FROM agent_sessions WHERE session_key = ?", key)
 	return err
+}
+
+// UpdateProject sets the project_id FK on an existing session row.
+// Pass nil to clear the binding. Updates the in-memory cache when present.
+// Permission verification is the caller's responsibility.
+func (s *SQLiteSessionStore) UpdateProject(ctx context.Context, sessionKey string, projectID *uuid.UUID) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE agent_sessions SET project_id = ? WHERE session_key = ?`,
+		projectID, sessionKey,
+	)
+	if err != nil {
+		return fmt.Errorf("session update project: %w", err)
+	}
+
+	// Sync the in-memory cache entry if present.
+	s.mu.Lock()
+	if data, ok := s.cache[sessionCacheKey(ctx, sessionKey)]; ok {
+		data.ProjectID = projectID
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *SQLiteSessionStore) LastUsedChannel(ctx context.Context, agentID string) (string, string) {

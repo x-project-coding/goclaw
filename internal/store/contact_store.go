@@ -11,21 +11,22 @@ import (
 // ChannelContact represents a user discovered through channel interactions.
 // Global (not per-agent): same person on the same platform = one row.
 type ChannelContact struct {
-	ID              uuid.UUID  `json:"id" db:"id"`
-	ChannelType     string     `json:"channel_type" db:"channel_type"`
-	ChannelInstance *string    `json:"channel_instance,omitempty" db:"channel_instance"`
-	SenderID        string     `json:"sender_id" db:"sender_id"`
-	UserID          *string    `json:"user_id,omitempty" db:"user_id"`
-	DisplayName     *string    `json:"display_name,omitempty" db:"display_name"`
-	Username        *string    `json:"username,omitempty" db:"username"`
-	AvatarURL       *string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	PeerKind        *string    `json:"peer_kind,omitempty" db:"peer_kind"`
-	ContactType     string     `json:"contact_type" db:"contact_type"` // "user", "group", or "topic"
-	ThreadID        *string    `json:"thread_id,omitempty" db:"thread_id"`
-	ThreadType      *string    `json:"thread_type,omitempty" db:"thread_type"`
-	MergedID        *uuid.UUID `json:"merged_id,omitempty" db:"merged_id"`
-	FirstSeenAt     time.Time  `json:"first_seen_at" db:"first_seen_at"`
-	LastSeenAt      time.Time  `json:"last_seen_at" db:"last_seen_at"`
+	ID               uuid.UUID  `json:"id" db:"id"`
+	ChannelType      string     `json:"channel_type" db:"channel_type"`
+	ChannelInstance  *string    `json:"channel_instance,omitempty" db:"channel_instance"`
+	SenderID         string     `json:"sender_id" db:"sender_id"`
+	UserID           *string    `json:"user_id,omitempty" db:"user_id"`
+	DisplayName      *string    `json:"display_name,omitempty" db:"display_name"`
+	Username         *string    `json:"username,omitempty" db:"username"`
+	AvatarURL        *string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	PeerKind         *string    `json:"peer_kind,omitempty" db:"peer_kind"`
+	ContactType      string     `json:"contact_type" db:"contact_type"` // "user", "group", or "topic"
+	ThreadID         *string    `json:"thread_id,omitempty" db:"thread_id"`
+	ThreadType       *string    `json:"thread_type,omitempty" db:"thread_type"`
+	MergedID         *uuid.UUID `json:"merged_id,omitempty" db:"merged_id"`
+	DefaultProjectID *uuid.UUID `json:"default_project_id,omitempty" db:"default_project_id"`
+	FirstSeenAt      time.Time  `json:"first_seen_at" db:"first_seen_at"`
+	LastSeenAt       time.Time  `json:"last_seen_at" db:"last_seen_at"`
 }
 
 // ContactListOpts holds pagination and filter options for listing contacts.
@@ -97,4 +98,8 @@ type ContactStore interface {
 	// the contact has been merged, returns the linked user's UUID as string.
 	// Returns ("", nil) when the contact is not found or not merged.
 	ResolveTenantUserID(ctx context.Context, channelType, senderID string) (string, error)
+
+	// UpdateDefaultProject sets or clears the default project binding for a channel contact.
+	// Pass nil projectID to clear the binding. Callers must verify permission before calling.
+	UpdateDefaultProject(ctx context.Context, contactID uuid.UUID, projectID *uuid.UUID) error
 }

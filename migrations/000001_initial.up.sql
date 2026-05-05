@@ -444,6 +444,73 @@ CREATE INDEX idx_tta_task ON team_task_attachments(task_id);
 CREATE INDEX idx_tta_team ON team_task_attachments(team_id);
 
 -- ============================================================
+-- Section 3b: Team-user membership
+-- ============================================================
+-- User↔team membership, distinct from agent↔team in agent_team_members.
+-- Roles (viewer/member/admin) control what a user can do as a team member
+-- (manage agents, invite users, accept grants). Separate from project_grants.role.
+-- added_by is kept for audit; SET NULL on granter delete preserves the row.
+
+CREATE TABLE IF NOT EXISTS team_user_members (
+    team_id    UUID        NOT NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+    user_id    UUID        NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
+    role       VARCHAR(20) NOT NULL CHECK (role IN ('viewer', 'member', 'admin')),
+    added_by   UUID        REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (team_id, user_id)
+);
+
+CREATE INDEX idx_team_user_members_user ON team_user_members(user_id);
+
+-- ============================================================
+-- Section 3c: Projects
+-- ============================================================
+-- Top-level entity owned by a user. Slug is immutable post-create
+-- (FS path coupling). Archive via status change; no hard delete in rc1.
+
+CREATE TABLE IF NOT EXISTS projects (
+    id            UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    slug          VARCHAR(100) NOT NULL UNIQUE
+                      CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$'),
+    owner_user_id UUID         NOT NULL REFERENCES users(id),
+    status        VARCHAR(20)  NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('active', 'archived')),
+    metadata      JSONB        NOT NULL DEFAULT '{}',
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_projects_owner  ON projects(owner_user_id);
+CREATE INDEX idx_projects_status ON projects(status);
+
+-- ============================================================
+-- Section 3d: Project grants
+-- ============================================================
+-- Controls who (user or team) can access a project and at what role.
+-- Exactly one of user_id/team_id must be set (XOR via CHECK constraint).
+-- granted_by uses SET NULL so audit rows survive granter deletion.
+-- UNIQUE NULLS NOT DISTINCT prevents duplicate (project, user) or (project, team) pairs.
+
+CREATE TABLE IF NOT EXISTS project_grants (
+    id          UUID        NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    project_id  UUID        NOT NULL REFERENCES projects(id)     ON DELETE CASCADE,
+    user_id     UUID                 REFERENCES users(id)        ON DELETE CASCADE,
+    team_id     UUID                 REFERENCES agent_teams(id)  ON DELETE CASCADE,
+    role        VARCHAR(20) NOT NULL CHECK (role IN ('viewer', 'member', 'editor')),
+    granted_by  UUID                 REFERENCES users(id)        ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (
+        (user_id IS NOT NULL AND team_id IS NULL) OR
+        (user_id IS NULL     AND team_id IS NOT NULL)
+    ),
+    UNIQUE NULLS NOT DISTINCT (project_id, user_id, team_id)
+);
+
+CREATE INDEX idx_project_grants_project ON project_grants(project_id);
+CREATE INDEX idx_project_grants_user    ON project_grants(user_id)  WHERE user_id IS NOT NULL;
+CREATE INDEX idx_project_grants_team    ON project_grants(team_id)  WHERE team_id IS NOT NULL;
+
+-- ============================================================
 -- Section 4: Agent Sessions (renamed from v3 "sessions")
 -- ============================================================
 
@@ -467,6 +534,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     spawn_depth                   INT          NOT NULL DEFAULT 0,
     metadata                      JSONB        DEFAULT '{}',
     team_id                       UUID         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    project_id                    UUID         REFERENCES projects(id)    ON DELETE SET NULL,
     created_at                    TIMESTAMPTZ  DEFAULT NOW(),
     updated_at                    TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -476,7 +544,8 @@ CREATE INDEX idx_agent_sessions_agent       ON agent_sessions(agent_id);
 CREATE INDEX idx_agent_sessions_user        ON agent_sessions(user_id);
 CREATE INDEX idx_agent_sessions_updated     ON agent_sessions(updated_at DESC);
 CREATE INDEX idx_agent_sessions_user_agent  ON agent_sessions(user_id, agent_id);
-CREATE INDEX idx_agent_sessions_team        ON agent_sessions(team_id) WHERE team_id IS NOT NULL;
+CREATE INDEX idx_agent_sessions_team        ON agent_sessions(team_id)    WHERE team_id    IS NOT NULL;
+CREATE INDEX idx_agent_sessions_project     ON agent_sessions(project_id) WHERE project_id IS NOT NULL;
 
 -- ============================================================
 -- Section 5: Memory
@@ -857,31 +926,33 @@ CREATE TABLE IF NOT EXISTS channel_pending_messages (
 CREATE INDEX idx_channel_pending_messages_lookup ON channel_pending_messages(channel_name, history_key, created_at);
 
 CREATE TABLE IF NOT EXISTS channel_contacts (
-    id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    channel_type     VARCHAR(50)  NOT NULL,
-    channel_instance VARCHAR(255),
-    sender_id        VARCHAR(255) NOT NULL,
-    user_id          UUID         REFERENCES users(id) ON DELETE SET NULL,
-    display_name     VARCHAR(255),
-    username         VARCHAR(255),
-    avatar_url       TEXT,
-    peer_kind        VARCHAR(20),
-    contact_type     VARCHAR(20)  NOT NULL DEFAULT 'user',
-    thread_id        VARCHAR(100),
-    thread_type      VARCHAR(20),
-    metadata         JSONB        DEFAULT '{}',
-    merge_audit      JSONB        NOT NULL DEFAULT '{}',
-    merged_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
-    first_seen_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_seen_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    id                 UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    channel_type       VARCHAR(50)  NOT NULL,
+    channel_instance   VARCHAR(255),
+    sender_id          VARCHAR(255) NOT NULL,
+    user_id            UUID         REFERENCES users(id) ON DELETE SET NULL,
+    display_name       VARCHAR(255),
+    username           VARCHAR(255),
+    avatar_url         TEXT,
+    peer_kind          VARCHAR(20),
+    contact_type       VARCHAR(20)  NOT NULL DEFAULT 'user',
+    thread_id          VARCHAR(100),
+    thread_type        VARCHAR(20),
+    metadata           JSONB        DEFAULT '{}',
+    merge_audit        JSONB        NOT NULL DEFAULT '{}',
+    merged_id          UUID         REFERENCES users(id) ON DELETE SET NULL,
+    default_project_id UUID         REFERENCES projects(id) ON DELETE SET NULL,
+    first_seen_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    last_seen_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX idx_channel_contacts_type_sender
     ON channel_contacts(channel_type, sender_id, COALESCE(thread_id, ''));
-CREATE INDEX idx_channel_contacts_instance ON channel_contacts(channel_instance) WHERE channel_instance IS NOT NULL;
-CREATE INDEX idx_channel_contacts_merged   ON channel_contacts(merged_id)        WHERE merged_id IS NOT NULL;
-CREATE INDEX idx_channel_contacts_search   ON channel_contacts(display_name, username);
-CREATE INDEX idx_channel_contacts_user     ON channel_contacts(user_id)          WHERE user_id IS NOT NULL;
+CREATE INDEX idx_channel_contacts_instance       ON channel_contacts(channel_instance)       WHERE channel_instance IS NOT NULL;
+CREATE INDEX idx_channel_contacts_merged         ON channel_contacts(merged_id)              WHERE merged_id IS NOT NULL;
+CREATE INDEX idx_channel_contacts_search         ON channel_contacts(display_name, username);
+CREATE INDEX idx_channel_contacts_user           ON channel_contacts(user_id)                WHERE user_id IS NOT NULL;
+CREATE INDEX idx_channel_contacts_default_project ON channel_contacts(default_project_id)    WHERE default_project_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS pairing_requests (
     id         UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),

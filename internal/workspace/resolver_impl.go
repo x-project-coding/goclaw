@@ -22,8 +22,12 @@ func (r *defaultResolver) Resolve(_ context.Context, params ResolveParams) (*Wor
 		return nil, fmt.Errorf("workspace: base dir is required")
 	}
 
-	// Priority: delegation > team > personal/predefined
+	// Priority: project > delegation > team > personal/predefined.
+	// Project binding wins so the session always operates in its assigned
+	// project folder regardless of which team or personal agent serves it.
 	switch {
+	case params.ProjectID != nil && params.ProjectSlug != "":
+		return r.resolveProject(params)
 	case params.DelegateCtx != nil:
 		return r.resolveDelegate(params)
 	case params.TeamID != nil && *params.TeamID != "":
@@ -31,6 +35,28 @@ func (r *defaultResolver) Resolve(_ context.Context, params ResolveParams) (*Wor
 	default:
 		return r.resolvePersonal(params), nil
 	}
+}
+
+// resolveProject handles sessions bound to a specific project.
+// The project folder is the active path; slug validation is re-confirmed here
+// so a bad slug stored in the DB cannot escape the projects directory.
+func (r *defaultResolver) resolveProject(p ResolveParams) (*WorkspaceContext, error) {
+	path, err := ProjectWorkspacePath(p.ProjectSlug)
+	if err != nil {
+		return nil, fmt.Errorf("workspace: project resolution failed: %w", err)
+	}
+	ensureDir(path)
+	wc := &WorkspaceContext{
+		ActivePath:       path,
+		Scope:            ScopePersonal, // project sessions are user-scoped
+		OwnerID:          ownerID(p),
+		MemoryScope:      "user",
+		KGScope:          "user",
+		EnforcementLabel: DefaultEnforcementLabel(ScopePersonal, false),
+		ProjectID:        p.ProjectID,
+		ProjectSlug:      p.ProjectSlug,
+	}
+	return wc, nil
 }
 
 // resolveDelegate handles delegated task workspace.
