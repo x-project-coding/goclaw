@@ -46,6 +46,10 @@ func (s *PGProviderStore) CreateProvider(ctx context.Context, p *store.LLMProvid
 	if len(settings) == 0 {
 		settings = []byte("{}")
 	}
+	meta := p.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 
 	now := time.Now()
 	p.CreatedAt = now
@@ -54,14 +58,14 @@ func (s *PGProviderStore) CreateProvider(ctx context.Context, p *store.LLMProvid
 	// This handles orphaned providers left after agent deletion.
 	var actualID uuid.UUID
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		 ON CONFLICT (name) DO UPDATE SET
 			display_name = EXCLUDED.display_name, provider_type = EXCLUDED.provider_type,
 			api_base = EXCLUDED.api_base, api_key = EXCLUDED.api_key,
 			enabled = EXCLUDED.enabled, settings = EXCLUDED.settings, updated_at = EXCLUDED.updated_at
 		 RETURNING id`,
-		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, now, now,
+		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, meta, now, now,
 	).Scan(&actualID)
 	if err == nil {
 		p.ID = actualID // sync in-memory ID with actual DB row
@@ -72,7 +76,7 @@ func (s *PGProviderStore) CreateProvider(ctx context.Context, p *store.LLMProvid
 func (s *PGProviderStore) GetProvider(ctx context.Context, id uuid.UUID) (*store.LLMProviderData, error) {
 	var p store.LLMProviderData
 	err := pkgSqlxDB.GetContext(ctx, &p,
-		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at
+		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at
 		 FROM llm_providers WHERE id = $1`, id)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %s", id)
@@ -84,7 +88,7 @@ func (s *PGProviderStore) GetProvider(ctx context.Context, id uuid.UUID) (*store
 func (s *PGProviderStore) GetProviderByName(ctx context.Context, name string) (*store.LLMProviderData, error) {
 	var p store.LLMProviderData
 	err := pkgSqlxDB.GetContext(ctx, &p,
-		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at
+		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at
 		 FROM llm_providers WHERE name = $1`, name)
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %s", name)
@@ -96,7 +100,7 @@ func (s *PGProviderStore) GetProviderByName(ctx context.Context, name string) (*
 func (s *PGProviderStore) ListProviders(ctx context.Context) ([]store.LLMProviderData, error) {
 	var result []store.LLMProviderData
 	err := pkgSqlxDB.SelectContext(ctx, &result,
-		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at
+		`SELECT id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at
 		 FROM llm_providers ORDER BY name`)
 	if err != nil {
 		return nil, err

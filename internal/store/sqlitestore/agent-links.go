@@ -26,10 +26,10 @@ func NewSQLiteAgentLinkStore(db *sql.DB) *SQLiteAgentLinkStore {
 }
 
 const linkSelectCols = `id, source_agent_id, target_agent_id, direction, team_id, description,
-	max_concurrent, settings, status, created_by, created_at, updated_at`
+	max_concurrent, settings, status, created_by, metadata, created_at, updated_at`
 
 const linkSelectColsJoined = `l.id, l.source_agent_id, l.target_agent_id, l.direction, l.team_id, l.description,
-	l.max_concurrent, l.settings, l.status, l.created_by, l.created_at, l.updated_at`
+	l.max_concurrent, l.settings, l.status, l.created_by, l.metadata, l.created_at, l.updated_at`
 
 func (s *SQLiteAgentLinkStore) CreateLink(ctx context.Context, link *store.AgentLinkData) error {
 	if link.ID == uuid.Nil {
@@ -44,12 +44,16 @@ func (s *SQLiteAgentLinkStore) CreateLink(ctx context.Context, link *store.Agent
 		settings = json.RawMessage(`{}`)
 	}
 
+	meta := link.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO agent_links (id, source_agent_id, target_agent_id, direction, team_id, description,
-		 max_concurrent, settings, status, created_by, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 max_concurrent, settings, status, created_by, metadata, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		link.ID, link.SourceAgentID, link.TargetAgentID, link.Direction, link.TeamID, link.Description,
-		link.MaxConcurrent, settings, link.Status, link.CreatedBy,
+		link.MaxConcurrent, settings, link.Status, link.CreatedBy, meta,
 		now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano),
 	)
 	return err
@@ -302,7 +306,7 @@ func scanLinkRow(row *sql.Row) (*store.AgentLinkData, error) {
 	var createdAt, updatedAt sqliteTime
 	err := row.Scan(
 		&d.ID, &d.SourceAgentID, &d.TargetAgentID, &d.Direction, &d.TeamID, &desc,
-		&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &createdAt, &updatedAt,
+		&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.Metadata, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("link not found: %w", err)
@@ -323,7 +327,7 @@ func scanLinkRowsJoined(rows *sql.Rows) ([]store.AgentLinkData, error) {
 		var createdAt, updatedAt sqliteTime
 		if err := rows.Scan(
 			&d.ID, &d.SourceAgentID, &d.TargetAgentID, &d.Direction, &d.TeamID, &desc,
-			&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &createdAt, &updatedAt,
+			&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.Metadata, &createdAt, &updatedAt,
 			&d.SourceAgentKey, &d.SourceDisplayName, &d.SourceEmoji,
 			&d.TargetAgentKey, &d.TargetDisplayName, &d.TargetEmoji, &d.TargetDescription,
 			&d.TeamName, &d.TargetIsTeamLead, &d.TargetTeamName,

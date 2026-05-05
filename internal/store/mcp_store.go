@@ -25,6 +25,7 @@ type MCPServerData struct {
 	Settings    json.RawMessage `json:"settings,omitempty" db:"settings"`
 	Enabled     bool            `json:"enabled" db:"enabled"`
 	CreatedBy   string          `json:"created_by" db:"created_by"`
+	Metadata    json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
 // MCPAgentGrant represents an MCP server grant to an agent.

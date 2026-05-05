@@ -23,6 +23,7 @@ type SkillVersion struct {
 	Content     string          `db:"content"`
 	Changelog   *string         `db:"changelog"`
 	PublishedBy *string         `db:"published_by"`
+	Metadata    json.RawMessage `db:"metadata"`
 	CreatedAt   time.Time       `db:"created_at"`
 	ArchivedAt  *time.Time      `db:"archived_at"`
 	ArchivePath *string         `db:"archive_path"`

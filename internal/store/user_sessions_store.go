@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,13 +19,14 @@ import (
 // The store does not interpret expires_at — caller filters expired sessions
 // in ListActiveByUser via the `expires_at > NOW()` clause.
 type UserSession struct {
-	ID               uuid.UUID  `db:"id"`
-	UserID           uuid.UUID  `db:"user_id"`
-	FamilyID         uuid.UUID  `db:"family_id"`
-	RefreshTokenHash string     `db:"refresh_token_hash"`
-	ExpiresAt        time.Time  `db:"expires_at"`
-	RevokedAt        *time.Time `db:"revoked_at"`
-	CreatedAt        time.Time  `db:"created_at"`
+	ID               uuid.UUID       `db:"id"`
+	UserID           uuid.UUID       `db:"user_id"`
+	FamilyID         uuid.UUID       `db:"family_id"`
+	RefreshTokenHash string          `db:"refresh_token_hash"`
+	ExpiresAt        time.Time       `db:"expires_at"`
+	RevokedAt        *time.Time      `db:"revoked_at"`
+	Metadata         json.RawMessage `db:"metadata"`
+	CreatedAt        time.Time       `db:"created_at"`
 }
 
 // UserSessionsStore manages refresh-token sessions.

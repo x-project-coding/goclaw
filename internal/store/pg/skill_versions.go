@@ -22,7 +22,7 @@ func NewPGSkillVersionsStore(db *sql.DB) *PGSkillVersionsStore {
 }
 
 const skillVersionsSelectColumns = `id, skill_id, version, file_hash, file_path,
-	file_size, frontmatter, content, changelog, published_by, created_at, archived_at, archive_path`
+	file_size, frontmatter, content, changelog, published_by, metadata, created_at, archived_at, archive_path`
 
 func (s *PGSkillVersionsStore) Create(ctx context.Context, v *store.SkillVersion) error {
 	if v.ID == uuid.Nil {
@@ -35,13 +35,17 @@ func (s *PGSkillVersionsStore) Create(ctx context.Context, v *store.SkillVersion
 	if len(v.Frontmatter) == 0 {
 		v.Frontmatter = []byte("{}")
 	}
+	meta := v.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	row := s.db.QueryRowContext(ctx, `
 		INSERT INTO skill_versions
-			(id, skill_id, version, file_hash, file_path, file_size, frontmatter, content, changelog, published_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			(id, skill_id, version, file_hash, file_path, file_size, frontmatter, content, changelog, published_by, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING `+skillVersionsSelectColumns,
 		v.ID, v.SkillID, v.Version, v.FileHash, v.FilePath, v.FileSize,
-		v.Frontmatter, v.Content, nilStr(deref(v.Changelog)), nilStr(deref(v.PublishedBy)),
+		v.Frontmatter, v.Content, nilStr(deref(v.Changelog)), nilStr(deref(v.PublishedBy)), meta,
 	)
 	return scanSkillVersion(row, v)
 }
@@ -122,7 +126,7 @@ func scanSkillVersion(r rowScanner, v *store.SkillVersion) error {
 	var changelog, publishedBy, archivePath *string
 	err := r.Scan(
 		&v.ID, &v.SkillID, &v.Version, &v.FileHash, &v.FilePath, &v.FileSize,
-		&v.Frontmatter, &v.Content, &changelog, &publishedBy, &v.CreatedAt,
+		&v.Frontmatter, &v.Content, &changelog, &publishedBy, &v.Metadata, &v.CreatedAt,
 		&v.ArchivedAt, &archivePath,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

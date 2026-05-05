@@ -82,6 +82,7 @@ type LLMProviderData struct {
 	APIKey       string          `json:"api_key,omitempty" db:"api_key"`
 	Enabled      bool            `json:"enabled" db:"enabled"`
 	Settings     json.RawMessage `json:"settings,omitempty" db:"settings"`
+	Metadata     json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
 // RequiredMemoryEmbeddingDimensions is the fixed vector size used by the pgvector memory schema.

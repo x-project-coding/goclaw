@@ -29,7 +29,7 @@ func NewSQLiteChannelInstanceStore(db *sql.DB, encryptionKey string) *SQLiteChan
 }
 
 const channelInstanceSelectCols = `id, name, display_name, channel_type, agent_id,
- credentials, config, enabled, created_by, created_at, updated_at`
+ credentials, config, enabled, created_by, metadata, created_at, updated_at`
 
 func (s *SQLiteChannelInstanceStore) Create(ctx context.Context, inst *store.ChannelInstanceData) error {
 	if err := store.ValidateUserID(inst.CreatedBy); err != nil {
@@ -54,13 +54,17 @@ func (s *SQLiteChannelInstanceStore) Create(ctx context.Context, inst *store.Cha
 	inst.CreatedAt = now
 	inst.UpdatedAt = now
 
+	meta := inst.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO channel_instances (id, name, display_name, channel_type, agent_id,
-		 credentials, config, enabled, created_by, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		 credentials, config, enabled, created_by, metadata, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 		inst.ID, inst.Name, inst.DisplayName, inst.ChannelType, inst.AgentID,
 		credsBytes, jsonOrEmpty(inst.Config),
-		inst.Enabled, inst.CreatedBy, now, now,
+		inst.Enabled, inst.CreatedBy, meta, now, now,
 	)
 	return err
 }
@@ -81,13 +85,13 @@ func (s *SQLiteChannelInstanceStore) scanInstance(row *sql.Row) (*store.ChannelI
 	var inst store.ChannelInstanceData
 	var displayName *string
 	var creds []byte
-	var config *[]byte
+	var config, meta *[]byte
 	createdAt, updatedAt := scanTimePair()
 
 	err := row.Scan(
 		&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 		&creds, &config,
-		&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt,
+		&inst.Enabled, &inst.CreatedBy, &meta, createdAt, updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -98,6 +102,9 @@ func (s *SQLiteChannelInstanceStore) scanInstance(row *sql.Row) (*store.ChannelI
 	inst.DisplayName = derefStr(displayName)
 	if config != nil {
 		inst.Config = *config
+	}
+	if meta != nil {
+		inst.Metadata = *meta
 	}
 
 	if len(creds) > 0 && s.encKey != "" {
@@ -121,13 +128,13 @@ func (s *SQLiteChannelInstanceStore) scanInstances(rows *sql.Rows) ([]store.Chan
 		var inst store.ChannelInstanceData
 		var displayName *string
 		var creds []byte
-		var config *[]byte
+		var config, meta *[]byte
 		createdAt, updatedAt := scanTimePair()
 
 		if err := rows.Scan(
 			&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 			&creds, &config,
-			&inst.Enabled, &inst.CreatedBy, createdAt, updatedAt,
+			&inst.Enabled, &inst.CreatedBy, &meta, createdAt, updatedAt,
 		); err != nil {
 			continue
 		}
@@ -137,6 +144,9 @@ func (s *SQLiteChannelInstanceStore) scanInstances(rows *sql.Rows) ([]store.Chan
 		inst.DisplayName = derefStr(displayName)
 		if config != nil {
 			inst.Config = *config
+		}
+		if meta != nil {
+			inst.Metadata = *meta
 		}
 		if len(creds) > 0 && s.encKey != "" {
 			if decrypted, err := crypto.Decrypt(string(creds), s.encKey); err == nil {

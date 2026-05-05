@@ -49,14 +49,18 @@ func (s *PGMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPServe
 	encHeaders := s.encryptJSONB(jsonOrEmpty(srv.Headers))
 	encEnv := s.encryptJSONB(jsonOrEmpty(srv.Env))
 
+	meta := srv.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO mcp_servers (id, name, display_name, transport, command, args, url, headers, env,
-		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+		 api_key, tool_prefix, timeout_sec, settings, enabled, created_by, metadata, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 		srv.ID, srv.Name, nilStr(srv.DisplayName), srv.Transport, nilStr(srv.Command),
 		jsonOrEmpty(srv.Args), nilStr(srv.URL), encHeaders, encEnv,
 		nilStr(apiKey), nilStr(srv.ToolPrefix), srv.TimeoutSec,
-		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, now, now,
+		jsonOrEmpty(srv.Settings), srv.Enabled, srv.CreatedBy, meta, now, now,
 	)
 	return err
 }
@@ -64,7 +68,7 @@ func (s *PGMCPServerStore) CreateServer(ctx context.Context, srv *store.MCPServe
 const mcpServerSelectCols = `id, name, COALESCE(display_name, '') AS display_name, transport,
 		 COALESCE(command, '') AS command, args, COALESCE(url, '') AS url, headers, env,
 		 COALESCE(api_key, '') AS api_key, COALESCE(tool_prefix, '') AS tool_prefix,
-		 timeout_sec, settings, enabled, created_by, created_at, updated_at`
+		 timeout_sec, settings, enabled, created_by, metadata, created_at, updated_at`
 
 func (s *PGMCPServerStore) GetServer(ctx context.Context, id uuid.UUID) (*store.MCPServerData, error) {
 	var srv store.MCPServerData

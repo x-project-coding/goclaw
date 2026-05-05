@@ -22,11 +22,11 @@ func NewPGAgentLinkStore(db *sql.DB) *PGAgentLinkStore {
 }
 
 const linkSelectCols = `id, source_agent_id, target_agent_id, direction, team_id, description,
-	max_concurrent, settings, status, created_by, created_at, updated_at`
+	max_concurrent, settings, status, created_by, metadata, created_at, updated_at`
 
 // linkSelectColsJoined prefixes every column with l. to avoid ambiguity in JOINs.
 const linkSelectColsJoined = `l.id, l.source_agent_id, l.target_agent_id, l.direction, l.team_id, l.description,
-	l.max_concurrent, l.settings, l.status, l.created_by, l.created_at, l.updated_at`
+	l.max_concurrent, l.settings, l.status, l.created_by, l.metadata, l.created_at, l.updated_at`
 
 // targetTeamLeadCols detects if the "target" agent (the other side of the link) is a team lead.
 // Uses $1 = fromAgentID to determine which side is the target via CASE.
@@ -283,7 +283,7 @@ func scanLinkRow(row *sql.Row) (*store.AgentLinkData, error) {
 	var desc sql.NullString
 	err := row.Scan(
 		&d.ID, &d.SourceAgentID, &d.TargetAgentID, &d.Direction, &d.TeamID, &desc,
-		&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.CreatedAt, &d.UpdatedAt,
+		&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.Metadata, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("link not found: %w", err)
@@ -301,7 +301,7 @@ func scanLinkRowsJoined(rows *sql.Rows) ([]store.AgentLinkData, error) {
 		var desc sql.NullString
 		if err := rows.Scan(
 			&d.ID, &d.SourceAgentID, &d.TargetAgentID, &d.Direction, &d.TeamID, &desc,
-			&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.CreatedAt, &d.UpdatedAt,
+			&d.MaxConcurrent, &d.Settings, &d.Status, &d.CreatedBy, &d.Metadata, &d.CreatedAt, &d.UpdatedAt,
 			&d.SourceAgentKey, &d.SourceDisplayName, &d.SourceEmoji,
 			&d.TargetAgentKey, &d.TargetDisplayName, &d.TargetEmoji, &d.TargetDescription,
 			&d.TeamName, &d.TargetIsTeamLead, &d.TargetTeamName,

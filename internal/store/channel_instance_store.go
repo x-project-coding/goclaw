@@ -19,6 +19,7 @@ type ChannelInstanceData struct {
 	Config      json.RawMessage `json:"config" db:"config"`
 	Enabled     bool            `json:"enabled" db:"enabled"`
 	CreatedBy   string          `json:"created_by" db:"created_by"`
+	Metadata    json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
 // IsDefaultChannelInstance returns true if the instance name matches a default/seeded channel.

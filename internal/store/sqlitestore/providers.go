@@ -15,7 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-const providerSelectCols = `id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at`
+const providerSelectCols = `id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at`
 
 // SQLiteProviderStore implements store.ProviderStore backed by SQLite.
 type SQLiteProviderStore struct {
@@ -50,6 +50,10 @@ func (s *SQLiteProviderStore) CreateProvider(ctx context.Context, p *store.LLMPr
 	if len(settings) == 0 {
 		settings = []byte("{}")
 	}
+	meta := p.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 
 	now := time.Now()
 	p.CreatedAt = now
@@ -58,14 +62,14 @@ func (s *SQLiteProviderStore) CreateProvider(ctx context.Context, p *store.LLMPr
 	// This handles orphaned providers left after agent deletion.
 	var actualID string
 	err := s.db.QueryRowContext(ctx,
-		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO llm_providers (id, name, display_name, provider_type, api_base, api_key, enabled, settings, metadata, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(name) DO UPDATE SET
 			display_name = excluded.display_name, provider_type = excluded.provider_type,
 			api_base = excluded.api_base, api_key = excluded.api_key,
 			enabled = excluded.enabled, settings = excluded.settings, updated_at = excluded.updated_at
 		 RETURNING id`,
-		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, now, now,
+		p.ID, p.Name, p.DisplayName, p.ProviderType, p.APIBase, apiKey, p.Enabled, settings, meta, now, now,
 	).Scan(&actualID)
 	if err == nil {
 		if parsed, parseErr := uuid.Parse(actualID); parseErr == nil {

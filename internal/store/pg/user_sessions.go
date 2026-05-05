@@ -22,7 +22,7 @@ func NewPGUserSessionsStore(db *sql.DB) *PGUserSessionsStore {
 }
 
 const userSessionsSelectColumns = `id, user_id, family_id, refresh_token_hash,
-	expires_at, revoked_at, created_at`
+	expires_at, revoked_at, metadata, created_at`
 
 func (s *PGUserSessionsStore) Create(ctx context.Context, sess *store.UserSession) error {
 	if sess.ID == uuid.Nil {
@@ -32,11 +32,14 @@ func (s *PGUserSessionsStore) Create(ctx context.Context, sess *store.UserSessio
 		}
 		sess.ID = id
 	}
+	if len(sess.Metadata) == 0 {
+		sess.Metadata = []byte("{}")
+	}
 	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_sessions (id, user_id, family_id, refresh_token_hash, expires_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO user_sessions (id, user_id, family_id, refresh_token_hash, expires_at, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING `+userSessionsSelectColumns,
-		sess.ID, sess.UserID, sess.FamilyID, sess.RefreshTokenHash, sess.ExpiresAt,
+		sess.ID, sess.UserID, sess.FamilyID, sess.RefreshTokenHash, sess.ExpiresAt, sess.Metadata,
 	)
 	return scanUserSession(row, sess)
 }
@@ -111,7 +114,7 @@ func (s *PGUserSessionsStore) ListActiveByUser(ctx context.Context, userID uuid.
 func scanUserSession(r rowScanner, sess *store.UserSession) error {
 	err := r.Scan(
 		&sess.ID, &sess.UserID, &sess.FamilyID, &sess.RefreshTokenHash,
-		&sess.ExpiresAt, &sess.RevokedAt, &sess.CreatedAt,
+		&sess.ExpiresAt, &sess.RevokedAt, &sess.Metadata, &sess.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ErrNotFound

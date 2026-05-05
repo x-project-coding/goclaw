@@ -28,7 +28,7 @@ func NewPGChannelInstanceStore(db *sql.DB, encryptionKey string) *PGChannelInsta
 }
 
 const channelInstanceSelectCols = `id, name, display_name, channel_type, agent_id,
- credentials, config, enabled, created_by, created_at, updated_at`
+ credentials, config, enabled, created_by, metadata, created_at, updated_at`
 
 func (s *PGChannelInstanceStore) Create(ctx context.Context, inst *store.ChannelInstanceData) error {
 	if err := store.ValidateUserID(inst.CreatedBy); err != nil {
@@ -53,13 +53,17 @@ func (s *PGChannelInstanceStore) Create(ctx context.Context, inst *store.Channel
 	inst.CreatedAt = now
 	inst.UpdatedAt = now
 
+	meta := inst.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO channel_instances (id, name, display_name, channel_type, agent_id,
-		 credentials, config, enabled, created_by, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		 credentials, config, enabled, created_by, metadata, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		inst.ID, inst.Name, inst.DisplayName, inst.ChannelType, inst.AgentID,
 		credsBytes, jsonOrEmpty(inst.Config),
-		inst.Enabled, inst.CreatedBy, now, now,
+		inst.Enabled, inst.CreatedBy, meta, now, now,
 	)
 	return err
 }
@@ -82,10 +86,11 @@ func (s *PGChannelInstanceStore) scanInstance(row *sql.Row) (*store.ChannelInsta
 	var creds []byte
 	var config *[]byte
 
+	var meta *[]byte
 	err := row.Scan(
 		&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 		&creds, &config,
-		&inst.Enabled, &inst.CreatedBy, &inst.CreatedAt, &inst.UpdatedAt,
+		&inst.Enabled, &inst.CreatedBy, &meta, &inst.CreatedAt, &inst.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -94,6 +99,9 @@ func (s *PGChannelInstanceStore) scanInstance(row *sql.Row) (*store.ChannelInsta
 	inst.DisplayName = derefStr(displayName)
 	if config != nil {
 		inst.Config = *config
+	}
+	if meta != nil {
+		inst.Metadata = *meta
 	}
 
 	if len(creds) > 0 && s.encKey != "" {
@@ -117,12 +125,12 @@ func (s *PGChannelInstanceStore) scanInstances(rows *sql.Rows) ([]store.ChannelI
 		var inst store.ChannelInstanceData
 		var displayName *string
 		var creds []byte
-		var config *[]byte
+		var config, meta *[]byte
 
 		if err := rows.Scan(
 			&inst.ID, &inst.Name, &displayName, &inst.ChannelType, &inst.AgentID,
 			&creds, &config,
-			&inst.Enabled, &inst.CreatedBy, &inst.CreatedAt, &inst.UpdatedAt,
+			&inst.Enabled, &inst.CreatedBy, &meta, &inst.CreatedAt, &inst.UpdatedAt,
 		); err != nil {
 			continue
 		}
@@ -130,6 +138,9 @@ func (s *PGChannelInstanceStore) scanInstances(rows *sql.Rows) ([]store.ChannelI
 		inst.DisplayName = derefStr(displayName)
 		if config != nil {
 			inst.Config = *config
+		}
+		if meta != nil {
+			inst.Metadata = *meta
 		}
 		if len(creds) > 0 && s.encKey != "" {
 			if decrypted, err := crypto.Decrypt(string(creds), s.encKey); err == nil {

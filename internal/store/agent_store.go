@@ -88,6 +88,9 @@ type AgentData struct {
 	ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty" db:"chatgpt_oauth_routing"`
 	ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty" db:"shell_deny_groups"`
 	KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty" db:"kg_dedup_config"`
+	// Metadata is an extensibility bag for optional, unstructured key-value data.
+	// Stored as JSONB (PG) or JSON text (SQLite). Defaults to '{}'.
+	Metadata            json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
 // ParseToolsConfig returns per-agent tool policy, or nil if not configured.
@@ -622,10 +625,11 @@ func (a *AgentData) ParseShellDenyGroups() map[string]bool {
 // AgentShareData represents an agent share grant.
 type AgentShareData struct {
 	BaseModel
-	AgentID   uuid.UUID `json:"agent_id" db:"agent_id"`
-	UserID    string    `json:"user_id" db:"user_id"`
-	Role      string    `json:"role" db:"role"`
-	GrantedBy string    `json:"granted_by" db:"granted_by"`
+	AgentID   uuid.UUID       `json:"agent_id" db:"agent_id"`
+	UserID    string          `json:"user_id" db:"user_id"`
+	Role      string          `json:"role" db:"role"`
+	GrantedBy string          `json:"granted_by" db:"granted_by"`
+	Metadata  json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 }
 
 // AgentContextFileData represents an agent-level context file (SOUL.md, IDENTITY.md, etc).

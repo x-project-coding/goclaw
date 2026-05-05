@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     api_key       TEXT,
     enabled       INTEGER      NOT NULL DEFAULT 1,
     settings      TEXT         NOT NULL DEFAULT '{}',
+    metadata      TEXT         NOT NULL DEFAULT '{}',
     created_at    TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at    TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -45,7 +46,7 @@ CREATE TABLE IF NOT EXISTS llm_providers (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
-    id            TEXT NOT NULL PRIMARY KEY,
+    id            TEXT         NOT NULL PRIMARY KEY,
     email         VARCHAR(255) NOT NULL UNIQUE,
     display_name  VARCHAR(255),
     password_hash TEXT         NOT NULL,
@@ -53,9 +54,21 @@ CREATE TABLE IF NOT EXISTS users (
     status        VARCHAR(20)  NOT NULL DEFAULT 'active',
     deleted_at    TEXT,
     metadata      TEXT         NOT NULL DEFAULT '{}',
+    -- Stable workspace folder identifier derived from email local-part.
+    -- Generated once at insert time; immutable thereafter.
+    user_key      VARCHAR(100) NOT NULL UNIQUE,
+    -- Identity kind: 'human' (default) or 'channel' (merged channel contact).
+    kind          VARCHAR(20)  NOT NULL DEFAULT 'human',
+    -- Channel platform when kind='channel'. NULL when kind='human'.
+    channel_type  VARCHAR(20)  NULL,
     created_at    TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at    TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    CONSTRAINT users_role_check CHECK (role IN ('root', 'admin', 'member', 'viewer'))
+    CONSTRAINT users_role_check         CHECK (role IN ('root', 'admin', 'member', 'viewer')),
+    CONSTRAINT users_kind_check         CHECK (kind IN ('human', 'channel')),
+    CONSTRAINT users_channel_type_shape CHECK (
+        (kind = 'human'   AND channel_type IS NULL) OR
+        (kind = 'channel' AND channel_type IS NOT NULL)
+    )
 );
 
 -- Partial UNIQUE: at most one root user at any time.
@@ -70,6 +83,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     refresh_token_hash TEXT NOT NULL UNIQUE,
     expires_at         TEXT NOT NULL,
     revoked_at         TEXT,
+    metadata           TEXT NOT NULL DEFAULT '{}',
     created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -114,6 +128,7 @@ CREATE TABLE IF NOT EXISTS agents (
     status                VARCHAR(20)  DEFAULT 'active',
     frontmatter           TEXT,
     budget_monthly_cents  INTEGER,
+    metadata              TEXT         NOT NULL DEFAULT '{}',
     created_at            TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at            TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     deleted_at            TEXT
@@ -130,6 +145,7 @@ CREATE TABLE IF NOT EXISTS agent_shares (
     user_id    TEXT         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     role       VARCHAR(20)  NOT NULL DEFAULT 'user',
     granted_by VARCHAR(255) NOT NULL,
+    metadata   TEXT         NOT NULL DEFAULT '{}',
     created_at TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(agent_id, user_id)
 );
@@ -222,6 +238,7 @@ CREATE TABLE IF NOT EXISTS agent_links (
     status          VARCHAR(20)  NOT NULL DEFAULT 'active',
     created_by      VARCHAR(255) NOT NULL,
     team_id         TEXT,
+    metadata        TEXT         NOT NULL DEFAULT '{}',
     created_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(source_agent_id, target_agent_id),
@@ -244,6 +261,10 @@ CREATE TABLE IF NOT EXISTS agent_teams (
     settings      TEXT         NOT NULL DEFAULT '{}',
     created_by    VARCHAR(255) NOT NULL,
     owner_user_id TEXT         REFERENCES users(id) ON DELETE SET NULL,
+    -- Stable workspace folder identifier derived from team name.
+    -- Generated once at insert time; immutable thereafter.
+    team_key      VARCHAR(100) NOT NULL UNIQUE,
+    metadata      TEXT         NOT NULL DEFAULT '{}',
     created_at    TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at    TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -419,6 +440,7 @@ CREATE TABLE IF NOT EXISTS memory_documents (
     hash         VARCHAR(64)  NOT NULL,
     team_id      TEXT         REFERENCES agent_teams(id)          ON DELETE SET NULL,
     custom_scope TEXT,
+    metadata     TEXT         NOT NULL DEFAULT '{}',
     created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -659,6 +681,7 @@ CREATE TABLE IF NOT EXISTS skills (
     last_patched_at TEXT,
     pinned          INTEGER      NOT NULL DEFAULT 0,
     usage_count     INTEGER      NOT NULL DEFAULT 0,
+    metadata        TEXT         NOT NULL DEFAULT '{}',
     created_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at      TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -706,6 +729,7 @@ CREATE TABLE IF NOT EXISTS skill_versions (
     published_by VARCHAR(255),
     archived_at  TEXT,
     archive_path TEXT,
+    metadata     TEXT         NOT NULL DEFAULT '{}',
     created_at   TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(skill_id, version)
 );
@@ -752,6 +776,7 @@ CREATE TABLE IF NOT EXISTS channel_instances (
     config       TEXT         DEFAULT '{}',
     enabled      INTEGER      DEFAULT 1,
     created_by   VARCHAR(255) DEFAULT '',
+    metadata     TEXT         NOT NULL DEFAULT '{}',
     created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -856,6 +881,7 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
     last_status      VARCHAR(20),
     last_error       TEXT,
     team_id          TEXT         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    metadata         TEXT         NOT NULL DEFAULT '{}',
     created_at       TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -952,6 +978,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     settings     TEXT         NOT NULL DEFAULT '{}',
     enabled      INTEGER      NOT NULL DEFAULT 1,
     created_by   VARCHAR(255) NOT NULL,
+    metadata     TEXT         NOT NULL DEFAULT '{}',
     created_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at   TEXT         DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -1278,6 +1305,7 @@ CREATE INDEX IF NOT EXISTS idx_acp_user   ON agent_config_permissions(user_id);
 CREATE TABLE IF NOT EXISTS system_configs (
     key        VARCHAR(100) NOT NULL PRIMARY KEY,
     value      TEXT         NOT NULL,
+    metadata   TEXT         NOT NULL DEFAULT '{}',
     updated_at TEXT         NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 

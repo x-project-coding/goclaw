@@ -38,7 +38,7 @@ const agentSelectCols = `id, agent_key, display_name, frontmatter, owner_id, own
 	 self_evolve, skill_evolve, skill_nudge_interval,
 	 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 	 shell_deny_groups, kg_dedup_config,
-	 agent_type, is_default, status, budget_monthly_cents, created_at, updated_at`
+	 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at`
 
 // agentOwnerFilter mirrors the PG version: privileged roles (owner/root/admin)
 // see all agents; everyone else is scoped to their own owner_user_id. Missing or
@@ -80,6 +80,10 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		ownerUserID = agent.OwnerUserID.String()
 	}
 
+	meta := agent.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO agents (id, agent_key, display_name, frontmatter, owner_id, owner_user_id, provider, model,
 		 context_window, max_tool_iterations, workspace, restrict_to_workspace,
@@ -89,8 +93,8 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		 self_evolve, skill_evolve, skill_nudge_interval,
 		 reasoning_config, workspace_sharing, chatgpt_oauth_routing,
 		 shell_deny_groups, kg_dedup_config,
-		 agent_type, is_default, status, budget_monthly_cents, created_at, updated_at)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 agent_type, is_default, status, budget_monthly_cents, metadata, created_at, updated_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		agent.ID, agent.AgentKey,
 		agent.DisplayName,
 		sql.NullString{String: agent.Frontmatter, Valid: agent.Frontmatter != ""},
@@ -103,7 +107,7 @@ func (s *SQLiteAgentStore) Create(ctx context.Context, agent *store.AgentData) e
 		jsonOrEmpty(agent.ReasoningConfig), jsonOrEmpty(agent.WorkspaceSharing), jsonOrEmpty(agent.ChatGPTOAuthRouting),
 		jsonOrEmpty(agent.ShellDenyGroups), jsonOrEmpty(agent.KGDedupConfig),
 		agent.AgentType, agent.IsDefault, agent.Status, agent.BudgetMonthlyCents,
-		now, now,
+		meta, now, now,
 	)
 	return err
 }
@@ -297,6 +301,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	var ownerUserID sql.NullString
 	var toolsCfg, sandboxCfg, subagentsCfg, memoryCfg, compactionCfg, pruningCfg, otherCfg *[]byte
 	var reasoningCfg, wsCfg, oauthCfg, shellCfg, kgCfg *[]byte
+	var metaCfg *[]byte
 	createdAt, updatedAt := scanTimePair()
 	err := row.Scan(
 		&d.ID, &d.AgentKey, &d.DisplayName, &frontmatter, &d.OwnerID, &ownerUserID, &d.Provider, &d.Model,
@@ -306,7 +311,7 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 		&d.SelfEvolve, &d.SkillEvolve, &d.SkillNudgeInterval,
 		&reasoningCfg, &wsCfg, &oauthCfg, &shellCfg, &kgCfg,
 		&d.AgentType, &d.IsDefault, &d.Status, &d.BudgetMonthlyCents,
-		createdAt, updatedAt,
+		&metaCfg, createdAt, updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -356,6 +361,9 @@ func scanAgentRow(row agentRowScanner) (*store.AgentData, error) {
 	}
 	if kgCfg != nil {
 		d.KGDedupConfig = *kgCfg
+	}
+	if metaCfg != nil {
+		d.Metadata = *metaCfg
 	}
 	return &d, nil
 }
