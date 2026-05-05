@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/identity"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -29,7 +30,7 @@ func NewPGTeamStore(db *sql.DB) *PGTeamStore {
 
 // --- Column constants ---
 
-const teamSelectCols = `id, name, lead_agent_id, description, status, settings, created_by, created_at, updated_at`
+const teamSelectCols = `id, name, lead_agent_id, description, status, settings, created_by, team_key, metadata, created_at, updated_at`
 
 // ============================================================
 // Team CRUD
@@ -48,11 +49,21 @@ func (s *PGTeamStore) CreateTeam(ctx context.Context, team *store.TeamData) erro
 		settings = json.RawMessage(`{}`)
 	}
 
+	// Auto-generate stable slug from team name when caller did not supply one.
+	if team.TeamKey == "" {
+		team.TeamKey = identity.SlugFromName(team.Name, team.ID.String()[:6])
+	}
+
+	metadata := team.Metadata
+	if len(metadata) == 0 {
+		metadata = json.RawMessage(`{}`)
+	}
+
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_teams (id, name, lead_agent_id, description, status, settings, created_by, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		`INSERT INTO agent_teams (id, name, lead_agent_id, description, status, settings, created_by, team_key, metadata, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		team.ID, team.Name, team.LeadAgentID, team.Description,
-		team.Status, settings, team.CreatedBy, now, now,
+		team.Status, settings, team.CreatedBy, team.TeamKey, metadata, now, now,
 	)
 	return err
 }
@@ -64,6 +75,11 @@ func (s *PGTeamStore) GetTeam(ctx context.Context, teamID uuid.UUID) (*store.Tea
 }
 
 func (s *PGTeamStore) UpdateTeam(ctx context.Context, teamID uuid.UUID, updates map[string]any) error {
+	// Immutability: team_key is set at creation and must never change.
+	delete(updates, "team_key")
+	if len(updates) == 0 {
+		return nil
+	}
 	return execMapUpdate(ctx, s.db, "agent_teams", teamID, updates)
 }
 
@@ -74,7 +90,7 @@ func (s *PGTeamStore) DeleteTeam(ctx context.Context, teamID uuid.UUID) error {
 
 func (s *PGTeamStore) ListTeams(ctx context.Context) ([]store.TeamData, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.created_at, t.updated_at,
+		`SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.team_key, t.metadata, t.created_at, t.updated_at,
 		 COALESCE(a.agent_key, '') AS lead_agent_key,
 		 COALESCE(a.display_name, '') AS lead_display_name
 		 FROM agent_teams t
@@ -92,7 +108,7 @@ func (s *PGTeamStore) ListTeams(ctx context.Context) ([]store.TeamData, error) {
 		var desc sql.NullString
 		if err := rows.Scan(
 			&d.ID, &d.Name, &d.LeadAgentID, &desc, &d.Status,
-			&d.Settings, &d.CreatedBy, &d.CreatedAt, &d.UpdatedAt,
+			&d.Settings, &d.CreatedBy, &d.TeamKey, &d.Metadata, &d.CreatedAt, &d.UpdatedAt,
 			&d.LeadAgentKey, &d.LeadDisplayName,
 		); err != nil {
 			return nil, err
@@ -202,7 +218,7 @@ func (s *PGTeamStore) ListIdleMembers(ctx context.Context, teamID uuid.UUID) ([]
 
 func (s *PGTeamStore) GetTeamForAgent(ctx context.Context, agentID uuid.UUID) (*store.TeamData, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.created_at, t.updated_at
+		SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.team_key, t.metadata, t.created_at, t.updated_at
 		 FROM agent_teams t
 		 WHERE (
 		   t.lead_agent_id = $1
@@ -263,7 +279,7 @@ func (s *PGTeamStore) ListTeamGrants(ctx context.Context, teamID uuid.UUID) ([]s
 func (s *PGTeamStore) ListUserTeams(ctx context.Context, userID string) ([]store.TeamData, error) {
 	var teams []store.TeamData
 	err := pkgSqlxDB.SelectContext(ctx, &teams, `
-		SELECT id, name, lead_agent_id, COALESCE(description,'') AS description, status, settings, created_by, created_at, updated_at
+		SELECT id, name, lead_agent_id, COALESCE(description,'') AS description, status, settings, created_by, team_key, metadata, created_at, updated_at
 		 FROM agent_teams t
 		 WHERE t.status = $1
 		   AND EXISTS (SELECT 1 FROM team_user_grants g WHERE g.team_id = t.id AND g.user_id = $2)
@@ -289,7 +305,7 @@ func scanTeamRow(row *sql.Row) (*store.TeamData, error) {
 	var desc sql.NullString
 	err := row.Scan(
 		&d.ID, &d.Name, &d.LeadAgentID, &desc, &d.Status,
-		&d.Settings, &d.CreatedBy, &d.CreatedAt, &d.UpdatedAt,
+		&d.Settings, &d.CreatedBy, &d.TeamKey, &d.Metadata, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

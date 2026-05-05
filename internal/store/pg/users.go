@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/identity"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -22,7 +23,7 @@ func NewPGUsersStore(db *sql.DB) *PGUsersStore {
 }
 
 const usersSelectColumns = `id, email, display_name, password_hash, role, status,
-	deleted_at, metadata, created_at, updated_at`
+	deleted_at, metadata, user_key, kind, channel_type, created_at, updated_at`
 
 func (s *PGUsersStore) Create(ctx context.Context, u *store.User) error {
 	if u.ID == uuid.Nil {
@@ -35,11 +36,20 @@ func (s *PGUsersStore) Create(ctx context.Context, u *store.User) error {
 	if len(u.Metadata) == 0 {
 		u.Metadata = []byte("{}")
 	}
+	// Auto-generate slug from email when caller did not supply one.
+	if u.UserKey == "" {
+		u.UserKey = identity.SlugFromEmail(u.Email, u.ID.String()[:6])
+	}
+	// Default identity kind.
+	if u.Kind == "" {
+		u.Kind = "human"
+	}
 	row := s.db.QueryRowContext(ctx, `
-		INSERT INTO users (id, email, display_name, password_hash, role, status, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (id, email, display_name, password_hash, role, status, metadata, user_key, kind, channel_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING `+usersSelectColumns,
-		u.ID, u.Email, nilStr(deref(u.DisplayName)), u.PasswordHash, u.Role, u.Status, u.Metadata,
+		u.ID, u.Email, nilStr(deref(u.DisplayName)), u.PasswordHash,
+		u.Role, u.Status, u.Metadata, u.UserKey, u.Kind, u.ChannelType,
 	)
 	return scanUser(row, u)
 }
@@ -93,6 +103,14 @@ func (s *PGUsersStore) Update(ctx context.Context, id uuid.UUID, fields map[stri
 	if len(fields) == 0 {
 		return nil
 	}
+	// Immutability: strip slug and identity columns from generic update path.
+	// These are only set at creation (user_key) or via SetKind (kind, channel_type).
+	delete(fields, "user_key")
+	delete(fields, "kind")
+	delete(fields, "channel_type")
+	if len(fields) == 0 {
+		return nil
+	}
 	return execMapUpdate(ctx, s.db, "users", id, fields)
 }
 
@@ -111,6 +129,19 @@ func (s *PGUsersStore) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// SetKind atomically updates (kind, channel_type) in a single statement.
+// The DB shape constraint enforces coherence — an invalid pair is rejected
+// before the transaction commits.
+func (s *PGUsersStore) SetKind(ctx context.Context, id uuid.UUID, kind string, channelType *string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET kind = $1, channel_type = $2, updated_at = NOW() WHERE id = $3`,
+		kind, channelType, id)
+	if err != nil {
+		return fmt.Errorf("set kind: %w", err)
+	}
+	return nil
+}
+
 // rowScanner unifies *sql.Row and *sql.Rows scanning.
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -120,7 +151,8 @@ func scanUser(r rowScanner, u *store.User) error {
 	var displayName *string
 	err := r.Scan(
 		&u.ID, &u.Email, &displayName, &u.PasswordHash, &u.Role, &u.Status,
-		&u.DeletedAt, &u.Metadata, &u.CreatedAt, &u.UpdatedAt,
+		&u.DeletedAt, &u.Metadata, &u.UserKey, &u.Kind, &u.ChannelType,
+		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.ErrNotFound

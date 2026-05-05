@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/identity"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -26,7 +27,7 @@ func NewSQLiteTeamStore(db *sql.DB) *SQLiteTeamStore {
 	return &SQLiteTeamStore{db: db}
 }
 
-const teamSelectCols = `id, name, lead_agent_id, description, status, settings, created_by, created_at, updated_at`
+const teamSelectCols = `id, name, lead_agent_id, description, status, settings, created_by, team_key, metadata, created_at, updated_at`
 
 // ============================================================
 // Team CRUD
@@ -45,11 +46,20 @@ func (s *SQLiteTeamStore) CreateTeam(ctx context.Context, team *store.TeamData) 
 		settings = json.RawMessage(`{}`)
 	}
 
+	// Auto-generate stable slug from team name when caller did not supply one.
+	if team.TeamKey == "" {
+		team.TeamKey = identity.SlugFromName(team.Name, team.ID.String()[:6])
+	}
+
+	meta := team.Metadata
+	if len(meta) == 0 {
+		meta = []byte("{}")
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_teams (id, name, lead_agent_id, description, status, settings, created_by, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO agent_teams (id, name, lead_agent_id, description, status, settings, created_by, team_key, metadata, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		team.ID, team.Name, team.LeadAgentID, team.Description,
-		team.Status, settings, team.CreatedBy, now, now,
+		team.Status, settings, team.CreatedBy, team.TeamKey, meta, now, now,
 	)
 	return err
 }
@@ -65,6 +75,11 @@ func (s *SQLiteTeamStore) GetTeam(ctx context.Context, teamID uuid.UUID) (*store
 }
 
 func (s *SQLiteTeamStore) UpdateTeam(ctx context.Context, teamID uuid.UUID, updates map[string]any) error {
+	// Immutability: team_key is set at creation and must never change.
+	delete(updates, "team_key")
+	if len(updates) == 0 {
+		return nil
+	}
 	return execMapUpdate(ctx, s.db, "agent_teams", teamID, updates)
 }
 
@@ -75,7 +90,7 @@ func (s *SQLiteTeamStore) DeleteTeam(ctx context.Context, teamID uuid.UUID) erro
 
 func (s *SQLiteTeamStore) ListTeams(ctx context.Context) ([]store.TeamData, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.created_at, t.updated_at,
+		`SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.team_key, t.metadata, t.created_at, t.updated_at,
 		 COALESCE(a.agent_key, '') AS lead_agent_key,
 		 COALESCE(a.display_name, '') AS lead_display_name
 		 FROM agent_teams t
@@ -94,7 +109,7 @@ func (s *SQLiteTeamStore) ListTeams(ctx context.Context) ([]store.TeamData, erro
 		createdAt, updatedAt := scanTimePair()
 		if err := rows.Scan(
 			&d.ID, &d.Name, &d.LeadAgentID, &desc, &d.Status,
-			&d.Settings, &d.CreatedBy, createdAt, updatedAt,
+			&d.Settings, &d.CreatedBy, &d.TeamKey, &d.Metadata, createdAt, updatedAt,
 			&d.LeadAgentKey, &d.LeadDisplayName,
 		); err != nil {
 			return nil, err
@@ -242,7 +257,7 @@ func (s *SQLiteTeamStore) ListIdleMembers(ctx context.Context, teamID uuid.UUID)
 }
 
 func (s *SQLiteTeamStore) GetTeamForAgent(ctx context.Context, agentID uuid.UUID) (*store.TeamData, error) {
-	q := `SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.created_at, t.updated_at
+	q := `SELECT t.id, t.name, t.lead_agent_id, t.description, t.status, t.settings, t.created_by, t.team_key, t.metadata, t.created_at, t.updated_at
 		 FROM agent_teams t
 		 WHERE (
 		   t.lead_agent_id = ?
@@ -349,7 +364,7 @@ func (s *SQLiteTeamStore) ListUserTeams(ctx context.Context, userID string) ([]s
 		createdAt, updatedAt := scanTimePair()
 		if err := rows.Scan(
 			&d.ID, &d.Name, &d.LeadAgentID, &desc, &d.Status,
-			&d.Settings, &d.CreatedBy, createdAt, updatedAt,
+			&d.Settings, &d.CreatedBy, &d.TeamKey, &d.Metadata, createdAt, updatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -389,7 +404,7 @@ func scanTeamRow(row *sql.Row) (*store.TeamData, error) {
 	createdAt, updatedAt := scanTimePair()
 	err := row.Scan(
 		&d.ID, &d.Name, &d.LeadAgentID, &desc, &d.Status,
-		&d.Settings, &d.CreatedBy, createdAt, updatedAt,
+		&d.Settings, &d.CreatedBy, &d.TeamKey, &d.Metadata, createdAt, updatedAt,
 	)
 	if err != nil {
 		return nil, err

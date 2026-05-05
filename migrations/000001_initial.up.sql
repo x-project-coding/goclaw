@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     api_key       TEXT,
     enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
     settings      JSONB        NOT NULL DEFAULT '{}',
+    metadata      JSONB        NOT NULL DEFAULT '{}',
     created_at    TIMESTAMPTZ  DEFAULT NOW(),
     updated_at    TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -53,17 +54,33 @@ CREATE TABLE IF NOT EXISTS llm_providers (
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
-    id            UUID        NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    id            UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     email         VARCHAR(255) NOT NULL UNIQUE,
     display_name  VARCHAR(255),
-    password_hash TEXT        NOT NULL,
-    role          VARCHAR(20) NOT NULL DEFAULT 'member',
-    status        VARCHAR(20) NOT NULL DEFAULT 'active',
-    deleted_at    TIMESTAMPTZ NULL,
-    metadata      JSONB       NOT NULL DEFAULT '{}',
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT users_role_check CHECK (role IN ('root', 'admin', 'member', 'viewer'))
+    password_hash TEXT         NOT NULL,
+    role          VARCHAR(20)  NOT NULL DEFAULT 'member',
+    status        VARCHAR(20)  NOT NULL DEFAULT 'active',
+    deleted_at    TIMESTAMPTZ  NULL,
+    metadata      JSONB        NOT NULL DEFAULT '{}',
+    -- Stable workspace folder identifier derived from email local-part.
+    -- Generated once at insert time; immutable thereafter.
+    user_key      VARCHAR(100) NOT NULL UNIQUE,
+    -- Identity kind: 'human' (default) or 'channel' (merged channel contact).
+    -- Only two values are valid; future channel types extend channel_contacts.channel_type,
+    -- not this column.
+    kind          VARCHAR(20)  NOT NULL DEFAULT 'human',
+    -- Channel platform when kind='channel' (e.g. 'telegram','discord').
+    -- Must be NULL when kind='human'; must be NOT NULL when kind='channel'.
+    -- Values validated at app layer against channel_contacts.channel_type.
+    channel_type  VARCHAR(20)  NULL,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT users_role_check         CHECK (role IN ('root', 'admin', 'member', 'viewer')),
+    CONSTRAINT users_kind_check         CHECK (kind IN ('human', 'channel')),
+    CONSTRAINT users_channel_type_shape CHECK (
+        (kind = 'human'   AND channel_type IS NULL) OR
+        (kind = 'channel' AND channel_type IS NOT NULL)
+    )
 );
 
 -- Partial UNIQUE: at most one root user may exist at any time.
@@ -79,6 +96,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     refresh_token_hash  TEXT        NOT NULL UNIQUE,
     expires_at          TIMESTAMPTZ NOT NULL,
     revoked_at          TIMESTAMPTZ NULL,
+    metadata            JSONB       NOT NULL DEFAULT '{}',
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -126,6 +144,7 @@ CREATE TABLE IF NOT EXISTS agents (
     tsv                   tsvector GENERATED ALWAYS AS (
         to_tsvector('simple', coalesce(agent_key,'') || ' ' || coalesce(display_name,''))
     ) STORED,
+    metadata              JSONB        NOT NULL DEFAULT '{}',
     created_at            TIMESTAMPTZ  DEFAULT NOW(),
     updated_at            TIMESTAMPTZ  DEFAULT NOW(),
     deleted_at            TIMESTAMPTZ
@@ -143,6 +162,7 @@ CREATE TABLE IF NOT EXISTS agent_shares (
     user_id    UUID         NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
     role       VARCHAR(20)  NOT NULL DEFAULT 'user',
     granted_by VARCHAR(255) NOT NULL,
+    metadata   JSONB        NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ  DEFAULT NOW(),
     UNIQUE(agent_id, user_id)
 );
@@ -232,6 +252,7 @@ CREATE TABLE IF NOT EXISTS agent_links (
     status          VARCHAR(20)  NOT NULL DEFAULT 'active',
     created_by      VARCHAR(255) NOT NULL,
     team_id         UUID,
+    metadata        JSONB        NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  DEFAULT NOW(),
     UNIQUE(source_agent_id, target_agent_id),
@@ -254,6 +275,10 @@ CREATE TABLE IF NOT EXISTS agent_teams (
     settings      JSONB        NOT NULL DEFAULT '{}',
     created_by    VARCHAR(255) NOT NULL,
     owner_user_id UUID         REFERENCES users(id) ON DELETE SET NULL,
+    -- Stable workspace folder identifier derived from team name.
+    -- Generated once at insert time; immutable thereafter.
+    team_key      VARCHAR(100) NOT NULL UNIQUE,
+    metadata      JSONB        NOT NULL DEFAULT '{}',
     created_at    TIMESTAMPTZ  DEFAULT NOW(),
     updated_at    TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -433,6 +458,7 @@ CREATE TABLE IF NOT EXISTS memory_documents (
     hash         VARCHAR(64)  NOT NULL,
     team_id      UUID         REFERENCES agent_teams(id)          ON DELETE SET NULL,
     custom_scope TEXT,
+    metadata     JSONB        NOT NULL DEFAULT '{}',
     created_at   TIMESTAMPTZ  DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -677,6 +703,7 @@ CREATE TABLE IF NOT EXISTS skills (
     last_patched_at TIMESTAMPTZ,
     pinned          BOOLEAN      NOT NULL DEFAULT FALSE,
     usage_count     BIGINT       NOT NULL DEFAULT 0,
+    metadata        JSONB        NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ  DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -725,6 +752,7 @@ CREATE TABLE IF NOT EXISTS skill_versions (
     published_by VARCHAR(255),
     archived_at  TIMESTAMPTZ,
     archive_path TEXT,
+    metadata     JSONB        NOT NULL DEFAULT '{}',
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     UNIQUE(skill_id, version)
 );
@@ -771,6 +799,7 @@ CREATE TABLE IF NOT EXISTS channel_instances (
     config       JSONB        DEFAULT '{}',
     enabled      BOOLEAN      DEFAULT TRUE,
     created_by   VARCHAR(255) DEFAULT '',
+    metadata     JSONB        NOT NULL DEFAULT '{}',
     created_at   TIMESTAMPTZ  DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -875,6 +904,7 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
     last_status      VARCHAR(20),
     last_error       TEXT,
     team_id          UUID         REFERENCES agent_teams(id) ON DELETE SET NULL,
+    metadata         JSONB        NOT NULL DEFAULT '{}',
     created_at       TIMESTAMPTZ  DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -971,6 +1001,7 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
     settings     JSONB        NOT NULL DEFAULT '{}',
     enabled      BOOLEAN      NOT NULL DEFAULT TRUE,
     created_by   VARCHAR(255) NOT NULL,
+    metadata     JSONB        NOT NULL DEFAULT '{}',
     created_at   TIMESTAMPTZ  DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  DEFAULT NOW()
 );
@@ -1299,6 +1330,7 @@ CREATE INDEX idx_acp_user   ON agent_config_permissions(user_id);
 CREATE TABLE IF NOT EXISTS system_configs (
     key        VARCHAR(100) NOT NULL PRIMARY KEY,
     value      TEXT         NOT NULL,
+    metadata   JSONB        NOT NULL DEFAULT '{}',
     updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 

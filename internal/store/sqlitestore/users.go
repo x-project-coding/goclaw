@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/identity"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -24,7 +25,7 @@ func NewSQLiteUsersStore(db *sql.DB) *SQLiteUsersStore {
 }
 
 const usersSelectColumns = `id, email, display_name, password_hash, role, status,
-	deleted_at, metadata, created_at, updated_at`
+	deleted_at, metadata, user_key, kind, channel_type, created_at, updated_at`
 
 func (s *SQLiteUsersStore) Create(ctx context.Context, u *store.User) error {
 	if u.ID == uuid.Nil {
@@ -37,10 +38,19 @@ func (s *SQLiteUsersStore) Create(ctx context.Context, u *store.User) error {
 	if len(u.Metadata) == 0 {
 		u.Metadata = []byte("{}")
 	}
+	// Auto-generate slug from email when caller did not supply one.
+	if u.UserKey == "" {
+		u.UserKey = identity.SlugFromEmail(u.Email, u.ID.String()[:6])
+	}
+	// Default identity kind.
+	if u.Kind == "" {
+		u.Kind = "human"
+	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO users (id, email, display_name, password_hash, role, status, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, u.Email, nilStr(deref(u.DisplayName)), u.PasswordHash, u.Role, u.Status, string(u.Metadata),
+		INSERT INTO users (id, email, display_name, password_hash, role, status, metadata, user_key, kind, channel_type)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.Email, nilStr(deref(u.DisplayName)), u.PasswordHash,
+		u.Role, u.Status, string(u.Metadata), u.UserKey, u.Kind, u.ChannelType,
 	)
 	if err != nil {
 		return fmt.Errorf("users insert: %w", err)
@@ -95,6 +105,13 @@ func (s *SQLiteUsersStore) Update(ctx context.Context, id uuid.UUID, fields map[
 	if len(fields) == 0 {
 		return nil
 	}
+	// Immutability: strip slug and identity columns from generic update path.
+	delete(fields, "user_key")
+	delete(fields, "kind")
+	delete(fields, "channel_type")
+	if len(fields) == 0 {
+		return nil
+	}
 	return execMapUpdate(ctx, s.db, "users", id, fields)
 }
 
@@ -113,6 +130,18 @@ func (s *SQLiteUsersStore) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// SetKind atomically updates (kind, channel_type) in a single statement.
+// SQLite CHECK constraints enforce the shape invariant at commit time.
+func (s *SQLiteUsersStore) SetKind(ctx context.Context, id uuid.UUID, kind string, channelType *string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET kind = ?, channel_type = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
+		kind, channelType, id)
+	if err != nil {
+		return fmt.Errorf("set kind: %w", err)
+	}
+	return nil
+}
+
 func scanSQLiteUser(row *sql.Row) (*store.User, error) {
 	return scanSQLiteUserRow(row)
 }
@@ -125,7 +154,8 @@ func scanSQLiteUserRow(r sqliteRowScanner) (*store.User, error) {
 	createdAt, updatedAt := scanTimePair()
 	err := r.Scan(
 		&u.ID, &u.Email, &displayName, &u.PasswordHash, &u.Role, &u.Status,
-		&deletedAt, &metadata, createdAt, updatedAt,
+		&deletedAt, &metadata, &u.UserKey, &u.Kind, &u.ChannelType,
+		createdAt, updatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, store.ErrNotFound

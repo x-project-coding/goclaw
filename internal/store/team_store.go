@@ -65,6 +65,10 @@ type TeamData struct {
 	Status      string          `json:"status" db:"status"`
 	Settings    json.RawMessage `json:"settings,omitempty" db:"settings"`
 	CreatedBy   string          `json:"created_by" db:"created_by"`
+	// TeamKey is the stable slug used for workspace folder naming.
+	// Auto-generated from Name on CreateTeam if empty; never mutated after.
+	TeamKey     string          `json:"team_key,omitempty" db:"team_key"`
+	Metadata    json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 
 	// Joined fields (populated by queries that JOIN agents table)
 	LeadAgentKey    string `json:"lead_agent_key,omitempty" db:"lead_agent_key"`
