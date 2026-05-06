@@ -192,6 +192,18 @@ func runGateway() {
 			slog.Info("system_configs applied to in-memory config", "keys", len(sysConfigs))
 		}
 	}
+
+	// Re-apply tool rate limiter using DB-overlaid config. setupToolRegistry
+	// initialised the limiter from the JSON5 default before ApplySystemConfigs
+	// ran, so DB-driven changes to tools.rate_limit_per_hour were lost. Replace
+	// the limiter object now that cfg reflects the DB value. Safe: server has
+	// not started, no in-flight tool calls.
+	if cfg.Tools.RateLimitPerHour > 0 {
+		toolsReg.SetRateLimiter(tools.NewToolRateLimiter(cfg.Tools.RateLimitPerHour))
+		slog.Info("tool rate limiting reapplied from system_configs", "per_hour", cfg.Tools.RateLimitPerHour)
+	} else {
+		toolsReg.SetRateLimiter(nil)
+	}
 	setupMemoryEmbeddings(pgStores, providerRegistry)
 
 	// Resolve background provider for consolidation + vault enrichment.
