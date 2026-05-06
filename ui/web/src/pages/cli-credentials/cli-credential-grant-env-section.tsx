@@ -4,7 +4,7 @@
  * Reveal: POST .../env:reveal — values in component state only, cleared on close.
  * Denylist: keep in sync with internal/crypto/env_denylist.go
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, X, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,22 @@ export function CliCredentialGrantEnvSection({
   const [revealing, setRevealing] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const { overrideEnabled, entries } = state;
+  // Finding #10: track blur timeout so we can cancel it on reveal/unmount.
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Finding #10: clear revealed plaintext from entries on component unmount.
+  // This is defense-in-depth — plaintext should not persist in React state beyond use.
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+      // Overwrite revealed values with empty strings on unmount.
+      onChange({
+        overrideEnabled: state.overrideEnabled,
+        entries: state.entries.map((e) => ({ ...e, value: "", masked: e.masked })),
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setEntries = useCallback(
     (updater: (prev: GrantEnvEntry[]) => GrantEnvEntry[]) =>
@@ -91,6 +107,15 @@ export function CliCredentialGrantEnvSection({
       }));
       onChange({ overrideEnabled: true, entries: filled.length > 0 ? filled : entries });
       setRevealed(true);
+      // Finding #10: wipe plaintext after 30s of inactivity (defense-in-depth).
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+      blurTimeoutRef.current = setTimeout(() => {
+        onChange({
+          overrideEnabled: true,
+          entries: (filled.length > 0 ? filled : entries).map((e) => ({ ...e, value: "", masked: true })),
+        });
+        setRevealed(false);
+      }, 30_000);
     } catch (err) {
       const code = (err as { code?: string }).code ?? "";
       const msg = err instanceof Error ? err.message : "";
