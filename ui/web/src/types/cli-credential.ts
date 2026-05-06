@@ -78,10 +78,15 @@ export interface CLIAgentGrantInput {
   tips?: string | null;
   enabled?: boolean;
   /**
-   * env_vars in PUT body:
-   *   absent / undefined  -> keep existing (omit from payload)
-   *   null                -> clear override (fall back to binary defaults)
-   *   Record<string,string> -> replace override
+   * env_vars semantics — 3-state, all three distinct behaviors (Finding #15):
+   *
+   * - **absent / undefined** → keep existing env override (omit from request payload)
+   * - **null**               → clear override; grant falls back to binary-level defaults
+   * - **`{}` (empty map)**   → treated as clear (same as null) — wipes the override
+   * - **`{K: V, ...}`**      → replace the entire env override with this map
+   *
+   * Backend: internal/http/secure_cli_agent_grants.go handleUpdate (3-state env_vars branch).
+   * Keys must match ^[A-Z_][A-Z0-9_]*$ and must not be on the denylist.
    */
   env_vars?: Record<string, string> | null;
 }

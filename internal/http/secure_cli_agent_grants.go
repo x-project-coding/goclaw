@@ -291,6 +291,8 @@ func (h *SecureCLIGrantHandler) handleUpdate(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 3-state env_vars semantics: absent=skip, null=clear, {...}=replace.
+	// Finding #15: {} (empty map) is treated as clear — same as null.
+	// TS type: absent | null | Record<string,string> — see ui/web/src/types/cli-credential.ts.
 	if envRaw, present := raw["env_vars"]; present {
 		var envPtr *map[string]string
 		if string(envRaw) != "null" {
