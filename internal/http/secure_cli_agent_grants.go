@@ -51,6 +51,13 @@ func (h *SecureCLIGrantHandler) SetEnvRevealLimiter(rpm, burst int) {
 	h.envLimiter = newPerKeyRateLimiter(rpm, burst)
 }
 
+// HandleRevealEnvForTest exposes the reveal handler for integration tests that need
+// to bypass the requireAuth middleware. The caller must inject auth context (UserID,
+// TenantID, Role) manually. Not registered in any mux — test use only.
+func (h *SecureCLIGrantHandler) HandleRevealEnvForTest(w http.ResponseWriter, r *http.Request) {
+	h.handleRevealEnv(w, r)
+}
+
 // RegisterRoutes registers agent grant routes nested under cli-credentials.
 func (h *SecureCLIGrantHandler) RegisterRoutes(mux *http.ServeMux) {
 	auth := func(next http.HandlerFunc) http.HandlerFunc {
@@ -266,9 +273,15 @@ func (h *SecureCLIGrantHandler) handleUpdate(w http.ResponseWriter, r *http.Requ
 		}
 		if allowedScalar[k] {
 			var decoded any
-			if err := json.Unmarshal(v, &decoded); err == nil {
-				updates[k] = decoded
+			// Finding #3: return 400 on Unmarshal failure — silent discard means admin
+			// thinks they applied a change (e.g. enabled: "false") but the grant is unchanged.
+			if err := json.Unmarshal(v, &decoded); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error": i18n.T(locale, i18n.MsgGrantEnvValueInvalid, "field "+k+": "+err.Error()),
+				})
+				return
 			}
+			updates[k] = decoded
 		}
 	}
 	if err := h.grants.Update(r.Context(), grantID, updates); err != nil {
@@ -344,10 +357,32 @@ func (h *SecureCLIGrantHandler) handleRevealEnv(w http.ResponseWriter, r *http.R
 		return
 	}
 	ctx := r.Context()
+
+	// Reject master-scope contexts: reveal is per-tenant by definition.
+	// A master-scope context would bypass the tenant_id SQL filter in store.Get,
+	// potentially leaking env vars across tenant boundaries.
+	if store.IsMasterScope(ctx) {
+		locale := store.LocaleFromContext(ctx)
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": i18n.T(locale, i18n.MsgPermissionDenied, "reveal env (master scope not allowed)"),
+		})
+		return
+	}
+
 	locale := store.LocaleFromContext(ctx)
 
-	// Rate limit: 10 reveals/min per caller.
-	rlKey := rateLimitKeyFromRequest(r)
+	// Rate limit: 10 reveals/min per authenticated caller (context UserID).
+	// Finding #2: require non-empty UserID from authenticated context.
+	// If UserID is empty, the auth middleware failed to populate it — reject rather
+	// than fall back to a spoofable header or IP address.
+	callerID := store.UserIDFromContext(ctx)
+	if callerID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"error": i18n.T(locale, i18n.MsgPermissionDenied, "reveal env (missing user context)"),
+		})
+		return
+	}
+	rlKey := "uid:" + callerID
 	if !h.envLimiter.Allow(rlKey) {
 		slog.Warn("security.rate_limited", "endpoint", "env:reveal", "key", rlKey)
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": i18n.T(locale, i18n.MsgGrantEnvRevealLimit)})
@@ -378,9 +413,11 @@ func (h *SecureCLIGrantHandler) handleRevealEnv(w http.ResponseWriter, r *http.R
 	}
 
 	tenantID := store.TenantIDFromContext(ctx)
-	callerID := store.UserIDFromContext(ctx)
-	// Audit log: actor, tenant, grant, timestamp. No plaintext env logged.
-	slog.Warn("security.cli_credential.env.reveal",
+	// callerID is already declared above (used as rate limit key).
+	// Audit log (INFO): routine audited read. Per CLAUDE.md, security.* Warn is reserved
+	// for suspicious events. Routine reveals are Info under audit.* prefix.
+	// Failure paths (rate-limit, 404) remain Warn under security.*.
+	slog.Info("audit.cli_credential.env.reveal",
 		"caller_id", callerID,
 		"tenant_id", tenantID,
 		"grant_id", grantID,
