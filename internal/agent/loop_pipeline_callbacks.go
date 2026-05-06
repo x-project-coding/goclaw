@@ -94,10 +94,11 @@ func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, i
 		if input.TeamID != "" {
 			teamID = &input.TeamID
 		}
-		// Resolve project binding for workspace routing (same two-source chain as injectContext):
+		// Resolve project binding for workspace routing (same three-source chain as injectContext):
+		//  0. req.ProjectOverride — snapshot from parent (team dispatch)
 		//  1. session.project_id — explicit per-session binding
 		//  2. contact default_project_id — channel group default (when contactStore is wired)
-		projectID, projectSlug := l.resolveProjectParams(ctx, input.SessionKey, input.ChannelType, input.ChatID)
+		projectID, projectSlug := l.resolveProjectParams(ctx, input.SessionKey, input.ChannelType, input.ChatID, req.ProjectOverride)
 		return resolver.Resolve(ctx, workspace.ResolveParams{
 			AgentID:     l.id,
 			UserID:      input.UserID,

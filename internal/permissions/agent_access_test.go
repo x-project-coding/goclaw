@@ -19,7 +19,6 @@ func TestHighestShareRole(t *testing.T) {
 		{"unknown ignored", []string{"weird", ShareViewer}, ShareViewer},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if got := HighestShareRole(tc.in...); got != tc.want {
 				t.Errorf("HighestShareRole(%v) = %q, want %q", tc.in, got, tc.want)

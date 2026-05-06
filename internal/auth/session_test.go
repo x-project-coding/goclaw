@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -18,8 +19,8 @@ import (
 // fakeSessionStore is an in-memory implementation of store.UserSessionsStore
 // for unit tests. All methods are goroutine-safe.
 type fakeSessionStore struct {
-	mu             sync.Mutex
-	rows           map[uuid.UUID]*store.UserSession // keyed by session ID
+	mu                sync.Mutex
+	rows              map[uuid.UUID]*store.UserSession // keyed by session ID
 	revokeFamilyCalls []uuid.UUID
 }
 
@@ -118,12 +119,7 @@ func (f *fakeSessionStore) DB() base.Executor { return fakeExecutor{} }
 func (f *fakeSessionStore) revokeFamilyCalledWith(familyID uuid.UUID) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for _, id := range f.revokeFamilyCalls {
-		if id == familyID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(f.revokeFamilyCalls, familyID)
 }
 
 // --- tests ---
@@ -299,7 +295,7 @@ func TestRevokeAllForUser_RevokesAllActive(t *testing.T) {
 	userID := uuid.Must(uuid.NewV7())
 
 	// Issue 3 sessions with different families.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		fid := uuid.Must(uuid.NewV7())
 		if _, _, err := IssueRefresh(ctx, fs, userID, fid, 30*24*time.Hour); err != nil {
 			t.Fatalf("IssueRefresh %d: %v", i, err)

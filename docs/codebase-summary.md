@@ -22,13 +22,14 @@ For system design see `docs/00-architecture-overview.md`; for API contract see `
 | `internal/identity/` | Slug generation (user_key, team_key from email/name) — v4 Phase B |
 | `internal/memory/` | pgvector 3-tier memory system |
 | `internal/mcp/` | Model Context Protocol bridge |
-| `internal/permissions/` | RBAC: admin / operator / viewer |
+| `internal/permissions/` | RBAC: admin / operator / viewer; `migrate_config_for_merge.go` (Plan #7 P06 export, called by merge TX) |
 | `internal/pipeline/` | 8-stage agent pipeline |
 | `internal/providers/` | LLM providers (Anthropic, OpenAI-compat, Qwen, Claude CLI) |
-| `internal/store/` | Store interfaces + PG + SQLite implementations |
-| `internal/tools/` | Tool registry (filesystem, exec, web, MCP, delegate) |
+| `internal/store/` | Store interfaces + PG + SQLite implementations; `contact_store.go` — composite-key lookup methods `GetContactByChannelAndChatID()`, `GetCanonicalDMContact()` for merged-contact routing |
+| `internal/tools/` | Tool registry (filesystem, exec, web, MCP, delegate); `team_tool_dispatch.go` — sub-agent isolation (ProjectID snapshot, no UserID/GroupID leak) |
 | `internal/tts/` | Back-compat alias package for old import paths |
 | `internal/vault/` | Knowledge Vault: wikilinks, hybrid search, FS sync |
+| `internal/workspace/` | Workspace path resolution; `resolver_channel.go` (12-scenario channel path matrix, v4 Phase B); `relocate_on_merge.go` (best-effort FS relocation on identity merge) |
 | `migrations/` | PostgreSQL migration files |
 | `ui/web/` | React SPA (Vite, Tailwind, Radix UI, Zustand) |
 | `ui/desktop/` | Wails v2 desktop app (SQLite, embedded gateway) |

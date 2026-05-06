@@ -35,7 +35,7 @@ func openPrunerDB(t *testing.T) *sql.DB {
 func seedRows(t *testing.T, db *sql.DB, table, agentID string, n int) {
 	t.Helper()
 	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		ts := base.Add(time.Duration(i) * time.Millisecond).Format("2006-01-02T15:04:05.000")
 		_, err := db.Exec(
 			fmt.Sprintf("INSERT INTO %s (id, agent_id, created_at) VALUES (?, ?, ?)", table),

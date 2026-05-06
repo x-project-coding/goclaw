@@ -32,7 +32,6 @@ func TestExtractUserKeyFromPath(t *testing.T) {
 		{"empty key after users/ rejected", "/ws/users//file", "/ws", "", false},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, ok := extractUserKeyFromPath(tc.path, tc.root)
 			if got != tc.want || ok != tc.ok {

@@ -73,6 +73,12 @@ func (m *mockContactStore) MergeUserAggregate(_ context.Context, _ MergeUserAggr
 func (m *mockContactStore) UpdateDefaultProject(_ context.Context, _ uuid.UUID, _ *uuid.UUID) error {
 	return nil
 }
+func (m *mockContactStore) GetContactByChannelAndChatID(_ context.Context, _, _ string) (*ChannelContact, error) {
+	return nil, ErrContactNotFound
+}
+func (m *mockContactStore) GetCanonicalDMContact(_ context.Context, _ uuid.UUID, _ string) (*ChannelContact, error) {
+	return nil, ErrContactIDNotFound
+}
 
 func (m *mockContactStore) upsertCount() int {
 	m.mu.Lock()

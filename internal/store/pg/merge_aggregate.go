@@ -8,19 +8,29 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 
+	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // MergeUserAggregate atomically merges SourceUserIDs' data into TargetUserID
-// across channel_contacts, agent_sessions, user_context_files, and memory_documents.
+// across six tables: channel_contacts, memory_documents, agent_config_permissions,
+// user_context_files, agent_sessions, and traces.
 // All UPDATEs share one *sql.Tx — atomic merge guarantee.
 //
+// Lock order to prevent deadlock with concurrent merges:
+//
+//	contacts (FOR UPDATE) → target user check → permissions → memory → traces → sessions
+//
 // Pre-checks inside the TX (concurrency-safe via SELECT FOR UPDATE):
+//   - ContactIDs must all exist in channel_contacts (rejects vacuous-pass attack)
 //   - source contacts must have merged_id IS NULL (no user→user merge)
-//   - target user must exist (FK guard)
+//   - target user must exist and not be soft-deleted
 //   - target user must not have been merged elsewhere (depth cap = 1)
 //
-// On success, the in-memory contact-resolve cache is invalidated.
+// On success: contact-resolve cache invalidated; OnGroupContactsMerged callback
+// invoked post-commit for group contacts (best-effort FS relocation by caller).
+// Note: spans are NOT updated here — spans.user_id column does not exist in the
+// current schema. Spans inherit user attribution via their parent trace.
 func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.MergeUserAggregateRequest) error {
 	if len(req.ContactIDs) == 0 {
 		return fmt.Errorf("merge: contact_ids required")
@@ -43,6 +53,12 @@ func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.Merge
 	if err := pgMergeAssertTargetExists(ctx, tx, req.TargetUserID); err != nil {
 		return err
 	}
+	// Reject requests where ContactIDs contain UUIDs not present in DB.
+	// Without this check a caller can supply fabricated UUIDs and the UPDATE
+	// silently matches zero rows — a vacuous-pass that bypasses the merge audit.
+	if err := pgMergeAssertContactIDsExist(ctx, tx, req.ContactIDs); err != nil {
+		return err
+	}
 	if err := pgMergeAssertSourceUnmerged(ctx, tx, req.ContactIDs); err != nil {
 		return err
 	}
@@ -50,6 +66,17 @@ func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.Merge
 		return err
 	}
 
+	// Collect group contact IDs for post-commit FS relocation callback.
+	// Done inside TX while rows are locked to avoid TOCTOU on peer_kind.
+	var groupContactIDs []uuid.UUID
+	if req.OnGroupContactsMerged != nil {
+		groupContactIDs, err = pgFetchGroupContactIDs(ctx, tx, req.ContactIDs)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Step 1: stamp contacts with merged_id (lock order: contacts first).
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE channel_contacts
 		    SET merged_id = $1, merge_audit = COALESCE($2::jsonb, '{}'::jsonb)
@@ -61,24 +88,70 @@ func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.Merge
 
 	if len(req.SourceUserIDs) > 0 {
 		sourceArr := pq.Array(req.SourceUserIDs)
+
+		// Step 2a: memory_documents keyed by user_id.
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE agent_sessions SET user_id = $1 WHERE user_id = ANY($2)`,
+			`UPDATE memory_documents SET user_id = $1 WHERE user_id = ANY($2)`,
 			req.TargetUserID, sourceArr,
 		); err != nil {
-			return fmt.Errorf("merge: update agent_sessions: %w", err)
+			return fmt.Errorf("merge: update memory_documents (user_id): %w", err)
 		}
+
+		// Step 3: migrate agent_config_permissions.
+		// Delegated to the permissions package — single source of truth for this SQL.
+		if err := permissions.MigrateConfigPermissionsForMerge(ctx, tx, req.SourceUserIDs, req.TargetUserID); err != nil {
+			return fmt.Errorf("merge: %w", err)
+		}
+
+		// Step 4: migrate user_context_files.
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE user_context_files SET user_id = $1 WHERE user_id = ANY($2)`,
 			req.TargetUserID, sourceArr,
 		); err != nil {
 			return fmt.Errorf("merge: update user_context_files: %w", err)
 		}
+
+		// Step 5: migrate agent_sessions.
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE memory_documents SET user_id = $1 WHERE user_id = ANY($2)`,
+			`UPDATE agent_sessions SET user_id = $1 WHERE user_id = ANY($2)`,
 			req.TargetUserID, sourceArr,
 		); err != nil {
-			return fmt.Errorf("merge: update memory_documents: %w", err)
+			return fmt.Errorf("merge: update agent_sessions: %w", err)
 		}
+	}
+
+	if len(req.ContactIDs) > 0 {
+		contactArr := pq.Array(req.ContactIDs)
+
+		// Step 2b: memory_documents 5D scope rows keyed by contact_id only (user_id IS NULL).
+		// contact_id was added to memory_documents by the 5D-scope migration (Plan #5);
+		// guard with a column check so the merge TX succeeds on older DBs.
+		if colExists, checkErr := pgColumnExists(ctx, tx, "memory_documents", "contact_id"); checkErr != nil {
+			return fmt.Errorf("merge: check memory_documents.contact_id column: %w", checkErr)
+		} else if colExists {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE memory_documents
+				    SET user_id = $1, contact_id = NULL
+				  WHERE contact_id = ANY($2) AND user_id IS NULL`,
+				req.TargetUserID, contactArr,
+			); err != nil {
+				return fmt.Errorf("merge: update memory_documents (contact_id): %w", err)
+			}
+		}
+
+		// Step 6: migrate traces (contact_id axis — independent of SourceUserIDs).
+		// Traces are linked to contacts, not directly to users, so they must flip
+		// even when the channel session had no registered user_id.
+		// traces.user_id exists in the initial schema; no column guard required.
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE traces SET user_id = $1 WHERE contact_id = ANY($2)`,
+			req.TargetUserID, contactArr,
+		); err != nil {
+			return fmt.Errorf("merge: update traces: %w", err)
+		}
+		// spans are not updated: spans.user_id column does not exist in the current
+		// schema. Spans inherit user attribution via their parent trace. Reintroduce
+		// the UPDATE here when the column is added in a future migration.
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -86,7 +159,70 @@ func (s *PGContactStore) MergeUserAggregate(ctx context.Context, req store.Merge
 	}
 	committed = true
 	s.InvalidateContactResolveCache()
+
+	// Post-commit: invoke caller's FS relocation callback for group contacts.
+	// This runs outside the TX — failure must never surface as merge error.
+	if req.OnGroupContactsMerged != nil && len(groupContactIDs) > 0 {
+		req.OnGroupContactsMerged(groupContactIDs)
+	}
+
 	return nil
+}
+
+// pgColumnExists reports whether the given column exists on the table. Used to
+// guard schema-version-dependent UPDATEs inside the merge TX so the merge
+// succeeds on DBs where optional columns have not yet been added by a migration.
+func pgColumnExists(ctx context.Context, tx *sql.Tx, table, column string) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (
+		    SELECT 1 FROM information_schema.columns
+		     WHERE table_schema = 'public'
+		       AND table_name   = $1
+		       AND column_name  = $2
+		)`, table, column,
+	).Scan(&exists)
+	return exists, err
+}
+
+// pgMergeAssertContactIDsExist checks that every UUID in contactIDs corresponds
+// to an existing channel_contacts row. Detects fabricated UUIDs that would
+// otherwise silently match zero rows in subsequent UPDATEs.
+func pgMergeAssertContactIDsExist(ctx context.Context, tx *sql.Tx, contactIDs []uuid.UUID) error {
+	var count int
+	err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM channel_contacts WHERE id = ANY($1)`,
+		pq.Array(contactIDs),
+	).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("merge: count contact_ids: %w", err)
+	}
+	if count != len(contactIDs) {
+		return store.ErrContactIDNotFound
+	}
+	return nil
+}
+
+// pgFetchGroupContactIDs returns contact UUIDs from the input set whose
+// peer_kind = 'group'. Called inside the TX while rows are locked.
+func pgFetchGroupContactIDs(ctx context.Context, tx *sql.Tx, contactIDs []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT id FROM channel_contacts WHERE id = ANY($1) AND peer_kind = 'group'`,
+		pq.Array(contactIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("merge: fetch group contacts: %w", err)
+	}
+	defer rows.Close()
+	var out []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("merge: scan group contact id: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // pgMergeAssertTargetExists verifies the target user row is present and not

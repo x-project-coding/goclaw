@@ -99,7 +99,7 @@ func TestSlugDeterministic(t *testing.T) {
 	// Same inputs always produce same output — essential for workspace folder stability.
 	email, idHex := "user@example.com", "ff00aa"
 	first := SlugFromEmail(email, idHex)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if got := SlugFromEmail(email, idHex); got != first {
 			t.Errorf("non-deterministic: iteration %d got %q, want %q", i, got, first)
 		}

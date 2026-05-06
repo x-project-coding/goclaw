@@ -252,7 +252,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		//  2. channel_contacts.default_project_id — group-chat channel default (Layer 1)
 		// When a project is found, look up its slug so the workspace resolver can
 		// route the session to <workspaceRoot>/projects/<slug>.
-		projectID, projectSlug := l.resolveProjectParams(ctx, req.SessionKey, req.ChannelType, req.ChatID)
+		projectID, projectSlug := l.resolveProjectParams(ctx, req.SessionKey, req.ChannelType, req.ChatID, req.ProjectOverride)
 		wc, wsErr := resolver.Resolve(ctx, workspace.ResolveParams{
 			// Filesystem path segment must use agent_key, not UUID — matches
 			// the v2 path in loop_pipeline_callbacks.go and the session_key
@@ -377,25 +377,35 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 }
 
 // resolveProjectParams resolves the effective project ID and slug for a session.
-// Checks two sources in order:
+// Checks three sources in priority order:
+//  0. req.ProjectOverride — explicit snapshot from parent (team dispatch path)
 //  1. agent_sessions.project_id — explicit per-session binding (set via RPC)
 //  2. channel_contacts.default_project_id — group-chat channel default
 //
 // Returns (nil, "") when no project is bound or when projectStore is not wired.
 // On error (project not found, slug invalid), logs a warning and returns (nil, "").
-func (l *Loop) resolveProjectParams(ctx context.Context, sessionKey, channelType, chatID string) (*uuid.UUID, string) {
+func (l *Loop) resolveProjectParams(ctx context.Context, sessionKey, channelType, chatID string, override *uuid.UUID) (*uuid.UUID, string) {
 	if l.projectStore == nil {
 		return nil, ""
 	}
 
-	// Source 1: explicit per-session project binding.
+	// Source 0: explicit project snapshot forwarded by parent (team dispatch).
+	// Bypasses session and contact-store lookups so mid-conversation
+	// default_project_id changes do not affect this run.
 	var effectiveProjectID *uuid.UUID
-	if session := l.sessions.Get(ctx, sessionKey); session != nil && session.ProjectID != nil {
-		effectiveProjectID = session.ProjectID
+	if override != nil {
+		effectiveProjectID = override
+	}
+
+	// Source 1: explicit per-session project binding.
+	if effectiveProjectID == nil {
+		if session := l.sessions.Get(ctx, sessionKey); session != nil && session.ProjectID != nil {
+			effectiveProjectID = session.ProjectID
+		}
 	}
 
 	// Source 2: channel contact default (group-chat level).
-	// Only attempted when source 1 is absent and contactStore is wired.
+	// Only attempted when sources 0 and 1 are absent and contactStore is wired.
 	if effectiveProjectID == nil && l.contactStore != nil && channelType != "" && chatID != "" {
 		contactMap, err := l.contactStore.GetContactsBySenderIDs(ctx, []string{chatID})
 		if err != nil {

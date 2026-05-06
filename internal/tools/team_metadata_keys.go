@@ -8,6 +8,12 @@ const (
 	MetaOriginPeerKind   = "origin_peer_kind"
 	MetaOriginChatID     = "origin_chat_id"
 	MetaOriginUserID     = "origin_user_id"
+	// MetaOriginProjectID carries the parent agent's resolved project UUID into
+	// the sub-agent dispatch. It is captured at parent turn start so changes to
+	// channel_contacts.default_project_id mid-conversation do NOT affect already-
+	// dispatched sub-agents. Sub-agents use this value as the highest-priority
+	// source, bypassing the session and contact store lookups.
+	MetaOriginProjectID  = "origin_project_id"
 	// MetaOriginSenderID carries the real acting sender through announce re-ingress
 	// so permission checks (e.g. CheckEditFilePermission) attribute to the
 	// original user rather than a synthetic "subagent:<id>" / "notification:system" string.

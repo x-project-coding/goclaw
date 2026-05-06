@@ -140,8 +140,8 @@ func (h *AgentsHandler) handleRevokeShare(w http.ResponseWriter, r *http.Request
 	// Path supports either a UUID (user) or a "team:<uuid>" prefix to disambiguate
 	// team revocation. We accept both; mismatched prefix → 400.
 	targetID := r.PathValue("userID")
-	if strings.HasPrefix(targetID, "team:") {
-		tid, perr := uuid.Parse(strings.TrimPrefix(targetID, "team:"))
+	if after, ok := strings.CutPrefix(targetID, "team:"); ok {
+		tid, perr := uuid.Parse(after)
 		if perr != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "team_id")})
 			return

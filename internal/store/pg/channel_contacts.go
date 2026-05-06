@@ -240,6 +240,62 @@ func (s *PGContactStore) GetSenderIDsByContactIDs(ctx context.Context, contactID
 	return result, rows.Err()
 }
 
+// GetContactByChannelAndChatID returns the channel_contacts row for (channel_type, sender_id).
+// Returns store.ErrContactNotFound when no row matches.
+func (s *PGContactStore) GetContactByChannelAndChatID(ctx context.Context, channelType, chatID string) (*store.ChannelContact, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+contactSelectCols+`
+		FROM channel_contacts
+		WHERE channel_type = $1 AND sender_id = $2
+		LIMIT 1`,
+		channelType, chatID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, store.ErrContactNotFound
+	}
+	c, err := scanPGContact(rows)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// GetCanonicalDMContact returns the most-recently-seen unmerged DM contact for the
+// given user on a given channel. Used to re-route outbound replies after contact merge.
+// Returns store.ErrContactIDNotFound when no qualifying row exists.
+func (s *PGContactStore) GetCanonicalDMContact(ctx context.Context, userID uuid.UUID, channelType string) (*store.ChannelContact, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+contactSelectCols+`
+		FROM channel_contacts
+		WHERE user_id = $1 AND channel_type = $2 AND peer_kind = 'direct' AND merged_id IS NULL
+		ORDER BY last_seen_at DESC
+		LIMIT 1`,
+		userID, channelType,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, store.ErrContactIDNotFound
+	}
+	c, err := scanPGContact(rows)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 // Note: MergeContacts/UnmergeContacts/GetContactsByMergedID were removed in v4.
 // The single MergeUserAggregate method (see merge_aggregate.go) is the only
 // sanctioned merge entry point — it owns one *sql.Tx covering channel_contacts

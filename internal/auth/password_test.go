@@ -108,12 +108,10 @@ func TestSemaphoreLimitsConcurrency(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range goroutines {
+		wg.Go(func() {
 			_, _ = VerifyPassword("TestPass123!", hash)
-		}()
+		})
 	}
 	wg.Wait()
 	close(stop)

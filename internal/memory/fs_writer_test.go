@@ -27,7 +27,7 @@ func TestFSWriterInProcessMutex(t *testing.T) {
 
 	ch := make(chan result, 2)
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		go func() {
 			v, err := w.Write(ctx, scope, path, content, -1)
 			ch <- result{v, err}

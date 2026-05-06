@@ -65,6 +65,11 @@ type WorkspaceContext struct {
 // Called once at ContextStage. Result is immutable.
 type Resolver interface {
 	Resolve(ctx context.Context, params ResolveParams) (*WorkspaceContext, error)
+
+	// ResolveChannel handles the 12-scenario channel path matrix.
+	// Returns (absolute_fs_path, ChannelScope, error).
+	// Pure function — no DB calls; all resolved keys must be in ctx.
+	ResolveChannel(ctx context.Context, c ChannelResolveCtx) (string, ChannelScope, error)
 }
 
 // ResolveParams captures all inputs needed to determine workspace.
@@ -120,6 +125,77 @@ func DefaultEnforcementLabel(scope Scope, shared bool) string {
 	default:
 		return "You are working in the user's personal workspace."
 	}
+}
+
+// ── Channel-aware resolver types ─────────────────────────────────────────────
+
+// SenderKind classifies the origin of a channel message for workspace routing.
+type SenderKind int
+
+const (
+	SenderWeb          SenderKind = iota // web UI — identified by user UUID
+	SenderChannelDM                      // channel direct message — identified by sender_id
+	SenderChannelGroup                   // channel group chat — identified by chat_id
+)
+
+// ChannelResolveCtx carries all inputs for the 12-scenario channel workspace
+// resolver. It is separate from ResolveParams (web/delegation/project paths)
+// because channel sessions resolve on different axes: sender identity ×
+// agent context × merge state.
+//
+// All key fields (UserKey, AgentKey, TeamKey) use the human-readable slug form
+// (users.user_key, agent.agent_key, team.team_key) — never raw UUIDs — because
+// they map directly to filesystem path segments.
+type ChannelResolveCtx struct {
+	// BaseDir is the workspace root (required).
+	BaseDir string
+
+	// SenderKind classifies the message origin.
+	SenderKind SenderKind
+
+	// UserKey is the stable slug from users.user_key.
+	// Required when Merged=true or SenderKind=SenderWeb.
+	UserKey string
+
+	// AgentKey is the agent slug (agent.agent_key or agent.id used as path segment).
+	AgentKey string
+
+	// TeamKey is the team slug. Non-empty activates the team-scoped branch.
+	TeamKey string
+
+	// IsPredefined marks the agent as a predefined (shared) agent. For channel
+	// DM paths the predefined flag does not change the path template — it shares
+	// agents/{agent_key}/contacts/{ch}-{sid}/ with solo agents (H-2 isolation
+	// per sender_id subfolder). For web paths it still uses per-user zone.
+	IsPredefined bool
+
+	// ChannelType is the platform identifier (e.g. "telegram", "discord").
+	ChannelType string
+
+	// SenderID is the platform user identifier (used for DM contact subfolders).
+	SenderID string
+
+	// ChatID is the platform group/channel identifier (used for group subfolders).
+	ChatID string
+
+	// Merged indicates the contact has been merged into a canonical user account
+	// (channel_contacts.merged_id IS NOT NULL). When true, the privacy hard rule
+	// forces routing to the canonical users/{user_key}/... zone regardless of
+	// sender kind — merged user data MUST NOT write to agent/team-shared zones.
+	Merged bool
+}
+
+// ChannelScope is the resolved workspace scope returned by ResolveChannel.
+// It carries routing metadata for downstream memory/permission layers.
+type ChannelScope struct {
+	// SenderKind echoes the input sender classification.
+	SenderKind SenderKind
+
+	// ZoneKind describes the resolved zone class.
+	ZoneKind string // "user-agent" | "user-team" | "agent-contact" | "team-contact" | "agent-group" | "team-group"
+
+	// Merged echoes whether the canonical-zone rule was applied.
+	Merged bool
 }
 
 // context key for WorkspaceContext propagation.

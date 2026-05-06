@@ -655,6 +655,12 @@ type RunRequest struct {
 	// TeamWorkspace overrides the member agent's workspace with the team's workspace
 	// so file operations (read/write/image/audio) use the shared team directory.
 	TeamWorkspace string
+
+	// ProjectOverride pins the active project for this run, bypassing session and
+	// contact-store lookups in resolveProjectParams. Used by team dispatch to
+	// propagate the parent's project as a snapshot so mid-conversation
+	// default_project_id changes do not affect already-dispatched sub-agents.
+	ProjectOverride *uuid.UUID
 }
 
 // RunResult is the output of a completed agent run.

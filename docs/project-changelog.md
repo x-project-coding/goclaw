@@ -4,6 +4,42 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-05-06 — v4 RC1 Phase B: Channel Chat Support
+
+**All 11 phases complete.** Channel identity merge atomicity, workspace path resolution, and sub-agent isolation landed.
+
+- **12-scenario channel path matrix** — foundation for routing across agent-type × identity × context combinations. Production wire-in deferred to rc2; implementation fully tested.
+- **Composite-key outbound dispatch** — merged contact canonical lookup for DM routing; group messages route to original chat, preserving group conversation coherence.
+- **6-table atomic merge TX** — consolidates channel identities across contacts, sessions, context files, memory, permissions, traces with ordered locks and audit trail. Post-commit FS relocation best-effort.
+- **Sub-agent isolation** — ProjectID snapshot prevents parent context leakage; UserID/GroupID not propagated. Race-safe against parent group changes.
+- **Pairing vs merge separation** — orthogonal operations with strict table ownership (PairingStore, ContactStore, PermissionStore). No cross-mutations; devices can diverge from identities by design.
+- **Group × project binding** — `channel_contacts.default_project_id` wired via `resolveSessionProject()` helper (Plan #4 P05).
+- **60+ integration tests** — PG + SQLite parity verified across all 11 phases. Chaos tests for merge concurrency (5 cases) and sub-agent snapshot isolation.
+- **ADR:** `docs/adr/2026-05-pairing-vs-merge.md` — formalizes separation invariants.
+
+### Test Summary
+
+- Contact identity schema (5 tests)
+- 12-scenario path matrix (12 table-driven scenarios)
+- Pairing/merge isolation (5 tests)
+- Outbound merged lookup (16 composite-key tests)
+- Sub-agent dispatch isolation (6 tests)
+- Atomic merge TX chaos (5 concurrent cases)
+- End-to-end flows (5 flows across merge, group-team, sub-agent, pairing, group-project)
+
+### Dependencies Verified
+
+- Plan #4 P05 (channel_contacts.default_project_id migration + resolveSessionProject) — verified wired
+- Plan #7 P06 (MigrateConfigPermissionsForMerge helper + traces.contact_id) — verified imports
+- Plan #1 (users.kind enum + user_key) — tested in P01
+- Plan #5 (memory_documents.contact_id 5D scope + project_id) — pre-check in P11 flow
+
+### RC1 Status
+
+All Phase B phases complete. Foundation (Phase A) locked. Ready for rc1 tag + docs sync.
+
+---
+
 ## v4 rc1 Phase B Foundation — 2026-05-05
 
 ### Schema & Identity

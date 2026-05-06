@@ -22,8 +22,8 @@ import (
 //  6. If result is shorter than 3 characters, return "u-" + idHex[:6].
 func SlugFromEmail(email, idHex string) string {
 	local := email
-	if idx := strings.IndexByte(email, '@'); idx >= 0 {
-		local = email[:idx]
+	if before, _, ok := strings.Cut(email, "@"); ok {
+		local = before
 	}
 	// Strip plus-addressing suffix (e.g. alice+work → alice).
 	if idx := strings.IndexByte(local, '+'); idx >= 0 {

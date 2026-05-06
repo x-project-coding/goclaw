@@ -43,8 +43,8 @@ import (
 // fsWriterImpl is the real implementation of FSWriter.
 // Callers obtain one via NewFSWriter.
 type fsWriterImpl struct {
-	root    string   // workspace root (absolute)
-	dialect string   // "pg" or "sqlite"
+	root    string // workspace root (absolute)
+	dialect string // "pg" or "sqlite"
 	db      *sql.DB
 	mu      sync.Map // file absPath → *sync.Mutex
 }
@@ -170,7 +170,7 @@ func (w *fsWriterImpl) writeInTx(ctx context.Context, scope ScopeKey, absPath, r
 	// Retry on SQLITE_BUSY (up to 3 attempts with back-off).
 	const maxRetries = 3
 	backoff := 10 * time.Millisecond
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		v, err := w.tryWriteInTx(ctx, opts, scope, absPath, relPath, content, oldVersion)
 		if err == nil {
 			return v, nil
@@ -366,7 +366,7 @@ func atomicWriteFile(absPath string, content []byte) error {
 	// POSIX: os.Rename is atomic. Windows: retry on sharing violation.
 	const maxRenameRetries = 3
 	renameBackoff := 50 * time.Millisecond
-	for i := 0; i < maxRenameRetries; i++ {
+	for i := range maxRenameRetries {
 		err = os.Rename(tmpPath, absPath)
 		if err == nil {
 			return nil
