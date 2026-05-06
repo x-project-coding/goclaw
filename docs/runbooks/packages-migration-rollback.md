@@ -1,11 +1,24 @@
-# Rollback Runbook: packages-cli-credentials-unified-ui (migration 000056)
+# Rollback Runbook: packages-cli-credentials-unified-ui (migration 000058)
 
 ## Scope
 
-Migration `000056_agent_grants_env_override` adds `encrypted_env BYTEA` to `secure_cli_agent_grants`.
+Migration `000058_agent_grants_env_override` adds `encrypted_env BYTEA` to `secure_cli_agent_grants`.
 
-Phase 2 store code (`GetAgentGrant`, `ListByBinary`) SELECTs this column. If the schema is rolled
+Phase 2 store code (`Get`, `ListByBinary`) SELECTs this column. If the schema is rolled
 back while Phase 2 code is still running, every query against that table will 500.
+
+
+> **WARNING — DESTRUCTIVE ROLLBACK**
+> Running `000058` down **permanently discards** all per-grant env override data.
+> Every row in `secure_cli_agent_grants` where `encrypted_env IS NOT NULL` will lose
+> its encrypted values. **There is no undo after the column is dropped.**
+> 
+> **Mandatory before running down:**
+> ```bash
+> pg_dump --table=secure_cli_agent_grants "$DATABASE_URL" > grants_env_backup_$(date +%Y%m%d_%H%M%S).sql
+> ```
+> The down migration emits a RAISE NOTICE with the count of affected rows before dropping.
+> Review the count and abort if non-zero unless you have confirmed data loss is acceptable.
 
 **Critical rule: revert app code FIRST, then migrate the schema down.**
 
@@ -44,7 +57,7 @@ psql "$DATABASE_URL" -c "\d secure_cli_agent_grants"
 ## SQLite / Desktop (Lite edition) Rollback
 
 SQLite 3.35+ (bundled via modernc.org/sqlite ≥ v1.18) supports `ALTER TABLE … DROP COLUMN`.
-The v25 → v24 downgrade path is **not implemented** in `schema.go` migrations map because
+The v27 → v26 downgrade path is **not implemented** in `schema.go` migrations map because
 golang-migrate is PostgreSQL-only; SQLite versioning is upgrade-only.
 
 ### Option A — Clean reinstall (recommended for desktop users)
@@ -61,7 +74,7 @@ sqlite3 ~/.goclaw/data/goclaw.db \
   "ALTER TABLE secure_cli_agent_grants DROP COLUMN encrypted_env;"
 # Then manually update schema_version row:
 sqlite3 ~/.goclaw/data/goclaw.db \
-  "UPDATE schema_version SET version = 24;"
+  "UPDATE schema_version SET version = 26;"
 ```
 
 Requires SQLite ≥ 3.35 (check with `sqlite3 --version`).
