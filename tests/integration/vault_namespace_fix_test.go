@@ -91,9 +91,14 @@ func TestVaultNamespaceFix_thuyTienScenario(t *testing.T) {
 	readTool.SetKGStore(kg)
 	readTool.SetWorkspace(ws)
 
+	// Search query uses the per-run suffix so prior-run rows (which the
+	// test's UUID-suffixed seed does not delete) cannot dominate the
+	// ranked top-N and starve the KG source out of scenario B.
+	query := "KG_03 " + suffix
+
 	// --- Scenario A: types="context" → vault source only. ---
 	res := searchTool.Execute(ctx, map[string]any{
-		"query":      "KG_03",
+		"query":      query,
 		"types":      "context",
 		"maxResults": float64(5),
 	})
@@ -106,7 +111,7 @@ func TestVaultNamespaceFix_thuyTienScenario(t *testing.T) {
 
 	// --- Scenario B: empty types → both sources present with per-source id fields. ---
 	resB := searchTool.Execute(ctx, map[string]any{
-		"query":      "KG_03",
+		"query":      query,
 		"maxResults": float64(10),
 	})
 	if resB.IsError {

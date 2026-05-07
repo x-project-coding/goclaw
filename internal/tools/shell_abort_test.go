@@ -16,16 +16,23 @@ import (
 // command that forks background children kills the entire process group within 4s
 // and leaves no orphan sleep processes.
 //
-// The command `sh -c "sleep 60 & sleep 60 & wait"` spawns two background sleeps.
-// With process-group kill, both background sleeps must die when ctx is cancelled.
+// The command `sh -c "sleep <N> & sleep <N> & wait"` spawns two background sleeps
+// using a per-invocation-unique duration N. The orphan check filters ps output by
+// that exact duration — without this, stale `sleep 60` processes left over by an
+// earlier test run (or any concurrent shell on the dev machine) cause false
+// failures. The duration is picked from the nanosecond clock and clamped to a
+// "long enough not to exit during the test" range.
 func TestShellAbort_ProcessGroupKilled(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("process-group kill not supported on Windows")
 	}
 
-	// Marker to identify our specific sleep processes.
-	marker := fmt.Sprintf("goclaw_abort_test_%d", time.Now().UnixNano())
-	command := fmt.Sprintf("sleep 60 & echo 'marker=%s' & sleep 60 & wait", marker)
+	// Per-test-unique sleep duration so findOrphanSleeps does not pick up
+	// processes spawned by other tests or by leftover state on the host.
+	// Range [60, 1659] keeps the value plausible to `sleep` (POSIX accepts
+	// any non-negative integer, but small ranges avoid rare locale/quirks).
+	sleepArg := 60 + (time.Now().UnixNano() % 1600)
+	command := fmt.Sprintf("sleep %d & sleep %d & wait", sleepArg, sleepArg)
 
 	tool := NewExecTool(t.TempDir(), false)
 	tool.timeout = 10 * time.Second // generous outer timeout
@@ -60,17 +67,20 @@ func TestShellAbort_ProcessGroupKilled(t *testing.T) {
 	// Give the OS a moment to reap the killed processes.
 	time.Sleep(200 * time.Millisecond)
 
-	// Verify no orphan sleep processes remain. We check with `ps` filtering by
-	// "sleep 60" (the exact argument). pgrep is not reliably available on macOS CI.
-	orphans := findOrphanSleeps(t)
+	// Verify no orphan sleep processes remain. We filter on the exact unique
+	// duration we spawned with so the check cannot collide with unrelated
+	// `sleep` processes on the host.
+	needle := fmt.Sprintf("sleep %d", sleepArg)
+	orphans := findOrphanSleeps(t, needle)
 	if len(orphans) > 0 {
-		t.Errorf("found %d orphan 'sleep 60' process(es) after abort: %v", len(orphans), orphans)
+		t.Errorf("found %d orphan %q process(es) after abort: %v", len(orphans), needle, orphans)
 	}
 }
 
-// findOrphanSleeps returns PIDs of any remaining `sleep 60` processes.
-// Uses `ps aux` output parsed in Go — avoids pgrep availability issues on macOS.
-func findOrphanSleeps(t *testing.T) []string {
+// findOrphanSleeps returns PIDs of any remaining processes whose ps-line
+// matches the given needle. Uses `ps aux` output parsed in Go — avoids
+// pgrep availability issues on macOS.
+func findOrphanSleeps(t *testing.T, needle string) []string {
 	t.Helper()
 
 	out, err := exec.Command("ps", "aux").Output()
@@ -81,12 +91,13 @@ func findOrphanSleeps(t *testing.T) []string {
 
 	var found []string
 	for line := range strings.SplitSeq(string(out), "\n") {
-		// Match lines containing "sleep 60" but not the grep/ps command itself.
-		if strings.Contains(line, "sleep 60") && !strings.Contains(line, "ps aux") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				found = append(found, fields[1]) // PID is column 2 in ps aux
-			}
+		// Skip the ps command itself.
+		if !strings.Contains(line, needle) || strings.Contains(line, "ps aux") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			found = append(found, fields[1]) // PID is column 2 in ps aux
 		}
 	}
 	return found

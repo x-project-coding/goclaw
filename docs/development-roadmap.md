@@ -182,13 +182,18 @@ Permission enforcement for Model Context Protocol servers with scope validation 
   metadata indirection, no TTL). Permission: `ProjectGrantStore.ResolveProjectRole`
   (project member+ or owner). Resolver unchanged — Source 1 (`session.ProjectID`)
   already covers the new write path.
-- ~~**Integration test fixture cleanup**~~ **LANDED 2026-05-07** (batch 1 + batch 2). PG
-  + unit + sqliteonly suites all green. Reports:
+- ~~**Integration test fixture cleanup**~~ **LANDED 2026-05-07** (batch 1 + batch 2 +
+  batch 3). PG + unit + sqliteonly suites all green; integration suite stable across
+  back-to-back runs. Reports:
   `plans/reports/test-cleanup-260507-1452-batch1-summary.md`,
   `plans/reports/test-cleanup-260507-1545-batch2-summary.md`. Batch 2 also landed two
   small production-correctness fixes carried with the tests: hooks `ScopeTenant` →
   `ScopeUser` (Go const ↔ DB constraint drift) and `kg_entities.tsv` GENERATED column
-  (FTS path referenced a column the v4 schema had not added).
+  (FTS path referenced a column the v4 schema had not added). Batch 3 closed two
+  cross-run flakes: `TestShellAbort_ProcessGroupKilled` orphan check used a global
+  "sleep 60" pattern (collided with stragglers); `TestVaultNamespaceFix_thuyTienScenario`
+  scenario B starved the KG source out of the top-N when prior-run vault docs
+  accumulated — both now scoped per-run.
 - **Desktop UI enhancements** (if any)
 
 ---
