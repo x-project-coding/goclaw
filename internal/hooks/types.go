@@ -93,11 +93,12 @@ func (h *HandlerType) UnmarshalJSON(b []byte) error {
 type Scope string
 
 const (
-	// ScopeGlobal hooks apply to all users. Stored with sentinel UUID scope.
+	// ScopeGlobal hooks apply to every agent in the deployment. Stored with a
+	// sentinel scope row (no user_id binding).
 	ScopeGlobal Scope = "global"
-	// ScopeTenant hooks are scoped to a specific tenant.
-	ScopeTenant Scope = "tenant"
-	// ScopeAgent hooks are scoped to a specific agent within a tenant.
+	// ScopeUser hooks are scoped to a specific user (user_id column).
+	ScopeUser Scope = "user"
+	// ScopeAgent hooks are scoped to specific agents via the hook_agents table.
 	ScopeAgent Scope = "agent"
 )
 

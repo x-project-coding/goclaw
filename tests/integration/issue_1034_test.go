@@ -185,63 +185,10 @@ func TestIssue1034_Bug2_DeleteProviderWithHeartbeat(t *testing.T) {
 	}
 }
 
-// TestIssue1034_Bug2_DeleteProviderCrossTenantIsolation — guarantees that
-// even if tenant A possesses tenant B's provider UUID, calling DeleteProvider
-// (without master scope) does NOT disable tenant B's heartbeats. Regression
-// guard for the cross-tenant UPDATE concern raised in code review.
-func TestIssue1034_Bug2_DeleteProviderCrossTenantIsolation(t *testing.T) {
-	db := testDB(t)
-	tenantA, _ := seedTenantAgent(t, db)
-	tenantB, agentB := seedTenantAgent(t, db)
-
-	pstore := pg.NewPGProviderStore(db, "")
-	suffix := uuid.NewString()[:8]
-
-	// Provider lives in tenant B.
-	pB := &store.LLMProviderData{
-		Name:         "openai-compat-tenantB-" + suffix,
-		ProviderType: "openai-compat",
-		APIBase:      "http://127.0.0.1:0",
-		APIKey:       "x",
-		Enabled:      true,
-	}
-	if err := pstore.CreateProvider(tenantCtx(tenantB), pB); err != nil {
-		t.Fatalf("create provider B: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = pstore.DeleteProvider(tenantCtx(tenantB), pB.ID)
-	})
-
-	// Heartbeat in tenant B references provider B and is enabled.
-	hbID := uuid.New()
-	if _, err := db.Exec(
-		`INSERT INTO agent_heartbeats (id, agent_id, enabled, provider_id, model)
-		 VALUES ($1, $2, true, $3, 'gpt-4')`,
-		hbID, agentB, pB.ID,
-	); err != nil {
-		t.Fatalf("seed heartbeat B: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = db.Exec(`DELETE FROM agent_heartbeats WHERE agent_id = $1`, agentB)
-	})
-
-	// Tenant A attempts delete with B's provider UUID. Must NOT touch B's heartbeat.
-	_ = pstore.DeleteProvider(tenantCtx(tenantA), pB.ID)
-
-	var enabled bool
-	var providerID *string
-	if err := db.QueryRow(
-		`SELECT enabled, provider_id::text FROM agent_heartbeats WHERE id = $1`, hbID,
-	).Scan(&enabled, &providerID); err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if !enabled {
-		t.Fatalf("tenant A's DeleteProvider must NOT disable tenant B's heartbeat")
-	}
-	if providerID == nil || *providerID != pB.ID.String() {
-		t.Fatalf("tenant B's heartbeat provider_id must be untouched, got %v", providerID)
-	}
-}
+// Note: legacy TestIssue1034_Bug2_DeleteProviderCrossTenantIsolation removed.
+// v4 is single-tenant; the store layer no longer scopes provider deletes by
+// tenant. Authorization is enforced at the gateway/HTTP layer instead, so a
+// store-level cross-tenant guard is not part of v4's invariants.
 
 // TestIssue1034_Bug3_DoctorDisplayNameEmpty — after phase 05 doctor uses
 // COALESCE(NULLIF(display_name, ''), name) so empty-string display_name

@@ -16,7 +16,9 @@ type mockEmbedProvider struct {
 }
 
 func newMockEmbedProvider() *mockEmbedProvider {
-	return &mockEmbedProvider{dim: 1536}
+	// Match the schema: memory_chunks.embedding and kg_entities.embedding are
+	// halfvec(3072). Inserting a 1536-dim vector errors out at Postgres.
+	return &mockEmbedProvider{dim: 3072}
 }
 
 func (m *mockEmbedProvider) Name() string  { return "mock" }

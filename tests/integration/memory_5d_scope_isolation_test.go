@@ -61,10 +61,10 @@ func TestEpisodicSearch_TeamScopeFilter(t *testing.T) {
 	ctx := context.Background()
 
 	_, agentID := seedTenantAgent(t, db)
-	userID := "user-isolation-test"
+	userID := seedUserForShares(t, db).String()
 
-	teamA := uuid.New()
-	teamB := uuid.New()
+	teamA, _ := seedTeam(t, db, uuid.Nil, agentID)
+	teamB, _ := seedTeam(t, db, uuid.Nil, agentID)
 
 	// Insert row tagged to team A.
 	rowAID := insertEpisodicWithTeam(t, agentID, userID, &teamA, "memory about project alpha")
@@ -143,8 +143,8 @@ func TestMemoryChunks_TeamIsolation(t *testing.T) {
 
 	_, agentID := seedTenantAgent(t, db)
 
-	teamA := uuid.New()
-	teamB := uuid.New()
+	teamA, _ := seedTeam(t, db, uuid.Nil, agentID)
+	teamB, _ := seedTeam(t, db, uuid.Nil, agentID)
 
 	// Insert global chunks (user_id=NULL) tagged to team A and team B.
 	insertMemoryChunkWithTeam(t, agentID, &teamA, "secret data for team alpha")
@@ -178,8 +178,8 @@ func TestMemoryChunks_CrossTeamSearchReturnsNoRows(t *testing.T) {
 
 	_, agentID := seedTenantAgent(t, db)
 
-	teamA := uuid.New()
-	teamB := uuid.New() // no chunks exist for this team
+	teamA, _ := seedTeam(t, db, uuid.Nil, agentID)
+	teamB, _ := seedTeam(t, db, uuid.Nil, agentID) // no chunks exist for this team
 
 	insertMemoryChunkWithTeam(t, agentID, &teamA, "exclusive alpha content")
 
@@ -216,10 +216,10 @@ func TestEpisodicSearch_CrossTeamQueryReturnsNoRows(t *testing.T) {
 	ctx := context.Background()
 
 	_, agentID := seedTenantAgent(t, db)
-	userID := "user-cross-team-test"
+	userID := seedUserForShares(t, db).String()
 
-	teamA := uuid.New()
-	teamB := uuid.New() // no rows exist for this team
+	teamA, _ := seedTeam(t, db, uuid.Nil, agentID)
+	teamB, _ := seedTeam(t, db, uuid.Nil, agentID) // no rows exist for this team
 
 	_ = insertEpisodicWithTeam(t, agentID, userID, &teamA, "secret team alpha data")
 

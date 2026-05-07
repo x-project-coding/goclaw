@@ -34,7 +34,7 @@ func TestPromptInjection_StructuredOutputIsEnforced(t *testing.T) {
 		ID: uuid.New(), Version: 1,
 		HandlerType: hooks.HandlerPrompt,
 		Event:       hooks.EventPreToolUse,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Matcher:     "exec",
 		Config:      map[string]any{"prompt_template": "check safety", "model": "haiku"},
 	}
@@ -64,7 +64,7 @@ func TestPromptInjection_UserPayloadWrapsInputInDelimiter(t *testing.T) {
 	cfg := hooks.HookConfig{
 		ID: uuid.New(), Version: 1,
 		HandlerType: hooks.HandlerPrompt, Event: hooks.EventPreToolUse,
-		Scope: hooks.ScopeTenant, Matcher: "exec",
+		Scope: hooks.ScopeUser, Matcher: "exec",
 		Config: map[string]any{"prompt_template": "template", "model": "haiku"},
 	}
 	ev := hooks.Event{
@@ -106,7 +106,7 @@ func TestPromptInjection_UnicodeAndNestedJSON_StillStructured(t *testing.T) {
 		cfg := hooks.HookConfig{
 			ID: uuid.New(), Version: 1,
 			HandlerType: hooks.HandlerPrompt, Event: hooks.EventPreToolUse,
-			Scope: hooks.ScopeTenant, Matcher: ".*",
+			Scope: hooks.ScopeUser, Matcher: ".*",
 			Config: map[string]any{"prompt_template": "chk", "model": "haiku"},
 		}
 		ev := hooks.Event{
@@ -147,7 +147,7 @@ func TestPromptInjection_InjectionDetectedFlagSurfaces(t *testing.T) {
 	cfg := hooks.HookConfig{
 		ID: uuid.New(), Version: 1,
 		HandlerType: hooks.HandlerPrompt, Event: hooks.EventPreToolUse,
-		Scope: hooks.ScopeTenant, Matcher: ".*",
+		Scope: hooks.ScopeUser, Matcher: ".*",
 		Config: map[string]any{"prompt_template": "x", "model": "haiku"},
 	}
 	ev := hooks.Event{

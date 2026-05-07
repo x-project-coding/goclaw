@@ -33,7 +33,11 @@ func TestVaultNamespaceFix_thuyTienScenario(t *testing.T) {
 	kg := newKGStore(t)
 
 	ws := t.TempDir()
-	relPath := "KG_03_Danh_Muc_San_Pham.md"
+	// vault_documents UPSERT keys on (scope,custom_scope,path,owner_user_id);
+	// agent_id is not part of the conflict tuple, so a fixed path will
+	// re-attach to a row left by a prior run. Suffix per run keeps fresh.
+	suffix := uuid.New().String()[:8]
+	relPath := "KG_03_Danh_Muc_San_Pham_" + suffix + ".md"
 	body := "Product catalog body"
 	if err := os.WriteFile(filepath.Join(ws, relPath), []byte(body), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
@@ -49,18 +53,20 @@ func TestVaultNamespaceFix_thuyTienScenario(t *testing.T) {
 	ctx := store.WithUserID(store.WithAgentID(tenantCtx(tenantID), agentID), userID)
 
 	// Seed vault doc.
-	vdoc := makeSharedVaultDoc(tenantID.String(), relPath, "KG_03 Danh Muc San Pham")
+	vdoc := makeSharedVaultDoc(tenantID.String(), relPath, "KG_03 Danh Muc San Pham "+suffix)
 	vdoc.DocType = "context"
 	if err := vs.UpsertDocument(ctx, vdoc); err != nil {
 		t.Fatalf("UpsertDocument: %v", err)
 	}
 
-	// Seed KG entity with same name.
+	// Seed KG entity with same name token ("KG_03") so the search query matches
+	// both sources. Suffix in the unique fields prevents collisions with rows
+	// left by earlier failed runs (kg_entities is keyed on agent_id+external_id).
 	ent := &store.Entity{
 		AgentID:    agentID.String(),
 		UserID:     userID,
-		ExternalID: "ext-kg03",
-		Name:       "KG_03_Danh_Muc_San_Pham",
+		ExternalID: "ext-kg03-" + suffix,
+		Name:       "KG_03_Danh_Muc_San_Pham_" + suffix,
 		EntityType: "document",
 		Confidence: 0.9,
 	}

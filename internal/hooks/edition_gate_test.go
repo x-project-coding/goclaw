@@ -22,22 +22,22 @@ func TestEditionGate(t *testing.T) {
 	}{
 		// command on Lite — always allowed.
 		{"command/global/lite", hooks.HandlerCommand, hooks.ScopeGlobal, edition.Lite, true},
-		{"command/tenant/lite", hooks.HandlerCommand, hooks.ScopeTenant, edition.Lite, true},
+		{"command/tenant/lite", hooks.HandlerCommand, hooks.ScopeUser, edition.Lite, true},
 		{"command/agent/lite", hooks.HandlerCommand, hooks.ScopeAgent, edition.Lite, true},
 
 		// command on Standard — blocked at every scope.
 		{"command/global/standard", hooks.HandlerCommand, hooks.ScopeGlobal, edition.Standard, false},
-		{"command/tenant/standard", hooks.HandlerCommand, hooks.ScopeTenant, edition.Standard, false},
+		{"command/tenant/standard", hooks.HandlerCommand, hooks.ScopeUser, edition.Standard, false},
 		{"command/agent/standard", hooks.HandlerCommand, hooks.ScopeAgent, edition.Standard, false},
 
 		// http — allowed on both editions, all scopes.
 		{"http/global/lite", hooks.HandlerHTTP, hooks.ScopeGlobal, edition.Lite, true},
-		{"http/tenant/standard", hooks.HandlerHTTP, hooks.ScopeTenant, edition.Standard, true},
+		{"http/tenant/standard", hooks.HandlerHTTP, hooks.ScopeUser, edition.Standard, true},
 		{"http/agent/standard", hooks.HandlerHTTP, hooks.ScopeAgent, edition.Standard, true},
 
 		// prompt — allowed on both editions, all scopes.
 		{"prompt/global/lite", hooks.HandlerPrompt, hooks.ScopeGlobal, edition.Lite, true},
-		{"prompt/tenant/standard", hooks.HandlerPrompt, hooks.ScopeTenant, edition.Standard, true},
+		{"prompt/tenant/standard", hooks.HandlerPrompt, hooks.ScopeUser, edition.Standard, true},
 		{"prompt/agent/lite", hooks.HandlerPrompt, hooks.ScopeAgent, edition.Lite, true},
 	}
 
@@ -60,7 +60,7 @@ func TestEditionGate(t *testing.T) {
 // TestEditionGateUnknownHandler rejects unknown handler types defensively.
 func TestEditionGateUnknownHandler(t *testing.T) {
 	var policy hooks.HookEditionPolicy
-	allow, reason := policy.Allow(hooks.HandlerType("webhook"), hooks.ScopeTenant, edition.Lite)
+	allow, reason := policy.Allow(hooks.HandlerType("webhook"), hooks.ScopeUser, edition.Lite)
 	if allow {
 		t.Errorf("unknown handler should not be allowed; got allow=true reason=%q", reason)
 	}

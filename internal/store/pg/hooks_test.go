@@ -81,7 +81,7 @@ func minimalHook(_ uuid.UUID, event hooks.HookEvent) hooks.HookConfig {
 	return hooks.HookConfig{
 		Event:       event,
 		HandlerType: hooks.HandlerCommand,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Config:      map[string]any{"cmd": "echo test"},
 		Metadata:    map[string]any{},
 		TimeoutMS:   5000,

@@ -721,6 +721,9 @@ CREATE TABLE IF NOT EXISTS kg_entities (
     source_id   VARCHAR(255) DEFAULT '',
     confidence  REAL         NOT NULL DEFAULT 1.0,
     embedding   halfvec(3072),
+    tsv         tsvector GENERATED ALWAYS AS (
+        to_tsvector('simple', coalesce(name,'') || ' ' || coalesce(description,''))
+    ) STORED,
     created_at  TIMESTAMPTZ  DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  DEFAULT NOW(),
     valid_from  TIMESTAMPTZ  DEFAULT NOW(),
@@ -735,6 +738,7 @@ CREATE INDEX idx_kg_entities_team    ON kg_entities(team_id)    WHERE team_id   
 CREATE INDEX idx_kg_contact          ON kg_entities(contact_id) WHERE contact_id IS NOT NULL;
 CREATE INDEX idx_kg_project          ON kg_entities(project_id) WHERE project_id IS NOT NULL;
 CREATE INDEX idx_kg_embedding        ON kg_entities USING hnsw(embedding halfvec_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_kg_entities_tsv     ON kg_entities USING gin(tsv);
 
 CREATE TABLE IF NOT EXISTS kg_relations (
     id               UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),

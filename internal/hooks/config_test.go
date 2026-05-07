@@ -104,7 +104,7 @@ func TestValidate_RejectsMalformedCEL(t *testing.T) {
 // Command handler is Lite-only (multi-tenant host can't run arbitrary shell).
 func TestValidate_RejectsCommandOnStandardTenant(t *testing.T) {
 	h := baseValidCommandHook()
-	h.Scope = hooks.ScopeTenant
+	h.Scope = hooks.ScopeUser
 	err := h.Validate(edition.Standard)
 	if err == nil {
 		t.Fatal("expected error for command on Standard+tenant")
@@ -126,7 +126,7 @@ func TestValidate_RejectsCommandOnStandardAgent(t *testing.T) {
 }
 
 func TestValidate_AcceptsCommandOnLiteAnyScope(t *testing.T) {
-	for _, scope := range []hooks.Scope{hooks.ScopeGlobal, hooks.ScopeTenant, hooks.ScopeAgent} {
+	for _, scope := range []hooks.Scope{hooks.ScopeGlobal, hooks.ScopeUser, hooks.ScopeAgent} {
 		h := baseValidCommandHook()
 		h.Scope = scope
 		if scope != hooks.ScopeGlobal {

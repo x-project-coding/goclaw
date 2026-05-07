@@ -22,7 +22,7 @@ func mkCfg(source string) hooks.HookConfig {
 		ID:          uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Config:      map[string]any{"source": source},
 		Version:     1,
 		Enabled:     true,

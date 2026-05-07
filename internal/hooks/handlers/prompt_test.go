@@ -63,7 +63,7 @@ func makePromptCfg(t *testing.T) hooks.HookConfig {
 		ID:          uuid.New(),
 		Version:     1,
 		HandlerType: hooks.HandlerPrompt,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Event:       hooks.EventPreToolUse,
 		Enabled:     true,
 		Matcher:     "exec",

@@ -204,8 +204,8 @@ func TestPGMetadataCRUD(t *testing.T) {
 		agentID := metaSeedAgent(t)
 		id := uuid.New()
 		_, err := db.ExecContext(ctx,
-			`INSERT INTO memory_documents (id, agent_id, path, content, hash, metadata)
-			 VALUES ($1, $2, '/test/doc', 'content', 'abc123', $3::jsonb)`,
+			`INSERT INTO memory_documents (id, agent_id, path, file_path, content_hash, metadata)
+			 VALUES ($1, $2, '/test/doc', '/test/doc', 'abc123', $3::jsonb)`,
 			id, agentID, metaJSON)
 		if err != nil {
 			t.Fatalf("insert: %v", err)

@@ -78,14 +78,14 @@ func (h *HookConfig) Validate(ed edition.Edition) error {
 	return nil
 }
 
-// validateScope enforces scope-shape invariants in v4 single-user world:
-//   - global → applies to every agent, no extra targeting fields required.
-//   - tenant → semantically meaningless in v4; accepted as alias for global.
+// validateScope enforces scope-shape invariants:
+//   - global → applies to every agent in the deployment.
+//   - user   → bound to a user_id; targets every agent owned by that user.
 //   - agent  → must specify at least one agent_id.
 func (h *HookConfig) validateScope() error {
 	switch h.Scope {
-	case ScopeGlobal, ScopeTenant:
-		// nothing further to check — both target every agent in v4
+	case ScopeGlobal, ScopeUser:
+		// nothing further to check — both target broad agent sets
 	case ScopeAgent:
 		if len(h.AgentIDs) == 0 {
 			if h.AgentID != nil && *h.AgentID != uuid.Nil {

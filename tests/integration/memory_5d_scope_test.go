@@ -184,18 +184,18 @@ func TestMemoryDocumentsScopeUniqueIncludes5D(t *testing.T) {
 	// Insert row 1: same path, contact_id=contactID
 	hash1 := fmt.Sprintf("hash1-%s", uuid.New())
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO memory_documents (id, agent_id, contact_id, path, content, hash)
-		VALUES ($1, $2, $3, 'shared/scope-test.md', 'content-1', $4)`,
+		INSERT INTO memory_documents (id, agent_id, contact_id, path, file_path, content_hash)
+		VALUES ($1, $2, $3, 'shared/scope-test.md', '', $4)`,
 		uuid.New(), agentID, contactID, hash1)
 	if err != nil {
-		t.Fatalf("insert row1 with contact_id: %v (schema may not have contact_id yet)", err)
+		t.Fatalf("insert row1 with contact_id: %v", err)
 	}
 
 	// Insert row 2: same path, no contact_id (NULL) — must succeed under 5D unique
 	hash2 := fmt.Sprintf("hash2-%s", uuid.New())
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO memory_documents (id, agent_id, path, content, hash)
-		VALUES ($1, $2, 'shared/scope-test.md', 'content-2', $3)`,
+		INSERT INTO memory_documents (id, agent_id, path, file_path, content_hash)
+		VALUES ($1, $2, 'shared/scope-test.md', '', $3)`,
 		uuid.New(), agentID, hash2)
 	if err != nil {
 		t.Fatalf("insert row2 with NULL contact_id (5D unique should allow): %v", err)

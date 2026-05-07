@@ -21,9 +21,14 @@ func TestVaultClassify_DeleteDocLinksByTypes_SingleType(t *testing.T) {
 	tid := tenantID.String()
 	aid := agentID.String()
 
-	// Create 2 documents
-	docA := makeVaultDoc(tid, aid, "classify/source.md", "Source Doc")
-	docB := makeVaultDoc(tid, aid, "classify/target.md", "Target Doc")
+	// Path-unique per run: vault_documents UPSERT keys on
+	// (scope, custom_scope, path, owner_user_id) — agent_id is NOT in the
+	// conflict tuple, so a personal doc at a fixed path will reuse rows
+	// abandoned by earlier failed runs (along with their links). UUID suffix
+	// guarantees a fresh row per test.
+	suffix := uuid.New().String()[:8]
+	docA := makeVaultDoc(tid, aid, "classify/source-"+suffix+".md", "Source Doc")
+	docB := makeVaultDoc(tid, aid, "classify/target-"+suffix+".md", "Target Doc")
 	if err := vs.UpsertDocument(ctx, docA); err != nil {
 		t.Fatalf("UpsertDocument A: %v", err)
 	}

@@ -31,7 +31,7 @@ func runCorpus(t *testing.T, h *ScriptHandler, src string, perCaseTimeout time.D
 		ID:          uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Config:      map[string]any{"source": src},
 		Version:     1,
 		Enabled:     true,
@@ -299,7 +299,7 @@ func TestCorpus_MutationOnToolInputFrozen(t *testing.T) {
 		ID:          uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Config:      map[string]any{"source": src},
 		Version:     1,
 	}
@@ -339,7 +339,7 @@ func TestCorpus_MutationOnRawInputFrozen(t *testing.T) {
 		ID:          uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Config:      map[string]any{"source": src},
 		Version:     1,
 	}

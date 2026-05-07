@@ -101,7 +101,10 @@ func TestVaultRead_MediaRejected(t *testing.T) {
 	vs := newVaultStore(db)
 
 	ws := t.TempDir()
-	relPath := "pic.png"
+	// Path-unique per run: personal-scope upsert key omits agent_id, so a
+	// stable filename re-attaches to a row left by a parallel test (its
+	// agent_id wins) and the read scope check then denies our context.
+	relPath := "pic-" + uuid.New().String()[:8] + ".png"
 	if err := os.WriteFile(filepath.Join(ws, relPath), []byte("pretend-png"), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
@@ -195,8 +198,15 @@ func TestVaultRead_OutlinksScopeMatrix(t *testing.T) {
 	tid := tenantID.String()
 	ctxSelf := store.WithAgentID(tenantCtx(tenantID), agentSelf)
 
+	// vault_documents UPSERT keys on (scope, custom_scope, path, owner_user_id);
+	// agent_id is not in the conflict tuple, so a fixed personal path can
+	// collide with a row created by a parallel test (its agent_id wins),
+	// causing GetOutLinks to filter by the wrong agent. Suffix per run keeps
+	// the conflict key unique to this test.
+	suffix := uuid.New().String()[:8]
+
 	// Source file on disk + doc (shared so read is allowed).
-	srcRel := "src.md"
+	srcRel := "src-" + suffix + ".md"
 	if err := os.WriteFile(filepath.Join(ws, srcRel), []byte("src body"), 0o644); err != nil {
 		t.Fatalf("write src: %v", err)
 	}
@@ -209,10 +219,10 @@ func TestVaultRead_OutlinksScopeMatrix(t *testing.T) {
 	// Seed a real team belonging to a DIFFERENT agent so the "team-other"
 	// target satisfies FK and is scope-denied from agentSelf's RunContext.
 	otherTeamID, _ := seedTeam(t, db, tenantID, agentOther)
-	shared := makeSharedVaultDoc(tid, "shared.md", "SharedTgt")
-	personalSelf := makeVaultDoc(tid, agentSelf.String(), "self.md", "SelfTgt")
-	personalOther := makeVaultDoc(tid, agentOther.String(), "other.md", "PersonalOtherTgt")
-	teamOther := makeTeamVaultDoc(tid, otherTeamID.String(), "team.md", "TeamOtherTgt")
+	shared := makeSharedVaultDoc(tid, "shared-"+suffix+".md", "SharedTgt")
+	personalSelf := makeVaultDoc(tid, agentSelf.String(), "self-"+suffix+".md", "SelfTgt")
+	personalOther := makeVaultDoc(tid, agentOther.String(), "other-"+suffix+".md", "PersonalOtherTgt")
+	teamOther := makeTeamVaultDoc(tid, otherTeamID.String(), "team-"+suffix+".md", "TeamOtherTgt")
 	for _, d := range []*store.VaultDocument{shared, personalSelf, personalOther, teamOther} {
 		if err := vs.UpsertDocument(ctxSelf, d); err != nil {
 			t.Fatalf("Upsert target %s: %v", d.Title, err)

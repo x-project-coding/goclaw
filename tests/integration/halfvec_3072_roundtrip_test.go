@@ -23,8 +23,8 @@ func TestHalfvec3072RoundTrip(t *testing.T) {
 	// Insert a memory_document to satisfy the FK.
 	var docID string
 	err := db.QueryRow(
-		`INSERT INTO memory_documents (agent_id, file_path, content_hash, version)
-		 VALUES ($1, 'test/roundtrip.md', 'aabbcc', 1)
+		`INSERT INTO memory_documents (agent_id, path, file_path, content_hash, version)
+		 VALUES ($1, 'test/roundtrip.md', 'test/roundtrip.md', 'aabbcc', 1)
 		 RETURNING id`,
 		agentID,
 	).Scan(&docID)
@@ -38,8 +38,8 @@ func TestHalfvec3072RoundTrip(t *testing.T) {
 	// Insert a memory_chunk with the 3072-dim embedding.
 	var chunkID string
 	insertSQL := fmt.Sprintf(
-		`INSERT INTO memory_chunks (document_id, agent_id, chunk_index, content, embedding)
-		 VALUES ($1, $2, 0, 'hello world', '%s'::halfvec)
+		`INSERT INTO memory_chunks (document_id, agent_id, path, start_line, end_line, hash, text, embedding)
+		 VALUES ($1, $2, 'test/roundtrip.md', 0, 1, 'aabbcc', 'hello world', '%s'::halfvec)
 		 RETURNING id`,
 		vec,
 	)
@@ -76,8 +76,8 @@ func TestHalfvec3072DimMismatchRejected(t *testing.T) {
 
 	var docID string
 	err := db.QueryRow(
-		`INSERT INTO memory_documents (agent_id, file_path, content_hash, version)
-		 VALUES ($1, 'test/mismatch.md', 'deadbeef', 1)
+		`INSERT INTO memory_documents (agent_id, path, file_path, content_hash, version)
+		 VALUES ($1, 'test/mismatch.md', 'test/mismatch.md', 'deadbeef', 1)
 		 RETURNING id`,
 		agentID,
 	).Scan(&docID)
@@ -90,8 +90,8 @@ func TestHalfvec3072DimMismatchRejected(t *testing.T) {
 
 	vec1536 := generate1536HalfvecLiteral(99)
 	insertSQL := fmt.Sprintf(
-		`INSERT INTO memory_chunks (document_id, agent_id, chunk_index, content, embedding)
-		 VALUES ($1, $2, 0, 'mismatch', '%s'::halfvec)`,
+		`INSERT INTO memory_chunks (document_id, agent_id, path, start_line, end_line, hash, text, embedding)
+		 VALUES ($1, $2, 'test/mismatch.md', 0, 1, 'deadbeef', 'mismatch', '%s'::halfvec)`,
 		vec1536,
 	)
 	_, err = db.Exec(insertSQL, docID, agentID)

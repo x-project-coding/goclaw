@@ -25,7 +25,7 @@ import (
 func makeCommandHook(t *testing.T, hs hooks.HookStore, _ uuid.UUID, source string, enabled bool) uuid.UUID {
 	t.Helper()
 	cfg := hooks.HookConfig{
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Config:      map[string]any{"command": "echo ok"},

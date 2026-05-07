@@ -30,12 +30,17 @@ func TestHooksTracing_EmitHookSpan(t *testing.T) {
 	c.Start()
 	// No defer Stop — tests call Stop explicitly to flush before polling.
 
-	// Seed a parent trace so tenant_id scoping doesn't orphan the span.
+	// Seed a parent trace so the span insert satisfies the trace_id FK.
+	// CreatedAt must be set; the collector prunes traces with created_at <
+	// (now - retention), and an unset value defaults to year-0001 → instant
+	// delete.
 	traceID := uuid.New()
+	now := time.Now().UTC()
 	if err := c.CreateTrace(tenantCtx(tenantID), &store.TraceData{
 		ID:        traceID,
 		Status:    store.SpanStatusCompleted,
-		StartTime: time.Now().Add(-5 * time.Second),
+		StartTime: now.Add(-5 * time.Second),
+		CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateTrace: %v", err)
 	}
@@ -87,9 +92,11 @@ func TestHooksTracing_DispatcherEmitsSpan(t *testing.T) {
 	// No defer Stop — tests call Stop explicitly to flush before polling.
 
 	traceID := uuid.New()
+	now := time.Now().UTC()
 	if err := c.CreateTrace(tenantCtx(tenantID), &store.TraceData{
 		ID: traceID, Status: store.SpanStatusCompleted,
-		StartTime: time.Now().Add(-5 * time.Second),
+		StartTime: now.Add(-5 * time.Second),
+		CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateTrace: %v", err)
 	}

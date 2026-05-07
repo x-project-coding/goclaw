@@ -30,14 +30,19 @@ func TestBridgeTool_Execute_RevokeAgentGrant_ReturnsError(t *testing.T) {
 	// Grant agent access to the MCP server
 	grantAgentAccess(t, db, tenantID, serverID, agentID)
 
+	// Seed a real user — ListAccessible joins mcp_user_grants whose user_id is
+	// a UUID FK to users.id, so we must pass a parseable UUID even though the
+	// LEFT JOIN tolerates an absent grant row.
+	userID := seedUserForShares(t, db).String()
+
 	// Create MCP store
 	mcpStore := pg.NewPGMCPServerStore(db, testEncryptionKey)
 	ctx := context.Background()
 	ctx = store.WithAgentID(ctx, agentID)
-	ctx = store.WithUserID(ctx, "test-user")
+	ctx = store.WithUserID(ctx, userID)
 
 	// Verify grant is active
-	accessible, err := mcpStore.ListAccessible(ctx, agentID, "test-user")
+	accessible, err := mcpStore.ListAccessible(ctx, agentID, userID)
 	if err != nil {
 		t.Fatalf("ListAccessible: %v", err)
 	}
@@ -101,7 +106,7 @@ func TestBridgeTool_Execute_RevokeUserGrant_ReturnsError(t *testing.T) {
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
 	serverID := seedMCPServer(t, db, tenantID)
-	userID := "test-user-" + uuid.New().String()[:8]
+	userID := seedUserForShares(t, db).String()
 
 	// Grant agent access (required for ListAccessible)
 	grantAgentAccess(t, db, tenantID, serverID, agentID)
@@ -171,6 +176,7 @@ func TestResolver_Rebuild_AfterRevoke_NoToolInPrompt(t *testing.T) {
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
 	serverID := seedMCPServer(t, db, tenantID)
+	userID := seedUserForShares(t, db).String()
 
 	// Grant agent access
 	grantAgentAccess(t, db, tenantID, serverID, agentID)
@@ -180,7 +186,7 @@ func TestResolver_Rebuild_AfterRevoke_NoToolInPrompt(t *testing.T) {
 	ctx := context.Background()
 
 	// Verify grant is active
-	accessible, err := mcpStore.ListAccessible(ctx, agentID, "test-user")
+	accessible, err := mcpStore.ListAccessible(ctx, agentID, userID)
 	if err != nil {
 		t.Fatalf("ListAccessible before revoke: %v", err)
 	}
@@ -196,7 +202,7 @@ func TestResolver_Rebuild_AfterRevoke_NoToolInPrompt(t *testing.T) {
 	}
 
 	// Verify no servers accessible after revoke
-	accessible, err = mcpStore.ListAccessible(ctx, agentID, "test-user")
+	accessible, err = mcpStore.ListAccessible(ctx, agentID, userID)
 	if err != nil {
 		t.Fatalf("ListAccessible after revoke: %v", err)
 	}
@@ -212,25 +218,29 @@ func TestResolver_Rebuild_AfterRevoke_NoToolInPrompt(t *testing.T) {
 
 // --- Helpers ---
 
-func grantAgentAccess(t *testing.T, db *sql.DB, tenantID, serverID, agentID uuid.UUID) {
+func grantAgentAccess(t *testing.T, db *sql.DB, _ uuid.UUID, serverID, agentID uuid.UUID) {
 	t.Helper()
 	_, err := db.Exec(
-		`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, granted_by, created_at, tenant_id)
-		 VALUES ($1, $2, $3, true, 'test-admin', NOW(), $4)
+		`INSERT INTO mcp_agent_grants (id, server_id, agent_id, enabled, granted_by, created_at)
+		 VALUES ($1, $2, $3, true, 'test-admin', NOW())
 		 ON CONFLICT (server_id, agent_id) DO UPDATE SET enabled = true`,
-		uuid.New(), serverID, agentID, tenantID)
+		uuid.New(), serverID, agentID)
 	if err != nil {
 		t.Fatalf("grantAgentAccess: %v", err)
 	}
 }
 
-func grantUserAccess(t *testing.T, db *sql.DB, tenantID, serverID uuid.UUID, userID string) {
+func grantUserAccess(t *testing.T, db *sql.DB, _, serverID uuid.UUID, userID string) {
 	t.Helper()
-	_, err := db.Exec(
-		`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, granted_by, created_at, tenant_id)
-		 VALUES ($1, $2, $3, true, 'test-admin', NOW(), $4)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		t.Fatalf("grantUserAccess: userID must be a UUID in v4 (mcp_user_grants.user_id FK to users.id): %v", err)
+	}
+	_, err = db.Exec(
+		`INSERT INTO mcp_user_grants (id, server_id, user_id, enabled, granted_by, created_at)
+		 VALUES ($1, $2, $3, true, 'test-admin', NOW())
 		 ON CONFLICT (server_id, user_id) DO UPDATE SET enabled = true`,
-		uuid.New(), serverID, userID, tenantID)
+		uuid.New(), serverID, uid)
 	if err != nil {
 		t.Fatalf("grantUserAccess: %v", err)
 	}

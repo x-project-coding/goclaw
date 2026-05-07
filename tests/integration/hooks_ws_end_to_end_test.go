@@ -131,7 +131,7 @@ func TestHooksCommandHandlerRejectedOnStandard(t *testing.T) {
 	withEdition(t, edition.Standard)
 
 	cfg := hooks.HookConfig{
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Event:       hooks.EventPreToolUse,
 		HandlerType: hooks.HandlerCommand,
 		Config:      map[string]any{"command": "echo ok"},

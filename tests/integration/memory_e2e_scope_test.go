@@ -95,8 +95,8 @@ func TestE2EPrivacyL31UserZoneInviolable(t *testing.T) {
 	// Alice writes a private memory row.
 	aliceDocID := uuid.New()
 	if _, err := db.ExecContext(ctx, `
-		INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash)
-		VALUES ($1,$2,$3,'private/alice-secret.md','alice secret content','hash-alice-l31')`,
+		INSERT INTO memory_documents (id, agent_id, user_id, path, file_path, content_hash)
+		VALUES ($1,$2,$3,'private/alice-secret.md','','hash-alice-l31')`,
 		aliceDocID, agentID, aliceID); err != nil {
 		t.Fatalf("alice write private memory: %v", err)
 	}

@@ -177,11 +177,13 @@ Permission enforcement for Model Context Protocol servers with scope validation 
 
 - ~~**Channel path matrix production wire-in**~~ **LANDED 2026-05-07** (commit `780eab16`).
 - **Session project override** (Layer 2 user `/project switch` command) — STILL DEFERRED.
-- **Integration test fixture cleanup** (~20 tests fail on test code drift after migration
-  ordering fix; production schema OK). See
-  `plans/reports/test-cleanup-260507-1452-batch1-summary.md`. Batch 1 (7 tests) landed
-  2026-05-07 (commit `63f48861`). Remaining batches: hooks `ScopeTenant` rename, memory 5D
-  scope tests, MCP bridge, halfvec fixture gaps.
+- ~~**Integration test fixture cleanup**~~ **LANDED 2026-05-07** (batch 1 + batch 2). PG
+  + unit + sqliteonly suites all green. Reports:
+  `plans/reports/test-cleanup-260507-1452-batch1-summary.md`,
+  `plans/reports/test-cleanup-260507-1545-batch2-summary.md`. Batch 2 also landed two
+  small production-correctness fixes carried with the tests: hooks `ScopeTenant` →
+  `ScopeUser` (Go const ↔ DB constraint drift) and `kg_entities.tsv` GENERATED column
+  (FTS path referenced a column the v4 schema had not added).
 - **Desktop UI enhancements** (if any)
 
 ---

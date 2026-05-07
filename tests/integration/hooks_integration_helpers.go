@@ -79,7 +79,7 @@ const allowAllScript = `function handle(e) { return {decision: "allow"}; }`
 // boilerplate so each test's intent stays one-line-clear.
 func hookCfgScript(_ uuid.UUID, ev hooks.HookEvent, source string, src string) hooks.HookConfig {
 	return hooks.HookConfig{
-		Scope: hooks.ScopeTenant,
+		Scope: hooks.ScopeUser,
 		Event:       ev,
 		HandlerType: hooks.HandlerScript,
 		Config:      map[string]any{"source": src},

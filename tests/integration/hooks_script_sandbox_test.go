@@ -29,7 +29,7 @@ func makeScriptCfg(src string, timeoutMS int) hooks.HookConfig {
 		ID:          uuid.New(),
 		Event:       hooks.EventUserPromptSubmit,
 		HandlerType: hooks.HandlerScript,
-		Scope:       hooks.ScopeTenant,
+		Scope:       hooks.ScopeUser,
 		Source:      "ui",
 		Config:      map[string]any{"source": src},
 		TimeoutMS:   timeoutMS,

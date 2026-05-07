@@ -80,7 +80,7 @@ func fixtureRows() []hooks.HookConfig {
 			ID:          uuid.New(),
 			Event:       hooks.EventPreToolUse,
 			HandlerType: ht,
-			Scope:       hooks.ScopeTenant,
+			Scope:       hooks.ScopeUser,
 			Source:      src,
 			Enabled:     enabled,
 			Version:     1,
