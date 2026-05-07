@@ -223,7 +223,7 @@
   "voice_loading": "Loading voices…",
   "voice_preview_error": "Preview failed — refreshing list",
   "model_label": "Model",
-  "model_placeholder": "Default (tenant/system)",
+  "model_placeholder": "Default (system)",
   "empty_state": {
     "title": "TTS not configured",
     "description": "Configure a TTS provider to enable voice for agents.",

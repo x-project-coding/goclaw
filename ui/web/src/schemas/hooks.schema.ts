@@ -16,7 +16,7 @@ export const HookEventEnum = z.enum([
 // `script` added in Phase 06 (goja ES5.1 runtime; builtin PII redactor ships in Phase 05).
 export const HookHandlerTypeEnum = z.enum(["script", "http", "prompt"]);
 
-export const HookScopeEnum = z.enum(["global", "tenant", "agent"]);
+export const HookScopeEnum = z.enum(["global", "user", "agent"]);
 
 export const hookFormSchema = z
   .object({

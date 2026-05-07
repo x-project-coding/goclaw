@@ -35,5 +35,3 @@ export function RequireOwner({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Alias for RequireAdmin — used where cross-tenant checks previously appeared. */
-export const RequireCrossTenant = RequireAdmin;

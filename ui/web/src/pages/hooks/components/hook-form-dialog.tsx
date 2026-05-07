@@ -36,8 +36,8 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
   // Global scope only visible to owner/admin; existing `global` hooks still render as-is in edit mode.
   const isMasterScope = role === "owner" || role === "admin";
   const scopeOptions = isMasterScope
-    ? (["global", "tenant", "agent"] as const)
-    : (["tenant", "agent"] as const);
+    ? (["global", "user", "agent"] as const)
+    : (["user", "agent"] as const);
 
   const {
     register, control, handleSubmit, watch, reset,
@@ -49,7 +49,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
       agent_ids: [],
       event: "pre_tool_use",
       handler_type: "script",
-      scope: "tenant",
+      scope: "user",
       timeout_ms: 5000,
       on_timeout: "block",
       priority: 100,

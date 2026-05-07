@@ -42,7 +42,6 @@
     "apiKeys": "API Keys",
     "apiDocs": "API Docs",
     "packages": "Packages",
-    "tenants": "Tenants",
     "backupRestore": "Backup & Restore"
   }
 }

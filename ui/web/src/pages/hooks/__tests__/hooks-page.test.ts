@@ -13,7 +13,7 @@ describe("hookFormSchema — base cases", () => {
   const base = {
     event: "pre_tool_use" as const,
     handler_type: "http" as const,
-    scope: "tenant" as const,
+    scope: "user" as const,
     timeout_ms: 5000,
     on_timeout: "block" as const,
     priority: 100,
@@ -157,7 +157,7 @@ describe("hook config builder logic", () => {
       const result = hookFormSchema.safeParse({
         event: ev,
         handler_type: "http",
-        scope: "tenant",
+        scope: "user",
         timeout_ms: 5000,
         on_timeout: "block",
         priority: 100,

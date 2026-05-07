@@ -12,7 +12,7 @@ export interface HookConfig {
   name?: string;
   event: string;
   handler_type: "command" | "http" | "prompt" | "script";
-  scope: "global" | "tenant" | "agent";
+  scope: "global" | "user" | "agent";
   config: Record<string, unknown>;
   matcher?: string;
   if_expr?: string;

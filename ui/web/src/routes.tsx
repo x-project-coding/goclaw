@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router";
 import { AppLayout } from "@/components/layout/app-layout";
 import { RequireAuth } from "@/components/shared/require-auth";
-import { RequireAdmin, RequireCrossTenant } from "@/components/shared/require-role";
+import { RequireAdmin } from "@/components/shared/require-role";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { ROUTES } from "@/lib/constants";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
@@ -158,7 +158,7 @@ export function AppRoutes() {
           <Route path={ROUTES.HOOK_DETAIL} element={<HooksPage key="detail" />} />
           <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
           {/* Admin-only pages */}
-          <Route path={ROUTES.CONFIG} element={<RequireCrossTenant><ConfigPage /></RequireCrossTenant>} />
+          <Route path={ROUTES.CONFIG} element={<RequireAdmin><ConfigPage /></RequireAdmin>} />
           <Route path={ROUTES.PROVIDERS} element={<RequireAdmin><ProvidersPage key="list" /></RequireAdmin>} />
           <Route path={ROUTES.PROVIDER_DETAIL} element={<RequireAdmin><ProvidersPage key="detail" /></RequireAdmin>} />
           <Route path={ROUTES.CLI_CREDENTIALS} element={<RequireAdmin><CliCredentialsPage /></RequireAdmin>} />
@@ -169,7 +169,7 @@ export function AppRoutes() {
           <Route path={ROUTES.LOGS} element={<RequireAdmin><LogsPage /></RequireAdmin>} />
           <Route path={ROUTES.BUILTIN_TOOLS} element={<RequireAdmin><BuiltinToolsPage /></RequireAdmin>} />
           <Route path={ROUTES.MCP} element={<RequireAdmin><MCPPage /></RequireAdmin>} />
-          <Route path={ROUTES.TTS} element={<RequireCrossTenant><TtsPage /></RequireCrossTenant>} />
+          <Route path={ROUTES.TTS} element={<RequireAdmin><TtsPage /></RequireAdmin>} />
           <Route path={ROUTES.STORAGE} element={<RequireAdmin><StoragePage /></RequireAdmin>} />
           <Route path={ROUTES.PACKAGES} element={<RequireAdmin><PackagesPage /></RequireAdmin>} />
 

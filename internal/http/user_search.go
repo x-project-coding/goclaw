@@ -20,7 +20,7 @@ type UserSearchResult struct {
 	Source             string  `json:"source"` // "contact" or "tenant_user"
 	ChannelType        *string `json:"channel_type,omitempty"`
 	PeerKind           *string `json:"peer_kind,omitempty"`
-	MergedTenantUserID *string `json:"merged_tenant_user_id,omitempty"`
+	MergedUserID *string `json:"merged_user_id,omitempty"`
 	Role               *string `json:"role,omitempty"`
 }
 

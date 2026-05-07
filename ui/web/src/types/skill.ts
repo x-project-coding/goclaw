@@ -7,7 +7,7 @@ export interface SkillInfo {
   visibility?: string;
   tags?: string[];
   version?: number;
-  is_system?: boolean;
+  owner_id?: string;
   status?: string;
   enabled?: boolean;
   author?: string;
@@ -35,5 +35,5 @@ export interface SkillWithGrant {
   version: number;
   granted: boolean;
   pinned_version?: number;
-  is_system: boolean;
+  owner_id?: string;
 }

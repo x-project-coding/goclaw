@@ -288,7 +288,7 @@ export function HooksPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("filters.all")}</SelectItem>
-            {["global", "tenant", "agent"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            {["global", "user", "agent"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
