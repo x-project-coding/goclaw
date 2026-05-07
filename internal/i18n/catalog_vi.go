@@ -255,5 +255,10 @@ func init() {
 		MsgInvalidShareRole:   "vai trò chia sẻ phải là viewer, member hoặc editor",
 
 		MsgChannelDefaultProjectDenied: "Bạn không có quyền đặt dự án này làm mặc định cho kênh này",
+
+		MsgProjectSlugImmutable:    "không thể thay đổi slug của dự án sau khi đã tạo",
+		MsgProjectInvalidStatus:    "trạng thái phải là 'active' hoặc 'archived'",
+		MsgProjectGrantInvalid:     "grant phải chỉ định đúng một trong userId hoặc teamId",
+		MsgProjectGrantInvalidRole: "role phải là một trong viewer, member, editor",
 	})
 }

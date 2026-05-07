@@ -252,6 +252,12 @@ const (
 	// --- Channel default project ---
 	MsgChannelDefaultProjectDenied = "permissions.channel_default_project.denied" // "You don't have permission to set this project as default for this channel"
 
+	// --- Projects ---
+	MsgProjectSlugImmutable   = "error.project_slug_immutable"    // "project slug cannot be changed after creation"
+	MsgProjectInvalidStatus   = "error.project_invalid_status"    // "status must be 'active' or 'archived'"
+	MsgProjectGrantInvalid    = "error.project_grant_invalid"     // "grant must specify exactly one of userId or teamId"
+	MsgProjectGrantInvalidRole = "error.project_grant_invalid_role" // "role must be one of viewer, member, editor"
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher          = "hook.invalid_matcher"           // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard = "hook.command_disabled_standard" // "command-type hooks are only available on Lite edition"

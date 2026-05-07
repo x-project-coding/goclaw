@@ -79,6 +79,12 @@ func registerAllMethods(server *gateway.Server, agents *agent.Router, sessStore 
 		methods.NewChannelContactsMethods(contactStore, channelInstanceStore, agentStore, projectStore, projectGrantStore, msgBus, cfg).Register(router)
 	}
 
+	// Projects + project grants RPC.
+	if projectStore != nil && projectGrantStore != nil {
+		methods.NewProjectsMethods(projectStore, projectGrantStore, msgBus, cfg).Register(router)
+		methods.NewProjectGrantsMethods(projectStore, projectGrantStore, msgBus, cfg).Register(router)
+	}
+
 	slog.Info("registered all RPC methods",
 		"phase1", []string{"chat", "agents", "sessions", "config"},
 		"phase2", []string{"skills", "cron", "heartbeat", "pairing", "usage", "exec_approval", "send"},

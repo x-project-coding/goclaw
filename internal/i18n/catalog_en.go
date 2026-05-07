@@ -255,5 +255,10 @@ func init() {
 		MsgInvalidShareRole:   "share role must be one of viewer, member, editor",
 
 		MsgChannelDefaultProjectDenied: "You don't have permission to set this project as default for this channel",
+
+		MsgProjectSlugImmutable:    "project slug cannot be changed after creation",
+		MsgProjectInvalidStatus:    "status must be 'active' or 'archived'",
+		MsgProjectGrantInvalid:     "grant must specify exactly one of userId or teamId",
+		MsgProjectGrantInvalidRole: "role must be one of viewer, member, editor",
 	})
 }

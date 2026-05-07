@@ -255,5 +255,10 @@ func init() {
 		MsgInvalidShareRole:   "共享角色必须是 viewer、member 或 editor",
 
 		MsgChannelDefaultProjectDenied: "您无权将此项目设为此频道的默认项目",
+
+		MsgProjectSlugImmutable:    "项目 slug 创建后不可更改",
+		MsgProjectInvalidStatus:    "状态必须是 'active' 或 'archived'",
+		MsgProjectGrantInvalid:     "授权必须指定 userId 或 teamId 中的一个",
+		MsgProjectGrantInvalidRole: "角色必须是 viewer、member、editor 之一",
 	})
 }
