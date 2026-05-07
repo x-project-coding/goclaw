@@ -30,7 +30,7 @@ func (c *Channel) isWriterSlashCommand(mc *messageContext) bool {
 	}
 	cmd := strings.ToLower(strings.SplitN(text, " ", 2)[0])
 	switch cmd {
-	case "/addwriter", "/removewriter", "/writers":
+	case "/addwriter", "/removewriter", "/writers", "/project":
 		return true
 	}
 	return false
@@ -87,6 +87,9 @@ func (c *Channel) maybeHandleWriterCommand(ctx context.Context, mc *messageConte
 		return true
 	case "/writers":
 		c.handleFeishuListWriters(ctx, mc)
+		return true
+	case "/project":
+		c.handleProjectCommand(ctx, mc)
 		return true
 	}
 	return false

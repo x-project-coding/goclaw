@@ -176,7 +176,12 @@ Permission enforcement for Model Context Protocol servers with scope validation 
 ## Deferred to RC2
 
 - ~~**Channel path matrix production wire-in**~~ **LANDED 2026-05-07** (commit `780eab16`).
-- **Session project override** (Layer 2 user `/project switch` command) — STILL DEFERRED.
+- ~~**Session project override**~~ **LANDED 2026-05-07** (Layer 2). `/project list`,
+  `/project current`, `/project switch <slug>`, `/project clear` ship on Telegram +
+  Feishu/Lark + Discord. Storage: `agent_sessions.project_id` column directly (no
+  metadata indirection, no TTL). Permission: `ProjectGrantStore.ResolveProjectRole`
+  (project member+ or owner). Resolver unchanged — Source 1 (`session.ProjectID`)
+  already covers the new write path.
 - ~~**Integration test fixture cleanup**~~ **LANDED 2026-05-07** (batch 1 + batch 2). PG
   + unit + sqliteonly suites all green. Reports:
   `plans/reports/test-cleanup-260507-1452-batch1-summary.md`,

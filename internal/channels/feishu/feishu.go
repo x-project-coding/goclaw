@@ -42,8 +42,11 @@ type Channel struct {
 	dedup           sync.Map  // message_id → struct{}
 	reactions       sync.Map  // chatID → *reactionState
 	docCache        *docCache // LRU+TTL cache for Lark docx raw_content lookups
-	agentStore      store.AgentStore            // optional — agent key → UUID lookup for writer commands
-	configPermStore store.ConfigPermissionStore // optional — group file writer ACL for /addwriter et al.
+	agentStore        store.AgentStore            // optional — agent key → UUID lookup for writer commands
+	configPermStore   store.ConfigPermissionStore // optional — group file writer ACL for /addwriter et al.
+	sessionStore      store.SessionCoreStore      // optional — /project session binding writes
+	projectStore      store.ProjectStore          // optional — /project slug lookup
+	projectGrantStore store.ProjectGrantStore     // optional — /project switch RBAC check
 	groupAllowList  []string                    // Feishu-specific: per-group sender allowlist (separate from BaseChannel allowList)
 	stopCh          chan struct{}
 	httpServer      *http.Server
@@ -67,6 +70,21 @@ func WithAgentStore(s store.AgentStore) Option { return func(c *Channel) { c.age
 // available" message instead of crashing.
 func WithConfigPermStore(s store.ConfigPermissionStore) Option {
 	return func(c *Channel) { c.configPermStore = s }
+}
+
+// WithSessionStore enables /project session-binding writes.
+func WithSessionStore(s store.SessionCoreStore) Option {
+	return func(c *Channel) { c.sessionStore = s }
+}
+
+// WithProjectStore enables /project slug lookups.
+func WithProjectStore(s store.ProjectStore) Option {
+	return func(c *Channel) { c.projectStore = s }
+}
+
+// WithProjectGrantStore enables /project switch RBAC checks.
+func WithProjectGrantStore(s store.ProjectGrantStore) Option {
+	return func(c *Channel) { c.projectGrantStore = s }
 }
 
 // Lark docs auto-fetch tunables. Kept as consts rather than config fields
