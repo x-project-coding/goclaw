@@ -112,6 +112,35 @@ describe("useProjectGrants", () => {
     await waitFor(() => expect(result.current.direct).toEqual([sampleGrant]));
   });
 
+  it("revokeGrant rollback does not resurrect a concurrently-revoked grant", async () => {
+    // Seed two grants then race two revokes: A succeeds, B fails. Pre-fix, the
+    // failing revoke restored its closure snapshot which still contained A,
+    // resurrecting the already-deleted row. Post-fix uses functional rollback
+    // that only re-inserts the specific row B removed.
+    const grantA: ProjectGrant = { ...sampleGrant, id: "grant-A", userId: "user-A" };
+    const grantB: ProjectGrant = { ...sampleGrant, id: "grant-B", userId: "user-B" };
+    callMock.mockResolvedValueOnce({ grants: [grantA, grantB] });
+    const { result } = renderHook(() => useProjectGrants(PROJECT));
+    await act(async () => {
+      await result.current.loadDirect();
+    });
+    // A succeeds, B fails.
+    callMock.mockResolvedValueOnce({ ok: true });
+    callMock.mockRejectedValueOnce(new Error("forbidden"));
+    await act(async () => {
+      const [okA, okB] = await Promise.all([
+        result.current.revokeGrant("grant-A"),
+        result.current.revokeGrant("grant-B"),
+      ]);
+      expect(okA).toBe(true);
+      expect(okB).toBe(false);
+    });
+    // Final state: A gone (succeeded), B restored (failed). A must NOT be
+    // resurrected by B's rollback.
+    const ids = result.current.direct.map((g) => g.id).sort();
+    expect(ids).toEqual(["grant-B"]);
+  });
+
   it("addGrant is a no-op when projectId is null", async () => {
     const { result } = renderHook(() => useProjectGrants(null));
     await act(async () => {

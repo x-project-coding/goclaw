@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import i18next from "i18next";
 import { useWs } from "@/hooks/use-ws";
 import { useAuthStore } from "@/stores/use-auth-store";
@@ -14,6 +14,16 @@ export function useProjectGrants(projectId: string | null | undefined) {
   const [inherited, setInherited] = useState<ProjectGrant[]>([]);
   const [loadingDirect, setLoadingDirect] = useState(false);
   const [loadingInherited, setLoadingInherited] = useState(false);
+
+  // Mirror `direct` into a ref so revokeGrant can snapshot the row being removed
+  // synchronously, without a stale-closure capture inside `useCallback` (which
+  // would resurrect concurrently-revoked rows on rollback) and without relying
+  // on the setState updater callback (Strict Mode invokes it twice in dev,
+  // overwriting any closed-over capture variable on the second pass).
+  const directRef = useRef<ProjectGrant[]>([]);
+  useEffect(() => {
+    directRef.current = direct;
+  }, [direct]);
 
   const loadDirect = useCallback(async () => {
     if (!connected || !projectId) return;
@@ -89,20 +99,24 @@ export function useProjectGrants(projectId: string | null | undefined) {
 
   const revokeGrant = useCallback(
     async (grantId: string): Promise<boolean> => {
-      const snapshot = direct;
-      // Optimistic remove
+      // Snapshot the row from the ref BEFORE dispatching the optimistic remove —
+      // safe under concurrent revokes because each call captures its own row.
+      const removed = directRef.current.find((g) => g.id === grantId);
       setDirect((prev) => prev.filter((g) => g.id !== grantId));
       try {
         await ws.call(Methods.PROJECT_GRANTS_DELETE, { id: grantId });
         toast.success(i18next.t("projects:toast.revoked"));
         return true;
       } catch (err) {
-        setDirect(snapshot);
+        if (removed) {
+          // Functional reinsert — leaves concurrent successful revokes alone.
+          setDirect((prev) => (prev.some((g) => g.id === grantId) ? prev : [...prev, removed]));
+        }
         toast.error(i18next.t("projects:errors.revokeFailed"), userFriendlyError(err));
         return false;
       }
     },
-    [ws, direct],
+    [ws],
   );
 
   return {

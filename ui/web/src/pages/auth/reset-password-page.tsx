@@ -18,7 +18,8 @@ import {
 const META_REFERRER_ID = "reset-password-no-referrer";
 
 // Strip the ?token=... query string so the value cannot leak via window.location
-// once the page has resolved (Referer leak mitigation, see plan §F3).
+// once the page has resolved — token-in-URL is otherwise sent in the Referer
+// header to any 3rd-party script the page loads (analytics, fonts, error tracking).
 function stripTokenFromUrl() {
   const url = new URL(window.location.href);
   url.search = "";
@@ -132,9 +133,15 @@ export function ResetPasswordPage() {
 
           {error && (
             <p className="text-sm text-destructive" role="alert">
-              {error.code === "invalid_credentials" || error.code === "HTTP_ERROR"
-                ? t("resetPassword.error.tokenExpired")
-                : t("resetPassword.error.generic")}
+              {(() => {
+                // BE returns flat shape `{ "error": "<code>", "message": "..." }`
+                // for password-reset failures. http-client surfaces the BE error
+                // string as `apiError.message` when no nested `{code}` exists.
+                const m = (error.message ?? "").toLowerCase();
+                if (m === "weak_password") return t("resetPassword.error.weakPassword");
+                if (m === "invalid_token") return t("resetPassword.error.tokenExpired");
+                return t("resetPassword.error.generic");
+              })()}
             </p>
           )}
 

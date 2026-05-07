@@ -4,14 +4,27 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useProjects } from "@/pages/projects/hooks/use-projects";
 import type { Project } from "@/types/project";
 
+/**
+ * ProjectPicker emits one of three value shapes:
+ *   - a project UUID (selected project)
+ *   - `null` (the "(none)" / cleared sentinel — only when `includeNone=true`)
+ *   - the literal string `"all"` (only when `includeAll=true`)
+ *
+ * Callers that pass both `includeAll` and `includeNone` MUST distinguish
+ * `null` (none) from `"all"` in their handler. Earlier revisions collapsed
+ * both sentinels to `null`, which silently lost the "all" intent.
+ */
+export const PROJECT_PICKER_ALL = "all" as const;
+export type ProjectPickerValue = string | null;
+
 interface ProjectPickerProps {
-  value: string | null;
-  onChange: (projectId: string | null) => void;
+  value: ProjectPickerValue;
+  onChange: (projectId: ProjectPickerValue) => void;
   placeholder?: string;
   className?: string;
-  /** Include "(none)" option that maps to null. Default false. */
+  /** Include "(none)" option that maps to `null`. Default false. */
   includeNone?: boolean;
-  /** Include "All projects" sentinel option, value `__all__`. Default false. */
+  /** Include "All projects" sentinel option that maps to the literal `"all"`. Default false. */
   includeAll?: boolean;
   /** Render dropdown into a portal container (useful inside dialogs). */
   portalContainer?: React.RefObject<HTMLElement | null>;
@@ -61,14 +74,19 @@ export function ProjectPicker({
     return opts;
   }, [projects, includeAll, includeNone, t]);
 
-  const stringValue = value ?? (includeNone ? SENTINEL_NONE : "");
+  // Map external value → combobox string. `"all"` is a sentinel emitted to the
+  // caller; null falls back to the (none) entry when the picker exposes one.
+  let stringValue = "";
+  if (value === PROJECT_PICKER_ALL) stringValue = SENTINEL_ALL;
+  else if (value === null) stringValue = includeNone ? SENTINEL_NONE : "";
+  else stringValue = value;
 
   const handleChange = (next: string) => {
-    if (!next || next === SENTINEL_NONE) {
-      onChange(null);
+    if (next === SENTINEL_ALL) {
+      onChange(PROJECT_PICKER_ALL);
       return;
     }
-    if (next === SENTINEL_ALL) {
+    if (!next || next === SENTINEL_NONE) {
       onChange(null);
       return;
     }
