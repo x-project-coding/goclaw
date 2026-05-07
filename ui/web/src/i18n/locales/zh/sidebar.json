@@ -10,6 +10,7 @@
   },
   "nav": {
     "agentTeams": "Agent Link & Team",
+    "projects": "项目",
     "agents": "Agent",
     "approvals": "审批",
     "importExport": "Import & Export",

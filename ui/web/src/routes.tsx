@@ -113,6 +113,9 @@ const BackupRestorePage = lazyWithRetry(() =>
 const HooksPage = lazyWithRetry(() =>
   import("@/pages/hooks").then((m) => ({ default: m.HooksPage })),
 );
+const ProjectsPage = lazyWithRetry(() =>
+  import("@/pages/projects/projects-page").then((m) => ({ default: m.ProjectsPage })),
+);
 
 function PageLoader() {
   return (
@@ -156,6 +159,9 @@ export function AppRoutes() {
           <Route path={ROUTES.CRON_DETAIL} element={<CronPage key="detail" />} />
           <Route path={ROUTES.HOOKS} element={<HooksPage key="list" />} />
           <Route path={ROUTES.HOOK_DETAIL} element={<HooksPage key="detail" />} />
+          <Route path={ROUTES.PROJECTS} element={<ProjectsPage key="list" />} />
+          <Route path={ROUTES.PROJECT_DETAIL} element={<ProjectsPage key="detail" />} />
+          <Route path={ROUTES.PROJECT_MEMBERS} element={<ProjectsPage key="members" />} />
           <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
           {/* Admin-only pages */}
           <Route path={ROUTES.CONFIG} element={<RequireAdmin><ConfigPage /></RequireAdmin>} />

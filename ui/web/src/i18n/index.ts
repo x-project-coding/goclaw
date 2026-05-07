@@ -41,6 +41,7 @@ import enImportExport from "./locales/en/import-export.json";
 import enV3Capabilities from "./locales/en/v3-capabilities.json";
 import enBackup from "./locales/en/backup.json";
 import enHooks from "./locales/en/hooks.json";
+import enProjects from "./locales/en/projects.json";
 
 // --- VI namespaces ---
 import viCommon from "./locales/vi/common.json";
@@ -82,6 +83,7 @@ import viImportExport from "./locales/vi/import-export.json";
 import viV3Capabilities from "./locales/vi/v3-capabilities.json";
 import viBackup from "./locales/vi/backup.json";
 import viHooks from "./locales/vi/hooks.json";
+import viProjects from "./locales/vi/projects.json";
 
 // --- ZH namespaces ---
 import zhCommon from "./locales/zh/common.json";
@@ -123,6 +125,7 @@ import zhImportExport from "./locales/zh/import-export.json";
 import zhV3Capabilities from "./locales/zh/v3-capabilities.json";
 import zhBackup from "./locales/zh/backup.json";
 import zhHooks from "./locales/zh/hooks.json";
+import zhProjects from "./locales/zh/projects.json";
 
 const STORAGE_KEY = "goclaw:language";
 
@@ -145,6 +148,7 @@ const ns = [
   "v3-capabilities",
   "backup",
   "hooks",
+  "projects",
 ] as const;
 
 i18n.use(initReactI18next).init({
@@ -166,6 +170,7 @@ i18n.use(initReactI18next).init({
       "v3-capabilities": enV3Capabilities,
       backup: enBackup,
       hooks: enHooks,
+      projects: enProjects,
     },
     vi: {
       common: viCommon, sidebar: viSidebar, topbar: viTopbar, login: viLogin, auth: viAuth,
@@ -184,6 +189,7 @@ i18n.use(initReactI18next).init({
       "v3-capabilities": viV3Capabilities,
       backup: viBackup,
       hooks: viHooks,
+      projects: viProjects,
     },
     zh: {
       common: zhCommon, sidebar: zhSidebar, topbar: zhTopbar, login: zhLogin, auth: zhAuth,
@@ -202,6 +208,7 @@ i18n.use(initReactI18next).init({
       "v3-capabilities": zhV3Capabilities,
       backup: zhBackup,
       hooks: zhHooks,
+      projects: zhProjects,
     },
   },
   ns: [...ns],
