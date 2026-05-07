@@ -7,6 +7,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -469,10 +471,16 @@ func TestVaultClassify_DeleteAllClassifyTypesAndSemantic(t *testing.T) {
 	tid := tenantID.String()
 	aid := agentID.String()
 
+	// Per-test path suffix so stale rows from prior runs (or other parallel
+	// tests) don't merge into the same vault_documents row via path-based
+	// upsert. Without this, GetOutLinks returns leftover links from previous
+	// runs of this same fixture.
+	suffix := uuid.New().String()[:8]
+
 	// Create documents
-	docSource := makeVaultDoc(tid, aid, "classify/source.md", "Source Doc")
-	docTarget1 := makeVaultDoc(tid, aid, "classify/target1.md", "Target 1")
-	docTarget2 := makeVaultDoc(tid, aid, "classify/target2.md", "Target 2")
+	docSource := makeVaultDoc(tid, aid, "classify/source-"+suffix+".md", "Source Doc")
+	docTarget1 := makeVaultDoc(tid, aid, "classify/target1-"+suffix+".md", "Target 1")
+	docTarget2 := makeVaultDoc(tid, aid, "classify/target2-"+suffix+".md", "Target 2")
 
 	for _, doc := range []*store.VaultDocument{docSource, docTarget1, docTarget2} {
 		if err := vs.UpsertDocument(ctx, doc); err != nil {

@@ -35,9 +35,9 @@ func seedAgentForShares(t *testing.T, db *sql.DB, ownerID uuid.UUID) uuid.UUID {
 	id := uuid.New()
 	suffix := id.String()[:8]
 	_, err := db.Exec(
-		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id, owner_user_id)
-		 VALUES ($1, $2, 'active', 'test', 'm', $3, $4)`,
-		id, "shared-"+suffix, "owner-"+suffix, ownerID,
+		`INSERT INTO agents (id, agent_key, display_name, status, provider, model, owner_id, owner_user_id)
+		 VALUES ($1, $2, $3, 'active', 'test', 'm', $4, $5)`,
+		id, "shared-"+suffix, "shared-"+suffix, "owner-"+suffix, ownerID,
 	)
 	if err != nil {
 		t.Fatalf("seed agent: %v", err)

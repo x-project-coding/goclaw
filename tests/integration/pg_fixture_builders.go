@@ -41,9 +41,9 @@ func seedTeam(t *testing.T, db *sql.DB, _ uuid.UUID, ownerAgentID uuid.UUID) (te
 	}
 
 	_, err = db.Exec(
-		`INSERT INTO agent_teams (id, name, lead_agent_id, status, settings, created_by)
-		 VALUES ($1, $2, $3, 'active', '{"version": 2}', 'test')`,
-		teamID, "test-team-"+teamID.String()[:8], ownerAgentID)
+		`INSERT INTO agent_teams (id, name, lead_agent_id, status, settings, created_by, team_key)
+		 VALUES ($1, $2, $3, 'active', '{"version": 2}', 'test', $4)`,
+		teamID, "test-team-"+teamID.String()[:8], ownerAgentID, "team-"+teamID.String()[:8])
 	if err != nil {
 		t.Fatalf("seed team: %v", err)
 	}

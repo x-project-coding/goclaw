@@ -18,9 +18,9 @@ func resolverSeedTeam(t *testing.T, db *sql.DB, ownerID uuid.UUID) uuid.UUID {
 	id := uuid.New()
 	suffix := id.String()[:8]
 	if _, err := db.Exec(
-		`INSERT INTO agent_teams (id, team_key, name, owner_user_id, lead_agent_id)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		id, "rt-team-"+suffix, "T-"+suffix, ownerID, leadAgent,
+		`INSERT INTO agent_teams (id, team_key, name, owner_user_id, lead_agent_id, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		id, "rt-team-"+suffix, "T-"+suffix, ownerID, leadAgent, ownerID.String(),
 	); err != nil {
 		t.Fatalf("seed team: %v", err)
 	}

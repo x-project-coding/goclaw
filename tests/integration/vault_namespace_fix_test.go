@@ -39,7 +39,13 @@ func TestVaultNamespaceFix_thuyTienScenario(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	userID := "kguser-" + agentID.String()[:8]
+	// userID must be a real users(id) row — kg_entities.user_id has an FK to
+	// users.id (not nullable in this lineage). The kg backend also casts to
+	// uuid type, so the value must be a valid UUID. Seed a user purely to
+	// satisfy the FK; the namespace-collision behavior under test is
+	// independent of user identity.
+	userUUID := seedUserForShares(t, db)
+	userID := userUUID.String()
 	ctx := store.WithUserID(store.WithAgentID(tenantCtx(tenantID), agentID), userID)
 
 	// Seed vault doc.

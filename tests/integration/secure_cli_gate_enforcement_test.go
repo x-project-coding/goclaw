@@ -15,31 +15,41 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
-// gateTestBinaryName is deliberately NOT a real binary on PATH so the
-// "allowed" path can never accidentally exec something real.
-const gateTestBinaryName = "goclaw_test_cli"
+// gateTestBinaryNamePrefix is deliberately NOT a real binary on PATH so the
+// "allowed" path can never accidentally exec something real. v4 dropped
+// tenant_id from the unique index on secure_cli_binaries, so each parallel
+// test must use a unique suffix to avoid colliding on (binary_name).
+const gateTestBinaryNamePrefix = "goclaw_test_cli"
+
+// gateTestBinaryName returns a per-test-unique binary name so concurrent
+// `t.Parallel()` runs don't violate idx_secure_cli_unique_binary.
+func gateTestBinaryName(t *testing.T) string {
+	t.Helper()
+	return gateTestBinaryNamePrefix + "_" + uuid.New().String()[:8]
+}
 
 // gateFixture holds the common seeds for gate enforcement tests.
 type gateFixture struct {
-	db       *sql.DB
-	tool     *tools.ExecTool
-	tenantID uuid.UUID
-	agentA   uuid.UUID
-	agentB   uuid.UUID
-	binaryID uuid.UUID
+	db         *sql.DB
+	tool       *tools.ExecTool
+	tenantID   uuid.UUID
+	agentA     uuid.UUID
+	agentB     uuid.UUID
+	binaryID   uuid.UUID
+	binaryName string // unique per test to avoid colliding on the binary_name unique index
 }
 
-// setupGateTest seeds: tenant, two agents under that SAME tenant, a
-// non-global registered binary, and a grant only for agentA. Returns a wired
-// ExecTool + the IDs. All rows are cleaned up via t.Cleanup. Same-tenant is
-// required so the gate (not tenant isolation) is what denies ungranted exec.
+// setupGateTest seeds: two agents, a non-global registered binary with a
+// per-test-unique name, and a grant only for agentA. Returns a wired ExecTool
+// + the IDs. All rows are cleaned up via t.Cleanup.
 func setupGateTest(t *testing.T) *gateFixture {
 	t.Helper()
 
 	db := testDB(t)
 	tenantID, agentA := seedTenantAgent(t, db)
 	agentB := seedSecondAgent(t, db, tenantID)
-	binaryID := seedGateBinary(t, db, tenantID, gateTestBinaryName, false)
+	binaryName := gateTestBinaryName(t)
+	binaryID := seedGateBinary(t, db, tenantID, binaryName, false)
 	seedGrant(t, db, tenantID, binaryID, agentA)
 
 	secStore := pg.NewPGSecureCLIStore(db, testEncryptionKey)
@@ -47,28 +57,29 @@ func setupGateTest(t *testing.T) *gateFixture {
 	tool.SetSecureCLIStore(secStore)
 
 	return &gateFixture{
-		db:       db,
-		tool:     tool,
-		tenantID: tenantID,
-		agentA:   agentA,
-		agentB:   agentB,
-		binaryID: binaryID,
+		db:         db,
+		tool:       tool,
+		tenantID:   tenantID,
+		agentA:     agentA,
+		agentB:     agentB,
+		binaryID:   binaryID,
+		binaryName: binaryName,
 	}
 }
 
 // seedSecondAgent inserts an additional agent under an existing tenant. Both
-// test agents must share the same tenant so the gate (not tenant isolation)
-// is what denies ungranted exec.
-func seedSecondAgent(t *testing.T, db *sql.DB, tenantID uuid.UUID) uuid.UUID {
+// seedSecondAgent inserts a second agent so the gate (not tenant isolation)
+// is what denies ungranted exec. v4 is single-tenant — no tenant_id column.
+func seedSecondAgent(t *testing.T, db *sql.DB, _ uuid.UUID) uuid.UUID {
 	t.Helper()
 
 	agentID := uuid.New()
 	agentKey := "test-" + agentID.String()[:8]
 
 	_, err := db.Exec(
-		`INSERT INTO agents (id, tenant_id, agent_key, status, provider, model, owner_id)
-		 VALUES ($1, $2, $3, 'active', 'test', 'test-model', 'test-owner')`,
-		agentID, tenantID, agentKey)
+		`INSERT INTO agents (id, agent_key, status, provider, model, owner_id)
+		 VALUES ($1, $2, 'active', 'test', 'test-model', 'test-owner')`,
+		agentID, agentKey)
 	if err != nil {
 		t.Fatalf("seed second agent: %v", err)
 	}
@@ -82,14 +93,14 @@ func seedSecondAgent(t *testing.T, db *sql.DB, tenantID uuid.UUID) uuid.UUID {
 
 // seedGateBinary inserts a secure_cli_binaries row with a caller-specified
 // binary_name and is_global flag. Matches shape used by seedSecureCLI.
-func seedGateBinary(t *testing.T, db *sql.DB, tenantID uuid.UUID, name string, isGlobal bool) uuid.UUID {
+func seedGateBinary(t *testing.T, db *sql.DB, _ uuid.UUID, name string, isGlobal bool) uuid.UUID {
 	t.Helper()
 
 	binaryID := uuid.New()
 	_, err := db.Exec(
-		`INSERT INTO secure_cli_binaries (id, tenant_id, binary_name, encrypted_env, description, enabled, is_global)
-		 VALUES ($1, $2, $3, $4, 'gate test CLI', true, $5)`,
-		binaryID, tenantID, name, []byte(`{}`), isGlobal)
+		`INSERT INTO secure_cli_binaries (id, binary_name, encrypted_env, description, enabled, is_global)
+		 VALUES ($1, $2, $3, 'gate test CLI', true, $4)`,
+		binaryID, name, []byte(`{}`), isGlobal)
 	if err != nil {
 		t.Fatalf("seed gate binary: %v", err)
 	}
@@ -104,13 +115,13 @@ func seedGateBinary(t *testing.T, db *sql.DB, tenantID uuid.UUID, name string, i
 }
 
 // seedGrant inserts a secure_cli_agent_grants row tying an agent to a binary.
-func seedGrant(t *testing.T, db *sql.DB, tenantID, binaryID, agentID uuid.UUID) {
+func seedGrant(t *testing.T, db *sql.DB, _, binaryID, agentID uuid.UUID) {
 	t.Helper()
 
 	_, err := db.Exec(
-		`INSERT INTO secure_cli_agent_grants (binary_id, agent_id, tenant_id, enabled)
-		 VALUES ($1, $2, $3, true)`,
-		binaryID, agentID, tenantID)
+		`INSERT INTO secure_cli_agent_grants (binary_id, agent_id, enabled)
+		 VALUES ($1, $2, true)`,
+		binaryID, agentID)
 	if err != nil {
 		t.Fatalf("seed grant: %v", err)
 	}
@@ -131,7 +142,7 @@ func TestSecureCLIGate_DeniesUngranted(t *testing.T) {
 	ctx := gateCtx(f.tenantID, f.agentB)
 
 	result := f.tool.Execute(ctx, map[string]any{
-		"command": gateTestBinaryName + " --help",
+		"command": f.binaryName + " --help",
 	})
 
 	if !result.IsError {
@@ -153,7 +164,7 @@ func TestSecureCLIGate_AllowsGrantedAgent(t *testing.T) {
 	ctx := gateCtx(f.tenantID, f.agentA)
 
 	result := f.tool.Execute(ctx, map[string]any{
-		"command": gateTestBinaryName + " --help",
+		"command": f.binaryName + " --help",
 	})
 
 	if strings.Contains(result.ForLLM, "requires a secure CLI grant") {
@@ -193,7 +204,8 @@ func TestSecureCLIGate_IsGlobalBinaryNotDenied(t *testing.T) {
 
 	db := testDB(t)
 	tenantID, agentID := seedTenantAgent(t, db)
-	seedGateBinary(t, db, tenantID, "goclaw_global_test", true)
+	globalName := "goclaw_global_test_" + uuid.New().String()[:8]
+	seedGateBinary(t, db, tenantID, globalName, true)
 
 	secStore := pg.NewPGSecureCLIStore(db, testEncryptionKey)
 	tool := tools.NewExecTool(t.TempDir(), false)
@@ -201,7 +213,7 @@ func TestSecureCLIGate_IsGlobalBinaryNotDenied(t *testing.T) {
 
 	ctx := gateCtx(tenantID, agentID)
 	result := tool.Execute(ctx, map[string]any{
-		"command": "goclaw_global_test --help",
+		"command": globalName + " --help",
 	})
 
 	if strings.Contains(result.ForLLM, "requires a secure CLI grant") {
@@ -218,7 +230,7 @@ func TestSecureCLIGate_ShellWrapperBypassDenied(t *testing.T) {
 	ctx := gateCtx(f.tenantID, f.agentB)
 
 	result := f.tool.Execute(ctx, map[string]any{
-		"command": "sh -c '" + gateTestBinaryName + " --help'",
+		"command": "sh -c '" + f.binaryName + " --help'",
 	})
 
 	if !result.IsError {

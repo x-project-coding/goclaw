@@ -293,10 +293,14 @@ func TestTelegramGroupWriteFilePermission_DMEmptySenderPasses(t *testing.T) {
 	}
 }
 
-// Fixture A.10 — admin / operator / owner role in ctx bypasses per-user
-// writer grants in group/guild context (#915). Covers dashboard users who
-// dispatch team tasks that write files in Telegram/Discord groups — they
-// passed RBAC at the gateway edge and shouldn't need a per-channel grant.
+// Fixture A.10 — admin / operator role in ctx bypasses per-user writer
+// grants in group/guild context (#915). Covers dashboard users who dispatch
+// team tasks that write files in Telegram/Discord groups — they passed RBAC
+// at the gateway edge and shouldn't need a per-channel grant.
+//
+// Note: "owner" is agent ownership (agents.owner_id), not a context RBAC role
+// — users.role only allows root/admin/member/viewer. The bypass is gated on
+// admin/operator/root context roles via isAdminRole().
 func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
 	db := testDB(t)
 	pg.InitSqlx(db)
@@ -304,7 +308,7 @@ func TestTelegramGroupWriteFilePermission_AdminRoleBypass(t *testing.T) {
 
 	permStore := pg.NewPGConfigPermissionStore(db)
 
-	cases := []string{"admin", "operator", "owner"}
+	cases := []string{"admin", "operator"}
 	for _, role := range cases {
 		t.Run(role, func(t *testing.T) {
 			ctx := context.Background()
