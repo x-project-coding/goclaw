@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/stores/use-toast-store";
 import { userFriendlyError } from "@/lib/error-utils";
+import { useAuthStore } from "@/stores/use-auth-store";
 import {
   adminCreateUserSchema,
   type AdminCreateUserData,
@@ -24,6 +25,10 @@ interface AdminCreateUserDialogProps {
 
 export function AdminCreateUserDialog({ open, onOpenChange, onSubmit }: AdminCreateUserDialogProps) {
   const { t } = useTranslation("auth");
+  // Only the owner (BE root) may create peer admins per users_handlers.go:99-105.
+  // Plain admins still create member/viewer; the BE returns 403 if they try admin.
+  const callerRole = useAuthStore((s) => s.role);
+  const canCreateAdmin = callerRole === "owner";
 
   const form = useForm<AdminCreateUserData>({
     resolver: zodResolver(adminCreateUserSchema),
@@ -109,6 +114,9 @@ export function AdminCreateUserDialog({ open, onOpenChange, onSubmit }: AdminCre
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {canCreateAdmin && (
+                  <SelectItem value="admin">{t("adminUsers.roles.admin")}</SelectItem>
+                )}
                 <SelectItem value="member">{t("adminUsers.roles.member")}</SelectItem>
                 <SelectItem value="viewer">{t("adminUsers.roles.viewer")}</SelectItem>
               </SelectContent>

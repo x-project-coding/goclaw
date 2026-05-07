@@ -8,8 +8,11 @@ const passwordPolicy = z
   .refine((v) => /[0-9]/.test(v), "needsDigit")
   .refine((v) => /[^A-Za-z0-9]/.test(v), "needsSymbol");
 
-// Admin can create member or viewer; admin/root creation is root-only at the BE.
-export const adminCreateUserRoleEnum = z.enum(["member", "viewer"]);
+// Schema mirrors what the BE accepts: admin/member/viewer. Root creation is
+// bootstrap-only and never exposed via API. The dialog gates the `admin`
+// option on the caller's role (only owners see it) — the schema stays
+// permissive so the BE remains the source of truth via 403 on non-root.
+export const adminCreateUserRoleEnum = z.enum(["admin", "member", "viewer"]);
 
 export const adminCreateUserSchema = z.object({
   email: z.string().email("invalidEmail"),

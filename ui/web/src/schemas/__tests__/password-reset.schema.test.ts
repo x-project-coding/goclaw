@@ -67,8 +67,15 @@ describe("adminCreateUserSchema", () => {
     expect(adminCreateUserSchema.safeParse({ ...baseGood, role: "viewer" }).success).toBe(true);
   });
 
-  it("rejects admin role (root-only at backend)", () => {
+  it("accepts admin role at the schema level (BE 403s non-root callers)", () => {
+    // Schema is permissive so the BE remains source of truth. The dialog
+    // gates the `admin` option on caller role; non-owners never see it.
     const r = adminCreateUserSchema.safeParse({ ...baseGood, role: "admin" });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects unknown role values", () => {
+    const r = adminCreateUserSchema.safeParse({ ...baseGood, role: "root" });
     expect(r.success).toBe(false);
   });
 

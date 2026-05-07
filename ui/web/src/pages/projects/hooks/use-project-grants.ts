@@ -54,9 +54,14 @@ export function useProjectGrants(projectId: string | null | undefined) {
   const addGrant = useCallback(
     async (userId: string, role: ProjectRole): Promise<boolean> => {
       if (!projectId) return false;
-      // Optimistic insert
+      // Optimistic insert. UUID v4 keeps the placeholder id collision-free even
+      // under burst clicks within the same millisecond.
+      const optimisticId =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? `optimistic-${crypto.randomUUID()}`
+          : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}-${userId}`;
       const optimistic: ProjectGrant = {
-        id: `optimistic-${Date.now()}-${userId}`,
+        id: optimisticId,
         projectId,
         userId,
         teamId: null,

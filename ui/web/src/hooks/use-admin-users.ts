@@ -42,14 +42,22 @@ export function useAdminUsers(): UseAdminUsersResult {
 
   const createUser = useCallback(
     async (data: AdminCreateUserData) => {
-      const created = await http.post<AdminUser>("/v1/users", {
-        email: data.email,
-        display_name: data.display_name,
-        password: data.password,
-        role: data.role,
-      });
-      setUsers((prev) => [created, ...prev]);
-      return created;
+      setError(null);
+      try {
+        const created = await http.post<AdminUser>("/v1/users", {
+          email: data.email,
+          display_name: data.display_name,
+          password: data.password,
+          role: data.role,
+        });
+        setUsers((prev) => [created, ...prev]);
+        return created;
+      } catch (err) {
+        // Mirror usePasswordReset.confirm: surface error on the hook AND throw
+        // so callers may either render error state or rely on the catch block.
+        setError(err as ApiError);
+        throw err;
+      }
     },
     [http],
   );

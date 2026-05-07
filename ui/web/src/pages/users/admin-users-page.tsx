@@ -67,7 +67,7 @@ export function AdminUsersPage() {
                     </td>
                     <td className="px-3 py-2">
                       <Badge variant={u.status === "active" ? "default" : "secondary"} className="text-[11px]">
-                        {u.status}
+                        {t(`adminUsers.status.${u.status}`, { defaultValue: u.status })}
                       </Badge>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(u.created_at)}</td>
