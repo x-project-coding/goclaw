@@ -43,6 +43,7 @@
     "apiDocs": "API 文档",
     "packages": "软件包",
     "backupRestore": "备份与恢复",
-    "users": "用户"
+    "users": "用户",
+    "vault": "Vault"
   }
 }

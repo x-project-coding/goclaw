@@ -43,6 +43,7 @@
     "apiDocs": "Tài liệu API",
     "packages": "Gói phần mềm",
     "backupRestore": "Sao lưu & Khôi phục",
-    "users": "Người dùng"
+    "users": "Người dùng",
+    "vault": "Vault"
   }
 }

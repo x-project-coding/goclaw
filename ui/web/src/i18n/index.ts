@@ -151,6 +151,12 @@ const ns = [
   "projects",
 ] as const;
 
+// Resource version — bumped whenever locale catalogs are renamed/dropped so cached
+// browser clients invalidate their in-memory copy. Bump this when shipping breaking
+// key renames; old keys held as aliases for one release per the cache-drift policy.
+export const I18N_RESOURCE_VERSION = "2026-05-07T01";
+const VERSION_STORAGE_KEY = "goclaw:i18nVersion";
+
 i18n.use(initReactI18next).init({
   resources: {
     en: {
@@ -225,5 +231,13 @@ i18n.on("languageChanged", (lng) => {
   localStorage.setItem(STORAGE_KEY, lng);
   document.documentElement.lang = lng;
 });
+
+// Persist the active resource version so cache-bust consumers (and devtools) can
+// detect when the bundle's catalog identity has shifted across releases.
+try {
+  localStorage.setItem(VERSION_STORAGE_KEY, I18N_RESOURCE_VERSION);
+} catch {
+  // localStorage may be unavailable in some sandboxed contexts; ignore.
+}
 
 export default i18n;
