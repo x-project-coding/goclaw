@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate, useLocation } from "react-router";
+import { Link, Navigate, useNavigate, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/auth-context";
 import { ROUTES } from "@/lib/constants";
@@ -53,6 +53,14 @@ export function LoginPage() {
           navigate(from, { replace: true });
         }}
       />
+      <div className="text-center">
+        <Link
+          to={ROUTES.FORGOT_PASSWORD}
+          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          {t("forgotPassword.title")}?
+        </Link>
+      </div>
     </LoginLayout>
   );
 }

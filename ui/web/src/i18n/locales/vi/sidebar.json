@@ -42,6 +42,7 @@
     "apiKeys": "API Keys",
     "apiDocs": "Tài liệu API",
     "packages": "Gói phần mềm",
-    "backupRestore": "Sao lưu & Khôi phục"
+    "backupRestore": "Sao lưu & Khôi phục",
+    "users": "Người dùng"
   }
 }

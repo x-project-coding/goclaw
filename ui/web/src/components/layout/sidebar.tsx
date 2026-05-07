@@ -30,6 +30,7 @@ import {
   DatabaseBackup,
   Webhook,
   FolderKanban,
+  UserCog,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -128,6 +129,7 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
 
         {isAdmin && (
         <SidebarGroup label={t("groups.system")} collapsed={collapsed}>
+          <SidebarItem to={ROUTES.USERS} icon={UserCog} label={t("nav.users")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.PROVIDERS} icon={Cpu} label={t("nav.providers")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.CLI_CREDENTIALS} icon={KeyRound} label={t("nav.cliCredentials")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.API_KEYS} icon={KeyRound} label={t("nav.apiKeys")} collapsed={collapsed} />

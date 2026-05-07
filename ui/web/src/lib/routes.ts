@@ -48,4 +48,7 @@ export const ROUTES = {
   PROJECTS: "/projects",
   PROJECT_DETAIL: "/projects/:id",
   PROJECT_MEMBERS: "/projects/:id/members",
+  FORGOT_PASSWORD: "/forgot-password",
+  RESET_PASSWORD: "/reset-password",
+  USERS: "/users",
 } as const;

@@ -116,6 +116,15 @@ const HooksPage = lazyWithRetry(() =>
 const ProjectsPage = lazyWithRetry(() =>
   import("@/pages/projects/projects-page").then((m) => ({ default: m.ProjectsPage })),
 );
+const ForgotPasswordPage = lazyWithRetry(() =>
+  import("@/pages/auth/forgot-password-page").then((m) => ({ default: m.ForgotPasswordPage })),
+);
+const ResetPasswordPage = lazyWithRetry(() =>
+  import("@/pages/auth/reset-password-page").then((m) => ({ default: m.ResetPasswordPage })),
+);
+const AdminUsersPage = lazyWithRetry(() =>
+  import("@/pages/users/admin-users-page").then((m) => ({ default: m.AdminUsersPage })),
+);
 
 function PageLoader() {
   return (
@@ -132,6 +141,8 @@ export function AppRoutes() {
       <Routes>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
         <Route path={ROUTES.BOOTSTRAP} element={<BootstrapPage />} />
+        <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+        <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
 
         {/* Main app — requires auth */}
         <Route
@@ -162,6 +173,7 @@ export function AppRoutes() {
           <Route path={ROUTES.PROJECTS} element={<ProjectsPage key="list" />} />
           <Route path={ROUTES.PROJECT_DETAIL} element={<ProjectsPage key="detail" />} />
           <Route path={ROUTES.PROJECT_MEMBERS} element={<ProjectsPage key="members" />} />
+          <Route path={ROUTES.USERS} element={<RequireAdmin><AdminUsersPage /></RequireAdmin>} />
           <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
           {/* Admin-only pages */}
           <Route path={ROUTES.CONFIG} element={<RequireAdmin><ConfigPage /></RequireAdmin>} />

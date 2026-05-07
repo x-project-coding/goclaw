@@ -128,7 +128,14 @@ export class HttpClient {
   }
 
   private headers(): Record<string, string> {
-    return { "Content-Type": "application/json", ...this.authHeaders() };
+    // X-Requested-With marks every JSON request as same-origin XHR. Backend
+    // rejects state-changing requests on auth/admin endpoints without it,
+    // mitigating CSRF via simple-form-submission attacks.
+    return {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+      ...this.authHeaders(),
+    };
   }
 
   private async request<T>(url: string, init: RequestInit, retried = false): Promise<T> {
