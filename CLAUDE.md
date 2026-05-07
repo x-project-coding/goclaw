@@ -376,6 +376,15 @@ When a plan item, sub-phase, finding, or scope element is deferred to a later ph
 
 **Rule of thumb:** if the deferral wouldn't be obvious to a future agent reading the phase file cold, it isn't recorded yet.
 
+## [IMPORTANT] Deferrals Land in the Plan File, Not the Chat
+
+Deferring to a later phase / sub-plan? Write it into the receiving file BEFORE closing the current phase. Chat is ephemeral; the next cook agent only reads the plan file.
+
+Append to receiving `phase-N.md` (or `plan.md` for cross-EPIC) under `## Cross-phase carryover` — include source phase + finding code, concrete action, and acceptance test if any.
+
+- ❌ Chat-only: "we'll fix C1 in Phase 06."
+- ✅ `phase-06.md` → carryover entry with file path + verification.
+
 ## Post-Implementation Checklist
 
 After implementing or modifying Go code, run these checks:
