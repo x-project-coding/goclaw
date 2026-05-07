@@ -58,7 +58,11 @@ Channel workspace path resolution, identity merge atomicity, dispatch routing, s
 
 - **12-scenario channel path matrix** (agent-type × identity × context)
   - Human personal/team + channel DM/group + predefined + sub-agent
-  - Production wire-in deferred to rc2; implementation complete
+  - Production wire-in **landed 2026-05-07** (commit `780eab16`) — both
+    `loop_context.go:256` and `loop_pipeline_callbacks.go:101` route through
+    the new resolver; legacy 6-scenario `Resolve()` reduced to project-only
+    branch. Single workspace root invariant: `ProjectWorkspacePath` now takes
+    `baseDir` (env `GOCLAW_WORKSPACE_ROOT` removed).
 - **Composite-key outbound dispatch** (channel_type, chat_id) with merged-contact canonical lookup
   - DM routes to canonical merged contact; group stays in original chat
   - Privacy: FS/memory scoped to merged user, addressability unchanged
@@ -171,8 +175,13 @@ Permission enforcement for Model Context Protocol servers with scope validation 
 
 ## Deferred to RC2
 
-- **Channel path matrix production wire-in** (`ResolveChannel` call-site in `loop_context.go`)
-- **Session project override** (Layer 2 user `/project switch` command)
+- ~~**Channel path matrix production wire-in**~~ **LANDED 2026-05-07** (commit `780eab16`).
+- **Session project override** (Layer 2 user `/project switch` command) — STILL DEFERRED.
+- **Integration test fixture cleanup** (~20 tests fail on test code drift after migration
+  ordering fix; production schema OK). See
+  `plans/reports/test-cleanup-260507-1452-batch1-summary.md`. Batch 1 (7 tests) landed
+  2026-05-07 (commit `63f48861`). Remaining batches: hooks `ScopeTenant` rename, memory 5D
+  scope tests, MCP bridge, halfvec fixture gaps.
 - **Desktop UI enhancements** (if any)
 
 ---
