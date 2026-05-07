@@ -191,18 +191,21 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	// Team workspace: auto-resolve for agents with team membership (not dispatched).
 	// Lead agents default to team workspace; non-lead members keep own workspace.
 	var resolvedTeamSettings json.RawMessage
+	var resolvedTeamKey string // team.TeamKey for the 12-scenario resolver path segment
 	// Dispatched tasks already have TeamWorkspace set but still need team settings
 	// for TeamIsolated flag. Fetch by explicit TeamID in that branch.
 	if req.TeamWorkspace != "" && req.TeamID != "" && l.teamStore != nil {
 		if teamUUID, err := uuid.Parse(req.TeamID); err == nil {
 			if team, _ := l.teamStore.GetTeam(ctx, teamUUID); team != nil {
 				resolvedTeamSettings = team.Settings
+				resolvedTeamKey = team.TeamKey
 			}
 		}
 	}
 	if req.TeamWorkspace == "" && l.teamStore != nil && l.agentUUID != uuid.Nil {
 		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil {
 			resolvedTeamSettings = team.Settings
+			resolvedTeamKey = team.TeamKey
 			wsChat := req.ChatID
 			if wsChat == "" {
 				wsChat = req.UserID
@@ -233,40 +236,39 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		}
 	}
 
-	// V3 workspace: resolve once, set immutable context.
+	// V4 workspace: resolve once, set immutable context.
+	// Priority: project binding > 12-scenario channel/web matrix.
+	// Project binding (agent_sessions.project_id, channel_contacts.default_project_id,
+	// req.ProjectOverride) wins so the session always operates in its assigned
+	// project folder regardless of which team or channel serves it.
 	{
-		var teamIDPtr *string
-		if req.TeamID != "" {
-			teamIDPtr = &req.TeamID
-		}
-		var teamWSConfig *workspace.TeamWorkspaceConfig
-		if resolvedTeamSettings != nil {
-			var cfg workspace.TeamWorkspaceConfig
-			if json.Unmarshal(resolvedTeamSettings, &cfg) == nil {
-				teamWSConfig = &cfg
+		resolver := workspace.NewResolver()
+		projectID, projectSlug := l.resolveProjectParams(ctx, req.SessionKey, req.ChannelType, req.ChatID, req.ProjectOverride)
+		var wc *workspace.WorkspaceContext
+		var wsErr error
+		if projectID != nil && projectSlug != "" {
+			wc, wsErr = resolver.Resolve(ctx, workspace.ResolveParams{
+				AgentID:     l.id,
+				UserID:      req.UserID,
+				ChatID:      req.ChatID,
+				BaseDir:     l.dataDir,
+				ProjectID:   projectID,
+				ProjectSlug: projectSlug,
+			})
+		} else {
+			// 12-scenario channel/web matrix. Covers HTTP web (S01–S03),
+			// channel DM (S04, S06, S12), channel group (S08, S09), and the
+			// merged-contact privacy hard rule that routes to canonical user
+			// zone (S05, S07, S10, S11).
+			ccx := l.buildChannelResolveCtx(ctx, req, resolvedTeamKey)
+			path, scope, err := resolver.ResolveChannel(ctx, ccx)
+			if err != nil {
+				wsErr = err
+			} else {
+				shared := tools.IsSharedWorkspace(resolvedTeamSettings)
+				wc = channelToWorkspace(path, scope, ccx, shared)
 			}
 		}
-		resolver := workspace.NewResolver()
-		// Resolve project binding for this session. Two sources, evaluated in order:
-		//  1. agent_sessions.project_id — explicit per-session binding (set via sessions.update_project RPC)
-		//  2. channel_contacts.default_project_id — group-chat channel default (Layer 1)
-		// When a project is found, look up its slug so the workspace resolver can
-		// route the session to <workspaceRoot>/projects/<slug>.
-		projectID, projectSlug := l.resolveProjectParams(ctx, req.SessionKey, req.ChannelType, req.ChatID, req.ProjectOverride)
-		wc, wsErr := resolver.Resolve(ctx, workspace.ResolveParams{
-			// Filesystem path segment must use agent_key, not UUID — matches
-			// the v2 path in loop_pipeline_callbacks.go and the session_key
-			// anchor. See docs/agent-identity-conventions.md.
-			AgentID:     l.id,
-			UserID:      req.UserID,
-			ChatID:      req.ChatID,
-			PeerKind:    req.PeerKind,
-			TeamID:      teamIDPtr,
-			TeamConfig:  teamWSConfig,
-			BaseDir:     l.dataDir,
-			ProjectID:   projectID,
-			ProjectSlug: projectSlug,
-		})
 		if wsErr != nil {
 			slog.Warn("workspace resolution failed", "err", wsErr)
 		} else {

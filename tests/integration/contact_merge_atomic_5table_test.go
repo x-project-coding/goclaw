@@ -76,12 +76,12 @@ func seedMergeSession(t *testing.T, db *sql.DB, agentID, userID uuid.UUID, suf s
 }
 
 // seedMemDocUser inserts a memory_documents row keyed by userID.
-// Uses columns present in the current schema: content + hash (not file_path/content_hash).
+// Uses the FS-backed schema: file_path + content_hash (Plan #5 memory-5d-scope).
 func seedMemDocUser(t *testing.T, db *sql.DB, agentID, userID uuid.UUID, path string) uuid.UUID {
 	t.Helper()
 	id := uuid.New()
 	_, err := db.Exec(
-		`INSERT INTO memory_documents (id, agent_id, user_id, path, content, hash)
+		`INSERT INTO memory_documents (id, agent_id, user_id, path, file_path, content_hash)
 		 VALUES ($1, $2, $3, $4, '', '')`,
 		id, agentID, userID, path,
 	)

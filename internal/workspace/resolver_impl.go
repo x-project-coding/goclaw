@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
-// defaultResolver implements Resolver for all 6 workspace scenarios.
+// defaultResolver implements Resolver. v4 production routes ALL non-project
+// sessions through ResolveChannel (12-scenario channel/web matrix). Resolve()
+// only handles the project-priority branch; all other paths come from
+// ResolveChannel via the Loop's wrapper in agent/loop_workspace_channel.go.
+//
 // Stateless — all inputs come via ResolveParams. No DB queries.
 // Does NOT import tools package (avoids circular dependency).
 type defaultResolver struct{}
@@ -17,39 +20,38 @@ type defaultResolver struct{}
 // NewResolver creates a workspace Resolver.
 func NewResolver() Resolver { return &defaultResolver{} }
 
+// Resolve returns the project workspace for sessions bound to a project.
+// Non-project paths are NOT supported here — call ResolveChannel for those.
 func (r *defaultResolver) Resolve(_ context.Context, params ResolveParams) (*WorkspaceContext, error) {
 	if params.BaseDir == "" {
 		return nil, fmt.Errorf("workspace: base dir is required")
 	}
-
-	// Priority: project > delegation > team > personal/predefined.
-	// Project binding wins so the session always operates in its assigned
-	// project folder regardless of which team or personal agent serves it.
-	switch {
-	case params.ProjectID != nil && params.ProjectSlug != "":
-		return r.resolveProject(params)
-	case params.DelegateCtx != nil:
-		return r.resolveDelegate(params)
-	case params.TeamID != nil && *params.TeamID != "":
-		return r.resolveTeam(params), nil
-	default:
-		return r.resolvePersonal(params), nil
+	if params.ProjectID == nil || params.ProjectSlug == "" {
+		return nil, fmt.Errorf("workspace: Resolve requires ProjectID + ProjectSlug; non-project paths must use ResolveChannel")
 	}
+	return r.resolveProject(params)
 }
 
 // resolveProject handles sessions bound to a specific project.
 // The project folder is the active path; slug validation is re-confirmed here
 // so a bad slug stored in the DB cannot escape the projects directory.
+//
+// Uses p.BaseDir so project paths share the same root as the channel/web
+// resolver (single workspace root invariant — see ResolveChannel).
 func (r *defaultResolver) resolveProject(p ResolveParams) (*WorkspaceContext, error) {
-	path, err := ProjectWorkspacePath(p.ProjectSlug)
+	path, err := ProjectWorkspacePath(p.BaseDir, p.ProjectSlug)
 	if err != nil {
 		return nil, fmt.Errorf("workspace: project resolution failed: %w", err)
 	}
 	ensureDir(path)
+	owner := p.UserID
+	if owner == "" {
+		owner = p.ChatID
+	}
 	wc := &WorkspaceContext{
 		ActivePath:       path,
 		Scope:            ScopeProject,
-		OwnerID:          ownerID(p),
+		OwnerID:          owner,
 		MemoryScope:      "user",
 		KGScope:          "user",
 		EnforcementLabel: DefaultEnforcementLabel(ScopeProject, false),
@@ -57,98 +59,6 @@ func (r *defaultResolver) resolveProject(p ResolveParams) (*WorkspaceContext, er
 		ProjectSlug:      p.ProjectSlug,
 	}
 	return wc, nil
-}
-
-// resolveDelegate handles delegated task workspace.
-// ActivePath = delegate's shared path, read-only exports from delegator.
-// Validates SharedPath is under BaseDir to prevent directory traversal.
-func (r *defaultResolver) resolveDelegate(p ResolveParams) (*WorkspaceContext, error) {
-	shared := filepath.Clean(p.DelegateCtx.SharedPath)
-	base := filepath.Clean(p.BaseDir)
-	if !strings.HasPrefix(shared+string(filepath.Separator), base+string(filepath.Separator)) {
-		return nil, fmt.Errorf("workspace: delegate shared path escapes base dir")
-	}
-
-	wc := &WorkspaceContext{
-		ActivePath:       shared,
-		Scope:            ScopeDelegate,
-		ReadOnlyPaths:    p.DelegateCtx.ExportPaths,
-		SharedPath:       &p.DelegateCtx.SharedPath,
-		OwnerID:          p.UserID,
-		MemoryScope:      "user",
-		KGScope:          "user",
-		EnforcementLabel: DefaultEnforcementLabel(ScopeDelegate, false),
-	}
-	ensureDir(wc.ActivePath)
-	return wc, nil
-}
-
-// resolveTeam handles team workspace (shared or isolated).
-func (r *defaultResolver) resolveTeam(p ResolveParams) *WorkspaceContext {
-	base := p.BaseDir
-	teamRoot := filepath.Join(base, "teams", sanitizeSegment(*p.TeamID))
-
-	shared := p.TeamConfig.IsShared()
-	activePath := teamRoot
-	if !shared {
-		// Isolated: add chat/user segment
-		segment := sanitizeSegment(p.ChatID)
-		if segment == "" {
-			segment = sanitizeSegment(p.UserID)
-		}
-		if segment != "" {
-			activePath = filepath.Join(teamRoot, segment)
-		}
-	}
-
-	scope := sharingScope(p)
-	wc := &WorkspaceContext{
-		ActivePath:       activePath,
-		Scope:            ScopeTeam,
-		TeamPath:         &teamRoot,
-		OwnerID:          ownerID(p),
-		MemoryScope:      scope,
-		KGScope:          scope,
-		EnforcementLabel: DefaultEnforcementLabel(ScopeTeam, shared),
-	}
-	ensureDirTeam(wc.ActivePath)
-	return wc
-}
-
-// resolvePersonal returns the personal-scope workspace. v4 collapses the
-// open/predefined split — every personal agent shares its directory at
-// agent level, so the active path is always <base>/<agentID>.
-func (r *defaultResolver) resolvePersonal(p ResolveParams) *WorkspaceContext {
-	base := p.BaseDir
-	agentDir := filepath.Join(base, sanitizeSegment(p.AgentID))
-
-	scope := sharingScope(p)
-	wc := &WorkspaceContext{
-		ActivePath:       agentDir,
-		Scope:            ScopePersonal,
-		OwnerID:          ownerID(p),
-		MemoryScope:      scope,
-		KGScope:          scope,
-		EnforcementLabel: DefaultEnforcementLabel(ScopePersonal, true),
-	}
-	ensureDir(wc.ActivePath)
-	return wc
-}
-
-// ownerID picks the identifying owner: userID or chatID.
-func ownerID(p ResolveParams) string {
-	if p.UserID != "" {
-		return p.UserID
-	}
-	return p.ChatID
-}
-
-// sharingScope returns "shared" or "user" based on team config.
-func sharingScope(p ResolveParams) string {
-	if p.TeamConfig.IsShared() {
-		return "shared"
-	}
-	return "user"
 }
 
 // SanitizeSegment makes a string safe for filesystem path use.

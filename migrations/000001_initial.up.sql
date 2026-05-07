@@ -181,7 +181,9 @@ CREATE TABLE IF NOT EXISTS agent_shares (
     id                  UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
     agent_id            UUID         NOT NULL REFERENCES agents(id)       ON DELETE CASCADE,
     shared_with_user_id UUID         NULL     REFERENCES users(id)        ON DELETE CASCADE,
-    shared_with_team_id UUID         NULL     REFERENCES agent_teams(id)  ON DELETE CASCADE,
+    -- shared_with_team_id FK to agent_teams added via ALTER TABLE after
+    -- agent_teams is created (Section 3) — same pattern as agent_links.team_id.
+    shared_with_team_id UUID         NULL,
     role                VARCHAR(20)  NOT NULL CHECK (role IN ('viewer','member','editor')),
     metadata            JSONB        NOT NULL DEFAULT '{}',
     created_by          UUID         NOT NULL REFERENCES users(id)        ON DELETE RESTRICT,
@@ -546,6 +548,42 @@ CREATE INDEX idx_agent_sessions_updated     ON agent_sessions(updated_at DESC);
 CREATE INDEX idx_agent_sessions_user_agent  ON agent_sessions(user_id, agent_id);
 CREATE INDEX idx_agent_sessions_team        ON agent_sessions(team_id)    WHERE team_id    IS NOT NULL;
 CREATE INDEX idx_agent_sessions_project     ON agent_sessions(project_id) WHERE project_id IS NOT NULL;
+
+-- ============================================================
+-- Section 4b: Channel contacts
+-- ============================================================
+-- Defined here (before Section 5+) because memory_documents, memory_chunks,
+-- episodic_summaries, kg_entities, traces, and spans all carry a contact_id
+-- FK to channel_contacts(id). Channel-instance metadata is in Section 8.
+
+CREATE TABLE IF NOT EXISTS channel_contacts (
+    id                 UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
+    channel_type       VARCHAR(50)  NOT NULL,
+    channel_instance   VARCHAR(255),
+    sender_id          VARCHAR(255) NOT NULL,
+    user_id            UUID         REFERENCES users(id) ON DELETE SET NULL,
+    display_name       VARCHAR(255),
+    username           VARCHAR(255),
+    avatar_url         TEXT,
+    peer_kind          VARCHAR(20),
+    contact_type       VARCHAR(20)  NOT NULL DEFAULT 'user',
+    thread_id          VARCHAR(100),
+    thread_type        VARCHAR(20),
+    metadata           JSONB        DEFAULT '{}',
+    merge_audit        JSONB        NOT NULL DEFAULT '{}',
+    merged_id          UUID         REFERENCES users(id) ON DELETE SET NULL,
+    default_project_id UUID         REFERENCES projects(id) ON DELETE SET NULL,
+    first_seen_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    last_seen_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_channel_contacts_type_sender
+    ON channel_contacts(channel_type, sender_id, COALESCE(thread_id, ''));
+CREATE INDEX idx_channel_contacts_instance       ON channel_contacts(channel_instance)       WHERE channel_instance IS NOT NULL;
+CREATE INDEX idx_channel_contacts_merged         ON channel_contacts(merged_id)              WHERE merged_id IS NOT NULL;
+CREATE INDEX idx_channel_contacts_search         ON channel_contacts(display_name, username);
+CREATE INDEX idx_channel_contacts_user           ON channel_contacts(user_id)                WHERE user_id IS NOT NULL;
+CREATE INDEX idx_channel_contacts_default_project ON channel_contacts(default_project_id)    WHERE default_project_id IS NOT NULL;
 
 -- ============================================================
 -- Section 5: Memory
@@ -960,34 +998,9 @@ CREATE TABLE IF NOT EXISTS channel_pending_messages (
 
 CREATE INDEX idx_channel_pending_messages_lookup ON channel_pending_messages(channel_name, history_key, created_at);
 
-CREATE TABLE IF NOT EXISTS channel_contacts (
-    id                 UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
-    channel_type       VARCHAR(50)  NOT NULL,
-    channel_instance   VARCHAR(255),
-    sender_id          VARCHAR(255) NOT NULL,
-    user_id            UUID         REFERENCES users(id) ON DELETE SET NULL,
-    display_name       VARCHAR(255),
-    username           VARCHAR(255),
-    avatar_url         TEXT,
-    peer_kind          VARCHAR(20),
-    contact_type       VARCHAR(20)  NOT NULL DEFAULT 'user',
-    thread_id          VARCHAR(100),
-    thread_type        VARCHAR(20),
-    metadata           JSONB        DEFAULT '{}',
-    merge_audit        JSONB        NOT NULL DEFAULT '{}',
-    merged_id          UUID         REFERENCES users(id) ON DELETE SET NULL,
-    default_project_id UUID         REFERENCES projects(id) ON DELETE SET NULL,
-    first_seen_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_seen_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX idx_channel_contacts_type_sender
-    ON channel_contacts(channel_type, sender_id, COALESCE(thread_id, ''));
-CREATE INDEX idx_channel_contacts_instance       ON channel_contacts(channel_instance)       WHERE channel_instance IS NOT NULL;
-CREATE INDEX idx_channel_contacts_merged         ON channel_contacts(merged_id)              WHERE merged_id IS NOT NULL;
-CREATE INDEX idx_channel_contacts_search         ON channel_contacts(display_name, username);
-CREATE INDEX idx_channel_contacts_user           ON channel_contacts(user_id)                WHERE user_id IS NOT NULL;
-CREATE INDEX idx_channel_contacts_default_project ON channel_contacts(default_project_id)    WHERE default_project_id IS NOT NULL;
+-- channel_contacts moved to Section 4b (defined before Section 5 to satisfy FK
+-- references from memory_documents, memory_chunks, episodic_summaries,
+-- kg_entities, traces, and spans).
 
 CREATE TABLE IF NOT EXISTS pairing_requests (
     id         UUID         NOT NULL PRIMARY KEY DEFAULT uuid_generate_v7(),
@@ -1625,3 +1638,7 @@ CREATE INDEX idx_evo_suggestions_agent ON agent_evolution_suggestions(agent_id, 
 ALTER TABLE agent_links
     ADD CONSTRAINT fk_agent_links_team
     FOREIGN KEY (team_id) REFERENCES agent_teams(id) ON DELETE SET NULL;
+
+ALTER TABLE agent_shares
+    ADD CONSTRAINT fk_agent_shares_team
+    FOREIGN KEY (shared_with_team_id) REFERENCES agent_teams(id) ON DELETE CASCADE;

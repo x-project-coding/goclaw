@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -90,25 +92,44 @@ type pipelineCallbackSet struct {
 func (l *Loop) makeResolveWorkspace(req *RunRequest) func(ctx context.Context, input *pipeline.RunInput) (*workspace.WorkspaceContext, error) {
 	resolver := workspace.NewResolver()
 	return func(ctx context.Context, input *pipeline.RunInput) (*workspace.WorkspaceContext, error) {
-		var teamID *string
-		if input.TeamID != "" {
-			teamID = &input.TeamID
-		}
-		// Resolve project binding for workspace routing (same three-source chain as injectContext):
-		//  0. req.ProjectOverride — snapshot from parent (team dispatch)
-		//  1. session.project_id — explicit per-session binding
-		//  2. contact default_project_id — channel group default (when contactStore is wired)
+		// Priority: project binding > 12-scenario channel/web matrix.
+		// Mirrors the resolution flow in injectContext().
 		projectID, projectSlug := l.resolveProjectParams(ctx, input.SessionKey, input.ChannelType, input.ChatID, req.ProjectOverride)
-		return resolver.Resolve(ctx, workspace.ResolveParams{
-			AgentID:     l.id,
-			UserID:      input.UserID,
+		if projectID != nil && projectSlug != "" {
+			return resolver.Resolve(ctx, workspace.ResolveParams{
+				AgentID:     l.id,
+				UserID:      input.UserID,
+				ChatID:      input.ChatID,
+				BaseDir:     l.workspace,
+				ProjectID:   projectID,
+				ProjectSlug: projectSlug,
+			})
+		}
+		// Build a synthetic RunRequest for the channel-context helper so the
+		// pipeline callback path sees the same TeamKey / Merged / UserKey
+		// resolution as injectContext().
+		syn := &RunRequest{
+			ChannelType: input.ChannelType,
 			ChatID:      input.ChatID,
+			SenderID:    input.SenderID,
+			UserID:      input.UserID,
 			PeerKind:    input.PeerKind,
-			TeamID:      teamID,
-			BaseDir:     l.workspace,
-			ProjectID:   projectID,
-			ProjectSlug: projectSlug,
-		})
+		}
+		teamKey := ""
+		if input.TeamID != "" && l.teamStore != nil {
+			if teamUUID, err := uuid.Parse(input.TeamID); err == nil {
+				if team, _ := l.teamStore.GetTeam(ctx, teamUUID); team != nil {
+					teamKey = team.TeamKey
+				}
+			}
+		}
+		ccx := l.buildChannelResolveCtx(ctx, syn, teamKey)
+		ccx.BaseDir = l.workspace // pipeline callback uses per-run workspace, not dataDir
+		path, scope, err := resolver.ResolveChannel(ctx, ccx)
+		if err != nil {
+			return nil, err
+		}
+		return channelToWorkspace(path, scope, ccx, l.shouldShareMemory()), nil
 	}
 }
 

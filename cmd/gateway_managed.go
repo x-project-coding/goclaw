@@ -232,6 +232,7 @@ func wireExtras(
 		MemoryStore:            stores.Memory,
 		ContactStore:           stores.Contacts,
 		ProjectStore:           stores.Projects,
+		UsersStore:             stores.Users,
 		SystemConfigs:          stores.SystemConfigs,
 		Workspace:              workspace,
 		TTSAutoMode:            appCfg.Tts.Auto,

@@ -27,12 +27,11 @@ func TestProjectsE2E_CreateFolderExists(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	wsRoot := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", wsRoot)
 
 	owner := e2eUser(t, db)
 	p := e2eCreateProject(t, ctx, db, owner)
 
-	if err := workspace.OnProjectCreate(ctx, p.Slug); err != nil {
+	if err := workspace.OnProjectCreate(ctx, wsRoot, p.Slug); err != nil {
 		t.Fatalf("OnProjectCreate: %v", err)
 	}
 

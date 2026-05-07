@@ -9,33 +9,23 @@ import (
 	"strings"
 )
 
-// workspaceRoot returns the resolved workspace root directory.
-// Priority: GOCLAW_WORKSPACE_ROOT env var → ~/.goclaw/workspace default.
-func workspaceRoot() string {
-	if r := os.Getenv("GOCLAW_WORKSPACE_ROOT"); r != "" {
-		return r
+// ProjectWorkspacePath returns the absolute filesystem path for a project slug
+// rooted at baseDir. Validates slug before any path construction. Applies
+// filepath.Clean and asserts the result is strictly under <baseDir>/projects/
+// as defense-in-depth against unexpected path escape. Does NOT create the
+// folder — call EnsureProjectFolder for that.
+//
+// baseDir must match the workspace root used by the channel/web resolver
+// (Loop.dataDir / GOCLAW_WORKSPACE) so all v4 paths share a single root.
+func ProjectWorkspacePath(baseDir, slug string) (string, error) {
+	if baseDir == "" {
+		return "", fmt.Errorf("workspace: base dir is required")
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".goclaw", "workspace")
-}
-
-// projectsDir returns the managed projects sub-folder under workspace root.
-func projectsDir() string {
-	return filepath.Join(workspaceRoot(), "projects")
-}
-
-// ProjectWorkspacePath returns the absolute filesystem path for a project slug.
-// Validates slug before any path construction. Applies filepath.Clean and
-// asserts the result is strictly under <workspaceRoot>/projects/ as
-// defense-in-depth against unexpected path escape.
-// Does NOT create the folder — call EnsureProjectFolder for that.
-func ProjectWorkspacePath(slug string) (string, error) {
 	if err := ValidateProjectSlug(slug); err != nil {
 		return "", fmt.Errorf("workspace: invalid project slug: %w", err)
 	}
 
-	root := workspaceRoot()
-	base := filepath.Join(root, "projects")
+	base := filepath.Join(baseDir, "projects")
 	path := filepath.Clean(filepath.Join(base, slug))
 
 	// Defense-in-depth: confirm the cleaned path is still inside projects/.
@@ -52,8 +42,8 @@ func ProjectWorkspacePath(slug string) (string, error) {
 // Returns the absolute path on success.
 // On failure, logs a warning and returns the error; callers in the create flow
 // should treat FS errors as non-fatal (DB row is source of truth).
-func EnsureProjectFolder(ctx context.Context, slug string) (string, error) {
-	path, err := ProjectWorkspacePath(slug)
+func EnsureProjectFolder(ctx context.Context, baseDir, slug string) (string, error) {
+	path, err := ProjectWorkspacePath(baseDir, slug)
 	if err != nil {
 		return "", err
 	}
@@ -71,8 +61,8 @@ func EnsureProjectFolder(ctx context.Context, slug string) (string, error) {
 }
 
 // ProjectExists reports whether the project workspace folder exists on disk.
-func ProjectExists(slug string) bool {
-	path, err := ProjectWorkspacePath(slug)
+func ProjectExists(baseDir, slug string) bool {
+	path, err := ProjectWorkspacePath(baseDir, slug)
 	if err != nil {
 		return false
 	}

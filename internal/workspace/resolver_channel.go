@@ -17,6 +17,8 @@ import (
 //  2. web sender → user-scoped zone (personal or team).
 //  3. channel DM → agent or team contact zone (unmerged).
 //  4. channel group → agent or team group zone (unmerged).
+//  5. system run (Web sender, empty UserKey) → agent/team root zone — covers
+//     heartbeat / delegate / system flows where no user identity exists.
 func (r *defaultResolver) ResolveChannel(_ context.Context, c ChannelResolveCtx) (string, ChannelScope, error) {
 	if c.BaseDir == "" {
 		return "", ChannelScope{}, fmt.Errorf("workspace: base dir is required")
@@ -31,6 +33,12 @@ func (r *defaultResolver) ResolveChannel(_ context.Context, c ChannelResolveCtx)
 
 	switch c.SenderKind {
 	case SenderWeb:
+		// System run fallback: a Web sender with no user identity (heartbeat,
+		// delegate, cron-without-user) cannot route to users/{user_key}/.
+		// Drop into the agent/team system zone instead.
+		if c.UserKey == "" {
+			return channelSystemZone(c)
+		}
 		return channelUserZone(c)
 	case SenderChannelDM:
 		return channelDMZone(c)
@@ -39,6 +47,23 @@ func (r *defaultResolver) ResolveChannel(_ context.Context, c ChannelResolveCtx)
 	default:
 		return channelUserZone(c)
 	}
+}
+
+// channelSystemZone handles system-initiated runs (no user identity).
+//   - solo: agents/{agent_key}/
+//   - team: teams/{team_key}/
+//
+// Used by heartbeat, delegate, and cron-without-user flows where SenderKind is
+// classified as Web but no UserKey can be resolved.
+func channelSystemZone(c ChannelResolveCtx) (string, ChannelScope, error) {
+	if c.TeamKey != "" {
+		p := filepath.Join(c.BaseDir, "teams", sanitizeSegment(c.TeamKey))
+		ensureDirTeam(p)
+		return p, ChannelScope{SenderKind: c.SenderKind, ZoneKind: "team-system"}, nil
+	}
+	p := filepath.Join(c.BaseDir, "agents", sanitizeSegment(c.AgentKey))
+	ensureDir(p)
+	return p, ChannelScope{SenderKind: c.SenderKind, ZoneKind: "agent-system"}, nil
 }
 
 // channelUserZone handles web sender paths and merged-contact canonical paths.

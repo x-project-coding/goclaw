@@ -23,12 +23,11 @@ func TestSQLiteProjectsParity_CreateFolderExists(t *testing.T) {
 	db := newProjectsParityDB(t)
 	ctx := context.Background()
 	wsRoot := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", wsRoot)
 
 	ownerID := sqliteE2EUser(t, db)
 	p := sqliteE2EProject(t, ctx, db, ownerID)
 
-	if err := workspace.OnProjectCreate(ctx, p.Slug); err != nil {
+	if err := workspace.OnProjectCreate(ctx, wsRoot, p.Slug); err != nil {
 		t.Fatalf("OnProjectCreate: %v", err)
 	}
 

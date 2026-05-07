@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 )
 
 //go:embed schema.sql
@@ -314,6 +316,39 @@ var migrations = map[int][]string{
 	},
 }
 
+// dropColumnRE matches `ALTER TABLE <name> DROP COLUMN <col>` (with or without
+// surrounding whitespace / trailing semicolon). Used to make DROP COLUMN
+// idempotent: if the legacy column was never created on a given DB lineage,
+// skip the drop instead of failing the migration. SQLite (modernc) does not
+// accept `DROP COLUMN IF EXISTS`, so we PRAGMA-check column presence instead.
+var dropColumnRE = regexp.MustCompile(`(?i)^\s*ALTER\s+TABLE\s+([A-Za-z_][A-Za-z0-9_]*)\s+DROP\s+COLUMN\s+([A-Za-z_][A-Za-z0-9_]*)\s*;?\s*$`)
+
+func skipDropColumnIfMissing(tx *sql.Tx, stmt string) bool {
+	m := dropColumnRE.FindStringSubmatch(stmt)
+	if len(m) != 3 {
+		return false
+	}
+	table, column := m[1], m[2]
+	rows, err := tx.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false
+		}
+		if strings.EqualFold(name, column) {
+			return false // column exists → run the DROP
+		}
+	}
+	return true // column absent → skip
+}
+
 // EnsureSchema creates tables if they don't exist and applies incremental migrations.
 //
 // Flow:
@@ -366,6 +401,10 @@ func EnsureSchema(db *sql.DB) error {
 				return fmt.Errorf("begin migration tx v%d: %w", v, txErr)
 			}
 			for _, stmt := range stmts {
+				if skipDropColumnIfMissing(tx, stmt) {
+					slog.Info("sqlite: skip drop-column (already absent)", "version", v, "stmt", stmt[:min(60, len(stmt))])
+					continue
+				}
 				if _, err := tx.Exec(stmt); err != nil {
 					tx.Rollback()
 					return fmt.Errorf("apply migration v%d stmt %q: %w", v, stmt[:min(40, len(stmt))], err)

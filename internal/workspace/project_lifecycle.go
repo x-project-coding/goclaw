@@ -13,15 +13,18 @@ import (
 // treat it as non-fatal: the DB row exists and the folder can be created on
 // the next access (EnsureProjectFolder is idempotent).
 //
+// baseDir must match the workspace root used by the channel/web resolver so
+// project paths and channel/web paths share a single root.
+//
 // Usage (future projects RPC handler):
 //
 //	if err := store.Projects.Create(ctx, project); err != nil { ... }
-//	if fsErr := workspace.OnProjectCreate(ctx, project.Slug); fsErr != nil {
+//	if fsErr := workspace.OnProjectCreate(ctx, baseDir, project.Slug); fsErr != nil {
 //	    slog.Warn("workspace.project_folder_deferred", "slug", project.Slug)
 //	    // continue — do not return error to caller
 //	}
-func OnProjectCreate(ctx context.Context, slug string) error {
-	_, err := EnsureProjectFolder(ctx, slug)
+func OnProjectCreate(ctx context.Context, baseDir, slug string) error {
+	_, err := EnsureProjectFolder(ctx, baseDir, slug)
 	if err != nil {
 		slog.WarnContext(ctx, "workspace.project_folder_create_failed",
 			"slug", slug,

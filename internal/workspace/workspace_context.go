@@ -72,41 +72,19 @@ type Resolver interface {
 	ResolveChannel(ctx context.Context, c ChannelResolveCtx) (string, ChannelScope, error)
 }
 
-// ResolveParams captures all inputs needed to determine workspace.
+// ResolveParams captures inputs for the project-priority branch of Resolve().
+// All non-project paths flow through ResolveChannel + ChannelResolveCtx.
 type ResolveParams struct {
-	AgentID     string
-	UserID      string
-	ChatID      string
-	PeerKind    string // "direct" | "group"
-	TeamID      *string
-	TeamConfig  *TeamWorkspaceConfig
-	DelegateCtx *DelegateContext
-	BaseDir     string
+	AgentID string
+	UserID  string
+	ChatID  string
+	BaseDir string
 
 	// ProjectID and ProjectSlug activate the project-workspace branch.
-	// When both are set, the session's active path is resolved under
-	// <workspaceRoot>/projects/<slug> regardless of team/personal scenario.
+	// Both required: nil ProjectID or empty ProjectSlug → Resolve returns
+	// an error and the caller must use ResolveChannel.
 	ProjectID   *uuid.UUID
 	ProjectSlug string
-}
-
-// TeamWorkspaceConfig maps to team.settings JSON.
-// WorkspaceScope uses "shared"/"isolated" string to match existing DB schema.
-type TeamWorkspaceConfig struct {
-	WorkspaceScope string `json:"workspace_scope"`
-	WorkspacePath  string `json:"workspace_path,omitempty"`
-}
-
-// IsShared returns true when workspace_scope is "shared".
-func (c *TeamWorkspaceConfig) IsShared() bool {
-	return c != nil && c.WorkspaceScope == "shared"
-}
-
-// DelegateContext carries delegation-specific workspace overrides.
-type DelegateContext struct {
-	LinkID      string
-	SharedPath  string
-	ExportPaths []string // read-only exports from delegator
 }
 
 // DefaultEnforcementLabel returns a human-readable workspace description

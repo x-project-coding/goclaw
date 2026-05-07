@@ -12,7 +12,6 @@ import (
 // illegal slug patterns are rejected before any filesystem access.
 func TestProjectWorkspacePath_RejectsInvalidSlug(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	cases := []struct {
 		name string
@@ -28,7 +27,7 @@ func TestProjectWorkspacePath_RejectsInvalidSlug(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := ProjectWorkspacePath(tc.slug)
+			_, err := ProjectWorkspacePath(tmp, tc.slug)
 			if err == nil {
 				t.Errorf("slug %q: expected error, got nil", tc.slug)
 			}
@@ -40,16 +39,15 @@ func TestProjectWorkspacePath_RejectsInvalidSlug(t *testing.T) {
 // twice on the same slug succeeds without error and the folder exists.
 func TestEnsureProjectFolder_CreatesIdempotently(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	slug := "my-project"
 
-	path1, err := EnsureProjectFolder(context.Background(), slug)
+	path1, err := EnsureProjectFolder(context.Background(), tmp, slug)
 	if err != nil {
 		t.Fatalf("first EnsureProjectFolder: %v", err)
 	}
 
-	path2, err := EnsureProjectFolder(context.Background(), slug)
+	path2, err := EnsureProjectFolder(context.Background(), tmp, slug)
 	if err != nil {
 		t.Fatalf("second EnsureProjectFolder (idempotent): %v", err)
 	}
@@ -71,10 +69,9 @@ func TestEnsureProjectFolder_CreatesIdempotently(t *testing.T) {
 // expected projects/ sub-folder prefix relative to workspace root.
 func TestProjectWorkspacePath_UnderWorkspaceRoot(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	slug := "alpha-project"
-	got, err := ProjectWorkspacePath(slug)
+	got, err := ProjectWorkspacePath(tmp, slug)
 	if err != nil {
 		t.Fatalf("ProjectWorkspacePath: %v", err)
 	}
@@ -94,9 +91,8 @@ func TestProjectWorkspacePath_UnderWorkspaceRoot(t *testing.T) {
 // permission mode 0o755 (owner rwx, group and other rx).
 func TestEnsureProjectFolder_FolderMode(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
-	path, err := EnsureProjectFolder(context.Background(), "perm-test")
+	path, err := EnsureProjectFolder(context.Background(), tmp, "perm-test")
 	if err != nil {
 		t.Fatalf("EnsureProjectFolder: %v", err)
 	}
@@ -118,7 +114,6 @@ func TestEnsureProjectFolder_FolderMode(t *testing.T) {
 // already exists (e.g. from a previous run or a concurrent creator).
 func TestEnsureProjectFolder_ExistingFolderIdempotent(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	// Pre-create the folder manually.
 	slug := "pre-existing"
@@ -128,7 +123,7 @@ func TestEnsureProjectFolder_ExistingFolderIdempotent(t *testing.T) {
 	}
 
 	// EnsureProjectFolder must succeed even though folder exists.
-	got, err := EnsureProjectFolder(context.Background(), slug)
+	got, err := EnsureProjectFolder(context.Background(), tmp, slug)
 	if err != nil {
 		t.Fatalf("EnsureProjectFolder on existing folder: %v", err)
 	}
@@ -141,10 +136,9 @@ func TestEnsureProjectFolder_ExistingFolderIdempotent(t *testing.T) {
 // is rejected before any filesystem side-effect.
 func TestProjectWorkspacePath_SlugWithDotDot(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	slug := "foo..bar"
-	_, err := ProjectWorkspacePath(slug)
+	_, err := ProjectWorkspacePath(tmp, slug)
 	if err == nil {
 		t.Error("expected error for slug containing '..', got nil")
 	}
@@ -164,12 +158,11 @@ func TestProjectWorkspacePath_SlugWithDotDot(t *testing.T) {
 // for a valid slug but no MkdirAll is invoked from this path alone.
 func TestProjectWorkspacePath_ArchiveDoesNotCallEnsure(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("GOCLAW_WORKSPACE_ROOT", tmp)
 
 	slug := "archive-me"
 
 	// Obtain the path without creating the folder (ProjectWorkspacePath only validates + computes).
-	path, err := ProjectWorkspacePath(slug)
+	path, err := ProjectWorkspacePath(tmp, slug)
 	if err != nil {
 		t.Fatalf("ProjectWorkspacePath: %v", err)
 	}

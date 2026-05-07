@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS agent_teams (
 CREATE TABLE IF NOT EXISTS memory_documents (
     id         TEXT NOT NULL PRIMARY KEY,
     agent_id   TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    user_id    TEXT,
     path       VARCHAR(500) NOT NULL,
     content    TEXT NOT NULL DEFAULT '',
     hash       VARCHAR(64) NOT NULL,
@@ -220,6 +221,89 @@ CREATE TABLE IF NOT EXISTS system_configs (
     key        VARCHAR(100) NOT NULL PRIMARY KEY,
     value      TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+
+-- Tables that existed at v1 (production) but are stubbed minimally here
+-- because subsequent migrations (v8–v15) ALTER them.
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    id           TEXT NOT NULL PRIMARY KEY,
+    agent_id     TEXT NOT NULL,
+    session_key  VARCHAR(255) NOT NULL,
+    created_at   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS channel_contacts (
+    id           TEXT NOT NULL PRIMARY KEY,
+    channel_type VARCHAR(50) NOT NULL,
+    chat_id      VARCHAR(255) NOT NULL,
+    user_id      TEXT,
+    created_at   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_config_permissions (
+    id          TEXT NOT NULL PRIMARY KEY,
+    agent_id    TEXT NOT NULL,
+    config_type VARCHAR(50) NOT NULL,
+    created_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS traces (
+    id         TEXT NOT NULL PRIMARY KEY,
+    agent_id   TEXT,
+    user_id    TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS spans (
+    id         TEXT NOT NULL PRIMARY KEY,
+    trace_id   TEXT NOT NULL,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS subagent_tasks (
+    id         TEXT NOT NULL PRIMARY KEY,
+    agent_id   TEXT,
+    status     VARCHAR(20),
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS memory_chunks (
+    id         TEXT NOT NULL PRIMARY KEY,
+    document_id TEXT,
+    user_id    TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS embedding_cache (
+    id         TEXT NOT NULL PRIMARY KEY,
+    hash       VARCHAR(64) NOT NULL,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS episodic_summaries (
+    id         TEXT NOT NULL PRIMARY KEY,
+    agent_id   TEXT,
+    user_id    TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS kg_entities (
+    id         TEXT NOT NULL PRIMARY KEY,
+    agent_id   TEXT,
+    user_id    TEXT,
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS vault_documents (
+    id         TEXT NOT NULL PRIMARY KEY,
+    title      VARCHAR(255),
+    created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS team_tasks (
+    id         TEXT NOT NULL PRIMARY KEY,
+    team_id    TEXT,
+    created_at TEXT
 );
 `
 
