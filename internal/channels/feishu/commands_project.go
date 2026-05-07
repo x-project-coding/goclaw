@@ -36,6 +36,8 @@ func (c *Channel) handleProjectCommand(ctx context.Context, mc *messageContext) 
 		Sessions:      c.sessionStore,
 		Projects:      c.projectStore,
 		ProjectGrants: c.projectGrantStore,
+		Episodics:     c.episodicStore,
+		BaseDir:       c.baseDir,
 	}, channels.ProjectCommandRequest{
 		SessionKey: sessionKey,
 		UserID:     userUUID,

@@ -141,12 +141,6 @@ type ChannelResolveCtx struct {
 	// TeamKey is the team slug. Non-empty activates the team-scoped branch.
 	TeamKey string
 
-	// IsPredefined marks the agent as a predefined (shared) agent. For channel
-	// DM paths the predefined flag does not change the path template — it shares
-	// agents/{agent_key}/contacts/{ch}-{sid}/ with solo agents (H-2 isolation
-	// per sender_id subfolder). For web paths it still uses per-user zone.
-	IsPredefined bool
-
 	// ChannelType is the platform identifier (e.g. "telegram", "discord").
 	ChannelType string
 

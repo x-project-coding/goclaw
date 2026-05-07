@@ -34,6 +34,8 @@ type Channel struct {
 	sessionStore      store.SessionCoreStore      // for /project session binding (nil = /project disabled)
 	projectStore      store.ProjectStore          // for /project slug lookup (nil = /project disabled)
 	projectGrantStore store.ProjectGrantStore     // for /project switch RBAC (nil = /project disabled)
+	episodicStore     store.EpisodicStore         // for /project switch episodic retag (nil → DB-only)
+	baseDir           string                      // workspace root for /project FS relocation
 	audioMgr          *audio.Manager              // unified STT via audio.Manager (nil = no STT)
 	// pairingService, pairingDebounce, approvedGroups, groupHistory, historyLimit, requireMention
 	// are inherited from channels.BaseChannel.
@@ -75,6 +77,16 @@ func WithProjectStore(s store.ProjectStore) Option {
 // WithProjectGrantStore enables /project switch RBAC checks.
 func WithProjectGrantStore(s store.ProjectGrantStore) Option {
 	return func(c *Channel) { c.projectGrantStore = s }
+}
+
+// WithEpisodicStore wires episodic retag for /project switch.
+func WithEpisodicStore(s store.EpisodicStore) Option {
+	return func(c *Channel) { c.episodicStore = s }
+}
+
+// WithBaseDir sets the workspace root used for /project FS relocation.
+func WithBaseDir(dir string) Option {
+	return func(c *Channel) { c.baseDir = dir }
 }
 
 // New creates a new Discord channel. audioMgr is optional (nil = STT disabled).

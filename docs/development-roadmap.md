@@ -182,6 +182,15 @@ Permission enforcement for Model Context Protocol servers with scope validation 
   metadata indirection, no TTL). Permission: `ProjectGrantStore.ResolveProjectRole`
   (project member+ or owner). Resolver unchanged — Source 1 (`session.ProjectID`)
   already covers the new write path.
+- ~~**Workspace folder completeness audit**~~ **LANDED 2026-05-07**. 8 gaps closed:
+  G1 + G2 + G6 (path traversal sanitize on contact_merge / agents_create / team_attachments —
+  G2 was a false positive, NormalizeAgentID already enforces); G3 + G7 (project slug + agent_key
+  immutability, Go-level guard matching team_key pattern); G5 (TTS workspace fallback to
+  `/tmp` removed); G8 (`IsPredefined` dead field removed); G4 (Layer 2 FS relocation —
+  `workspace.SwitchSessionProject` orchestrator with per-session mutex, atomic
+  UPDATE-then-rename, B2a strict-orphan on rename failure). Wired into Layer 1 admin RPC
+  (`sessions.updateProject`) and Layer 2 `/project switch` on all 3 channels. Reports:
+  `plans/reports/brainstorm-260507-1734-workspace-folder-completeness-audit.md`.
 - ~~**Integration test fixture cleanup**~~ **LANDED 2026-05-07** (batch 1 + batch 2 +
   batch 3). PG + unit + sqliteonly suites all green; integration suite stable across
   back-to-back runs. Reports:

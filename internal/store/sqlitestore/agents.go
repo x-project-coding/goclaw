@@ -164,6 +164,13 @@ func (s *SQLiteAgentStore) Update(ctx context.Context, id uuid.UUID, updates map
 		return nil
 	}
 
+	// Immutability: agent_key is set at creation and must never change.
+	// Mirrors PGAgentStore.Update + PGTeamStore.UpdateTeam pattern.
+	delete(updates, "agent_key")
+	if len(updates) == 0 {
+		return nil
+	}
+
 	for _, col := range []string{"emoji", "agent_description", "thinking_level"} {
 		if v, ok := updates[col]; ok && v == nil {
 			updates[col] = ""

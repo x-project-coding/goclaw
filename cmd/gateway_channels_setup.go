@@ -29,7 +29,7 @@ import (
 
 // registerConfigChannels registers config-based channels as fallback when no DB instances are loaded.
 // audioMgr is optional (nil = STT disabled for channels).
-func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, msgBus *bus.MessageBus, pgStores *store.Stores, instanceLoader *channels.InstanceLoader, audioMgr *audio.Manager) {
+func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, msgBus *bus.MessageBus, pgStores *store.Stores, instanceLoader *channels.InstanceLoader, audioMgr *audio.Manager, dataDir string) {
 	if instanceLoader != nil {
 		return
 	}
@@ -55,6 +55,8 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 				telegram.WithSessionStore(pgStores.Sessions),
 				telegram.WithProjectStore(pgStores.Projects),
 				telegram.WithProjectGrantStore(pgStores.ProjectGrants),
+				telegram.WithEpisodicStore(pgStores.Episodic),
+				telegram.WithBaseDir(dataDir),
 			}
 			if tg, err := telegram.New(cfg.Channels.Telegram, msgBus, pgStores.Pairing, audioMgr, tgOpts...); err != nil {
 				channelMgr.RecordFailure(channels.TypeTelegram, "", err)
@@ -76,6 +78,8 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 				discord.WithSessionStore(pgStores.Sessions),
 				discord.WithProjectStore(pgStores.Projects),
 				discord.WithProjectGrantStore(pgStores.ProjectGrants),
+				discord.WithEpisodicStore(pgStores.Episodic),
+				discord.WithBaseDir(dataDir),
 			}
 			if dc, err := discord.New(cfg.Channels.Discord, msgBus, nil, audioMgr, dcOpts...); err != nil {
 				channelMgr.RecordFailure(channels.TypeDiscord, "", err)
@@ -153,6 +157,8 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 				feishu.WithSessionStore(pgStores.Sessions),
 				feishu.WithProjectStore(pgStores.Projects),
 				feishu.WithProjectGrantStore(pgStores.ProjectGrants),
+				feishu.WithEpisodicStore(pgStores.Episodic),
+				feishu.WithBaseDir(dataDir),
 			}
 			if f, err := feishu.New(cfg.Channels.Feishu, msgBus, pgStores.Pairing, nil, audioMgr, feishuOpts...); err != nil {
 				channelMgr.RecordFailure(channels.TypeFeishu, "", err)

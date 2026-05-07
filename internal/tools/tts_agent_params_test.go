@@ -42,7 +42,11 @@ func buildSnapCtx(t *testing.T, agentID uuid.UUID, otherConfig map[string]any) c
 		t.Fatalf("marshal other_config: %v", err)
 	}
 	snap := store.AgentAudioSnapshot{AgentID: agentID, OtherConfig: raw}
-	return store.WithAgentAudio(context.Background(), snap)
+	// TTS execute requires a workspace bound on ctx — fall-back to /tmp was
+	// dropped intentionally to keep audio inside the agent isolation
+	// boundary. Wire t.TempDir() so tests don't need to do it themselves.
+	ctx := WithToolWorkspace(context.Background(), t.TempDir())
+	return store.WithAgentAudio(ctx, snap)
 }
 
 // TestTtsTool_NoTTSParams_NoBehaviorChange is the characterization test:

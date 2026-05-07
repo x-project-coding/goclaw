@@ -38,6 +38,8 @@ func (c *Channel) handleProjectCommand(m *discordgo.MessageCreate) {
 		Sessions:      c.sessionStore,
 		Projects:      c.projectStore,
 		ProjectGrants: c.projectGrantStore,
+		Episodics:     c.episodicStore,
+		BaseDir:       c.baseDir,
 	}, channels.ProjectCommandRequest{
 		SessionKey: sessionKey,
 		UserID:     userUUID,

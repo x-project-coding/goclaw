@@ -47,6 +47,8 @@ type Channel struct {
 	sessionStore      store.SessionCoreStore      // optional — /project session binding writes
 	projectStore      store.ProjectStore          // optional — /project slug lookup
 	projectGrantStore store.ProjectGrantStore     // optional — /project switch RBAC check
+	episodicStore     store.EpisodicStore         // optional — /project switch episodic retag (nil → DB-only)
+	baseDir           string                      // optional — workspace root for FS relocation
 	groupAllowList  []string                    // Feishu-specific: per-group sender allowlist (separate from BaseChannel allowList)
 	stopCh          chan struct{}
 	httpServer      *http.Server
@@ -85,6 +87,16 @@ func WithProjectStore(s store.ProjectStore) Option {
 // WithProjectGrantStore enables /project switch RBAC checks.
 func WithProjectGrantStore(s store.ProjectGrantStore) Option {
 	return func(c *Channel) { c.projectGrantStore = s }
+}
+
+// WithEpisodicStore wires episodic retag for /project switch.
+func WithEpisodicStore(s store.EpisodicStore) Option {
+	return func(c *Channel) { c.episodicStore = s }
+}
+
+// WithBaseDir sets the workspace root used for /project FS relocation.
+func WithBaseDir(dir string) Option {
+	return func(c *Channel) { c.baseDir = dir }
 }
 
 // Lark docs auto-fetch tunables. Kept as consts rather than config fields

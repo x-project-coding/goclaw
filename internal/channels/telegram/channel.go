@@ -35,6 +35,8 @@ type Channel struct {
 	sessionStore      store.SessionCoreStore      // for /project switch session binding (nil if not configured)
 	projectStore      store.ProjectStore          // for /project lookup by slug (nil if not configured)
 	projectGrantStore store.ProjectGrantStore     // for /project switch RBAC check (nil if not configured)
+	episodicStore     store.EpisodicStore         // for /project switch episodic retag (nil → DB-only switch)
+	baseDir           string                      // workspace root for /project FS relocation (empty → DB-only switch)
 	placeholders      sync.Map                    // localKey string → messageID int
 	stopThinking      sync.Map                    // localKey string → *thinkingCancel
 	typingCtrls       sync.Map                    // localKey string → *typing.Controller
@@ -96,6 +98,18 @@ func WithProjectStore(s store.ProjectStore) Option {
 // WithProjectGrantStore sets the project grant store for /project RBAC.
 func WithProjectGrantStore(s store.ProjectGrantStore) Option {
 	return func(c *Channel) { c.projectGrantStore = s }
+}
+
+// WithEpisodicStore wires the episodic store so /project switch can retag
+// session-scoped episodic memory atomically with the binding flip.
+func WithEpisodicStore(s store.EpisodicStore) Option {
+	return func(c *Channel) { c.episodicStore = s }
+}
+
+// WithBaseDir sets the workspace root used for /project FS relocation
+// (the session subdir moves under the new project slug).
+func WithBaseDir(dir string) Option {
+	return func(c *Channel) { c.baseDir = dir }
 }
 
 // WithPendingMessageStore sets the pending message store for group history buffering.

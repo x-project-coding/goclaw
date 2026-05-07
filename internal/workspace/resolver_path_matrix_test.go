@@ -75,7 +75,7 @@ func TestResolveChannel_PathMatrix(t *testing.T) {
 				SenderKind:   SenderWeb,
 				UserKey:      "alice",
 				AgentKey:     "bot-predefined",
-				IsPredefined: true,
+				
 			},
 			wantRel:  "users/alice/agents/bot-predefined",
 			wantKind: SenderWeb,
@@ -220,7 +220,7 @@ func TestResolveChannel_PathMatrix(t *testing.T) {
 				BaseDir:      base,
 				SenderKind:   SenderChannelDM,
 				AgentKey:     "bot-predefined",
-				IsPredefined: true,
+				
 				ChannelType:  "telegram",
 				SenderID:     "67890",
 			},
@@ -303,7 +303,7 @@ func TestResolveChannel_SharedTemplateInvariant_Pair_B(t *testing.T) {
 	})
 	s12, _, err12 := r.ResolveChannel(context.Background(), ChannelResolveCtx{
 		BaseDir: base, SenderKind: SenderChannelDM, AgentKey: "bot-alpha",
-		IsPredefined: true, ChannelType: "telegram", SenderID: "12345",
+		ChannelType: "telegram", SenderID: "12345",
 	})
 	if err4 != nil || err12 != nil {
 		t.Fatalf("err4=%v err12=%v", err4, err12)
@@ -322,11 +322,11 @@ func TestResolveChannel_PredefinedH2_SenderIsolation(t *testing.T) {
 
 	pathA, _, errA := r.ResolveChannel(context.Background(), ChannelResolveCtx{
 		BaseDir: base, SenderKind: SenderChannelDM, AgentKey: "bot-predefined",
-		IsPredefined: true, ChannelType: "telegram", SenderID: "user-A",
+		ChannelType: "telegram", SenderID: "user-A",
 	})
 	pathB, _, errB := r.ResolveChannel(context.Background(), ChannelResolveCtx{
 		BaseDir: base, SenderKind: SenderChannelDM, AgentKey: "bot-predefined",
-		IsPredefined: true, ChannelType: "telegram", SenderID: "user-B",
+		ChannelType: "telegram", SenderID: "user-B",
 	})
 	if errA != nil || errB != nil {
 		t.Fatalf("errA=%v errB=%v", errA, errB)

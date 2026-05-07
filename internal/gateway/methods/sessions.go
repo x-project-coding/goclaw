@@ -13,19 +13,34 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/workspace"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 // SessionsMethods handles sessions.list, sessions.preview, sessions.patch, sessions.delete, sessions.reset.
 type SessionsMethods struct {
 	sessions      store.SessionStore
+	projects      store.ProjectStore
 	projectGrants store.ProjectGrantStore
+	episodics     store.EpisodicStore
+	baseDir       string
 	eventBus      bus.EventPublisher
 	cfg           *config.Config
 }
 
 func NewSessionsMethods(sess store.SessionStore, projectGrants store.ProjectGrantStore, eventBus bus.EventPublisher, cfg *config.Config) *SessionsMethods {
 	return &SessionsMethods{sessions: sess, projectGrants: projectGrants, eventBus: eventBus, cfg: cfg}
+}
+
+// SetProjectSwitchDeps wires the optional dependencies the
+// sessions.updateProject path uses to keep the FS layout coherent on a
+// project switch (relocate session subdir + retag session-scoped episodic
+// memory). When unset, updateProject still works but only touches the DB
+// row — any pre-existing files stay where they were written.
+func (m *SessionsMethods) SetProjectSwitchDeps(projects store.ProjectStore, episodics store.EpisodicStore, baseDir string) {
+	m.projects = projects
+	m.episodics = episodics
+	m.baseDir = baseDir
 }
 
 func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
@@ -352,8 +367,23 @@ func (m *SessionsMethods) handleUpdateProject(ctx context.Context, client *gatew
 		projectID = &pid
 	}
 
-	if err := m.sessions.UpdateProject(ctx, params.Key, projectID); err != nil {
-		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+	// Route through SwitchSessionProject when FS-side deps are wired so the
+	// session subdir relocates atomically with the DB binding flip. When
+	// unset (e.g. legacy callers, in-memory tests), fall back to the bare
+	// DB UpdateProject — same behaviour as before this method was added.
+	var switchErr error
+	if m.projects != nil && m.episodics != nil && m.baseDir != "" {
+		switchErr = workspace.SwitchSessionProject(ctx, workspace.ProjectSwitchDeps{
+			Sessions:  m.sessions,
+			Projects:  m.projects,
+			Episodics: m.episodics,
+			BaseDir:   m.baseDir,
+		}, params.Key, projectID)
+	} else {
+		switchErr = m.sessions.UpdateProject(ctx, params.Key, projectID)
+	}
+	if switchErr != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, switchErr.Error()))
 		return
 	}
 

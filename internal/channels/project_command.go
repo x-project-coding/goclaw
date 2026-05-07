@@ -11,16 +11,27 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/workspace"
 )
 
 // ProjectCommandDeps bundles the stores the shared /project handler needs.
-// Each field is required; callers must verify non-nil at the channel layer
-// (when any dep is missing the channel should reply with a "not configured"
-// hint rather than calling this helper).
+// Sessions, Projects, ProjectGrants are required; callers must verify
+// non-nil at the channel layer (when any dep is missing the channel should
+// reply with a "not configured" hint rather than calling this helper).
+//
+// Episodics + BaseDir are optional. When both are set, /project switch
+// and /project clear go through workspace.SwitchSessionProject which keeps
+// the FS layout coherent with the new binding (relocates the session
+// subdir to the new project slug + retags session-scoped episodic memory).
+// When either is missing, the handler falls back to a bare DB-only
+// UpdateProject — the next agent run will write under the new path but
+// pre-existing files stay where they are.
 type ProjectCommandDeps struct {
 	Sessions      store.SessionCoreStore
 	Projects      store.ProjectStore
 	ProjectGrants store.ProjectGrantStore
+	Episodics     store.EpisodicStore
+	BaseDir       string
 }
 
 // ProjectCommandRequest is the parsed-from-channel input to the shared
@@ -189,7 +200,7 @@ func handleProjectSwitch(ctx context.Context, deps ProjectCommandDeps, req Proje
 		return fmt.Sprintf("You do not have access to project %q.", slug)
 	}
 	pid := p.ID
-	if err := deps.Sessions.UpdateProject(ctx, req.SessionKey, &pid); err != nil {
+	if err := applyProjectSwitch(ctx, deps, req.SessionKey, &pid); err != nil {
 		slog.Warn("project_command.switch_update_failed",
 			"session_key", req.SessionKey, "project_id", pid, "err", err)
 		return "Failed to switch project."
@@ -200,8 +211,25 @@ func handleProjectSwitch(ctx context.Context, deps ProjectCommandDeps, req Proje
 	return fmt.Sprintf("Switched to project: %s", p.Slug)
 }
 
+// applyProjectSwitch routes the binding change through
+// workspace.SwitchSessionProject when the orchestrator deps are wired,
+// otherwise falls back to a bare DB UpdateProject. The fallback exists for
+// callers (e.g. early tests) that have not been updated to provide the
+// FS-side stores.
+func applyProjectSwitch(ctx context.Context, deps ProjectCommandDeps, sessionKey string, newProjectID *uuid.UUID) error {
+	if deps.Episodics != nil && deps.BaseDir != "" {
+		return workspace.SwitchSessionProject(ctx, workspace.ProjectSwitchDeps{
+			Sessions:  deps.Sessions,
+			Projects:  deps.Projects,
+			Episodics: deps.Episodics,
+			BaseDir:   deps.BaseDir,
+		}, sessionKey, newProjectID)
+	}
+	return deps.Sessions.UpdateProject(ctx, sessionKey, newProjectID)
+}
+
 func handleProjectClear(ctx context.Context, deps ProjectCommandDeps, req ProjectCommandRequest) string {
-	if err := deps.Sessions.UpdateProject(ctx, req.SessionKey, nil); err != nil {
+	if err := applyProjectSwitch(ctx, deps, req.SessionKey, nil); err != nil {
 		slog.Warn("project_command.clear_failed",
 			"session_key", req.SessionKey, "err", err)
 		return "Failed to clear project binding."

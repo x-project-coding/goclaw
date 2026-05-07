@@ -104,6 +104,16 @@ func (s *PGProjectStore) List(ctx context.Context, f store.ListProjectsFilter) (
 	return projects, rows.Err()
 }
 
+// Slug immutability is enforced by the ProjectStore interface itself — no
+// UpdateSlug method exists. UpdateStatus and UpdateMetadata only touch the
+// status and metadata columns respectively, so slug cannot be mutated through
+// the public API. The slug couples to the FS workspace path
+// ({ws}/projects/{slug}/...); changing it would orphan files silently.
+//
+// If a future generic Update(updates map[string]any) is added, that helper
+// MUST strip the "slug" key before passing to the SQL builder — mirror the
+// agent_key / team_key strip pattern.
+
 // UpdateStatus sets the project status. Returns sql.ErrNoRows when id not found.
 func (s *PGProjectStore) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
 	res, err := s.db.ExecContext(ctx,

@@ -264,7 +264,12 @@ func relocateMergedGroupContacts(
 			continue
 		}
 
-		groupSeg := contact.ChannelType + "-" + contact.SenderID
+		// Sanitize all segments before path construction. The resolver
+		// always sanitizes; this handler must stay aligned or a malicious
+		// channel_type/sender_id/user_key value (e.g. "../escape") would
+		// break out of baseDir on a relocation move.
+		groupSeg := workspace.SanitizeSegment(contact.ChannelType) + "-" + workspace.SanitizeSegment(contact.SenderID)
+		userSeg := workspace.SanitizeSegment(targetUser.UserKey)
 
 		// Find all group directories for this contact across all agents and teams.
 		// Pattern covers: agents/{any}/groups/{seg} and teams/{any}/groups/{seg}.
@@ -272,7 +277,7 @@ func relocateMergedGroupContacts(
 			filepath.Join(baseDir, "agents", "*", "groups", groupSeg),
 			filepath.Join(baseDir, "teams", "*", "groups", groupSeg),
 		}
-		newPath := filepath.Join(baseDir, "users", targetUser.UserKey, "groups", groupSeg)
+		newPath := filepath.Join(baseDir, "users", userSeg, "groups", groupSeg)
 
 		for _, pattern := range patterns {
 			matches, globErr := filepath.Glob(pattern)
