@@ -125,6 +125,9 @@ const ResetPasswordPage = lazyWithRetry(() =>
 const AdminUsersPage = lazyWithRetry(() =>
   import("@/pages/users/admin-users-page").then((m) => ({ default: m.AdminUsersPage })),
 );
+const SetupPage = lazyWithRetry(() =>
+  import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
+);
 
 function PageLoader() {
   return (
@@ -143,6 +146,16 @@ export function AppRoutes() {
         <Route path={ROUTES.BOOTSTRAP} element={<BootstrapPage />} />
         <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
         <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
+
+        {/* First-run setup wizard — auth required but no AppLayout shell */}
+        <Route
+          path={ROUTES.SETUP}
+          element={
+            <RequireAuth>
+              <SetupPage />
+            </RequireAuth>
+          }
+        />
 
         {/* Main app — requires auth */}
         <Route

@@ -37,7 +37,7 @@ services:
     image: pgvector/pgvector:pg18
     container_name: goclaw-local-pg
     ports:
-      - "5436:5432"
+      - "5437:5432"
     environment:
       POSTGRES_USER: goclaw
       POSTGRES_PASSWORD: devpass
