@@ -172,7 +172,7 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 }
 
 // wireChannelRPCMethods registers WS RPC methods for channels, instances, agent links, and teams.
-func wireChannelRPCMethods(server *gateway.Server, pgStores *store.Stores, channelMgr *channels.Manager, agentRouter *agent.Router, msgBus *bus.MessageBus, dataDir string) {
+func wireChannelRPCMethods(server *gateway.Server, cfg *config.Config, pgStores *store.Stores, channelMgr *channels.Manager, agentRouter *agent.Router, msgBus *bus.MessageBus, dataDir string) {
 	// Register channels RPC methods (after channelMgr is initialized with all channels)
 	methods.NewChannelsMethods(channelMgr).Register(server.Router())
 
@@ -187,6 +187,11 @@ func wireChannelRPCMethods(server *gateway.Server, pgStores *store.Stores, chann
 	// Register agent links WS RPC methods
 	if pgStores.AgentLinks != nil && pgStores.Agents != nil {
 		methods.NewAgentLinksMethods(pgStores.AgentLinks, pgStores.Agents, agentRouter, msgBus, msgBus).Register(server.Router())
+	}
+
+	// Register agent shares WS RPC methods (per-user / per-team explicit grants)
+	if pgStores.Agents != nil {
+		methods.NewAgentSharesMethods(pgStores.Agents, msgBus, cfg).Register(server.Router())
 	}
 
 	// Register agent teams WS RPC methods

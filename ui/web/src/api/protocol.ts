@@ -131,6 +131,10 @@ export const Methods = {
   AGENTS_LINKS_UPDATE: "agents.links.update",
   AGENTS_LINKS_DELETE: "agents.links.delete",
 
+  AGENTS_SHARES_LIST: "agents.shares.list",
+  AGENTS_SHARES_CREATE: "agents.shares.create",
+  AGENTS_SHARES_DELETE: "agents.shares.delete",
+
   // Agent teams
   TEAMS_LIST: "teams.list",
   TEAMS_CREATE: "teams.create",

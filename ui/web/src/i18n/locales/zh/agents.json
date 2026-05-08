@@ -631,22 +631,29 @@
     "cancel": "取消"
   },
   "shares": {
-    "grantAccess": "授予访问权限",
-    "userId": "用户 ID",
-    "userIdPlaceholder": "搜索联系人或输入用户 ID...",
-    "role": "角色",
-    "share": "共享",
-    "loadingShares": "加载共享中...",
-    "noShares": "暂无共享",
-    "noSharesDesc": "通过上方输入用户 ID 与其他用户共享此Agent。",
-    "user": "用户",
-    "revokeTitle": "撤销共享",
-    "revokeDesc": "撤销用户「{{userId}}」的访问权限？他们将无法再使用此Agent。",
-    "revoke": "撤销",
-    "role.user": "用户",
-    "role.viewer": "查看者",
-    "roleDesc.user": "可以使用代理和聊天",
-    "roleDesc.viewer": "只读访问"
+    "addTitle": "授予访问权限",
+    "addHint": "将此 Agent 共享给某个用户或团队全体成员。所有者可随时撤销。",
+    "add": "添加",
+    "adding": "添加中...",
+    "remove": "撤销",
+    "loading": "加载共享中...",
+    "empty": "尚未授予任何显式权限。",
+    "listTitle": "已共享对象",
+    "userPlaceholder": "搜索用户...",
+    "teamPlaceholder": "选择团队...",
+    "target": {
+      "user": "用户",
+      "team": "团队"
+    },
+    "toast": {
+      "added": "已添加共享",
+      "removed": "已撤销共享"
+    },
+    "errors": {
+      "loadFailed": "加载共享列表失败",
+      "addFailed": "添加共享失败",
+      "removeFailed": "撤销共享失败"
+    }
   },
   "links": {
     "teamsHint": "Agent Links 即将移除。请使用 Agent Teams 进行多代理协作——它提供任务跟踪、共享工作区和质量控制，且设置更简单。",

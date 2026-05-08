@@ -146,6 +146,13 @@ const (
 	MethodAgentsLinksDelete = "agents.links.delete"
 )
 
+// Agent shares (explicit grants to users/teams)
+const (
+	MethodAgentsSharesList   = "agents.shares.list"
+	MethodAgentsSharesCreate = "agents.shares.create"
+	MethodAgentsSharesDelete = "agents.shares.delete"
+)
+
 // Agent teams
 const (
 	MethodTeamsList     = "teams.list"

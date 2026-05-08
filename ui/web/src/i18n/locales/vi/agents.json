@@ -631,22 +631,29 @@
     "cancel": "Hủy"
   },
   "shares": {
-    "grantAccess": "Cấp quyền truy cập",
-    "userId": "ID người dùng",
-    "userIdPlaceholder": "Tìm liên hệ hoặc nhập ID người dùng...",
-    "role": "Vai trò",
-    "share": "Chia sẻ",
-    "loadingShares": "Đang tải chia sẻ...",
-    "noShares": "Chưa có chia sẻ",
-    "noSharesDesc": "Chia sẻ agent này với người dùng khác bằng cách nhập ID người dùng ở trên.",
-    "user": "Người dùng",
-    "revokeTitle": "Thu hồi chia sẻ",
-    "revokeDesc": "Thu hồi quyền truy cập của người dùng \"{{userId}}\"? Họ sẽ không thể sử dụng agent này nữa.",
-    "revoke": "Thu hồi",
-    "role.user": "Người dùng",
-    "role.viewer": "Người xem",
-    "roleDesc.user": "Có thể sử dụng agent và trò chuyện",
-    "roleDesc.viewer": "Chỉ đọc"
+    "addTitle": "Cấp quyền truy cập",
+    "addHint": "Chia sẻ agent này với người dùng hoặc tất cả thành viên của một team. Chủ sở hữu có thể thu hồi quyền bất kỳ lúc nào.",
+    "add": "Thêm",
+    "adding": "Đang thêm...",
+    "remove": "Thu hồi",
+    "loading": "Đang tải chia sẻ...",
+    "empty": "Chưa có quyền chia sẻ nào.",
+    "listTitle": "Đã chia sẻ với",
+    "userPlaceholder": "Tìm người dùng...",
+    "teamPlaceholder": "Chọn team...",
+    "target": {
+      "user": "Người dùng",
+      "team": "Team"
+    },
+    "toast": {
+      "added": "Đã thêm chia sẻ",
+      "removed": "Đã thu hồi chia sẻ"
+    },
+    "errors": {
+      "loadFailed": "Không tải được danh sách chia sẻ",
+      "addFailed": "Không thêm được chia sẻ",
+      "removeFailed": "Không thu hồi được chia sẻ"
+    }
   },
   "links": {
     "teamsHint": "Agent Links sẽ sớm bị gỡ bỏ. Vui lòng sử dụng Agent Teams để cộng tác đa agent — hỗ trợ quản lý nhiệm vụ, workspace chung và kiểm soát chất lượng trong một hệ thống đơn giản hơn.",

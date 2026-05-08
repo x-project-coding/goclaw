@@ -631,22 +631,29 @@
     "cancel": "Cancel"
   },
   "shares": {
-    "grantAccess": "Grant Access",
-    "userId": "User ID",
-    "userIdPlaceholder": "Search contacts or enter user ID...",
-    "role": "Role",
-    "share": "Share",
-    "loadingShares": "Loading shares...",
-    "noShares": "No shares yet",
-    "noSharesDesc": "Share this agent with other users by entering their User ID above.",
-    "user": "User",
-    "revokeTitle": "Revoke Share",
-    "revokeDesc": "Revoke access for user \"{{userId}}\"? They will no longer be able to use this agent.",
-    "revoke": "Revoke",
-    "role.user": "User",
-    "role.viewer": "Viewer",
-    "roleDesc.user": "Can use the agent and chat",
-    "roleDesc.viewer": "Read-only access"
+    "addTitle": "Grant access",
+    "addHint": "Share this agent with another user or with all members of a team. Owners can revoke access at any time.",
+    "add": "Add",
+    "adding": "Adding...",
+    "remove": "Revoke",
+    "loading": "Loading shares...",
+    "empty": "No explicit grants yet.",
+    "listTitle": "Shared with",
+    "userPlaceholder": "Search user...",
+    "teamPlaceholder": "Select a team...",
+    "target": {
+      "user": "User",
+      "team": "Team"
+    },
+    "toast": {
+      "added": "Share added",
+      "removed": "Share revoked"
+    },
+    "errors": {
+      "loadFailed": "Failed to load shares",
+      "addFailed": "Failed to add share",
+      "removeFailed": "Failed to revoke share"
+    }
   },
   "links": {
     "teamsHint": "Agent Links will be removed soon. Please use Agent Teams for multi-agent collaboration — it provides task tracking, shared workspace, and quality control in a simpler setup.",
