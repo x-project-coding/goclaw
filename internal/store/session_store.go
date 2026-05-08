@@ -54,11 +54,12 @@ type SessionInfo struct {
 
 // SessionListOpts holds pagination options for ListPaged.
 type SessionListOpts struct {
-	AgentID  string    `db:"-"`
-	Channel  string    `db:"-"` // optional: filter by channel prefix ("ws", "telegram", etc.)
-	UserID   string    `db:"-"` // optional: filter by user_id
-	Limit    int       `db:"-"`
-	Offset   int       `db:"-"`
+	AgentID   string `db:"-"`
+	Channel   string `db:"-"` // optional: filter by channel prefix ("ws", "telegram", etc.)
+	UserID    string `db:"-"` // optional: filter by user_id
+	ProjectID string `db:"-"` // optional: filter by project_id (UUID string). Empty = no filter.
+	Limit     int    `db:"-"`
+	Offset    int    `db:"-"`
 }
 
 // SessionListResult is the paginated result of ListPaged.
@@ -70,14 +71,15 @@ type SessionListResult struct {
 // SessionInfoRich is an enriched session info for API responses (includes model, tokens, agent name).
 type SessionInfoRich struct {
 	SessionInfo
-	Model           string `json:"model,omitempty" db:"model"`
-	Provider        string `json:"provider,omitempty" db:"provider"`
-	InputTokens     int64  `json:"inputTokens,omitempty" db:"input_tokens"`
-	OutputTokens    int64  `json:"outputTokens,omitempty" db:"output_tokens"`
-	AgentName       string `json:"agentName,omitempty" db:"agent_name"`
-	EstimatedTokens int    `json:"estimatedTokens,omitempty" db:"-"` // estimated current context tokens (messages bytes/4 + 12k system prompt)
-	ContextWindow   int    `json:"contextWindow,omitempty" db:"context_window"` // agent's context window size
-	CompactionCount int    `json:"compactionCount,omitempty" db:"compaction_count"` // number of compactions performed
+	Model           string  `json:"model,omitempty" db:"model"`
+	Provider        string  `json:"provider,omitempty" db:"provider"`
+	InputTokens     int64   `json:"inputTokens,omitempty" db:"input_tokens"`
+	OutputTokens    int64   `json:"outputTokens,omitempty" db:"output_tokens"`
+	AgentName       string  `json:"agentName,omitempty" db:"agent_name"`
+	EstimatedTokens int     `json:"estimatedTokens,omitempty" db:"-"` // estimated current context tokens (messages bytes/4 + 12k system prompt)
+	ContextWindow   int     `json:"contextWindow,omitempty" db:"context_window"` // agent's context window size
+	CompactionCount int     `json:"compactionCount,omitempty" db:"compaction_count"` // number of compactions performed
+	ProjectID       *string `json:"projectID,omitempty" db:"project_id"` // optional project binding (UUID as string)
 }
 
 // SessionListRichResult is the paginated result of ListPagedRich.

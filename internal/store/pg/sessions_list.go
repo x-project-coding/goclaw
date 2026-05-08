@@ -41,6 +41,14 @@ func buildSessionFilter(_ context.Context, opts store.SessionListOpts, tableAlia
 		args = append(args, opts.UserID)
 		idx++
 	}
+	if opts.ProjectID != "" {
+		// Cast to uuid so the query plan can use the project_id index. Invalid
+		// UUIDs surface as a 22P02 error to the caller, which the handler
+		// treats as a bad request rather than silently returning everything.
+		conditions = append(conditions, fmt.Sprintf("%sproject_id = $%d::uuid", prefix, idx))
+		args = append(args, opts.ProjectID)
+		idx++
+	}
 	_ = idx // consumed
 
 	if len(conditions) == 0 {
@@ -141,7 +149,8 @@ func (s *PGSessionStore) ListPagedRich(ctx context.Context, opts store.SessionLi
 		  octet_length(s.messages::text) / 4 + 12000
 		) AS estimated_tokens,
 		COALESCE(a.context_window, 200000) AS context_window,
-		s.compaction_count`
+		s.compaction_count,
+		s.project_id::text AS project_id`
 
 	nextIdx := len(whereArgs) + 1
 	selectQ := fmt.Sprintf(`SELECT %s

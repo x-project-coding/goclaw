@@ -9,9 +9,13 @@
   "columns": {
     "session": "Session",
     "agent": "Agent",
+    "project": "Project",
     "context": "Context",
     "messages": "Messages",
     "updated": "Updated"
+  },
+  "filters": {
+    "projectPlaceholder": "Filter by project..."
   },
   "contextBar": {
     "compacted": "Compacted {{count}} time(s)"

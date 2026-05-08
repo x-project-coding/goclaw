@@ -33,6 +33,12 @@ func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, 
 		conditions = append(conditions, prefix+"user_id = ?")
 		args = append(args, opts.UserID)
 	}
+	if opts.ProjectID != "" {
+		// SQLite stores project_id as TEXT (UUID string), so a plain equality
+		// comparison hits the project_id index without an explicit cast.
+		conditions = append(conditions, prefix+"project_id = ?")
+		args = append(args, opts.ProjectID)
+	}
 
 	if len(conditions) == 0 {
 		return "", nil
@@ -175,7 +181,8 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 		  length(s.messages) / 4 + 12000
 		),
 		COALESCE(a.context_window, 200000),
-		s.compaction_count`
+		s.compaction_count,
+		s.project_id`
 
 	selectQ := fmt.Sprintf(`SELECT %s
 		FROM agent_sessions s LEFT JOIN agents a ON s.agent_id = a.id
@@ -199,9 +206,10 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 		var inputTokens, outputTokens int64
 		var agentName string
 		var estimatedTokens, contextWindow, compactionCount int
+		var projectID *string
 		if err := rows.Scan(&key, &msgCount, stCreated, stUpdated, &label, &channel, &userID, &metaJSON,
 			&model, &provider, &inputTokens, &outputTokens, &agentName,
-			&estimatedTokens, &contextWindow, &compactionCount); err != nil {
+			&estimatedTokens, &contextWindow, &compactionCount, &projectID); err != nil {
 			continue
 		}
 		var meta map[string]string
@@ -227,6 +235,7 @@ func (s *SQLiteSessionStore) ListPagedRich(ctx context.Context, opts store.Sessi
 			EstimatedTokens: estimatedTokens,
 			ContextWindow:   contextWindow,
 			CompactionCount: compactionCount,
+			ProjectID:       projectID,
 		})
 	}
 	if result == nil {

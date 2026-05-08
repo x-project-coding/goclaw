@@ -87,6 +87,7 @@ type sessionRichRow struct {
 	EstimatedTokens int       `db:"estimated_tokens"`
 	ContextWindow   int       `db:"context_window"`
 	CompactionCount int       `db:"compaction_count"`
+	ProjectID       *string   `db:"project_id"`
 }
 
 // toSessionInfoRich converts a sessionRichRow to store.SessionInfoRich.
@@ -114,5 +115,6 @@ func (r *sessionRichRow) toSessionInfoRich() store.SessionInfoRich {
 		EstimatedTokens: r.EstimatedTokens,
 		ContextWindow:   r.ContextWindow,
 		CompactionCount: r.CompactionCount,
+		ProjectID:       r.ProjectID,
 	}
 }

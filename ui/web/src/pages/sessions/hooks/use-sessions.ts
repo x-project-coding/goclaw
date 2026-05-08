@@ -11,6 +11,8 @@ import { userFriendlyError } from "@/lib/error-utils";
 
 interface UseSessionsOptions {
   agentFilter?: string;
+  /** Optional project UUID. When set, only sessions bound to that project are returned. */
+  projectId?: string;
   limit?: number;
   offset?: number;
 }
@@ -19,9 +21,9 @@ export function useSessions(opts: UseSessionsOptions = {}) {
   const ws = useWs();
   const connected = useAuthStore((s) => s.connected);
   const queryClient = useQueryClient();
-  const { agentFilter, limit, offset } = opts;
+  const { agentFilter, projectId, limit, offset } = opts;
 
-  const queryKey = queryKeys.sessions.list({ agentFilter, limit, offset });
+  const queryKey = queryKeys.sessions.list({ agentFilter, projectId, limit, offset });
 
   const { data, isPending: loading } = useQuery({
     queryKey,
@@ -29,6 +31,7 @@ export function useSessions(opts: UseSessionsOptions = {}) {
       if (!ws.isConnected) return { sessions: [] as SessionInfo[], total: 0 };
       const res = await ws.call<{ sessions: SessionInfo[]; total?: number }>(Methods.SESSIONS_LIST, {
         agentId: agentFilter || undefined,
+        projectId: projectId || undefined,
         limit,
         offset,
       });

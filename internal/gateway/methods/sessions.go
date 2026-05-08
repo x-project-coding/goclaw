@@ -54,10 +54,11 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 }
 
 type sessionsListParams struct {
-	AgentID string `json:"agentId"`
-	Channel string `json:"channel"` // optional: filter by channel prefix ("ws", "telegram")
-	Limit   int    `json:"limit"`
-	Offset  int    `json:"offset"`
+	AgentID   string `json:"agentId"`
+	Channel   string `json:"channel"`   // optional: filter by channel prefix ("ws", "telegram")
+	ProjectID string `json:"projectId"` // optional: UUID of the project to filter by
+	Limit     int    `json:"limit"`
+	Offset    int    `json:"offset"`
 }
 
 func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
@@ -70,11 +71,22 @@ func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client
 		params.Limit = 20
 	}
 
+	// Validate optional projectId so a malformed UUID surfaces as a clear
+	// 4xx instead of a generic SQL parse error from the cast in the filter.
+	if params.ProjectID != "" {
+		if _, err := uuid.Parse(params.ProjectID); err != nil {
+			locale := store.LocaleFromContext(ctx)
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "projectId")))
+			return
+		}
+	}
+
 	opts := store.SessionListOpts{
-		AgentID: params.AgentID,
-		Channel: params.Channel,
-		Limit:   params.Limit,
-		Offset:  params.Offset,
+		AgentID:   params.AgentID,
+		Channel:   params.Channel,
+		ProjectID: params.ProjectID,
+		Limit:     params.Limit,
+		Offset:    params.Offset,
 	}
 	// Role-based filtering: admins/owners see all sessions; regular users see only their own.
 	// Tenant scope is always applied above — admin sees all sessions within the tenant.

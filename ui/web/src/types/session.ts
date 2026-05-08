@@ -17,6 +17,8 @@ export interface SessionInfo {
   estimatedTokens?: number;
   contextWindow?: number;
   compactionCount?: number;
+  /** UUID of the bound project, or null/undefined when unbound. */
+  projectID?: string | null;
 }
 
 export interface SessionPreview {

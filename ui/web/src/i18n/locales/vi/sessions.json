@@ -9,9 +9,13 @@
   "columns": {
     "session": "Session",
     "agent": "Agent",
+    "project": "Project",
     "context": "Ngữ cảnh",
     "messages": "Tin nhắn",
     "updated": "Cập nhật"
+  },
+  "filters": {
+    "projectPlaceholder": "Lọc theo project..."
   },
   "contextBar": {
     "compacted": "Đã nén {{count}} lần"

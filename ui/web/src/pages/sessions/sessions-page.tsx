@@ -14,7 +14,10 @@ import { useSessions } from "./hooks/use-sessions";
 import { SessionDetailPage } from "./session-detail-page";
 import { parseSessionKey } from "@/lib/session-key";
 import { formatRelativeTime, formatTokens } from "@/lib/format";
+import { ProjectPicker, PROJECT_PICKER_ALL, type ProjectPickerValue } from "@/components/shared/project-picker";
+import { useProjects } from "@/pages/projects/hooks/use-projects";
 import type { SessionInfo } from "@/types/session";
+import type { Project } from "@/types/project";
 
 export function SessionsPage() {
   const { t } = useTranslation("sessions");
@@ -23,14 +26,25 @@ export function SessionsPage() {
   const globalPageSize = useUiStore((s) => s.pageSize);
   const setGlobalPageSize = useUiStore((s) => s.setPageSize);
   const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState<ProjectPickerValue>(PROJECT_PICKER_ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeRaw] = useState(globalPageSize);
   const setPageSize = (size: number) => { setPageSizeRaw(size); setPage(1); setGlobalPageSize(size); };
 
+  // The ProjectPicker emits PROJECT_PICKER_ALL ("all"), null, or a UUID string.
+  // null = "(none)" (show only unbound sessions). The BE projectId filter only
+  // accepts a UUID, so the (none) sentinel falls back to a FE-side filter
+  // applied below; PROJECT_PICKER_ALL passes nothing.
+  const projectIdParam = typeof projectFilter === "string" && projectFilter !== PROJECT_PICKER_ALL
+    ? projectFilter
+    : undefined;
+
   const { sessions, total, loading, preview, deleteSession, resetSession, patchSession } = useSessions({
+    projectId: projectIdParam,
     limit: pageSize,
     offset: (page - 1) * pageSize,
   });
+  const { projects } = useProjects();
   const showSkeleton = useDeferredLoading(loading && sessions.length === 0);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -58,25 +72,39 @@ export function SessionsPage() {
   const filtered = sessions.filter((s) => {
     const q = search.toLowerCase();
     const meta = s.metadata;
-    return (
+    const matchesSearch =
       s.key.toLowerCase().includes(q) ||
       (s.label ?? "").toLowerCase().includes(q) ||
       (meta?.display_name ?? "").toLowerCase().includes(q) ||
       (meta?.username ?? "").toLowerCase().includes(q) ||
-      (meta?.chat_title ?? "").toLowerCase().includes(q)
-    );
+      (meta?.chat_title ?? "").toLowerCase().includes(q);
+    if (!matchesSearch) return false;
+    // (none) sentinel — BE has no "unbound" filter, so apply on the FE side.
+    if (projectFilter === null && s.projectID) return false;
+    return true;
   });
+
+  const projectMap = new Map<string, Project>();
+  for (const p of projects) projectMap.set(p.id, p);
 
   return (
     <div className="p-4 sm:p-6 pb-10">
       <PageHeader title={t("title")} description={t("description")} />
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder={t("searchPlaceholder")}
           className="max-w-sm"
+        />
+        <ProjectPicker
+          value={projectFilter}
+          onChange={(v) => { setProjectFilter(v); setPage(1); }}
+          includeAll
+          includeNone
+          placeholder={t("filters.projectPlaceholder")}
+          className="w-[220px]"
         />
       </div>
 
@@ -96,6 +124,7 @@ export function SessionsPage() {
                 <tr className="border-b bg-muted/50">
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.session")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.agent")}</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.project")}</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">{t("columns.context")}</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">{t("columns.messages")}</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">{t("columns.updated")}</th>
@@ -106,6 +135,7 @@ export function SessionsPage() {
                   <SessionRow
                     key={session.key}
                     session={session}
+                    project={session.projectID ? projectMap.get(session.projectID) : undefined}
                     onClick={() => navigate(`/sessions/${encodeURIComponent(session.key)}`)}
                   />
                 ))}
@@ -128,13 +158,22 @@ export function SessionsPage() {
 
 function SessionRow({
   session,
+  project,
   onClick,
 }: {
   session: SessionInfo;
+  project?: Project;
   onClick: () => void;
 }) {
   const { t } = useTranslation("sessions");
   const parsed = parseSessionKey(session.key);
+  const projectLabel = project
+    ? (() => {
+        const meta = (project.metadata ?? {}) as Record<string, unknown>;
+        const display = typeof meta.displayName === "string" && meta.displayName ? meta.displayName : project.slug;
+        return display === project.slug ? project.slug : `${display} (${project.slug})`;
+      })()
+    : null;
 
   return (
     <tr
@@ -154,6 +193,13 @@ function SessionRow({
       </td>
       <td className="px-4 py-3">
         <Badge variant="outline">{session.agentName || parsed.agentId}</Badge>
+      </td>
+      <td className="px-4 py-3">
+        {projectLabel ? (
+          <Badge variant="outline" className="text-xs-plus">{projectLabel}</Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
       </td>
       <td className="px-4 py-3">
         <ContextUsageBar
