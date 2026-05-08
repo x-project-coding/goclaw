@@ -1021,6 +1021,12 @@
       "agent": "代理（私聊）",
       "group_all": "所有群组",
       "global": "全局"
+    },
+    "gridColumns": {
+      "user": "用户",
+      "write": "写入",
+      "edit": "编辑",
+      "delete": "删除"
     }
   },
   "transfer": {

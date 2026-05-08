@@ -1021,6 +1021,12 @@
       "agent": "Agent (DM only)",
       "group_all": "All Groups",
       "global": "Global (all contexts)"
+    },
+    "gridColumns": {
+      "user": "User",
+      "write": "Write",
+      "edit": "Edit",
+      "delete": "Delete"
     }
   },
   "transfer": {

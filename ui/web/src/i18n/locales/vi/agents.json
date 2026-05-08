@@ -1021,6 +1021,12 @@
       "agent": "Agent (riêng tư)",
       "group_all": "Tất cả nhóm",
       "global": "Toàn cục"
+    },
+    "gridColumns": {
+      "user": "Người dùng",
+      "write": "Ghi",
+      "edit": "Sửa",
+      "delete": "Xóa"
     }
   },
   "transfer": {

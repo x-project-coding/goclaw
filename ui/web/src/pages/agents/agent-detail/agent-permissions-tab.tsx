@@ -165,15 +165,25 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
   );
   const { resolve } = useContactResolver(allPermUserIds);
 
-  // Group file_writer by scope
-  const fileWritersByScope = useMemo(() => {
-    const map = new Map<string, ConfigPermission[]>();
+  // Pivot the three file gates into a (scope → userId → gate) grid so a
+  // single user with multiple gates renders as one row with three cells
+  // instead of three separate rows. Order of the inner Map is by first
+  // appearance, matching the BE list order — stable across re-renders for
+  // a given permissions array.
+  const fileGateGrid = useMemo(() => {
+    const grid = new Map<string, Map<string, Partial<Record<FileGate, ConfigPermission>>>>();
     for (const p of fileWriters) {
-      const list = map.get(p.scope) ?? [];
-      list.push(p);
-      map.set(p.scope, list);
+      if (!isFileGate(p.configType)) continue;
+      let scopeBucket = grid.get(p.scope);
+      if (!scopeBucket) {
+        scopeBucket = new Map();
+        grid.set(p.scope, scopeBucket);
+      }
+      const userBucket = scopeBucket.get(p.userId) ?? {};
+      userBucket[p.configType] = p;
+      scopeBucket.set(p.userId, userBucket);
     }
-    return map;
+    return grid;
   }, [fileWriters]);
 
   const currentDescKey = CONFIG_TYPES.find((c) => c.value === configType)?.descKey ?? "";
@@ -258,55 +268,72 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
         <p className="text-xs text-muted-foreground text-center py-6">{t("permissions.noRules")}</p>
       ) : (
         <div className="space-y-4">
-          {/* File Writers section */}
+          {/* File Writers section — per-folder grid (rows = users, cols = write/edit/delete). */}
           {fileWriters.length > 0 && (
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-2">
                 {t("permissions.fileWriters")} ({fileWriters.length})
               </p>
-              <div className="rounded-lg border divide-y">
-                {[...fileWritersByScope.entries()].map(([scopeKey, writers]) => (
-                  <div key={scopeKey}>
+              <div className="space-y-3">
+                {[...fileGateGrid.entries()].map(([scopeKey, userBucket]) => (
+                  <div key={scopeKey} className="rounded-lg border overflow-x-auto">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/40">
                       <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-medium text-muted-foreground">{scopeLabels.get(scopeKey) ?? scopeKey}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {scopeLabels.get(scopeKey) ?? scopeKey}
+                      </span>
                     </div>
-                    {writers.map((p) => {
-                      // Label preference: displayName → contact resolver → "User <id>" fallback.
-                      // Username is rendered separately next to the label when present.
-                      const resolved = formatUserLabel(p.userId, resolve);
-                      const isNumericFallback = /^#?-?\d+$/.test(resolved);
-                      const label = p.metadata?.displayName
-                        || (isNumericFallback ? t("permissions.unknownWriterLabel", { id: p.userId }) : resolved);
-                      const username = p.metadata?.username ? ` @${p.metadata.username}` : "";
-                      return (
-                        <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 pl-7">
-                          <div className="flex items-center gap-2 min-w-0 text-sm">
-                            <Badge
-                              variant={p.permission === "allow" ? "success" : "destructive"}
-                              className="text-2xs shrink-0"
-                            >
-                              {p.permission}
-                            </Badge>
-                            <span className="font-medium truncate">{label}</span>
-                            {username && (
-                              <span className="text-xs-plus text-muted-foreground shrink-0">{username}</span>
-                            )}
-                            <Badge variant="outline" className="text-2xs shrink-0 font-mono">
-                              {p.configType.replace("_file", "")}
-                            </Badge>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => revoke(p.scope, p.configType, p.userId)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    <table className="w-full text-sm min-w-[480px]">
+                      <thead>
+                        <tr className="border-y bg-muted/20 text-muted-foreground">
+                          <th className="px-3 py-1.5 text-left font-medium text-2xs uppercase tracking-wide">
+                            {t("permissions.gridColumns.user")}
+                          </th>
+                          <th className="px-2 py-1.5 text-center font-medium text-2xs uppercase tracking-wide">
+                            {t("permissions.gridColumns.write")}
+                          </th>
+                          <th className="px-2 py-1.5 text-center font-medium text-2xs uppercase tracking-wide">
+                            {t("permissions.gridColumns.edit")}
+                          </th>
+                          <th className="px-2 py-1.5 text-center font-medium text-2xs uppercase tracking-wide">
+                            {t("permissions.gridColumns.delete")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...userBucket.entries()].map(([uid, gates]) => {
+                          // Label preference: displayName from any gate row → contact resolver
+                          // → unknown-writer fallback. Username sits next to the label.
+                          const anyGate = gates.write_file ?? gates.edit_file ?? gates.delete_file;
+                          const resolved = formatUserLabel(uid, resolve);
+                          const isNumericFallback = /^#?-?\d+$/.test(resolved);
+                          const label = anyGate?.metadata?.displayName
+                            || (isNumericFallback ? t("permissions.unknownWriterLabel", { id: uid }) : resolved);
+                          const username = anyGate?.metadata?.username
+                            ? `@${anyGate.metadata.username}` : "";
+                          return (
+                            <tr key={uid} className="border-b last:border-0">
+                              <td className="px-3 py-2 align-middle">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-medium truncate">{label}</span>
+                                  {username && (
+                                    <span className="text-xs-plus text-muted-foreground shrink-0">{username}</span>
+                                  )}
+                                </div>
+                              </td>
+                              {FILE_GATES.map((gate) => (
+                                <td key={gate} className="px-2 py-2 text-center align-middle">
+                                  <FileGateCell
+                                    perm={gates[gate]}
+                                    onRevoke={(p) => revoke(p.scope, p.configType, p.userId)}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ))}
               </div>
@@ -349,5 +376,45 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Renders one cell in the per-folder file-gate grid:
+ *   - empty cell when no rule exists for (scope, user, gate)
+ *   - allow/deny badge with a small "×" revoke button when a rule exists
+ *
+ * Adding new rules still flows through the top form — we deliberately don't
+ * surface a "create" affordance here so the cell stays a single tap target
+ * focused on revocation, which is the destructive operation that needs the
+ * most explicit UI.
+ */
+function FileGateCell({
+  perm,
+  onRevoke,
+}: {
+  perm?: ConfigPermission;
+  onRevoke: (perm: ConfigPermission) => void;
+}) {
+  if (!perm) {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Badge
+        variant={perm.permission === "allow" ? "success" : "destructive"}
+        className="text-2xs"
+      >
+        {perm.permission}
+      </Badge>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+        onClick={() => onRevoke(perm)}
+      >
+        <Trash2 className="h-3 w-3" />
+      </Button>
+    </span>
   );
 }
