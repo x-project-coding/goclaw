@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import { useAuthStore } from "@/stores/use-auth-store";
+import { useAuth } from "@/auth/auth-context";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useEmbeddingStatus } from "@/hooks/use-embedding-status";
 
@@ -124,7 +125,12 @@ export function Topbar({ settingsOpen, onSettingsOpenChange }: TopbarProps) {
 function UserMenu() {
   const { t } = useTranslation("topbar");
   const logout = useAuthStore((s) => s.logout);
+  const { user } = useAuth();
+  // Prefer display name, then email, then fall back to userId so the UI never
+  // bottoms out at the bare UUID. The /v1/auth/me hydration is asynchronous,
+  // so the UUID may flash briefly on cold load — that's acceptable.
   const userId = useAuthStore((s) => s.userId);
+  const label = user?.displayName?.trim() || user?.email || userId;
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -136,11 +142,11 @@ function UserMenu() {
       <Popover.Trigger asChild>
         <button
           className="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          title={userId || t("logout")}
+          title={label || t("logout")}
         >
           <User className="h-4 w-4 shrink-0" />
           <span className="max-w-32 truncate hidden sm:inline">
-            {userId}
+            {label}
           </span>
           <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
         </button>
