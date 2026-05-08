@@ -24,8 +24,8 @@ export class WsClient {
   private pairingInProgress = false;
   private connectGeneration = 0;
 
-  /** Server-assigned role from connect response. */
-  role: "owner" | "admin" | "operator" | "viewer" | "" = "";
+  /** Server-assigned role from connect response. v4 issues root|admin|member|viewer. */
+  role: "root" | "admin" | "member" | "viewer" | "owner" | "operator" | "" = "";
 
   /** Server edition, drives UI feature gating. */
   edition: "standard" | "lite" = "standard";
@@ -237,7 +237,7 @@ export class WsClient {
       }
 
       this.authenticated = true;
-      this.role = (res?.role as "owner" | "admin" | "operator" | "viewer") ?? "";
+      this.role = (res?.role as "root" | "admin" | "member" | "viewer" | "owner" | "operator") ?? "";
       this.edition = res?.edition ?? "standard";
       this.serverVersion = res?.server?.version ?? "";
       this.onStateChange("connected");

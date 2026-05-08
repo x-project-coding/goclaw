@@ -50,8 +50,10 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
   const { t } = useTranslation("sidebar");
   const { pendingCount } = usePendingPairingsCount();
   const role = useAuthStore((s) => s.role);
-  const isAdmin = role === "admin" || role === "owner";
-  const isOwner = role === "owner";
+  // v4: root is the super-admin (replaces v3 "owner"); both owner and root
+  // pass the owner-only gates. Admin still passes the admin gate.
+  const isAdmin = role === "admin" || role === "owner" || role === "root";
+  const isOwner = role === "owner" || role === "root";
 
   return (
     <aside

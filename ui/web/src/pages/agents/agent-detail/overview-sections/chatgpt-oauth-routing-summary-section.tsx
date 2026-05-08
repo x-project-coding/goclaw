@@ -43,7 +43,7 @@ export function ChatGPTOAuthRoutingSummarySection({
 }: ChatGPTOAuthRoutingSummarySectionProps) {
   const { t } = useTranslation("agents");
   const role = useAuthStore((state) => state.role);
-  const canManagePool = role === "admin" || role === "owner";
+  const canManagePool = role === "admin" || role === "owner" || role === "root";
   const { providers } = useProviders(canManagePool);
   const { statuses, isLoading } = useChatGPTOAuthProviderStatuses(providers, canManagePool);
   const providerByName = useMemo(

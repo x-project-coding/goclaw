@@ -22,7 +22,7 @@ export function BackgroundErrorBanner({ settingsOpen, onOpenSettings }: Backgrou
   const { t } = useTranslation("system-settings");
   const http = useHttp();
   const role = useAuthStore((s) => s.role);
-  const isAdmin = role === "admin" || role === "owner";
+  const isAdmin = role === "admin" || role === "owner" || role === "root";
   const [error, setError] = useState<ProviderErrorPayload | null>(null);
   const [dismissed, setDismissed] = useState(false);
 

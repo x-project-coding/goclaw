@@ -52,7 +52,7 @@ export function MCPUserCredentialsDialog({
   const role = useAuthStore((s) => s.role);
   const currentUserId = useAuthStore((s) => s.userId);
 
-  const canManageUsers = role === "admin" || role === "owner";
+  const canManageUsers = role === "admin" || role === "owner" || role === "root";
 
   // UI-only state
   const [selectedUserId, setSelectedUserId] = useState(currentUserId);

@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-type UserRole = "owner" | "admin" | "operator" | "viewer" | "";
+// v4 vocabulary: root (super-admin) > admin > member > viewer.
+// "owner" / "operator" are kept as accepted aliases for back-compat with any
+// older persisted value; the level mapping in require-role.tsx normalises them.
+type UserRole = "root" | "admin" | "member" | "viewer" | "owner" | "operator" | "";
 export type Edition = "standard" | "lite";
 
 interface AuthState {

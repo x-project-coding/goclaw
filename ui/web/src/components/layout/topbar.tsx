@@ -36,7 +36,7 @@ export function Topbar({ settingsOpen, onSettingsOpenChange }: TopbarProps) {
   const { status: embStatus } = useEmbeddingStatus();
   const setSettingsOpen = onSettingsOpenChange;
   const role = useAuthStore((s) => s.role);
-  const isAdmin = role === "admin" || role === "owner";
+  const isAdmin = role === "admin" || role === "owner" || role === "root";
 
   const handleSidebarToggle = isMobile
     ? () => setMobileSidebarOpen(true)

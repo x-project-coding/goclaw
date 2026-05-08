@@ -38,7 +38,7 @@ export function PromptSettingsSection({ agent, onUpdate }: Props) {
   const { t } = useTranslation("agents");
   const { t: tTts } = useTranslation("tts");
   const role = useAuthStore((s) => s.role);
-  const isOwner = role === "owner" || role === "admin";
+  const isOwner = role === "owner" || role === "admin" || role === "root";
   const { tts: globalTts, synthesize } = useTtsConfig();
   const globalProvider = globalTts.provider;
 

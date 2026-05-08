@@ -35,7 +35,7 @@ export function AgentCodexPoolPage() {
   const navigate = useNavigate();
   const { t } = useTranslation("agents");
   const role = useAuthStore((state) => state.role);
-  const canManageProviders = role === "admin" || role === "owner";
+  const canManageProviders = role === "admin" || role === "owner" || role === "root";
   const { agent, loading, updateAgent } = useAgentDetail(id);
   const { providers, loading: providersLoading } = useProviders();
   const { statuses } = useChatGPTOAuthProviderStatuses(providers);

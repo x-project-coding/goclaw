@@ -280,6 +280,13 @@ func isAdminMethod(method string) bool {
 		protocol.MethodTTSEnable,
 		protocol.MethodTTSDisable,
 		protocol.MethodTTSSetProvider,
+
+		// Agent shares — list/create/delete mutate access to an agent's
+		// resources. Defense-in-depth check stays at the handler (agent
+		// owner OR admin); the policy gate keeps viewer/member out entirely.
+		protocol.MethodAgentsSharesList,
+		protocol.MethodAgentsSharesCreate,
+		protocol.MethodAgentsSharesDelete,
 	}
 	return slices.Contains(adminMethods, method)
 }
@@ -326,6 +333,16 @@ func isWriteMethod(method string) bool {
 		// Channel pairing starts (QR scan flows).
 		protocol.MethodZaloPersonalQRStart,
 		protocol.MethodWhatsAppQRStart,
+
+		// Projects — mutations gated at handler by owner/admin role.
+		protocol.MethodProjectsCreate,
+		protocol.MethodProjectsUpdateMetadata,
+		protocol.MethodProjectsUpdateStatus,
+		protocol.MethodProjectsDelete,
+
+		// Project grants — mutations gated at handler by project owner/admin.
+		protocol.MethodProjectGrantsCreate,
+		protocol.MethodProjectGrantsDelete,
 	}
 	return slices.Contains(writeExact, method)
 }
@@ -421,6 +438,14 @@ func isReadMethod(method string) bool {
 
 		// Zalo personal contacts listing
 		protocol.MethodZaloPersonalContacts,
+
+		// Projects read — visibility filtered by handler (owner + grant holders).
+		protocol.MethodProjectsList,
+		protocol.MethodProjectsGet,
+
+		// Project grants read — handler returns only grants the caller can see.
+		protocol.MethodProjectGrantsList,
+		protocol.MethodProjectGrantsListInherited,
 	}
 	return slices.Contains(readMethods, method)
 }

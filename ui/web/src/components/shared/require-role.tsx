@@ -2,10 +2,20 @@ import { Navigate } from "react-router";
 import { useAuthStore } from "@/stores/use-auth-store";
 import { ROUTES } from "@/lib/constants";
 
-/** Check if role meets minimum level. Owner > Admin > Operator > Viewer. */
+// v4 vocabulary: root > admin > member > viewer. v3 aliases (owner/operator)
+// are normalised so persisted state and any lingering v3 issuance still resolve.
+const ROLE_LEVELS: Record<string, number> = {
+  root: 4,
+  owner: 4,
+  admin: 3,
+  member: 2,
+  operator: 2,
+  viewer: 1,
+};
+
+/** Check if role meets minimum level. */
 function hasMinRole(role: string, minRole: string): boolean {
-  const levels: Record<string, number> = { owner: 4, admin: 3, operator: 2, viewer: 1 };
-  return (levels[role] ?? 0) >= (levels[minRole] ?? 0);
+  return (ROLE_LEVELS[role] ?? 0) >= (ROLE_LEVELS[minRole] ?? 0);
 }
 
 /** Renders children only if user has admin role or higher. Redirects to overview otherwise. */

@@ -34,7 +34,7 @@ export function HookFormDialog({ open, onOpenChange, onSubmit, initial }: HookFo
   const { t } = useTranslation("hooks");
   const role = useAuthStore((s) => s.role);
   // Global scope only visible to owner/admin; existing `global` hooks still render as-is in edit mode.
-  const isMasterScope = role === "owner" || role === "admin";
+  const isMasterScope = role === "owner" || role === "admin" || role === "root";
   const scopeOptions = isMasterScope
     ? (["global", "user", "agent"] as const)
     : (["user", "agent"] as const);
