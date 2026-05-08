@@ -66,7 +66,12 @@ export class RefreshInterceptor {
     try {
       res = await fetchFn(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // Required by the BE CSRF middleware on every mutation. Keep in
+          // sync with auth-context.tsx::postJSON + api/http-client.ts.
+          "X-Requested-With": "XMLHttpRequest",
+        },
         body: JSON.stringify({ refresh_token: token }),
       });
     } catch {

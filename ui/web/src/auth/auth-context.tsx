@@ -42,10 +42,18 @@ interface MeResponse {
   display_name?: string;
 }
 
+// X-Requested-With trips a CORS preflight on cross-origin form submits, so
+// the BE CSRF middleware (internal/http/csrf_middleware.go) requires it on
+// every mutating call. The shared HttpClient sets it automatically; these
+// pre-auth helpers run before HttpClient is wired so the header is set
+// inline here. Keep this in sync with api/http-client.ts:headers().
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -182,7 +190,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Best-effort revoke; ignore errors.
       await fetch("/v1/auth/logout", {
         method: "POST",
-        headers: { Authorization: `Bearer ${tok}` },
+        headers: {
+          Authorization: `Bearer ${tok}`,
+          "X-Requested-With": "XMLHttpRequest",
+        },
       }).catch(() => undefined);
     }
     interceptor.reset();
