@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/shared/pagination";
+import { ProjectPicker } from "@/components/shared/project-picker";
 import { formatDate } from "@/lib/format";
 import type { ChannelContact } from "@/types/contact";
 
@@ -16,6 +17,7 @@ interface ContactsTableProps {
   onToggleSelectAll: () => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  onSetDefaultProject?: (contactId: string, projectId: string | null) => void;
 }
 
 export function ContactsTable({
@@ -29,12 +31,13 @@ export function ContactsTable({
   onToggleSelectAll,
   onPageChange,
   onPageSizeChange,
+  onSetDefaultProject,
 }: ContactsTableProps) {
   const { t } = useTranslation("contacts");
 
   return (
     <div className="rounded-md border overflow-x-auto">
-      <table className="w-full min-w-[750px] text-sm">
+      <table className="w-full min-w-[900px] text-sm">
         <thead>
           <tr className="border-b bg-muted/50">
             <th className="w-10 px-3 py-2.5">
@@ -50,6 +53,7 @@ export function ContactsTable({
             <th className="px-3 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-muted-foreground">{t("columns.senderId")}</th>
             <th className="px-3 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-muted-foreground">{t("columns.channelType")}</th>
             <th className="px-3 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-muted-foreground">{t("columns.peerKind")}</th>
+            <th className="px-3 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-muted-foreground">{t("columns.defaultProject")}</th>
             <th className="px-3 py-2.5 text-left font-medium text-xs uppercase tracking-wide text-muted-foreground">{t("columns.lastSeen")}</th>
           </tr>
         </thead>
@@ -104,6 +108,22 @@ export function ContactsTable({
                 >
                   {c.contact_type === "user" ? t("types.user") : c.contact_type === "topic" ? t("types.topic", "Topic") : t("types.group")}
                 </Badge>
+              </td>
+              <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                {onSetDefaultProject ? (
+                  <ProjectPicker
+                    value={c.default_project_id ?? null}
+                    onChange={(projectId) => {
+                      // ProjectPicker emits string (id) | null only when includeNone=true.
+                      onSetDefaultProject(c.id, projectId);
+                    }}
+                    includeNone
+                    placeholder={t("defaultProject.placeholder")}
+                    className="min-w-[180px]"
+                  />
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
               </td>
               <td className="px-3 py-2.5 text-muted-foreground text-xs">
                 {formatDate(c.last_seen_at)}

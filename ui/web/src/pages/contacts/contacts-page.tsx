@@ -19,6 +19,7 @@ import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { useContacts } from "./hooks/use-contacts";
 import { useContactMerge } from "./hooks/use-contact-merge";
+import { useSetDefaultProject } from "./hooks/use-set-default-project";
 import { MergeContactsDialog } from "./merge-contacts-dialog";
 import { ContactsTable } from "./contacts-table";
 
@@ -51,6 +52,7 @@ export function ContactsPage() {
     offset: (page - 1) * pageSize,
   });
   const { unmerge } = useContactMerge();
+  const { setDefaultProject } = useSetDefaultProject();
 
   const spinning = useMinLoading(fetching);
   const showSkeleton = useDeferredLoading(loading && contacts.length === 0);
@@ -205,6 +207,9 @@ export function ContactsPage() {
             onToggleSelectAll={toggleSelectAll}
             onPageChange={setPage}
             onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            onSetDefaultProject={(contactId, projectId) => {
+              void setDefaultProject(contactId, projectId);
+            }}
           />
         )}
       </div>

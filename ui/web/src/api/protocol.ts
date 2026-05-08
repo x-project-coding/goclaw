@@ -103,6 +103,9 @@ export const Methods = {
   CHANNEL_INSTANCES_UPDATE: "channels.instances.update",
   CHANNEL_INSTANCES_DELETE: "channels.instances.delete",
 
+  // Channel contacts
+  CHANNELS_CONTACTS_SET_DEFAULT_PROJECT: "channels.contacts.set_default_project",
+
   PAIRING_REQUEST: "device.pair.request",
   PAIRING_APPROVE: "device.pair.approve",
   PAIRING_DENY: "device.pair.deny",

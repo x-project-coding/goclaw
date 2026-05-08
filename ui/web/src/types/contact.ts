@@ -22,6 +22,7 @@ export interface ChannelContact {
   thread_id?: string;
   thread_type?: string;
   merged_id?: string;
+  default_project_id?: string | null;
   first_seen_at: string;
   last_seen_at: string;
 }

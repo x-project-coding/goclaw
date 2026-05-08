@@ -13,8 +13,14 @@
     "senderId": "ID gửi",
     "channelType": "Channel",
     "peerKind": "Loại",
+    "defaultProject": "Project mặc định",
     "lastSeen": "Lần cuối",
     "merged": "Đã gộp"
+  },
+  "defaultProject": {
+    "placeholder": "(không có)",
+    "toastSavedTitle": "Đã cập nhật project mặc định",
+    "toastErrorTitle": "Không thể cập nhật project mặc định"
   },
   "permissionsNote": {
     "title": "Quyền truy cập tên liên hệ theo channel",

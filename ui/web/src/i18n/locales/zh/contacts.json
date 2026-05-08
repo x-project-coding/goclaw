@@ -13,8 +13,14 @@
     "senderId": "发送者 ID",
     "channelType": "Channel",
     "peerKind": "类型",
+    "defaultProject": "默认项目",
     "lastSeen": "最后活跃",
     "merged": "已合并"
+  },
+  "defaultProject": {
+    "placeholder": "（无）",
+    "toastSavedTitle": "已更新默认项目",
+    "toastErrorTitle": "更新默认项目失败"
   },
   "permissionsNote": {
     "title": "各Channel联系人名称权限说明",

@@ -13,8 +13,14 @@
     "senderId": "Sender ID",
     "channelType": "Channel",
     "peerKind": "Type",
+    "defaultProject": "Default Project",
     "lastSeen": "Last Seen",
     "merged": "Merged"
+  },
+  "defaultProject": {
+    "placeholder": "(none)",
+    "toastSavedTitle": "Default project updated",
+    "toastErrorTitle": "Failed to update default project"
   },
   "permissionsNote": {
     "title": "Channel permissions for contact names",
