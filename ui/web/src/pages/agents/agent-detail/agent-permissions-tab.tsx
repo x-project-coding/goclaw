@@ -16,13 +16,25 @@ import { Methods } from "@/api/protocol";
 import type { ChannelContact } from "@/types/contact";
 import type { DeliveryTarget } from "../hooks/use-agent-heartbeat";
 
+// Backend-accepted configType values (see internal/gateway/methods/config_permissions.go
+// validator). Anything not in this set is fail-closed at the BE with a 400.
+// Earlier revisions exposed `file_writer` (split into 3 gates) and `context_files`
+// (dropped) — both rejected by the BE today.
+export const FILE_GATES = ["write_file", "edit_file", "delete_file"] as const;
+export type FileGate = (typeof FILE_GATES)[number];
+
 const CONFIG_TYPES = [
-  { value: "file_writer",   label: "File Writer",   descKey: "permissions.types.file_writer_desc" },
-  { value: "heartbeat",     label: "Heartbeat",     descKey: "permissions.types.heartbeat_desc" },
-  { value: "cron",          label: "Cron",          descKey: "permissions.types.cron_desc" },
-  { value: "context_files", label: "Context Files", descKey: "permissions.types.context_files_desc" },
-  { value: "*",             label: "All (*)",       descKey: "permissions.types.all_desc" },
+  { value: "write_file",  label: "Write Files",  descKey: "permissions.types.write_file_desc" },
+  { value: "edit_file",   label: "Edit Files",   descKey: "permissions.types.edit_file_desc" },
+  { value: "delete_file", label: "Delete Files", descKey: "permissions.types.delete_file_desc" },
+  { value: "heartbeat",   label: "Heartbeat",    descKey: "permissions.types.heartbeat_desc" },
+  { value: "cron",        label: "Cron",         descKey: "permissions.types.cron_desc" },
+  { value: "*",           label: "All (*)",      descKey: "permissions.types.all_desc" },
 ];
+
+function isFileGate(configType: string): configType is FileGate {
+  return (FILE_GATES as readonly string[]).includes(configType);
+}
 
 function getScopeOptions(configType: string, targets: DeliveryTarget[]): ComboboxOption[] {
   // Only groups — topic-level permissions are not supported by the backend scope check
@@ -33,7 +45,7 @@ function getScopeOptions(configType: string, targets: DeliveryTarget[]): Combobo
       label: t.title ? `${t.title} (${t.chatId})` : t.chatId,
     }));
 
-  if (configType === "file_writer") {
+  if (isFileGate(configType)) {
     return [
       { value: "group:*", label: "All Groups" },
       ...groupOptions,
@@ -59,7 +71,7 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
   const { permissions, loading, load, grant, revoke } = useConfigPermissions(agentId);
 
   const [userId, setUserId] = useState("");
-  const [configType, setConfigType] = useState("file_writer");
+  const [configType, setConfigType] = useState<string>("write_file");
   const [scope, setScope] = useState("group:*");
   const [permission, setPermission] = useState("allow");
   const [adding, setAdding] = useState(false);
@@ -96,9 +108,10 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
     return map;
   }, [targets, t]);
 
-  // Reset scope when configType changes
+  // Reset scope when configType changes. File gates only meaningful in groups
+  // (no DM filesystem); other gates default to agent DM.
   useEffect(() => {
-    if (configType === "file_writer") {
+    if (isFileGate(configType)) {
       setScope("group:*");
     } else {
       setScope("agent");
@@ -133,13 +146,15 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
     setAdding(false);
   };
 
-  // Split permissions into two sections
+  // Split permissions into two sections: the three file gates render together
+  // grouped by scope (with a per-row chip showing which gate), everything else
+  // shows in a flat list.
   const fileWriters = useMemo(
-    () => permissions.filter((p) => p.configType === "file_writer"),
+    () => permissions.filter((p) => isFileGate(p.configType)),
     [permissions],
   );
   const configPerms = useMemo(
-    () => permissions.filter((p) => p.configType !== "file_writer"),
+    () => permissions.filter((p) => !isFileGate(p.configType)),
     [permissions],
   );
 
@@ -277,6 +292,9 @@ export function AgentPermissionsTab({ agentId }: AgentPermissionsTabProps) {
                             {username && (
                               <span className="text-xs-plus text-muted-foreground shrink-0">{username}</span>
                             )}
+                            <Badge variant="outline" className="text-2xs shrink-0 font-mono">
+                              {p.configType.replace("_file", "")}
+                            </Badge>
                           </div>
                           <Button
                             variant="ghost"
