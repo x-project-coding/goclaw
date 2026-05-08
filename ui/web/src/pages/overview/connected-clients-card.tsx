@@ -71,9 +71,9 @@ export function ConnectedClientsCard({
                       <td className="py-2 px-3">
                         <Badge
                           variant={
-                            c.role === "admin" || c.role === "owner"
+                            c.role === "admin" || c.role === "owner" || c.role === "root"
                               ? "default"
-                              : c.role === "operator"
+                              : c.role === "operator" || c.role === "member"
                                 ? "secondary"
                                 : "outline"
                           }

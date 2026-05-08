@@ -3,9 +3,14 @@ import { useAuthStore } from "@/stores/use-auth-store";
 import { cn } from "@/lib/utils";
 import { cleanVersion } from "@/lib/clean-version";
 
+// v4: root|owner share the super-admin colour (purple); admin = red;
+// member|operator = blue; viewer = gray. The owner/operator names are kept
+// for back-compat with any v3 token still cached in localStorage.
 const ROLE_STYLES: Record<string, string> = {
-  admin: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  root: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
   owner: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  admin: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  member: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   operator: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   viewer: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
