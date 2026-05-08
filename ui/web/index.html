@@ -35,11 +35,11 @@
       @keyframes shimmer{from{transform:translateX(-10rem)}to{transform:translateX(10rem)}}
       .fade-out{opacity:0;transition:opacity 300ms ease}
       @media(prefers-reduced-motion:reduce){.loader-logo{animation:none;opacity:1}.shimmer-bar{animation:none}}
-      @media(prefers-color-scheme:dark){
-        #app-loader{background:#09090b}
-        .loader-shimmer{background:#27272a}
-        .shimmer-bar{background:linear-gradient(90deg,transparent,#52525b,transparent)}
-      }
+      /* Class-driven dark wins over system pref so the loader matches the user's */
+      /* explicit choice (main.tsx applies .dark on <html> before paint). */
+      html.dark #app-loader{background:#09090b}
+      html.dark .loader-shimmer{background:#27272a}
+      html.dark .shimmer-bar{background:linear-gradient(90deg,transparent,#52525b,transparent)}
     </style>
   </head>
   <body>
