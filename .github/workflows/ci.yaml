@@ -116,6 +116,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
+      - run: pnpm vitest run
+      # Dead-code grep gate: blocks regressions on v3-era identifiers and
+      # tenant residue. Line-anchored allowlists for legitimate exceptions
+      # (tools.json proxy_tenant_id, backup.json tenantBackup legacy alias).
+      - name: Dead-code grep gate
+        run: ./scripts/grep-dead-code-gate.sh
 
   # e2e-fast — per-PR / per-push lane. Skips real LLM provider calls (-short).
   # Blocks merge on failure. Real PG18+pgvector on port 5435 to mirror local
