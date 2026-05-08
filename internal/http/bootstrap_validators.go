@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/auth"
+	"github.com/nextlevelbuilder/goclaw/internal/identity"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -92,10 +93,17 @@ func (h *BootstrapHandler) createRootUser(r *http.Request, body bootstrapInitBod
 		displayPtr = &display
 	}
 
-	// Insert via raw SQL to stay inside the TX.
-	q := `INSERT INTO users (id, email, display_name, password_hash, role, status)
-	      VALUES ($1, $2, $3, $4, $5, 'active')`
-	if _, err := tx.ExecContext(ctx, q, uid, body.Email, displayPtr, hash, string(permissions.RoleRoot)); err != nil {
+	// user_key is NOT NULL UNIQUE (v4 identity rebuild). Mirror PGUsersStore.Create:
+	// derive a stable slug from email + the leading 6 hex chars of the UUID so
+	// re-runs (e.g. fresh `docker compose up -d`) collide on the partial unique
+	// index `users_only_one_root` rather than hitting the user_key constraint.
+	userKey := identity.SlugFromEmail(body.Email, uid.String()[:6])
+
+	// Insert via raw SQL to stay inside the TX. metadata is NOT NULL DEFAULT '{}',
+	// kind is NOT NULL DEFAULT 'human' — both relied on at the column level.
+	q := `INSERT INTO users (id, email, display_name, password_hash, role, status, user_key)
+	      VALUES ($1, $2, $3, $4, $5, 'active', $6)`
+	if _, err := tx.ExecContext(ctx, q, uid, body.Email, displayPtr, hash, string(permissions.RoleRoot), userKey); err != nil {
 		return uuid.Nil, err
 	}
 

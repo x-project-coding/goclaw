@@ -1,0 +1,118 @@
+# docker-compose.local.yml — single-file local QA stack.
+#
+# Self-contained — no .env required. Brings up Postgres 18 (pgvector) and
+# the goclaw service built from this checkout, using deterministic dev
+# secrets so you can `up` and click around without running prepare-env.sh.
+#
+# Conflict-free defaults:
+#   - Goclaw on port 18790  (host)
+#   - Postgres on port 5436 (host)  ← avoids existing pgtest:5433 / dev-pgvector:5435
+#   - Volumes prefixed `goclaw-local-` so they don't collide with `make up`
+#
+# Quick start:
+#   docker compose -f docker-compose.local.yml up -d --build
+#
+#   # Fresh DB → bootstrap once. The token is printed at startup; loopback-only.
+#   TOKEN=$(docker logs goclaw-local 2>&1 | grep -oE 'token=[a-f0-9]+' | tail -1 | cut -d= -f2)
+#   docker exec goclaw-local python3 -c "
+#   import urllib.request, json, os
+#   urllib.request.urlopen(urllib.request.Request(
+#       'http://localhost:18790/v1/bootstrap/init',
+#       data=json.dumps({'email':'admin@local.test','password':'LocalDev!1234','display_name':'Admin'}).encode(),
+#       headers={'Content-Type':'application/json','X-Bootstrap-Token':os.environ['TOK']}, method='POST'))" \
+#     -e TOK=$TOKEN
+#
+#   open http://localhost:18790    # log in: admin@local.test / LocalDev!1234
+#
+# Tear down + clear data:
+#   docker compose -f docker-compose.local.yml down -v
+#
+# DO NOT use the secrets below in production — they are public placeholders
+# committed to git so the file works out of the box. Generate real ones
+# with `./prepare-env.sh` and the regular `make up` flow for any non-local
+# deployment.
+
+services:
+  postgres-local:
+    image: pgvector/pgvector:pg18
+    container_name: goclaw-local-pg
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: goclaw
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: goclaw
+    volumes:
+      # PG18 places its data dir inside /var/lib/postgresql/<major-version>/.
+      # Mount the parent so pg_upgrade --link works and fresh starts don't
+      # collide with the "unused mount/volume" warning the image emits.
+      - goclaw-local-pg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goclaw -d goclaw"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  goclaw-local:
+    image: goclaw-local:dev
+    container_name: goclaw-local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ENABLE_OTEL: "false"
+        ENABLE_EMBEDUI: "true"
+        ENABLE_PYTHON: "true"
+        ENABLE_FULL_SKILLS: "false"
+        VERSION: "local"
+    ports:
+      - "18790:18790"
+    depends_on:
+      postgres-local:
+        condition: service_healthy
+    environment:
+      # ── Network ──
+      GOCLAW_HOST: "0.0.0.0"
+      GOCLAW_PORT: "18790"
+      GOCLAW_CONFIG: "/app/data/config.json"
+      GOCLAW_SKILLS_DIR: "/app/data/skills"
+
+      # ── Database ──
+      # Service name = postgres-local; goclaw-net DNS resolves it inside compose.
+      GOCLAW_POSTGRES_DSN: "postgres://goclaw:devpass@postgres-local:5432/goclaw?sslmode=disable"
+
+      # ── Secrets (public dev placeholders — DO NOT REUSE IN PROD) ──
+      # Gateway token: 16-byte hex, used for WS connect auth.
+      GOCLAW_GATEWAY_TOKEN: "00000000000000000000000000000000"
+      # Encryption key: 32-byte hex (AES-256-GCM for stored API keys).
+      GOCLAW_ENCRYPTION_KEY: "00000000000000000000000000000000000000000000000000000000000000ff"
+      # JWT signing secret: 32-byte hex (64 hex chars). The multi-key JSON
+      # form (GOCLAW_JWT_SECRETS_JSON) is the prod rotation path; a single
+      # hex secret is enough for local dev.
+      GOCLAW_JWT_SECRET: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+      # ── Debug ──
+      GOCLAW_TRACE_VERBOSE: "0"
+    volumes:
+      - goclaw-local-data:/app/data
+      - goclaw-local-workspace:/app/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    restart: unless-stopped
+
+volumes:
+  goclaw-local-pg:
+  goclaw-local-data:
+  goclaw-local-workspace:
