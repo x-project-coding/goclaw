@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useNavigate, useLocation } from "react-router";
+import { Link, Navigate, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/auth/auth-context";
 import { ROUTES } from "@/lib/constants";
@@ -13,7 +13,6 @@ interface BootstrapStatus {
 export function LoginPage() {
   const { t } = useTranslation("auth");
   const { login, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
 
@@ -49,8 +48,12 @@ export function LoginPage() {
       <h2 className="text-center text-lg font-semibold">{t("login.title")}</h2>
       <PasswordForm
         onSubmit={async (email, password) => {
+          // Don't call navigate() here — once login() commits the auth
+          // state, isAuthenticated above flips and the declarative
+          // <Navigate to={from} replace /> handles the redirect. Calling
+          // navigate() AND letting the Navigate component fire causes a
+          // visible flicker as both redirects race.
           await login(email, password);
-          navigate(from, { replace: true });
         }}
       />
       <div className="text-center">

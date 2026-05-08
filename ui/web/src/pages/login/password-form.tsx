@@ -30,6 +30,11 @@ export function PasswordForm({ onSubmit }: PasswordFormProps) {
     setError(null);
     try {
       await onSubmit(data.email.trim(), data.password);
+      // Success: keep the submitting state held so the button stays disabled
+      // until LoginPage's <Navigate> remounts the route. Resetting it in a
+      // finally block triggered a brief "Đăng nhập" → "Đang đăng nhập…" →
+      // "Đăng nhập" flash because the form re-rendered between auth-state
+      // commit and the route change.
     } catch (err) {
       const code = (err as Error)?.message ?? "";
       if (code === "invalid_credentials" || code === "http_401") {
@@ -39,7 +44,7 @@ export function PasswordForm({ onSubmit }: PasswordFormProps) {
       } else {
         setError(t("login.error.generic"));
       }
-    } finally {
+      // Only re-enable on failure — the form needs to accept another attempt.
       setSubmitting(false);
     }
   };

@@ -205,7 +205,11 @@ export class WsClient {
         edition?: "standard" | "lite";
         server?: { name?: string; version?: string };
       }>("connect", {
-        token: this.getToken(),
+        // v4 split: `accessToken` is the JWT path issued by /v1/auth/login;
+        // BE router rejects (and logs security.ws_connect_rejected) when a
+        // JWT lands in the legacy `token` field which is reserved for API
+        // keys. See internal/gateway/router.go:148.
+        accessToken: this.getToken(),
         user_id: this.getUserId(),
         sender_id: this.getSenderID(),
         locale: localStorage.getItem("goclaw:language") || "en",
