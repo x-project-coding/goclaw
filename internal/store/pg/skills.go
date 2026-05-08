@@ -70,7 +70,7 @@ func (s *PGSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	// so admins can see missing deps and re-activate after installing them.
 	var scanned []skillInfoRowWithFrontmatter
 	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
-		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, frontmatter, file_path
+		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, frontmatter, file_path, owner_id
 		 FROM skills WHERE (status IN ('active', 'archived') OR source = 'builtin')
 		 ORDER BY name`); err != nil {
 		return nil
@@ -93,7 +93,7 @@ func (s *PGSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 func (s *PGSkillStore) ListAllSkills(ctx context.Context) []store.SkillInfo {
 	var scanned []skillInfoRow
 	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
-		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, file_path
+		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, file_path, owner_id
 		 FROM skills WHERE enabled = true AND status != 'deleted'
 		 ORDER BY name`); err != nil {
 		return nil
@@ -105,7 +105,7 @@ func (s *PGSkillStore) ListAllSkills(ctx context.Context) []store.SkillInfo {
 func (s *PGSkillStore) ListAllSystemSkills(ctx context.Context) []store.SkillInfo {
 	var scanned []skillInfoRow
 	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
-		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, file_path
+		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, file_path, owner_id
 		 FROM skills WHERE source = 'builtin' AND enabled = true AND status != 'deleted'
 		 ORDER BY name`); err != nil {
 		return nil

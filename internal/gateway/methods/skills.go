@@ -64,6 +64,9 @@ func (m *SkillsMethods) handleList(ctx context.Context, client *gateway.Client, 
 		if len(s.MissingDeps) > 0 {
 			entry["missing_deps"] = s.MissingDeps
 		}
+		if s.OwnerID != "" {
+			entry["owner_id"] = s.OwnerID
+		}
 		result = append(result, entry)
 	}
 

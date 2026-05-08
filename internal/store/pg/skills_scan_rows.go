@@ -25,6 +25,7 @@ type skillInfoRow struct {
 	Enabled    bool           `db:"enabled"`
 	DepsRaw    []byte         `db:"deps"`
 	FilePath   *string        `db:"file_path"`
+	OwnerID    string         `db:"owner_id"`
 }
 
 // skillInfoRowWithFrontmatter extends skillInfoRow with the frontmatter column.
@@ -42,6 +43,7 @@ func (r *skillInfoRow) toSkillInfo(baseDir string) store.SkillInfo {
 	info.Status = r.Status
 	info.Enabled = r.Enabled
 	info.MissingDeps = parseDepsColumn(r.DepsRaw)
+	info.OwnerID = r.OwnerID
 	return info
 }
 

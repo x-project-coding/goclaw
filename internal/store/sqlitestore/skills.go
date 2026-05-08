@@ -67,7 +67,7 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	s.mu.RUnlock()
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, frontmatter, file_path
+		`SELECT id, name, slug, description, visibility, tags, version, source, status, enabled, deps, frontmatter, file_path, owner_id
 		 FROM skills WHERE (status IN ('active', 'archived') OR source = 'builtin')
 		 ORDER BY name`)
 	if err != nil {
@@ -78,7 +78,7 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 	var result []store.SkillInfo
 	for rows.Next() {
 		var id uuid.UUID
-		var name, slug, visibility, status, source string
+		var name, slug, visibility, status, source, ownerID string
 		var desc *string
 		var tagsJSON []byte
 		var version int
@@ -86,7 +86,7 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 		var depsRaw, fmRaw []byte
 		var filePath *string
 		if err := rows.Scan(&id, &name, &slug, &desc, &visibility, &tagsJSON, &version,
-			&source, &status, &enabled, &depsRaw, &fmRaw, &filePath); err != nil {
+			&source, &status, &enabled, &depsRaw, &fmRaw, &filePath, &ownerID); err != nil {
 			continue
 		}
 		info := buildSkillInfo(id.String(), name, slug, desc, version, s.baseDir, filePath)
@@ -97,6 +97,7 @@ func (s *SQLiteSkillStore) ListSkills(ctx context.Context) []store.SkillInfo {
 		info.Enabled = enabled
 		info.MissingDeps = parseDepsColumn(depsRaw)
 		info.Author = parseFrontmatterAuthor(fmRaw)
+		info.OwnerID = ownerID
 		result = append(result, info)
 	}
 	if err := rows.Err(); err != nil {

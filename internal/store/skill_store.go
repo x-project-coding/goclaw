@@ -15,6 +15,7 @@ type SkillInfo struct {
 	BaseDir     string   `json:"baseDir" db:"-"`
 	Source      string   `json:"source" db:"source"` // builtin | hub-verified | hub-unverified | agent-created | user-uploaded
 	Description string   `json:"description" db:"description"`
+	OwnerID     string   `json:"owner_id,omitempty" db:"owner_id"` // "system" for built-ins; UUID for user-owned
 	Visibility  string   `json:"visibility,omitempty" db:"visibility"`
 	Tags        []string `json:"tags,omitempty" db:"tags"`
 	Version     int      `json:"version,omitempty" db:"version"`
