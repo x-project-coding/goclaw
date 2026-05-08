@@ -215,12 +215,17 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 	})
 
 	t.Run("memory_documents", func(t *testing.T) {
+		// memory_documents is FS-backed: the row stores `path` (logical) and
+		// `file_path` (FS pointer) + a `content_hash`, NOT inline content.
+		// Older revisions had `content`/`hash` columns — keep these inserts
+		// in sync with migrations/000001_initial.up.sql + sqlitestore schema
+		// when the column layout shifts again.
 		pgAgentID, sqlAgentID := seedAgent(t)
 
 		pgID := uuid.New()
 		if _, err := pgDB.ExecContext(ctx,
-			`INSERT INTO memory_documents (id, agent_id, path, content, hash, metadata)
-			 VALUES ($1,$2,'/p','c','h',$3::jsonb)`,
+			`INSERT INTO memory_documents (id, agent_id, path, file_path, content_hash, metadata)
+			 VALUES ($1,$2,'/p','/fs/p','h',$3::jsonb)`,
 			pgID, pgAgentID, paritySweepMetaJSON); err != nil {
 			t.Fatalf("PG memory_documents: %v", err)
 		}
@@ -228,8 +233,8 @@ func TestFoundation_StoreMetadataParity_A(t *testing.T) {
 
 		sqlID := uuid.New()
 		if _, err := sqliteDB.ExecContext(ctx,
-			`INSERT INTO memory_documents (id, agent_id, path, content, hash, metadata)
-			 VALUES (?,?,'/p','c','h',?)`,
+			`INSERT INTO memory_documents (id, agent_id, path, file_path, content_hash, metadata)
+			 VALUES (?,?,'/p','/fs/p','h',?)`,
 			sqlID.String(), sqlAgentID.String(), paritySweepMetaJSON); err != nil {
 			t.Fatalf("SQLite memory_documents: %v", err)
 		}
