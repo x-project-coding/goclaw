@@ -10,11 +10,35 @@
   "columns": {
     "name": "Name",
     "transport": "Transport",
+    "scope": "Scope",
     "tools": "Tools",
     "agents": "Agents",
     "enabled": "Enabled",
     "createdBy": "Created By",
     "actions": "Actions"
+  },
+  "scope": {
+    "label": "Visibility scope",
+    "filterAll": "All scopes",
+    "editLockHint": "Scope is fixed after creation. Recreate the server to change visibility.",
+    "values": {
+      "global": "Global",
+      "team": "Team",
+      "project": "Project"
+    },
+    "hints": {
+      "global": "Available to every agent in the workspace.",
+      "team": "Restricted to agents within the selected team.",
+      "project": "Restricted to agents granted access to the selected project."
+    },
+    "summaries": {
+      "team": "Team — {{name}}",
+      "project": "Project — {{name}}"
+    },
+    "teamLabel": "Team *",
+    "teamPlaceholder": "Select a team...",
+    "projectLabel": "Project *",
+    "projectPlaceholder": "Select a project..."
   },
   "viewTools": "View tools",
   "manageGrants": "Manage grants",

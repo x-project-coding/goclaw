@@ -15,6 +15,22 @@ import { MCPToolsDialog } from "./mcp-tools-dialog";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type ScopeFilter = "all" | "global" | "team" | "project";
+
+function effectiveScope(srv: MCPServerData): "global" | "team" | "project" {
+  if (srv.scope) return srv.scope;
+  if (srv.project_id) return "project";
+  if (srv.team_id) return "team";
+  return "global";
+}
 
 const MCPGrantsDialog = lazy(() =>
   import("./mcp-grants-dialog").then((m) => ({ default: m.MCPGrantsDialog }))
@@ -36,6 +52,7 @@ export function MCPPage() {
   const spinning = useMinLoading(fetching);
   const showSkeleton = useDeferredLoading(loading && servers.length === 0);
   const [search, setSearch] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editServer, setEditServer] = useState<MCPServerData | null>(null);
   const [grantsServer, setGrantsServer] = useState<MCPServerData | null>(null);
@@ -45,15 +62,18 @@ export function MCPPage() {
   const [credentialsServer, setCredentialsServer] = useState<MCPServerData | null>(null);
   const [reconnectingId, setReconnectingId] = useState<string | null>(null);
 
-  const filtered = servers.filter(
-    (s) =>
+  const filtered = servers.filter((s) => {
+    const matchesSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.display_name || "").toLowerCase().includes(search.toLowerCase()),
-  );
+      (s.display_name || "").toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+    if (scopeFilter !== "all" && effectiveScope(s) !== scopeFilter) return false;
+    return true;
+  });
 
   const { pageItems, pagination, setPage, setPageSize, resetPage } = usePagination(filtered);
 
-  useEffect(() => { resetPage(); }, [search, resetPage]);
+  useEffect(() => { resetPage(); }, [search, scopeFilter, resetPage]);
 
   const handleCreate = async (data: MCPServerInput) => {
     await createServer(data);
@@ -92,13 +112,24 @@ export function MCPPage() {
         }
       />
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder={t("searchPlaceholder")}
           className="max-w-sm"
         />
+        <Select value={scopeFilter} onValueChange={(v) => setScopeFilter(v as ScopeFilter)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("scope.filterAll")}</SelectItem>
+            <SelectItem value="global">{t("scope.values.global")}</SelectItem>
+            <SelectItem value="team">{t("scope.values.team")}</SelectItem>
+            <SelectItem value="project">{t("scope.values.project")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="mt-4">
@@ -117,6 +148,7 @@ export function MCPPage() {
                 <tr className="border-b bg-muted/50">
                   <th className="px-4 py-3 text-left font-medium">{t("columns.name")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("columns.transport")}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t("columns.scope")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("columns.tools")}</th>
                   <th className="px-4 py-3 text-center font-medium">{t("columns.agents")}</th>
                   <th className="px-4 py-3 text-left font-medium">{t("columns.enabled")}</th>
@@ -146,6 +178,11 @@ export function MCPPage() {
                     <td className="px-4 py-3">
                       <Badge variant={transportBadge[srv.transport] as "default" | "secondary" | "outline" ?? "outline"}>
                         {srv.transport}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className="text-xs-plus">
+                        {t(`scope.values.${effectiveScope(srv)}`)}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-center">

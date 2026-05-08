@@ -10,11 +10,35 @@
   "columns": {
     "name": "名称",
     "transport": "传输协议",
+    "scope": "范围",
     "tools": "工具",
     "agents": "代理",
     "enabled": "已启用",
     "createdBy": "创建者",
     "actions": "操作"
+  },
+  "scope": {
+    "label": "可见范围",
+    "filterAll": "所有范围",
+    "editLockHint": "创建后不可修改范围。如需调整，请重新创建。",
+    "values": {
+      "global": "全局",
+      "team": "团队",
+      "project": "项目"
+    },
+    "hints": {
+      "global": "工作区内所有 Agent 均可使用。",
+      "team": "仅选定团队内的 Agent 可使用。",
+      "project": "仅有权访问选定项目的 Agent 可使用。"
+    },
+    "summaries": {
+      "team": "团队 — {{name}}",
+      "project": "项目 — {{name}}"
+    },
+    "teamLabel": "团队 *",
+    "teamPlaceholder": "选择团队...",
+    "projectLabel": "项目 *",
+    "projectPlaceholder": "选择项目..."
   },
   "viewTools": "查看工具",
   "manageGrants": "管理授权",

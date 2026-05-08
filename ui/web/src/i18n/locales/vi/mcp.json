@@ -10,11 +10,35 @@
   "columns": {
     "name": "Tên",
     "transport": "Giao thức",
+    "scope": "Phạm vi",
     "tools": "Công cụ",
     "agents": "Agents",
     "enabled": "Bật",
     "createdBy": "Tạo bởi",
     "actions": "Thao tác"
+  },
+  "scope": {
+    "label": "Phạm vi hiển thị",
+    "filterAll": "Tất cả phạm vi",
+    "editLockHint": "Phạm vi không thể đổi sau khi tạo. Tạo lại server nếu muốn thay đổi.",
+    "values": {
+      "global": "Toàn workspace",
+      "team": "Team",
+      "project": "Project"
+    },
+    "hints": {
+      "global": "Mọi agent trong workspace đều dùng được.",
+      "team": "Chỉ các agent trong team được chọn dùng được.",
+      "project": "Chỉ các agent có quyền truy cập project được chọn."
+    },
+    "summaries": {
+      "team": "Team — {{name}}",
+      "project": "Project — {{name}}"
+    },
+    "teamLabel": "Team *",
+    "teamPlaceholder": "Chọn team...",
+    "projectLabel": "Project *",
+    "projectPlaceholder": "Chọn project..."
   },
   "viewTools": "Xem công cụ",
   "manageGrants": "Quản lý quyền",

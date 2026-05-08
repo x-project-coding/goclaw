@@ -36,6 +36,10 @@ export interface MCPServerInput {
   timeout_sec?: number;
   settings?: { require_user_credentials?: boolean };
   enabled?: boolean;
+  // Scope is honored only on POST (create). The PUT allow-list intentionally
+  // excludes team_id/project_id so scope is immutable after creation.
+  team_id?: string | null;
+  project_id?: string | null;
 }
 
 export interface MCPToolInfo {

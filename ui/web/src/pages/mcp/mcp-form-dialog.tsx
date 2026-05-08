@@ -16,6 +16,7 @@ import { isValidSlug } from "@/lib/slug";
 import { mcpFormSchema, type MCPFormData } from "@/schemas/mcp.schema";
 import { McpConnectionFields } from "./mcp-connection-fields";
 import { McpSettingsFields } from "./mcp-settings-fields";
+import { McpScopePicker, type McpScope } from "@/components/shared/mcp-scope-picker";
 
 /** Split a string into shell-like tokens, treating commas and spaces outside quotes as delimiters. */
 function splitShellTokens(input: string): string[] {
@@ -66,20 +67,28 @@ export function MCPFormDialog({ open, onOpenChange, server, onSubmit, onTest }: 
       timeout: 60,
       enabled: true,
       requireUserCreds: false,
+      scope: "global",
+      teamId: undefined,
+      projectId: undefined,
     },
   });
 
-  const { watch, reset, handleSubmit: rhfHandleSubmit } = form;
+  const { watch, reset, setValue, handleSubmit: rhfHandleSubmit } = form;
   const transport = watch("transport");
   const command = watch("command");
   const args = watch("args");
   const url = watch("url");
   const headers = watch("headers") as Record<string, string>;
   const env = watch("env") as Record<string, string>;
+  const scope = (watch("scope") ?? "global") as McpScope;
+  const teamId = watch("teamId") ?? null;
+  const projectId = watch("projectId") ?? null;
   const isStdio = transport === "stdio";
+  const isEdit = !!server;
 
   useEffect(() => {
     if (open) {
+      const initialScope: McpScope = server?.scope ?? (server?.project_id ? "project" : server?.team_id ? "team" : "global");
       reset({
         name: server?.name ?? "",
         displayName: server?.display_name ?? "",
@@ -93,6 +102,9 @@ export function MCPFormDialog({ open, onOpenChange, server, onSubmit, onTest }: 
         timeout: server?.timeout_sec ?? 60,
         enabled: server?.enabled ?? true,
         requireUserCreds: server?.settings?.require_user_credentials ?? false,
+        scope: initialScope,
+        teamId: server?.team_id ?? undefined,
+        projectId: server?.project_id ?? undefined,
       });
       setError("");
       setTestResult(null);
@@ -157,6 +169,13 @@ export function MCPFormDialog({ open, onOpenChange, server, onSubmit, onTest }: 
         timeout_sec: data.timeout,
         settings: { require_user_credentials: data.requireUserCreds },
         enabled: data.enabled,
+        // Scope IDs are only sent on create — see MCPServerInput type note.
+        ...(isEdit
+          ? {}
+          : {
+              team_id: data.scope === "team" ? data.teamId ?? null : null,
+              project_id: data.scope === "project" ? data.projectId ?? null : null,
+            }),
       });
       onOpenChange(false);
     } catch (err: unknown) {
@@ -176,6 +195,17 @@ export function MCPFormDialog({ open, onOpenChange, server, onSubmit, onTest }: 
         <div className="grid gap-4 py-2 -mx-4 px-4 sm:-mx-6 sm:px-6 overflow-y-auto min-h-0">
           <McpConnectionFields form={form} />
           <McpSettingsFields form={form} />
+          <McpScopePicker
+            scope={scope}
+            teamId={teamId ?? null}
+            projectId={projectId ?? null}
+            disabled={isEdit}
+            onChange={({ scope: ns, teamId: nt, projectId: np }) => {
+              setValue("scope", ns, { shouldValidate: true });
+              setValue("teamId", nt ?? undefined, { shouldValidate: true });
+              setValue("projectId", np ?? undefined, { shouldValidate: true });
+            }}
+          />
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
