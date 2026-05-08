@@ -315,6 +315,12 @@ func (s *Server) Start(ctx context.Context) error {
 	// else returns 503. Successful POST /v1/bootstrap/init flips the flag.
 	var handler http.Handler = httpapi.BootstrapRequiredMiddleware(mux)
 
+	// Reject cross-origin form posts: the FE always sets X-Requested-With on
+	// mutating calls, and a foreign-origin attacker page cannot replay it
+	// without a CORS preflight. Installed after the bootstrap gate so the
+	// initial install flow keeps its 503 short-circuit.
+	handler = httpapi.CSRFRequireXRequestedWith(handler)
+
 	// Wrap with CORS for desktop dev mode (Wails serves frontend on different port).
 	if os.Getenv("GOCLAW_DESKTOP") == "1" {
 		handler = desktopCORS(handler)
