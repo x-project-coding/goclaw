@@ -152,7 +152,7 @@ func overlaySubagents(dst *subagentDefaultsJSON, src *config.SubagentsConfig) {
 		dst.MaxSpawnDepth = min(src.MaxSpawnDepth, 5)
 	}
 	if src.MaxChildrenPerAgent > 0 {
-		dst.MaxChildrenPerAgent = min(src.MaxChildrenPerAgent, 20)
+		dst.MaxChildrenPerAgent = min(src.MaxChildrenPerAgent, 50)
 	}
 	if src.ArchiveAfterMinutes > 0 {
 		dst.ArchiveAfterMinutes = src.ArchiveAfterMinutes

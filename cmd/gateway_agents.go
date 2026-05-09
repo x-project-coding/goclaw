@@ -185,7 +185,7 @@ func setupSubagents(providerReg *providers.Registry, cfg *config.Config, msgBus 
 			subCfg.MaxSpawnDepth = min(sc.MaxSpawnDepth, 5) // TS: max 5
 		}
 		if sc.MaxChildrenPerAgent > 0 {
-			subCfg.MaxChildrenPerAgent = min(sc.MaxChildrenPerAgent, 20) // TS: max 20
+			subCfg.MaxChildrenPerAgent = min(sc.MaxChildrenPerAgent, 50) // raised from TS max of 20 (george 2026-05-09)
 		}
 		if sc.ArchiveAfterMinutes > 0 {
 			subCfg.ArchiveAfterMinutes = sc.ArchiveAfterMinutes

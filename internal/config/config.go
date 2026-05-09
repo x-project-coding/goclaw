@@ -411,7 +411,7 @@ func (cc CronConfig) ToRetryConfig() cron.RetryConfig {
 type SubagentsConfig struct {
 	MaxConcurrent       int    `json:"maxConcurrent,omitempty"`       // default 8 (TS: DEFAULT_SUBAGENT_MAX_CONCURRENT)
 	MaxSpawnDepth       int    `json:"maxSpawnDepth,omitempty"`       // default 1, range 1-5
-	MaxChildrenPerAgent int    `json:"maxChildrenPerAgent,omitempty"` // default 5, range 1-20
+	MaxChildrenPerAgent int    `json:"maxChildrenPerAgent,omitempty"` // default 30, range 1-50
 	ArchiveAfterMinutes int    `json:"archiveAfterMinutes,omitempty"` // default 60
 	MaxRetries          int    `json:"maxRetries,omitempty"`          // max LLM retries on error (default 2)
 	Model               string `json:"model,omitempty"`               // model override for subagents

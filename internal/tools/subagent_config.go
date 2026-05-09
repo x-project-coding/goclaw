@@ -8,7 +8,7 @@ func DefaultSubagentConfig() SubagentConfig {
 	return SubagentConfig{
 		MaxConcurrent:       8,  // TS: DEFAULT_SUBAGENT_MAX_CONCURRENT = 8
 		MaxSpawnDepth:       1,  // TS: maxSpawnDepth ?? 1
-		MaxChildrenPerAgent: 5,  // TS: maxChildrenPerAgent ?? 5
+		MaxChildrenPerAgent: 30, // raised from TS default of 5 (george 2026-05-09)
 		ArchiveAfterMinutes: 60, // TS: archiveAfterMinutes ?? 60
 		MaxRetries:          2,
 	}
