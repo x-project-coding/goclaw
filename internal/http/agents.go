@@ -288,6 +288,14 @@ func (h *AgentsHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mirror the import-path guard: agents.provider/model are NOT NULL but
+	// accept "", so without this an empty payload lands a broken row that
+	// only fails much later at chat time with an upstream "No models provided".
+	if req.Provider == "" || req.Model == "" {
+		writeError(w, http.StatusBadRequest, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgProviderModelRequired))
+		return
+	}
+
 	if err := h.agents.Create(r.Context(), &req); err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
 			writeError(w, http.StatusConflict, protocol.ErrAlreadyExists, i18n.T(locale, i18n.MsgAlreadyExists, "agent", req.AgentKey))

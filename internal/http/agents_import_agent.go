@@ -40,6 +40,13 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 
 	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, tenantID, userID)
 
+	// Reject archives missing provider/model — landing such a row produces a
+	// cryptic upstream "No models provided" error at chat time, often hours
+	// later. Surface the problem at provisioning instead.
+	if ag.Provider == "" || ag.Model == "" {
+		return nil, fmt.Errorf("agent archive missing required field(s): provider=%q model=%q", ag.Provider, ag.Model)
+	}
+
 	if progressFn != nil {
 		progressFn(ProgressEvent{Phase: "config", Status: "running"})
 	}
