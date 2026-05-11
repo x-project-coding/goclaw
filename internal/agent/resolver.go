@@ -172,6 +172,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		// causes upstream to return cryptic "No models provided"; fail clearly
 		// here so the run.failed message points at the actual misconfiguration).
 		if ag.Model == "" {
+			slog.Warn("agent has no model configured", "agent", agentKey, "tenant", ag.TenantID)
 			return nil, fmt.Errorf("agent %s has no model configured (re-import agent archive with model field)", agentKey)
 		}
 		providerReasoningDefaults := (*store.ProviderReasoningConfig)(nil)

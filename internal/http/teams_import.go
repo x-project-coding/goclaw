@@ -348,6 +348,15 @@ func (h *AgentsHandler) doTeamImport(ctx context.Context, r *http.Request, teamA
 		userID := store.UserIDFromContext(ctx)
 		ag := h.buildAgentFromArchive(agArc.agentConfig, dedupedKey, "", tenantID, userID)
 
+		// Mirror the single-agent import guard. Without this a team archive
+		// whose member agent.json omits provider/model would land a broken
+		// row that fails cryptically at chat time.
+		if ag.Provider == "" || ag.Model == "" {
+			slog.Warn("team.import: agent archive missing provider/model",
+				"key", dedupedKey, "provider", ag.Provider, "model", ag.Model)
+			continue
+		}
+
 		if progressFn != nil {
 			progressFn(ProgressEvent{Phase: "agent", Status: "running", Detail: dedupedKey})
 		}
