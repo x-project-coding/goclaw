@@ -168,6 +168,12 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		if provider == nil {
 			return nil, fmt.Errorf("no provider available for agent %s", agentKey)
 		}
+		// Catches legacy rows imported before the import-time guard (empty model
+		// causes upstream to return cryptic "No models provided"; fail clearly
+		// here so the run.failed message points at the actual misconfiguration).
+		if ag.Model == "" {
+			return nil, fmt.Errorf("agent %s has no model configured (re-import agent archive with model field)", agentKey)
+		}
 		providerReasoningDefaults := (*store.ProviderReasoningConfig)(nil)
 		if deps.ProviderStore != nil {
 			if providerData, err := deps.ProviderStore.GetProviderByName(ctx, provider.Name()); err == nil && providerData != nil {
