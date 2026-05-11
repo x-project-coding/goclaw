@@ -15,9 +15,12 @@ list and re-verify each patch still applies cleanly or has been obsoleted.
 
 - **Base upstream commit:** `c651cde5` (Merge branch 'dev' into main)
 - **Files:**
-  - `internal/http/agents_import_agent.go` — `doImportNewAgent` rejects
-    archives with empty `provider`/`model` before insert (single-agent import
-    via `POST /v1/agents/import`).
+  - `internal/http/agents_import_agent.go` — `doImportNewAgent` emits a
+    `slog.Warn` when archives lack `provider`/`model` (single-agent import
+    via `POST /v1/agents/import`). Rejecting outright (the first version of
+    this patch) broke workspace signup because real production brand-agent
+    archives currently omit these fields. The resolver-side guard below
+    still surfaces a clear chat-time error.
   - `internal/http/agents.go` — `handleCreate` rejects requests with empty
     `provider`/`model` (direct create via `POST /v1/agents`) with the existing
     `MsgProviderModelRequired` i18n key.
