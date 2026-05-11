@@ -40,11 +40,16 @@ func (h *AgentsHandler) doImportNewAgent(ctx context.Context, r *http.Request, a
 
 	ag := h.buildAgentFromArchive(arc.agentConfig, agentKey, displayName, tenantID, userID)
 
-	// Reject archives missing provider/model — landing such a row produces a
-	// cryptic upstream "No models provided" error at chat time, often hours
-	// later. Surface the problem at provisioning instead.
+	// Warn (don't reject) on archives missing provider/model. Real production
+	// brand-agent archives in x-api currently omit these fields, and rejecting
+	// blocks workspace signup. The resolver-side guard in
+	// internal/agent/resolver.go emits a clear error at chat time so users
+	// aren't left with the cryptic upstream "No models provided" message.
+	// Track this log to identify which archives need re-exporting with the
+	// fields set.
 	if ag.Provider == "" || ag.Model == "" {
-		return nil, fmt.Errorf("agent archive missing required field(s): provider=%q model=%q", ag.Provider, ag.Model)
+		slog.Warn("agents.import: archive missing provider/model — agent will be unusable until re-imported",
+			"agent_key", ag.AgentKey, "tenant", ag.TenantID, "provider", ag.Provider, "model", ag.Model)
 	}
 
 	if progressFn != nil {
