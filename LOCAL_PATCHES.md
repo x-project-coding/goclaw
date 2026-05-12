@@ -26,8 +26,12 @@ list and re-verify each patch still applies cleanly or has been obsoleted.
     `MsgProviderModelRequired` i18n key.
   - `internal/http/teams_import.go` — team-import loop skips member archives
     with empty `provider`/`model` (`POST /v1/teams/import`).
-  - `internal/agent/resolver.go` — `NewManagedResolver` returns a clear error
-    (plus `slog.Warn`) when an existing agent row has empty `model`.
+  - `internal/agent/resolver.go` — `NewManagedResolver` backfills empty
+    `provider`/`model` from `system_config` (`agent.default_provider` /
+    `agent.default_model`) before resolving the provider. If the system
+    defaults are also empty, returns a clear error
+    (`agent X has no model configured`) instead of letting the upstream
+    return the cryptic `No models provided`.
 - **Why:** `buildAgentFromArchive` parses `provider`/`model` from the archive's
   `agent.json` (lines 88–90). When those keys are missing, both fields land as
   empty strings — the `NOT NULL` columns accept empty strings, so a broken row

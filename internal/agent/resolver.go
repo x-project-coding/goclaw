@@ -157,6 +157,30 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			return nil, fmt.Errorf("agent %s is inactive", agentKey)
 		}
 
+		// Backfill empty provider/model from system_config defaults. Some
+		// brand-agent archives in production omit these fields in their
+		// agent.json (the import path only warns; see internal/http/agents_import_agent.go).
+		// Without this fallback, chats against those agents fail with a cryptic
+		// upstream "No models provided" or the resolver's own
+		// "agent has no model configured" error.
+		if (ag.Provider == "" || ag.Model == "") && deps.SystemConfigs != nil {
+			tenantCtx := store.WithTenantID(ctx, ag.TenantID)
+			if ag.Provider == "" {
+				if v, _ := deps.SystemConfigs.Get(tenantCtx, "agent.default_provider"); v != "" {
+					slog.Info("agent: backfilling empty provider from system_config",
+						"agent", agentKey, "provider", v)
+					ag.Provider = v
+				}
+			}
+			if ag.Model == "" {
+				if v, _ := deps.SystemConfigs.Get(tenantCtx, "agent.default_model"); v != "" {
+					slog.Info("agent: backfilling empty model from system_config",
+						"agent", agentKey, "model", v)
+					ag.Model = v
+				}
+			}
+		}
+
 		// Resolve provider (tenant-aware: tries tenant-specific first, falls back to master)
 		provider, err := providerresolve.ResolveConfiguredProvider(deps.ProviderReg, ag)
 		if err != nil {
