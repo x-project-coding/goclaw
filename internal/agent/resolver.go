@@ -163,19 +163,38 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		// Without this fallback, chats against those agents fail with a cryptic
 		// upstream "No models provided" or the resolver's own
 		// "agent has no model configured" error.
-		if (ag.Provider == "" || ag.Model == "") && deps.SystemConfigs != nil {
-			tenantCtx := store.WithTenantID(ctx, ag.TenantID)
+		//
+		// PGSystemConfigStore.Get does NOT fall back to MasterTenantID (despite
+		// what the interface comment claims — see internal/store/pg/system_configs.go:31).
+		// Try the agent's tenant first, then master explicitly. New tenants
+		// often have no system_configs rows yet, so the master fallback is
+		// load-bearing.
+		if ag.Provider == "" || ag.Model == "" {
+			lookup := func(key string) string {
+				if deps.SystemConfigs == nil {
+					return ""
+				}
+				tenantCtx := store.WithTenantID(ctx, ag.TenantID)
+				if v, _ := deps.SystemConfigs.Get(tenantCtx, key); v != "" {
+					return v
+				}
+				masterCtx := store.WithTenantID(ctx, store.MasterTenantID)
+				if v, _ := deps.SystemConfigs.Get(masterCtx, key); v != "" {
+					return v
+				}
+				return ""
+			}
 			if ag.Provider == "" {
-				if v, _ := deps.SystemConfigs.Get(tenantCtx, "agent.default_provider"); v != "" {
+				if v := lookup("agent.default_provider"); v != "" {
 					slog.Info("agent: backfilling empty provider from system_config",
-						"agent", agentKey, "provider", v)
+						"agent", agentKey, "tenant", ag.TenantID, "provider", v)
 					ag.Provider = v
 				}
 			}
 			if ag.Model == "" {
-				if v, _ := deps.SystemConfigs.Get(tenantCtx, "agent.default_model"); v != "" {
+				if v := lookup("agent.default_model"); v != "" {
 					slog.Info("agent: backfilling empty model from system_config",
-						"agent", agentKey, "model", v)
+						"agent", agentKey, "tenant", ag.TenantID, "model", v)
 					ag.Model = v
 				}
 			}
