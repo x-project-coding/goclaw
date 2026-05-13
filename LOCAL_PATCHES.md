@@ -161,6 +161,10 @@ in append order. Do not place fork migrations below `099000`.
   - `migrations/099000_tenant_cascade.up.sql` + `.down.sql` — one `DO $$`
     block that rewrites every FK on `tenants(id)` to `ON DELETE CASCADE`,
     so a single `DELETE FROM tenants WHERE id=$1` reclaims all child rows.
+  - `internal/upgrade/version.go` — `RequiredSchemaVersion` bumped to
+    `99000` so the migration runner picks the file up. Without this bump
+    `CheckSchema` short-circuits as "up to date" because `current ==
+    required (57)` and golang-migrate is never invoked.
   - `internal/store/tenant_store.go` — `TenantStore.DeleteTenant` on the
     interface.
   - `internal/store/pg/tenant_store.go` — Postgres impl.
@@ -182,10 +186,12 @@ in append order. Do not place fork migrations below `099000`.
     internal/store/tenant_store.go internal/store/pg/tenant_store.go \
     internal/store/sqlitestore/tenants.go internal/http/tenants.go \
     internal/gateway/methods/tenants.go internal/bus/types.go
+  grep -nE 'RequiredSchemaVersion uint = 99000' internal/upgrade/version.go
   ```
   Plus migration presence:
   ```
   test -f migrations/099000_tenant_cascade.up.sql
   test -f migrations/099000_tenant_cascade.down.sql
   ```
-  Expects ≥ 6 grep hits + both migration files present.
+  Expects ≥ 6 grep hits on the first grep, 1 hit on the second, and both
+  migration files present.

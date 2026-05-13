@@ -84,6 +84,9 @@ check_grep "Patch 7: tenants hard-delete code" 6 \
   internal/store/tenant_store.go internal/store/pg/tenant_store.go \
   internal/store/sqlitestore/tenants.go internal/http/tenants.go \
   internal/gateway/methods/tenants.go internal/bus/types.go
+check_grep "Patch 7: RequiredSchemaVersion bump" 1 \
+  'RequiredSchemaVersion uint = 99000' \
+  internal/upgrade/version.go
 check_file "Patch 7: tenant_cascade migration (up)" \
   migrations/099000_tenant_cascade.up.sql
 check_file "Patch 7: tenant_cascade migration (down)" \
