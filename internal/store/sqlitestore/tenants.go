@@ -118,6 +118,29 @@ func (s *SQLiteTenantStore) UpdateTenant(ctx context.Context, id uuid.UUID, upda
 	return execMapUpdate(ctx, s.db, "tenants", id, updates)
 }
 
+// DeleteTenant hard-deletes the tenants row. SQLite is used only as the dev /
+// test backend; tenant_users is the only FK reference under the SQLite schema
+// today, and the production cascade migration (000058) targets Postgres only.
+// We DELETE tenant_users first so the SQLite path stays correct without a
+// schema change.
+func (s *SQLiteTenantStore) DeleteTenant(ctx context.Context, id uuid.UUID) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM tenant_users WHERE tenant_id = ?`, id); err != nil {
+		return err
+	}
+	res, err := s.db.ExecContext(ctx, `DELETE FROM tenants WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // ============================================================
 // Tenant-user membership
 // ============================================================

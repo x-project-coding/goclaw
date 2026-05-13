@@ -104,6 +104,7 @@ const (
 	TopicPairingRevoked        = "pairing:revoked"
 	TopicAgentStatusChanged    = "agent:status_changed"
 	TopicAgentDeleted          = "agent:deleted"
+	TopicTenantDeleted         = "tenant:deleted"
 )
 
 // EventPairingRevoked is the event name broadcast when a paired device is revoked.
@@ -130,6 +131,15 @@ type AgentDeletedPayload struct {
 	AgentKey string    `json:"agent_key"`
 	Provider string    `json:"provider,omitempty"` // provider name for orphan cleanup
 	TenantID uuid.UUID `json:"tenant_id,omitempty"`
+}
+
+// TenantDeletedPayload carries tenant hard-deletion info so async subscribers
+// (cache invalidators, metrics emitters) can clean up tenant-scoped state.
+// FK cascade handles the SQL-level cleanup; this event signals everything
+// outside Postgres (filesystem caches, in-memory maps).
+type TenantDeletedPayload struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Slug     string    `json:"slug,omitempty"`
 }
 
 // AuditEventPayload carries audit log data emitted by handlers.

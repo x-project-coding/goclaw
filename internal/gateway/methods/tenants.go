@@ -38,6 +38,7 @@ func (m *TenantsMethods) Register(router *gateway.MethodRouter) {
 	router.Register("tenants.get", m.handleGet)
 	router.Register("tenants.create", m.handleCreate)
 	router.Register("tenants.update", m.handleUpdate)
+	router.Register("tenants.delete", m.handleDelete)
 	router.Register("tenants.users.list", m.handleUsersList)
 	router.Register("tenants.users.add", m.handleUsersAdd)
 	router.Register("tenants.users.remove", m.handleUsersRemove)
@@ -202,6 +203,69 @@ func (m *TenantsMethods) handleUpdate(ctx context.Context, client *gateway.Clien
 
 	m.emitCacheInvalidate(bus.CacheKindTenantUsers, id.String())
 	m.emitCacheInvalidate(bus.CacheKindTenants, "")
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
+}
+
+// handleDelete hard-deletes a tenant — DB row + cascaded child tables (per
+// the fork-only migration 099000_tenant_cascade) + the on-disk tenant
+// workspace directory. Idempotent on already-gone tenants. The master
+// tenant is protected.
+func (m *TenantsMethods) handleDelete(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	if !client.IsOwner() {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "tenants.delete")))
+		return
+	}
+
+	var params struct {
+		ID string `json:"id"`
+	}
+	if req.Params != nil {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+			return
+		}
+	}
+
+	id, err := uuid.Parse(params.ID)
+	if err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant")))
+		return
+	}
+
+	if id == store.MasterTenantID {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidUpdates)))
+		return
+	}
+
+	tenant, err := m.tenantStore.GetTenant(ctx, id)
+	if err != nil {
+		// Idempotent: already gone.
+		client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
+		return
+	}
+
+	if err := m.tenantStore.DeleteTenant(ctx, id); err != nil {
+		slog.Error("tenants.delete failed", "error", err, "tenant_id", id)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToDelete, "tenant", err.Error())))
+		return
+	}
+
+	if m.workspace != "" && tenant.Slug != "" {
+		tenantDir := filepath.Join(m.workspace, "tenants", tenant.Slug)
+		if rmErr := os.RemoveAll(tenantDir); rmErr != nil {
+			slog.Warn("tenants.delete: failed to remove workspace dir", "dir", tenantDir, "error", rmErr)
+		}
+	}
+
+	m.emitCacheInvalidate(bus.CacheKindTenantUsers, id.String())
+	m.emitCacheInvalidate(bus.CacheKindTenants, "")
+	if m.msgBus != nil {
+		m.msgBus.Broadcast(bus.Event{
+			Name:    bus.TopicTenantDeleted,
+			Payload: bus.TenantDeletedPayload{TenantID: id, Slug: tenant.Slug},
+		})
+	}
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
 }
 
