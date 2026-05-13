@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -163,27 +164,36 @@ func (h *ChatCompletionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 	sessionKey := sessions.SessionKey(agentID, sessionSuffix)
 
-	slog.Info("chat completions request", "agent", agentID, "stream", req.Stream, "user", userID)
+	// Optional per-request LLM model override. Used by x-api's per-session
+	// routing surface (workspace-chat resolution chain: session.routingModel
+	// → Agent.model fallback) so individual chats can pin a model without
+	// PATCHing the agent. Heartbeat already pipes ModelOverride for its
+	// cheaper-model use case (internal/heartbeat/ticker.go:279); this just
+	// exposes the same lever to inbound HTTP callers.
+	modelOverride := strings.TrimSpace(r.Header.Get("X-GoClaw-Model"))
+
+	slog.Info("chat completions request", "agent", agentID, "stream", req.Stream, "user", userID, "model_override", modelOverride)
 
 	if req.Stream {
-		h.handleStream(w, r, loop, runID, sessionKey, lastMessage, req.Model, userID)
+		h.handleStream(w, r, loop, runID, sessionKey, lastMessage, req.Model, userID, modelOverride)
 	} else {
-		h.handleNonStream(w, r, loop, runID, sessionKey, lastMessage, req.Model, userID)
+		h.handleNonStream(w, r, loop, runID, sessionKey, lastMessage, req.Model, userID, modelOverride)
 	}
 }
 
-func (h *ChatCompletionsHandler) handleNonStream(w http.ResponseWriter, r *http.Request, loop agent.Agent, runID, sessionKey, message, model, userID string) {
+func (h *ChatCompletionsHandler) handleNonStream(w http.ResponseWriter, r *http.Request, loop agent.Agent, runID, sessionKey, message, model, userID, modelOverride string) {
 	ctx, drainTeamDispatch := tools.InjectTeamDispatch(r.Context(), h.postTurn)
 	defer drainTeamDispatch()
 
 	result, err := loop.Run(ctx, agent.RunRequest{
-		SessionKey: sessionKey,
-		Message:    message,
-		Channel:    "http",
-		ChatID:     "api",
-		RunID:      runID,
-		UserID:     userID,
-		Stream:     false,
+		SessionKey:    sessionKey,
+		Message:       message,
+		Channel:       "http",
+		ChatID:        "api",
+		RunID:         runID,
+		UserID:        userID,
+		Stream:        false,
+		ModelOverride: modelOverride,
 	})
 
 	if err != nil {
@@ -216,7 +226,7 @@ func (h *ChatCompletionsHandler) handleNonStream(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (h *ChatCompletionsHandler) handleStream(w http.ResponseWriter, r *http.Request, loop agent.Agent, runID, sessionKey, message, model, userID string) {
+func (h *ChatCompletionsHandler) handleStream(w http.ResponseWriter, r *http.Request, loop agent.Agent, runID, sessionKey, message, model, userID, modelOverride string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		locale := store.LocaleFromContext(r.Context())
@@ -238,13 +248,14 @@ func (h *ChatCompletionsHandler) handleStream(w http.ResponseWriter, r *http.Req
 	defer drainTeamDispatch()
 
 	result, err := loop.Run(ctx, agent.RunRequest{
-		SessionKey: sessionKey,
-		Message:    message,
-		Channel:    "http",
-		ChatID:     "api",
-		RunID:      runID,
-		UserID:     userID,
-		Stream:     true,
+		SessionKey:    sessionKey,
+		Message:       message,
+		Channel:       "http",
+		ChatID:        "api",
+		RunID:         runID,
+		UserID:        userID,
+		Stream:        true,
+		ModelOverride: modelOverride,
 	})
 
 	if err != nil {

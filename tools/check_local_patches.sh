@@ -108,6 +108,14 @@ check_grep "Patch 8: xrouter provider + adapter" 10 \
   internal/store/provider_store.go \
   internal/http/providers.go
 
+# Patch 9 — X-GoClaw-Model header threads into RunRequest.ModelOverride so
+# x-api's per-session routing can pin the LLM model for a single chat without
+# PATCHing the agent. ModelOverride was already plumbed end-to-end for
+# heartbeat; this exposes the same lever to inbound HTTP callers.
+check_grep "Patch 9: model-override header" 3 \
+  'X-GoClaw-Model|ModelOverride: modelOverride' \
+  internal/http/chat_completions.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0
