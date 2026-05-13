@@ -106,6 +106,25 @@ func (s *PGTenantStore) UpdateTenant(ctx context.Context, id uuid.UUID, updates 
 	return execMapUpdate(ctx, s.db, "tenants", id, updates)
 }
 
+// DeleteTenant hard-deletes the tenants row. Relies on the FK cascade put in
+// place by the fork-only migration 099000_tenant_cascade to clean up every
+// child table. Returns sql.ErrNoRows when no row was deleted so callers can
+// decide whether to surface a 404 or treat as idempotent.
+func (s *PGTenantStore) DeleteTenant(ctx context.Context, id uuid.UUID) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM tenants WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // ============================================================
 // Tenant-user membership
 // ============================================================

@@ -59,6 +59,12 @@ type TenantStore interface {
 	GetTenantBySlug(ctx context.Context, slug string) (*TenantData, error)
 	ListTenants(ctx context.Context) ([]TenantData, error)
 	UpdateTenant(ctx context.Context, id uuid.UUID, updates map[string]any) error
+	// DeleteTenant hard-deletes the tenants row. The fork-only migration
+	// 099000_tenant_cascade added ON DELETE CASCADE to every FK on
+	// tenants(id), so this single DELETE reclaims all tenant-scoped child
+	// rows. Returns sql.ErrNoRows when the tenant did not exist; callers
+	// can treat that as idempotent success.
+	DeleteTenant(ctx context.Context, id uuid.UUID) error
 
 	// Tenant-user membership
 	AddUser(ctx context.Context, tenantID uuid.UUID, userID, role string) error

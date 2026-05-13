@@ -28,6 +28,7 @@ func (f fakeTenantStore) GetTenantBySlug(context.Context, string) (*store.Tenant
 }
 func (f fakeTenantStore) ListTenants(context.Context) ([]store.TenantData, error)       { return nil, nil }
 func (f fakeTenantStore) UpdateTenant(context.Context, uuid.UUID, map[string]any) error { return nil }
+func (f fakeTenantStore) DeleteTenant(context.Context, uuid.UUID) error                 { return nil }
 func (f fakeTenantStore) AddUser(context.Context, uuid.UUID, string, string) error      { return nil }
 func (f fakeTenantStore) RemoveUser(context.Context, uuid.UUID, string) error           { return nil }
 func (f fakeTenantStore) GetUserRole(context.Context, uuid.UUID, string) (string, error) {

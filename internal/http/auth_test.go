@@ -94,6 +94,7 @@ func (m *mockTenantStore) ListTenants(context.Context) ([]store.TenantData, erro
 func (m *mockTenantStore) UpdateTenant(context.Context, uuid.UUID, map[string]any) error {
 	return nil
 }
+func (m *mockTenantStore) DeleteTenant(context.Context, uuid.UUID) error { return nil }
 func (m *mockTenantStore) AddUser(context.Context, uuid.UUID, string, string) error { return nil }
 func (m *mockTenantStore) RemoveUser(context.Context, uuid.UUID, string) error      { return nil }
 func (m *mockTenantStore) GetUserRole(_ context.Context, tenantID uuid.UUID, userID string) (string, error) {

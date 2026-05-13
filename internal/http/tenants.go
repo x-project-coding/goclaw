@@ -36,6 +36,7 @@ func (h *TenantsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/tenants", admin(h.handleCreate))
 	mux.HandleFunc("GET /v1/tenants/{id}", admin(h.handleGet))
 	mux.HandleFunc("PATCH /v1/tenants/{id}", admin(h.handleUpdate))
+	mux.HandleFunc("DELETE /v1/tenants/{id}", admin(h.handleDelete))
 	mux.HandleFunc("GET /v1/tenants/{id}/users", admin(h.handleUsersList))
 	mux.HandleFunc("POST /v1/tenants/{id}/users", admin(h.handleUsersAdd))
 	mux.HandleFunc("DELETE /v1/tenants/{id}/users/{userId}", admin(h.handleUsersRemove))
@@ -182,6 +183,65 @@ func (h *TenantsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	h.emitCacheInvalidate(bus.CacheKindTenantUsers, id.String())
 	emitAudit(h.msgBus, r, "tenant.updated", "tenant", id.String())
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// handleDelete hard-deletes a tenant — DB row + every cascading child table
+// (per the fork-only migration 099000_tenant_cascade) + the on-disk tenant
+// workspace directory. Idempotent: a delete against a tenant that is already
+// gone returns 204 without an error so callers (e.g. admin-api's trial-
+// cleanup cron) can retry safely. The master tenant is never deletable
+// because the rest of the system pins "no membership" users to it as a
+// fallback (see ResolveUserTenant).
+func (h *TenantsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
+	locale := extractLocale(r)
+	if !store.IsOwnerRole(r.Context()) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgPermissionDenied, "tenants.delete")})
+		return
+	}
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "tenant")})
+		return
+	}
+
+	if id == store.MasterTenantID {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidUpdates)})
+		return
+	}
+
+	tenant, err := h.tenantStore.GetTenant(r.Context(), id)
+	if err != nil {
+		// Idempotent: treat missing tenant as already-cleaned-up.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if err := h.tenantStore.DeleteTenant(r.Context(), id); err != nil {
+		slog.Error("tenants.delete failed", "error", err, "tenant_id", id)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": i18n.T(locale, i18n.MsgFailedToDelete, "tenant", err.Error())})
+		return
+	}
+
+	// Best-effort filesystem cleanup. The DB delete is authoritative — if the
+	// directory removal fails we still consider the operation complete and
+	// surface a warning for ops to clean up by hand.
+	if h.workspace != "" && tenant.Slug != "" {
+		tenantDir := filepath.Join(h.workspace, "tenants", tenant.Slug)
+		if rmErr := os.RemoveAll(tenantDir); rmErr != nil {
+			slog.Warn("tenants.delete: failed to remove workspace dir", "dir", tenantDir, "error", rmErr)
+		}
+	}
+
+	h.emitCacheInvalidate(bus.CacheKindTenantUsers, id.String())
+	if h.msgBus != nil {
+		h.msgBus.Broadcast(bus.Event{
+			Name:    bus.TopicTenantDeleted,
+			Payload: bus.TenantDeletedPayload{TenantID: id, Slug: tenant.Slug},
+		})
+	}
+	emitAudit(h.msgBus, r, "tenant.deleted", "tenant", id.String())
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *TenantsHandler) handleUsersList(w http.ResponseWriter, r *http.Request) {
