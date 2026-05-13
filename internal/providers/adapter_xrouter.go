@@ -1,6 +1,9 @@
 package providers
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+)
 
 // XRouterAdapter routes LLM traffic through the 42bucks router gateway
 // (router.42bucks.com). The wire protocol is OpenAI Chat Completions, so this
@@ -32,7 +35,14 @@ func NewXRouterAdapter(cfg ProviderConfig) (ProviderAdapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &XRouterAdapter{inner: inner.(*OpenAIAdapter)}, nil
+	// Explicit type check mirrors adapter_dashscope.go:28-31 so a future
+	// refactor of NewOpenAIAdapter's concrete return type fails loudly at
+	// construction rather than panicking on first ToRequest call.
+	oa, ok := inner.(*OpenAIAdapter)
+	if !ok {
+		return nil, fmt.Errorf("xrouter adapter: unexpected inner type %T", inner)
+	}
+	return &XRouterAdapter{inner: oa}, nil
 }
 
 func (a *XRouterAdapter) Name() string                       { return "xrouter" }
