@@ -92,6 +92,16 @@ check_file "Patch 7: tenant_cascade migration (up)" \
 check_file "Patch 7: tenant_cascade migration (down)" \
   migrations/099000_tenant_cascade.down.sql
 
+# Patch 8 — xrouter adapter (workspace billing through router.42bucks.com).
+# Token set: the three X-Router-* identity headers + the factory name +
+# the registry line. Upstream is extremely unlikely to ship anything that
+# matches these tokens since they're 42bucks-specific.
+check_grep "Patch 8: xrouter adapter" 5 \
+  'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterAdapter' \
+  internal/providers/adapter_xrouter.go \
+  internal/providers/adapter_xrouter_test.go \
+  internal/providers/adapter_register.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

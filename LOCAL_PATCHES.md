@@ -195,3 +195,38 @@ in append order. Do not place fork migrations below `099000`.
   ```
   Expects ≥ 6 grep hits on the first grep, 1 hit on the second, and both
   migration files present.
+
+### Patch 8 — `feat(providers): xrouter adapter — route LLM traffic through router.42bucks.com with workspace/agent/user/session identity headers`
+
+- **Base upstream commit:** `a97e5028`
+- **Files:**
+  - `internal/providers/adapter_xrouter.go` — new `XRouterAdapter` that wraps
+    `OpenAIAdapter` (x-router speaks OpenAI Chat Completions) and adds three
+    identity headers on every outbound request:
+    - `X-Router-Agent-Id`   from `req.Options[OptAgentID]`
+    - `X-Router-User-Id`    from `req.Options[OptUserID]`
+    - `X-Router-Session-Id` from `req.Options[OptSessionKey]`
+    The workspace anchor is implicit — bound to the `xrt_*` bearer key on the
+    `llm_providers` row. Missing / non-string / empty-string options are
+    silently skipped; the request still goes through and bills the workspace.
+  - `internal/providers/adapter_xrouter_test.go` — 5 unit tests covering
+    name/capabilities, header injection, missing identity, empty-string
+    identity, and non-string identity (the defensive paths).
+  - `internal/providers/adapter_register.go` — one-line registration:
+    `r.Register("xrouter", NewXRouterAdapter)`.
+- **Why:** x-router (`router.42bucks.com`, a 42bucks-internal OpenAI-compat
+  gateway) records every request to its own `RequestLog` with workspace /
+  agent / user / session attribution + per-model cost. To bill 42bucks
+  workspaces on actual LLM usage, goclaw needs an adapter that POSTs through
+  x-router and surfaces the identity goclaw's agent loop already populates
+  into `chatReq.Options` (see
+  `internal/agent/loop_pipeline_callbacks.go:221-241`). Upstream goclaw will
+  never carry this adapter — it's specific to the 42bucks deployment.
+- **Recovery grep:**
+  ```
+  grep -nE 'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterAdapter' \
+    internal/providers/adapter_xrouter.go \
+    internal/providers/adapter_xrouter_test.go \
+    internal/providers/adapter_register.go
+  ```
+  Expects ≥ 5 hits (4 header / factory tokens plus registration line).
