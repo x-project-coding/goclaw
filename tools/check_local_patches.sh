@@ -92,15 +92,21 @@ check_file "Patch 7: tenant_cascade migration (up)" \
 check_file "Patch 7: tenant_cascade migration (down)" \
   migrations/099000_tenant_cascade.down.sql
 
-# Patch 8 — xrouter adapter (workspace billing through router.42bucks.com).
-# Token set: the three X-Router-* identity headers + the factory name +
-# the registry line. Upstream is extremely unlikely to ship anything that
-# matches these tokens since they're 42bucks-specific.
-check_grep "Patch 8: xrouter adapter" 5 \
-  'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterAdapter' \
+# Patch 8 — xrouter provider + adapter scaffolding (workspace billing).
+# Two file groups: live integration (xrouter.go composing OpenAIProvider with
+# a context-aware RoundTripper) and parallel adapter scaffolding (kept for
+# future ProviderAdapter wiring), plus the provider_type constant and the
+# registry switch case. Upstream is extremely unlikely to ship matching
+# tokens since they're 42bucks-specific.
+check_grep "Patch 8: xrouter provider + adapter" 10 \
+  'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterProvider|NewXRouterAdapter|ProviderXRouter' \
+  internal/providers/xrouter.go \
+  internal/providers/xrouter_test.go \
   internal/providers/adapter_xrouter.go \
   internal/providers/adapter_xrouter_test.go \
-  internal/providers/adapter_register.go
+  internal/providers/adapter_register.go \
+  internal/store/provider_store.go \
+  internal/http/providers.go
 
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'

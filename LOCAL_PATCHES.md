@@ -196,37 +196,57 @@ in append order. Do not place fork migrations below `099000`.
   Expects ≥ 6 grep hits on the first grep, 1 hit on the second, and both
   migration files present.
 
-### Patch 8 — `feat(providers): xrouter adapter — route LLM traffic through router.42bucks.com with workspace/agent/user/session identity headers`
+### Patch 8 — `feat(providers): xrouter — route LLM traffic through router.42bucks.com with workspace/agent/user/session identity headers`
 
 - **Base upstream commit:** `a97e5028`
 - **Files:**
-  - `internal/providers/adapter_xrouter.go` — new `XRouterAdapter` that wraps
-    `OpenAIAdapter` (x-router speaks OpenAI Chat Completions) and adds three
-    identity headers on every outbound request:
+  - `internal/providers/xrouter.go` — new `XRouterProvider` composing
+    `*OpenAIProvider` (x-router speaks OpenAI Chat Completions) and wrapping
+    the HTTP client's `Transport` with `xrouterRoundTripper`. The wrapper
+    reads per-request identity from `context.Context` (stashed by the
+    overridden `Chat`/`ChatStream` methods from `req.Options`) and sets:
     - `X-Router-Agent-Id`   from `req.Options[OptAgentID]`
     - `X-Router-User-Id`    from `req.Options[OptUserID]`
     - `X-Router-Session-Id` from `req.Options[OptSessionKey]`
-    The workspace anchor is implicit — bound to the `xrt_*` bearer key on the
-    `llm_providers` row. Missing / non-string / empty-string options are
-    silently skipped; the request still goes through and bills the workspace.
-  - `internal/providers/adapter_xrouter_test.go` — 5 unit tests covering
-    name/capabilities, header injection, missing identity, empty-string
-    identity, and non-string identity (the defensive paths).
-  - `internal/providers/adapter_register.go` — one-line registration:
-    `r.Register("xrouter", NewXRouterAdapter)`.
+    Workspace anchor is implicit — bound to the `xrt_*` bearer key on the
+    `llm_providers` row. Missing / empty-string identity is silently
+    skipped; the request still goes through.
+  - `internal/providers/xrouter_test.go` — 5 unit tests using a capture
+    transport to assert what headers reach the wire: happy path, missing
+    identity, empty-string identity, partial identity (one of three), and
+    `Name()` inheritance via composition.
+  - `internal/providers/adapter_xrouter.go` + `adapter_xrouter_test.go` +
+    `adapter_register.go` — parallel `XRouterAdapter` registered in
+    `DefaultAdapterRegistry`. The adapter system is parallel scaffolding
+    (`capabilities.go:27`); keeping it in place so when goclaw eventually
+    plumbs `ProviderAdapter.ToRequest` into the live request path the
+    X-Router headers come along for free. **Not load-bearing today** — the
+    live integration is via `XRouterProvider` above. Listed here so the
+    patch catalog reflects the full diff.
+  - `internal/store/provider_store.go` — adds `ProviderXRouter = "xrouter"`
+    constant + `ProviderXRouter: true` entry to `ValidProviderTypes` so the
+    `POST /v1/providers` ingress validator accepts the new type.
+  - `internal/http/providers.go` — `case store.ProviderXRouter:` branch in
+    `registerInMemory` (~ line 211 of the switch) that instantiates
+    `NewXRouterProvider` for rows with `provider_type='xrouter'`.
 - **Why:** x-router (`router.42bucks.com`, a 42bucks-internal OpenAI-compat
   gateway) records every request to its own `RequestLog` with workspace /
   agent / user / session attribution + per-model cost. To bill 42bucks
-  workspaces on actual LLM usage, goclaw needs an adapter that POSTs through
-  x-router and surfaces the identity goclaw's agent loop already populates
-  into `chatReq.Options` (see
+  workspaces on actual LLM usage, goclaw needs to POST through x-router and
+  surface the identity its agent loop already populates into
+  `chatReq.Options` (see
   `internal/agent/loop_pipeline_callbacks.go:221-241`). Upstream goclaw will
-  never carry this adapter — it's specific to the 42bucks deployment.
+  never carry this — it's specific to the 42bucks deployment.
 - **Recovery grep:**
   ```
-  grep -nE 'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterAdapter' \
+  grep -nE 'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterProvider|NewXRouterAdapter|ProviderXRouter' \
+    internal/providers/xrouter.go \
+    internal/providers/xrouter_test.go \
     internal/providers/adapter_xrouter.go \
     internal/providers/adapter_xrouter_test.go \
-    internal/providers/adapter_register.go
+    internal/providers/adapter_register.go \
+    internal/store/provider_store.go \
+    internal/http/providers.go
   ```
-  Expects ≥ 5 hits (4 header / factory tokens plus registration line).
+  Expects ≥ 10 hits (the three `X-Router-*` tokens appear in both `xrouter.go`
+  and `adapter_xrouter.go`; plus factory and constant tokens).
