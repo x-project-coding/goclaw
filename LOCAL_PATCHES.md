@@ -251,29 +251,35 @@ in append order. Do not place fork migrations below `099000`.
   Expects ≥ 10 hits (the three `X-Router-*` tokens appear in both `xrouter.go`
   and `adapter_xrouter.go`; plus factory and constant tokens).
 
-### Patch 9 — `feat(http): X-GoClaw-Model header threads into RunRequest.ModelOverride`
+### Patch 9 — `feat(chat): per-call model override on both HTTP and WS entry points`
 
 - **Base upstream commit:** `a97e5028`
 - **Files:**
+  - `internal/gateway/methods/chat.go` — `chatSendParams` gains a
+    `modelOverride` JSON field (WS RPC `chat.send`); the handler passes it
+    into `agent.RunRequest{ModelOverride: …}`. **Load-bearing for x-api's
+    per-session routing** — x-api hits goclaw via WS `chat.send`, not HTTP.
   - `internal/http/chat_completions.go` — `ServeHTTP` reads the
-    `X-GoClaw-Model` request header, trims whitespace, and passes it to both
-    `handleStream` / `handleNonStream`. Each handler sets
-    `agent.RunRequest{ModelOverride: …}`, which the existing pipeline
-    adapter (`internal/agent/loop_pipeline_adapter.go:24-25`) already
-    honors over the agent's stored model. No new state on `Loop` or
-    `Pipeline`; just exposes the same lever heartbeat uses
-    (`internal/heartbeat/ticker.go:279`) to inbound HTTP callers.
-- **Why:** x-api's per-session routing surface (workspace-chat → session
-  routingMode/routingModel → Agent.model fallback) needs a way to pin the
-  LLM model for a single chat without PATCHing the agent. Upstream goclaw
-  has no equivalent header; chats inherit the agent's stored model with
-  no per-request override path. The 42bucks deployment routes everything
-  through x-router and needs to flip model per session for the
+    `X-GoClaw-Model` request header (trimmed) and passes it through to
+    `handleStream` / `handleNonStream`, each of which sets the same
+    `RunRequest.ModelOverride`. Parallel path for OpenAI-compat external
+    callers (Codex / cURL / SDKs hitting `/v1/chat/completions`); not
+    exercised by x-api today, kept symmetric with WS.
+  - Both paths land on the existing pipeline adapter
+    (`internal/agent/loop_pipeline_adapter.go:24-25`) which already prefers
+    `ModelOverride` over the agent's stored model. No new state on `Loop` /
+    `Pipeline` / `ChatRequest` — just exposes the same lever heartbeat uses
+    (`internal/heartbeat/ticker.go:279`) to inbound callers.
+- **Why:** x-api's per-session routing (workspace-chat → session
+  routingMode/routingModel → Agent.model fallback) needs to pin the LLM
+  model for a single chat without PATCHing the agent. Upstream goclaw has
+  no override on either surface — chats inherit `Agent.model` with no
+  escape hatch. The 42bucks deployment uses this for the
   "auto/fast/complex/custom" mode picker.
 - **Recovery grep:**
   ```
-  grep -nE 'X-GoClaw-Model|ModelOverride:\s*modelOverride' \
-    internal/http/chat_completions.go
+  grep -nE 'X-GoClaw-Model|ModelOverride:[[:space:]]+(modelOverride|params\.ModelOverride)|"modelOverride,omitempty"' \
+    internal/http/chat_completions.go internal/gateway/methods/chat.go
   ```
-  Expects ≥ 3 hits (the header read + the two `ModelOverride: modelOverride`
-  pass-throughs in handleStream and handleNonStream).
+  Expects ≥ 5 hits (HTTP header read + 2 HTTP pass-throughs + WS struct
+  field + WS pass-through).
