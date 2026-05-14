@@ -102,11 +102,18 @@ type chatMediaItem struct {
 }
 
 type chatSendParams struct {
-	Message    string            `json:"message"`
-	AgentID    string            `json:"agentId"`
-	SessionKey string            `json:"sessionKey"`
-	Stream     bool              `json:"stream"`
-	Media      json.RawMessage   `json:"media,omitempty"` // []string (legacy) or []chatMediaItem
+	Message    string          `json:"message"`
+	AgentID    string          `json:"agentId"`
+	SessionKey string          `json:"sessionKey"`
+	Stream     bool            `json:"stream"`
+	Media      json.RawMessage `json:"media,omitempty"` // []string (legacy) or []chatMediaItem
+	// Per-call LLM model override. When set, replaces the agent's stored
+	// model for this single run (RunRequest.ModelOverride is already plumbed
+	// end-to-end for heartbeat: internal/agent/loop_pipeline_adapter.go:24).
+	// Used by x-api's per-session routing — caller resolves
+	// session.routingMode → model and passes via this field. Empty = use
+	// agent's stored model.
+	ModelOverride string `json:"modelOverride,omitempty"`
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -284,8 +291,9 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			WorkspaceChatID: userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
 			RunID:           runID,
 			UserID:          userID,
-			Stream:     params.Stream,
-			InjectCh:   injectCh,
+			Stream:          params.Stream,
+			ModelOverride:   params.ModelOverride,
+			InjectCh:        injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.
 			OnTraceCreated: func(traceID uuid.UUID) {
