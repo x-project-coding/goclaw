@@ -283,3 +283,34 @@ in append order. Do not place fork migrations below `099000`.
   ```
   Expects ≥ 5 hits (HTTP header read + 2 HTTP pass-throughs + WS struct
   field + WS pass-through).
+
+### Patch 10 — `fix(chat): modelOverride also swaps provider to tenant xrouter`
+
+- **Base upstream commit:** `cca21fb1` (PR #11 merge)
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `ChatMethods` gains a
+    `providerReg *providers.Registry` field + `SetProviderRegistry` setter.
+    In `handleSend`, when `params.ModelOverride != ""`, the handler looks
+    up the tenant's `"xrouter"` provider via `providerReg.Get(ctx, ...)`
+    and threads it into `agent.RunRequest{ProviderOverride: …}`. Silent
+    no-op when no xrouter is registered for the tenant.
+  - `cmd/gateway_methods.go` — `registerAllMethods` accepts a
+    `providerReg *providers.Registry` arg and calls
+    `chatMethods.SetProviderRegistry(providerReg)` after construction.
+  - `cmd/gateway.go` — the existing `registerAllMethods` call site
+    forwards `providerRegistry` (already in scope).
+- **Why:** Patch 9's modelOverride only swaps the *model*, not the
+  *provider*. Agents whose stored provider can't serve the requested
+  model 400 out — e.g. an agent with `provider=openai-codex` (ChatGPT
+  OAuth) responds 400 to `~anthropic/claude-sonnet-latest` because that
+  backend only serves `gpt-5.x`. The fix routes through the tenant's
+  xrouter whenever a model override is in flight; `/auto` then picks the
+  right provider for the model. Upstream wouldn't take this — it's
+  42bucks-specific (tenant always has a provider literally named
+  `"xrouter"` thanks to x-api auto-provisioning).
+- **Recovery grep:**
+  ```
+  grep -nE 'SetProviderRegistry|ProviderOverride: providerOverride|providerReg\.Get\(runCtx, "xrouter"\)' \
+    internal/gateway/methods/chat.go cmd/gateway_methods.go
+  ```
+  Expects ≥ 3 hits.
