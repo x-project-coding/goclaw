@@ -116,6 +116,13 @@ check_grep "Patch 9: model-override entry points" 5 \
   'X-GoClaw-Model|ModelOverride:[[:space:]]+(modelOverride|params\.ModelOverride)|"modelOverride,omitempty"' \
   internal/http/chat_completions.go internal/gateway/methods/chat.go
 
+# Patch 10 — modelOverride also swaps provider to tenant xrouter so the
+# agent's stored provider doesn't 400 on models it can't serve (e.g.
+# openai-codex/ChatGPT-OAuth refusing ~anthropic/claude-sonnet-latest).
+check_grep "Patch 10: provider-swap on modelOverride" 3 \
+  'SetProviderRegistry|ProviderOverride: providerOverride|providerReg\.Get\(runCtx, "xrouter"\)' \
+  internal/gateway/methods/chat.go cmd/gateway_methods.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0
