@@ -195,3 +195,122 @@ in append order. Do not place fork migrations below `099000`.
   ```
   Expects ≥ 6 grep hits on the first grep, 1 hit on the second, and both
   migration files present.
+
+### Patch 8 — `feat(providers): xrouter — route LLM traffic through router.42bucks.com with workspace/agent/user/session identity headers`
+
+- **Base upstream commit:** `a97e5028`
+- **Files:**
+  - `internal/providers/xrouter.go` — new `XRouterProvider` composing
+    `*OpenAIProvider` (x-router speaks OpenAI Chat Completions) and wrapping
+    the HTTP client's `Transport` with `xrouterRoundTripper`. The wrapper
+    reads per-request identity from `context.Context` (stashed by the
+    overridden `Chat`/`ChatStream` methods from `req.Options`) and sets:
+    - `X-Router-Agent-Id`   from `req.Options[OptAgentID]`
+    - `X-Router-User-Id`    from `req.Options[OptUserID]`
+    - `X-Router-Session-Id` from `req.Options[OptSessionKey]`
+    Workspace anchor is implicit — bound to the `xrt_*` bearer key on the
+    `llm_providers` row. Missing / empty-string identity is silently
+    skipped; the request still goes through.
+  - `internal/providers/xrouter_test.go` — 5 unit tests using a capture
+    transport to assert what headers reach the wire: happy path, missing
+    identity, empty-string identity, partial identity (one of three), and
+    `Name()` inheritance via composition.
+  - `internal/providers/adapter_xrouter.go` + `adapter_xrouter_test.go` +
+    `adapter_register.go` — parallel `XRouterAdapter` registered in
+    `DefaultAdapterRegistry`. The adapter system is parallel scaffolding
+    (`capabilities.go:27`); keeping it in place so when goclaw eventually
+    plumbs `ProviderAdapter.ToRequest` into the live request path the
+    X-Router headers come along for free. **Not load-bearing today** — the
+    live integration is via `XRouterProvider` above. Listed here so the
+    patch catalog reflects the full diff.
+  - `internal/store/provider_store.go` — adds `ProviderXRouter = "xrouter"`
+    constant + `ProviderXRouter: true` entry to `ValidProviderTypes` so the
+    `POST /v1/providers` ingress validator accepts the new type.
+  - `internal/http/providers.go` — `case store.ProviderXRouter:` branch in
+    `registerInMemory` (~ line 211 of the switch) that instantiates
+    `NewXRouterProvider` for rows with `provider_type='xrouter'`.
+- **Why:** x-router (`router.42bucks.com`, a 42bucks-internal OpenAI-compat
+  gateway) records every request to its own `RequestLog` with workspace /
+  agent / user / session attribution + per-model cost. To bill 42bucks
+  workspaces on actual LLM usage, goclaw needs to POST through x-router and
+  surface the identity its agent loop already populates into
+  `chatReq.Options` (see
+  `internal/agent/loop_pipeline_callbacks.go:221-241`). Upstream goclaw will
+  never carry this — it's specific to the 42bucks deployment.
+- **Recovery grep:**
+  ```
+  grep -nE 'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterProvider|NewXRouterAdapter|ProviderXRouter' \
+    internal/providers/xrouter.go \
+    internal/providers/xrouter_test.go \
+    internal/providers/adapter_xrouter.go \
+    internal/providers/adapter_xrouter_test.go \
+    internal/providers/adapter_register.go \
+    internal/store/provider_store.go \
+    internal/http/providers.go
+  ```
+  Expects ≥ 10 hits (the three `X-Router-*` tokens appear in both `xrouter.go`
+  and `adapter_xrouter.go`; plus factory and constant tokens).
+
+### Patch 9 — `feat(chat): per-call model override on both HTTP and WS entry points`
+
+- **Base upstream commit:** `a97e5028`
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `chatSendParams` gains a
+    `modelOverride` JSON field (WS RPC `chat.send`); the handler passes it
+    into `agent.RunRequest{ModelOverride: …}`. **Load-bearing for x-api's
+    per-session routing** — x-api hits goclaw via WS `chat.send`, not HTTP.
+  - `internal/http/chat_completions.go` — `ServeHTTP` reads the
+    `X-GoClaw-Model` request header (trimmed) and passes it through to
+    `handleStream` / `handleNonStream`, each of which sets the same
+    `RunRequest.ModelOverride`. Parallel path for OpenAI-compat external
+    callers (Codex / cURL / SDKs hitting `/v1/chat/completions`); not
+    exercised by x-api today, kept symmetric with WS.
+  - Both paths land on the existing pipeline adapter
+    (`internal/agent/loop_pipeline_adapter.go:24-25`) which already prefers
+    `ModelOverride` over the agent's stored model. No new state on `Loop` /
+    `Pipeline` / `ChatRequest` — just exposes the same lever heartbeat uses
+    (`internal/heartbeat/ticker.go:279`) to inbound callers.
+- **Why:** x-api's per-session routing (workspace-chat → session
+  routingMode/routingModel → Agent.model fallback) needs to pin the LLM
+  model for a single chat without PATCHing the agent. Upstream goclaw has
+  no override on either surface — chats inherit `Agent.model` with no
+  escape hatch. The 42bucks deployment uses this for the
+  "auto/fast/complex/custom" mode picker.
+- **Recovery grep:**
+  ```
+  grep -nE 'X-GoClaw-Model|ModelOverride:[[:space:]]+(modelOverride|params\.ModelOverride)|"modelOverride,omitempty"' \
+    internal/http/chat_completions.go internal/gateway/methods/chat.go
+  ```
+  Expects ≥ 5 hits (HTTP header read + 2 HTTP pass-throughs + WS struct
+  field + WS pass-through).
+
+### Patch 10 — `fix(chat): modelOverride also swaps provider to tenant xrouter`
+
+- **Base upstream commit:** `cca21fb1` (PR #11 merge)
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `ChatMethods` gains a
+    `providerReg *providers.Registry` field + `SetProviderRegistry` setter.
+    In `handleSend`, when `params.ModelOverride != ""`, the handler looks
+    up the tenant's `"xrouter"` provider via `providerReg.Get(ctx, ...)`
+    and threads it into `agent.RunRequest{ProviderOverride: …}`. Silent
+    no-op when no xrouter is registered for the tenant.
+  - `cmd/gateway_methods.go` — `registerAllMethods` accepts a
+    `providerReg *providers.Registry` arg and calls
+    `chatMethods.SetProviderRegistry(providerReg)` after construction.
+  - `cmd/gateway.go` — the existing `registerAllMethods` call site
+    forwards `providerRegistry` (already in scope).
+- **Why:** Patch 9's modelOverride only swaps the *model*, not the
+  *provider*. Agents whose stored provider can't serve the requested
+  model 400 out — e.g. an agent with `provider=openai-codex` (ChatGPT
+  OAuth) responds 400 to `~anthropic/claude-sonnet-latest` because that
+  backend only serves `gpt-5.x`. The fix routes through the tenant's
+  xrouter whenever a model override is in flight; `/auto` then picks the
+  right provider for the model. Upstream wouldn't take this — it's
+  42bucks-specific (tenant always has a provider literally named
+  `"xrouter"` thanks to x-api auto-provisioning).
+- **Recovery grep:**
+  ```
+  grep -nE 'SetProviderRegistry|ProviderOverride: providerOverride|providerReg\.Get\(runCtx, "xrouter"\)' \
+    internal/gateway/methods/chat.go cmd/gateway_methods.go
+  ```
+  Expects ≥ 3 hits.

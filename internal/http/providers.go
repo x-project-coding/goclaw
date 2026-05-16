@@ -239,6 +239,12 @@ func (h *ProvidersHandler) registerInMemory(p *store.LLMProviderData) {
 			base = store.NovitaDefaultAPIBase
 		}
 		h.providerReg.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
+	case store.ProviderXRouter:
+		// 42bucks router gateway — same wire as OpenAI, plus three identity
+		// headers (X-Router-{Agent,User,Session}-Id) injected at HTTP send
+		// time from req.Options. Workspace anchor is implicit via the xrt_*
+		// Bearer key (one llm_providers row per workspace).
+		h.providerReg.RegisterForTenant(p.TenantID, providers.NewXRouterProvider(p.Name, p.APIKey, apiBase, ""))
 	default:
 		prov := providers.NewOpenAIProvider(p.Name, p.APIKey, apiBase, "")
 		if p.ProviderType == store.ProviderMiniMax {

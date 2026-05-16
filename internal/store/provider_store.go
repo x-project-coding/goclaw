@@ -33,6 +33,7 @@ const (
 	ProviderNovita          = "novita"          // Novita AI (OpenAI-compatible endpoint)
 	ProviderBytePlus        = "byteplus"        // BytePlus ModelArk (Seed 2.0 models)
 	ProviderBytePlusCoding  = "byteplus_coding" // BytePlus ModelArk Coding Plan
+	ProviderXRouter         = "xrouter"         // 42bucks LLM gateway with workspace/agent/user/session attribution headers
 
 	// Novita AI defaults.
 	NovitaDefaultAPIBase = "https://api.novita.ai/openai"
@@ -70,6 +71,7 @@ var ValidProviderTypes = map[string]bool{
 	ProviderNovita:          true,
 	ProviderBytePlus:        true,
 	ProviderBytePlusCoding:  true,
+	ProviderXRouter:         true,
 }
 
 // LLMProviderData represents an LLM provider configuration.

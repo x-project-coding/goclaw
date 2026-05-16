@@ -8,5 +8,6 @@ func DefaultAdapterRegistry() *AdapterRegistry {
 	r.Register("openai", NewOpenAIAdapter)
 	r.Register("dashscope", NewDashScopeAdapter)
 	r.Register("codex", NewCodexAdapter)
+	r.Register("xrouter", NewXRouterAdapter)
 	return r
 }

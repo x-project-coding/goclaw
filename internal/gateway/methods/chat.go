@@ -25,13 +25,14 @@ import (
 
 // ChatMethods handles chat.send, chat.history, chat.abort, chat.inject.
 type ChatMethods struct {
-	agents      *agent.Router
-	sessions    store.SessionStore
-	cfg         *config.Config
-	rateLimiter *gateway.RateLimiter
-	eventBus    bus.EventPublisher
-	postTurn    tools.PostTurnProcessor
-	audioMgr    *audio.Manager // for TTS auto-apply on WS responses (nil = disabled)
+	agents          *agent.Router
+	sessions        store.SessionStore
+	cfg             *config.Config
+	rateLimiter     *gateway.RateLimiter
+	eventBus        bus.EventPublisher
+	postTurn        tools.PostTurnProcessor
+	audioMgr        *audio.Manager     // for TTS auto-apply on WS responses (nil = disabled)
+	providerReg     *providers.Registry // for modelOverride → provider swap (fork patch)
 }
 
 func NewChatMethods(agents *agent.Router, sess store.SessionStore, cfg *config.Config, rl *gateway.RateLimiter, eventBus bus.EventPublisher) *ChatMethods {
@@ -46,6 +47,13 @@ func (m *ChatMethods) SetAudioManager(mgr *audio.Manager) {
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
 func (m *ChatMethods) SetPostTurnProcessor(pt tools.PostTurnProcessor) {
 	m.postTurn = pt
+}
+
+// SetProviderRegistry wires the registry so modelOverride can also swap the
+// provider to the tenant's xrouter when the agent's stored provider can't
+// serve the requested model. 42bucks fork patch.
+func (m *ChatMethods) SetProviderRegistry(reg *providers.Registry) {
+	m.providerReg = reg
 }
 
 // Register adds chat methods to the router.
@@ -102,11 +110,18 @@ type chatMediaItem struct {
 }
 
 type chatSendParams struct {
-	Message    string            `json:"message"`
-	AgentID    string            `json:"agentId"`
-	SessionKey string            `json:"sessionKey"`
-	Stream     bool              `json:"stream"`
-	Media      json.RawMessage   `json:"media,omitempty"` // []string (legacy) or []chatMediaItem
+	Message    string          `json:"message"`
+	AgentID    string          `json:"agentId"`
+	SessionKey string          `json:"sessionKey"`
+	Stream     bool            `json:"stream"`
+	Media      json.RawMessage `json:"media,omitempty"` // []string (legacy) or []chatMediaItem
+	// Per-call LLM model override. When set, replaces the agent's stored
+	// model for this single run (RunRequest.ModelOverride is already plumbed
+	// end-to-end for heartbeat: internal/agent/loop_pipeline_adapter.go:24).
+	// Used by x-api's per-session routing — caller resolves
+	// session.routingMode → model and passes via this field. Empty = use
+	// agent's stored model.
+	ModelOverride string `json:"modelOverride,omitempty"`
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -275,17 +290,33 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			}
 		}
 
+		// 42bucks fork patch: when the caller passes modelOverride, also swap
+		// the agent's provider to the tenant's xrouter (if registered) — the
+		// agent's stored provider may not accept arbitrary models (e.g.
+		// openai-codex/ChatGPT-OAuth only serves gpt-5.x, and would 400 on
+		// `~anthropic/claude-sonnet-latest`). Falls back silently when no
+		// xrouter is registered for the tenant; behaviour matches upstream
+		// in that case.
+		var providerOverride providers.Provider
+		if params.ModelOverride != "" && m.providerReg != nil {
+			if p, err := m.providerReg.Get(runCtx, "xrouter"); err == nil {
+				providerOverride = p
+			}
+		}
+
 		result, err := loop.Run(runCtx, agent.RunRequest{
-			SessionKey:      sessionKey,
-			Message:         message,
-			Media:           mediaFiles,
-			Channel:         "ws",
-			ChatID:          userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
-			WorkspaceChatID: userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
-			RunID:           runID,
-			UserID:          userID,
-			Stream:     params.Stream,
-			InjectCh:   injectCh,
+			SessionKey:       sessionKey,
+			Message:          message,
+			Media:            mediaFiles,
+			Channel:          "ws",
+			ChatID:           userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
+			WorkspaceChatID:  userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
+			RunID:            runID,
+			UserID:           userID,
+			Stream:           params.Stream,
+			ModelOverride:    params.ModelOverride,
+			ProviderOverride: providerOverride,
+			InjectCh:         injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.
 			OnTraceCreated: func(traceID uuid.UUID) {

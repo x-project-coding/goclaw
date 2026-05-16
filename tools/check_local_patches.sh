@@ -92,6 +92,37 @@ check_file "Patch 7: tenant_cascade migration (up)" \
 check_file "Patch 7: tenant_cascade migration (down)" \
   migrations/099000_tenant_cascade.down.sql
 
+# Patch 8 — xrouter provider + adapter scaffolding (workspace billing).
+# Two file groups: live integration (xrouter.go composing OpenAIProvider with
+# a context-aware RoundTripper) and parallel adapter scaffolding (kept for
+# future ProviderAdapter wiring), plus the provider_type constant and the
+# registry switch case. Upstream is extremely unlikely to ship matching
+# tokens since they're 42bucks-specific.
+check_grep "Patch 8: xrouter provider + adapter" 10 \
+  'X-Router-Agent-Id|X-Router-User-Id|X-Router-Session-Id|NewXRouterProvider|NewXRouterAdapter|ProviderXRouter' \
+  internal/providers/xrouter.go \
+  internal/providers/xrouter_test.go \
+  internal/providers/adapter_xrouter.go \
+  internal/providers/adapter_xrouter_test.go \
+  internal/providers/adapter_register.go \
+  internal/store/provider_store.go \
+  internal/http/providers.go
+
+# Patch 9 — per-call model override on both HTTP (X-GoClaw-Model header) and
+# WS (chat.send modelOverride field) entry points so x-api's per-session
+# routing can pin the LLM model without PATCHing the agent. The WS path is
+# the load-bearing one (x-api uses chat.send RPC, not HTTP).
+check_grep "Patch 9: model-override entry points" 5 \
+  'X-GoClaw-Model|ModelOverride:[[:space:]]+(modelOverride|params\.ModelOverride)|"modelOverride,omitempty"' \
+  internal/http/chat_completions.go internal/gateway/methods/chat.go
+
+# Patch 10 — modelOverride also swaps provider to tenant xrouter so the
+# agent's stored provider doesn't 400 on models it can't serve (e.g.
+# openai-codex/ChatGPT-OAuth refusing ~anthropic/claude-sonnet-latest).
+check_grep "Patch 10: provider-swap on modelOverride" 3 \
+  'SetProviderRegistry|ProviderOverride: providerOverride|providerReg\.Get\(runCtx, "xrouter"\)' \
+  internal/gateway/methods/chat.go cmd/gateway_methods.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0
