@@ -349,6 +349,7 @@ type GatewayConfig struct {
 	Host              string       `json:"host"`
 	Port              int          `json:"port"`
 	Token             string       `json:"token,omitempty"`               // bearer token for WS/HTTP auth
+	GatewayID         string       `json:"gateway_id,omitempty"`          // this GoClaw instance's gateway identifier (env: GATEWAY_ID)
 	OwnerIDs          []string     `json:"owner_ids,omitempty"`           // sender IDs considered "owner"
 	AllowedOrigins    []string     `json:"allowed_origins,omitempty"`     // WebSocket CORS whitelist (empty = allow all)
 	MaxMessageChars   int          `json:"max_message_chars,omitempty"`   // max user message characters (default 32000)

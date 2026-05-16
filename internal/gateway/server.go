@@ -408,6 +408,11 @@ func (s *Server) SetTracesHandler(h *httpapi.TracesHandler) { s.handlers = appen
 // SetWakeHandler sets the external wake/trigger handler.
 func (s *Server) SetWakeHandler(h *httpapi.WakeHandler) { s.handlers = append(s.handlers, h) }
 
+// SetSkillCallbackHandler sets the /callback/v1/* skill-callback handler.
+func (s *Server) SetSkillCallbackHandler(h *httpapi.SkillCallbackHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetMCPHandler sets the MCP server management handler.
 func (s *Server) SetMCPHandler(h *httpapi.MCPHandler) { s.handlers = append(s.handlers, h) }
 func (s *Server) SetMCPUserCredentialsHandler(h *httpapi.MCPUserCredentialsHandler) {

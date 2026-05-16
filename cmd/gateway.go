@@ -387,6 +387,10 @@ func runGateway() {
 		server.SetTenantBackupHandler(httpapi.NewTenantBackupHandler(pgStores.DB, cfg, pgStores.Tenants, Version, permPE.IsOwner))
 	}
 
+	// Skill-callback API (/callback/v1/*) — workspace API key auth.
+	// Backs external skill services such as the code-runner behind the `code` skill.
+	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg))
+
 	// Register all RPC methods
 	server.SetLogTee(logTee)
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr)

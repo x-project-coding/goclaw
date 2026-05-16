@@ -176,6 +176,12 @@ func (c *Config) applyEnvOverrides() {
 		}
 	}
 
+	// Gateway identifier — lets this GoClaw instance report its own gateway ID
+	// (consumed by skill-callback endpoints so external services know which
+	// gateway answered). Accepts GATEWAY_ID and the GOCLAW_-prefixed alias.
+	envStr("GATEWAY_ID", &c.Gateway.GatewayID)
+	envStr("GOCLAW_GATEWAY_ID", &c.Gateway.GatewayID)
+
 	// Database
 	envStr("GOCLAW_POSTGRES_DSN", &c.Database.PostgresDSN)
 	envStr("GOCLAW_REDIS_DSN", &c.Database.RedisDSN)
