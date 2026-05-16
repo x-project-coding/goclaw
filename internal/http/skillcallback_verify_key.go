@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,10 +123,16 @@ func (h *SkillCallbackHandler) handleVerifyKey(w http.ResponseWriter, r *http.Re
 	var workspaceDir *string
 	if req.UserID != "" && req.AgentID != "" {
 		if dir := h.resolveWorkspaceDir(r.Context(), tenantID, tenantSlug, req.AgentID, req.UserID); dir != "" {
-			workspaceDir = &dir
 			// Pre-job backup: snapshot the workspace before code-runner mutates
-			// it. Best-effort — a backup failure never fails verify-key.
+			// it, using the container-local path (this process can access it).
+			// Best-effort — a backup failure never fails verify-key.
 			snapshotWorkspaceDir(dir)
+			// Report the HOST path: code-runner's Docker bind-mount needs a
+			// host path, not goclaw's container-local one. When the host root
+			// is unconfigured this returns the path unchanged and code-runner
+			// degrades to an isolated volume.
+			hostDir := h.hostWorkspaceDir(dir)
+			workspaceDir = &hostDir
 		}
 	}
 
@@ -165,6 +172,24 @@ func (h *SkillCallbackHandler) resolveWorkspaceDir(ctx context.Context, tenantID
 		return wc.ActivePath
 	}
 	return abs
+}
+
+// hostWorkspaceDir rewrites a container-local workspace path onto the
+// configured host root, so an external service (code-runner) can bind-mount
+// it. GoClaw's workspace volume is mounted at cfg.WorkspacePath() inside this
+// container but lives at WorkspaceHostRoot on the Docker host. When no host
+// root is configured, or the path is not under the workspace base, the path
+// is returned unchanged.
+func (h *SkillCallbackHandler) hostWorkspaceDir(containerPath string) string {
+	hostRoot := h.cfg.Gateway.WorkspaceHostRoot
+	if hostRoot == "" {
+		return containerPath
+	}
+	rel, err := filepath.Rel(h.cfg.WorkspacePath(), containerPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return containerPath
+	}
+	return filepath.Join(hostRoot, rel)
 }
 
 // externalWorkspaceID extracts an external/x-api workspace identifier from a

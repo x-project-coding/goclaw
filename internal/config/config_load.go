@@ -182,6 +182,11 @@ func (c *Config) applyEnvOverrides() {
 	envStr("GATEWAY_ID", &c.Gateway.GatewayID)
 	envStr("GOCLAW_GATEWAY_ID", &c.Gateway.GatewayID)
 
+	// Host path of the workspace volume. The skill-callback verify-key endpoint
+	// rewrites the resolved (container-local) workspace dir onto this root so an
+	// external code-runner can bind-mount it on the Docker host.
+	envStr("GOCLAW_WORKSPACE_HOST_ROOT", &c.Gateway.WorkspaceHostRoot)
+
 	// Database
 	envStr("GOCLAW_POSTGRES_DSN", &c.Database.PostgresDSN)
 	envStr("GOCLAW_REDIS_DSN", &c.Database.RedisDSN)
