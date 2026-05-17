@@ -85,6 +85,12 @@ func TestResolveCredentialUserID(t *testing.T) {
 			wantUserID: "john@co.com",
 		},
 		{
+			name:       "WS group chat: sender credentials win over synthetic group user",
+			req:        RunRequest{UserID: "group:ws:chat-1", SenderID: "user-1", Channel: "ws", PeerKind: "group"},
+			mergedMap:  nil,
+			wantUserID: "user-1",
+		},
+		{
 			name:       "Cron: no channelType — skip resolve",
 			req:        RunRequest{UserID: "12345"},
 			mergedMap:  map[string]string{},

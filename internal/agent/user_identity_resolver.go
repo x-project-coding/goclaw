@@ -41,6 +41,9 @@ func newContactResolver(cs interface {
 // credential lookups. For DMs, tries resolving the user ID directly.
 // For groups, tries the individual sender first, then the group contact.
 func (l *Loop) resolveCredentialUserID(ctx context.Context, req RunRequest) string {
+	if req.PeerKind == "group" && req.Channel == "ws" && req.SenderID != "" {
+		return req.SenderID
+	}
 	if l.userResolver == nil {
 		return req.UserID
 	}

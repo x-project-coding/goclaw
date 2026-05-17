@@ -13,8 +13,11 @@ import (
 // InjectedMessage represents a user message injected into a running agent loop
 // at the turn boundary (after tool results, before next LLM call).
 type InjectedMessage struct {
-	Content string
-	UserID  string
+	MessageID  string
+	Content    string
+	UserID     string
+	SenderID   string
+	SenderName string
 }
 
 // processedInjection holds the two message forms: one for the LLM (with context wrapper)
@@ -56,8 +59,16 @@ func (l *Loop) processInjectedMessage(injected InjectedMessage, emitRun func(Age
 		content = content[:maxChars] + "\n[Message truncated]"
 	}
 
-	// Wrap with context hint so LLM knows this is a mid-run follow-up
-	wrapped := fmt.Sprintf("[User sent a follow-up message while you were working]\n%s", content)
+	// Wrap with context hint so LLM knows this is a mid-run follow-up.
+	senderLabel := injected.SenderName
+	if senderLabel == "" {
+		senderLabel = injected.SenderID
+	}
+	wrapper := "User sent a follow-up message while you were working"
+	if senderLabel != "" {
+		wrapper = fmt.Sprintf("%s sent a follow-up message while you were working", senderLabel)
+	}
+	wrapped := fmt.Sprintf("[%s]\n%s", wrapper, content)
 
 	slog.Info("mid-run injection",
 		"agent", l.id, "user", injected.UserID,
@@ -76,8 +87,14 @@ func (l *Loop) processInjectedMessage(injected InjectedMessage, emitRun func(Age
 	}
 
 	return &processedInjection{
-		forLLM:     providers.Message{Role: "user", Content: wrapped},
-		forSession: providers.Message{Role: "user", Content: content},
+		forLLM: providers.Message{Role: "user", Content: wrapped},
+		forSession: providers.Message{
+			ID:         injected.MessageID,
+			Role:       "user",
+			Content:    content,
+			SenderID:   injected.SenderID,
+			SenderName: injected.SenderName,
+		},
 	}, true
 }
 

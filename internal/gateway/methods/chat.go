@@ -111,6 +111,7 @@ type chatMediaItem struct {
 
 type chatSendParams struct {
 	Message    string          `json:"message"`
+	MessageID  string          `json:"messageId"`
 	AgentID    string          `json:"agentId"`
 	SessionKey string          `json:"sessionKey"`
 	Stream     bool            `json:"stream"`
@@ -122,6 +123,10 @@ type chatSendParams struct {
 	// session.routingMode → model and passes via this field. Empty = use
 	// agent's stored model.
 	ModelOverride string `json:"modelOverride,omitempty"`
+	SenderID      string `json:"senderId"`
+	SenderName    string `json:"senderName"`
+	PeerKind      string `json:"peerKind"`
+	ChatID        string `json:"chatId"`
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -189,6 +194,19 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgUserIDRequired)))
 		return
 	}
+	senderID := params.SenderID
+	if senderID == "" {
+		senderID = userID
+	}
+	peerKind := params.PeerKind
+	if peerKind == "" {
+		peerKind = string(sessions.PeerDirect)
+	}
+	chatID := params.ChatID
+	if chatID == "" {
+		chatID = userID
+	}
+	workspaceChatID := userID
 
 	runID := uuid.NewString()
 	sessionKey := params.SessionKey
@@ -235,8 +253,11 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		}
 
 		injected := m.agents.InjectMessage(sessionKey, agent.InjectedMessage{
-			Content: params.Message,
-			UserID:  userID,
+			MessageID:  params.MessageID,
+			Content:    params.Message,
+			UserID:     userID,
+			SenderID:   senderID,
+			SenderName: params.SenderName,
 		})
 		if injected {
 			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
@@ -305,15 +326,20 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		}
 
 		result, err := loop.Run(runCtx, agent.RunRequest{
-			SessionKey:       sessionKey,
-			Message:          message,
-			Media:            mediaFiles,
-			Channel:          "ws",
-			ChatID:           userID, // use stable userID for team/workspace isolation (not ephemeral client.ID())
-			WorkspaceChatID:  userID, // mirror ChatID so vault chat_id isolation activates for WS direct flow
-			RunID:            runID,
-			UserID:           userID,
-			Stream:           params.Stream,
+			SessionKey:      sessionKey,
+			MessageID:       params.MessageID,
+			Message:         message,
+			Media:           mediaFiles,
+			Channel:         "ws",
+			ChannelType:     "ws",
+			ChatID:          chatID,
+			WorkspaceChatID: workspaceChatID,
+			PeerKind:        peerKind,
+			RunID:           runID,
+			UserID:          userID,
+			SenderID:        senderID,
+			SenderName:      params.SenderName,
+			Stream:          params.Stream,
 			ModelOverride:    params.ModelOverride,
 			ProviderOverride: providerOverride,
 			InjectCh:         injectCh,
@@ -484,6 +510,7 @@ func (m *ChatMethods) handleInject(ctx context.Context, client *gateway.Client, 
 	// Create an assistant message with gateway-injected metadata
 	messageID := uuid.NewString()
 	m.sessions.AddMessage(ctx, params.SessionKey, providers.Message{
+		ID:      messageID,
 		Role:    "assistant",
 		Content: text,
 	})

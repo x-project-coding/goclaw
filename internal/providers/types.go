@@ -132,8 +132,11 @@ type MediaRef struct {
 
 // Message represents a conversation message.
 type Message struct {
+	ID         string         `json:"id,omitempty"`
 	Role       string         `json:"role"` // "system", "user", "assistant", "tool"
 	Content    string         `json:"content"`
+	SenderID   string         `json:"sender_id,omitempty"`
+	SenderName string         `json:"sender_name,omitempty"`
 	Thinking   string         `json:"thinking,omitempty"`   // reasoning_content for thinking models (Kimi, DeepSeek, etc.)
 	Images     []ImageContent `json:"-"`                    // vision: base64 images (runtime only, never persisted to DB)
 	MediaRefs  []MediaRef     `json:"media_refs,omitempty"` // persistent media file references

@@ -39,7 +39,12 @@ func TestTruncateForLog_TruncatesLongString(t *testing.T) {
 
 func TestProcessInjectedMessage_PlainMessage(t *testing.T) {
 	l := &Loop{}
-	result, ok := l.processInjectedMessage(InjectedMessage{Content: "hello", UserID: "u1"}, nil)
+	result, ok := l.processInjectedMessage(InjectedMessage{
+		Content:    "hello",
+		UserID:     "group:ws:chat-1",
+		SenderID:   "u1",
+		SenderName: "Alice",
+	}, nil)
 	if !ok {
 		t.Fatal("expected ok=true")
 	}
@@ -57,6 +62,15 @@ func TestProcessInjectedMessage_PlainMessage(t *testing.T) {
 	}
 	if result.forLLM.Role != "user" {
 		t.Errorf("forLLM.Role = %q, want 'user'", result.forLLM.Role)
+	}
+	if result.forSession.SenderID != "u1" {
+		t.Errorf("forSession.SenderID = %q, want 'u1'", result.forSession.SenderID)
+	}
+	if result.forSession.SenderName != "Alice" {
+		t.Errorf("forSession.SenderName = %q, want 'Alice'", result.forSession.SenderName)
+	}
+	if !strings.Contains(result.forLLM.Content, "Alice") {
+		t.Error("forLLM should include sender name for group context")
 	}
 }
 

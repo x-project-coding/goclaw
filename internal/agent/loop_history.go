@@ -262,6 +262,9 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	// Pruning is owned by PruneStage in the pipeline (single entry point).
 	trimmed := limitHistoryTurns(history, historyLimit)
 	sanitized, droppedCount := sanitizeHistory(trimmed)
+	if peerKind == "group" {
+		sanitized = withGroupSenderContext(sanitized)
+	}
 	messages = append(messages, sanitized...)
 
 	// If orphaned messages were found and dropped, persist the cleaned history
@@ -275,12 +278,42 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	}
 
 	// Current user message
+	currentUserMessage := userMessage
+	if peerKind == "group" {
+		currentUserMessage = formatGroupSenderContent(store.SenderNameFromContext(ctx), store.SenderIDFromContext(ctx), userMessage)
+	}
 	messages = append(messages, providers.Message{
 		Role:    "user",
-		Content: userMessage,
+		Content: currentUserMessage,
 	})
 
 	return messages, hadBootstrap
+}
+
+func withGroupSenderContext(messages []providers.Message) []providers.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+	out := make([]providers.Message, len(messages))
+	copy(out, messages)
+	for i := range out {
+		if out[i].Role != "user" {
+			continue
+		}
+		out[i].Content = formatGroupSenderContent(out[i].SenderName, out[i].SenderID, out[i].Content)
+	}
+	return out
+}
+
+func formatGroupSenderContent(senderName, senderID, content string) string {
+	label := senderName
+	if label == "" {
+		label = senderID
+	}
+	if label == "" || content == "" {
+		return content
+	}
+	return fmt.Sprintf("%s:\n%s", label, content)
 }
 
 // resolveContextFiles merges base context files (from resolver, e.g. auto-generated

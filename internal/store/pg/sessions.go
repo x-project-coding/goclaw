@@ -178,6 +178,9 @@ func (s *PGSessionStore) AddMessage(ctx context.Context, key string, msg provide
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if msg.ID == "" {
+		msg.ID = uuid.Must(uuid.NewV7()).String()
+	}
 	// Stamp message creation time if not already set.
 	if msg.CreatedAt == nil {
 		now := time.Now().UTC()

@@ -583,6 +583,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 // RunRequest is the input for processing a message through the agent.
 type RunRequest struct {
 	SessionKey        string             // composite key: agent:{agentId}:{channel}:{peerKind}:{chatId}
+	MessageID         string             // stable ID for the persisted user message
 	Message           string             // user message
 	Media             []bus.MediaFile    // local media files with MIME types
 	ForwardMedia      []bus.MediaFile    // media files to forward to output (from delegation results)

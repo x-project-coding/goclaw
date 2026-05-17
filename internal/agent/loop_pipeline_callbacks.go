@@ -197,7 +197,7 @@ func (l *Loop) makeBuildFilteredTools(req *RunRequest) func(state *pipeline.RunS
 		// Load per-user MCP tools (Notion, etc.) into registry before filtering.
 		// Servers with require_user_credentials are deferred at startup and
 		// connected per-request here with the actual user's credentials.
-		l.getUserMCPTools(state.Ctx, state.Input.UserID)
+		l.getUserMCPTools(state.Ctx, store.CredentialUserIDFromContext(state.Ctx))
 
 		maxIter := l.maxIterations
 		if req.MaxIterations > 0 && req.MaxIterations < maxIter {
@@ -383,8 +383,11 @@ func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sess
 		if !userMsgFlushed && !req.HideInput && req.Message != "" {
 			userMsgFlushed = true
 			l.sessions.AddMessage(ctx, sessionKey, providers.Message{
-				Role:    "user",
-				Content: req.Message,
+				ID:         req.MessageID,
+				Role:       "user",
+				Content:    req.Message,
+				SenderID:   req.SenderID,
+				SenderName: req.SenderName,
 			})
 		}
 		for _, msg := range msgs {
