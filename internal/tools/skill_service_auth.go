@@ -21,8 +21,9 @@ import (
 //	                       X-Workspace-Key header; the service resolves the
 //	                       workspace + gateway from it via /callback/v1/verify-key
 //	GOCLAW_WORKSPACE_ID  \
-//	GOCLAW_USER_ID        }— request identity (non-secret)
-//	GOCLAW_AGENT_ID      /
+//	GOCLAW_USER_ID         }— request identity (non-secret)
+//	GOCLAW_AGENT_ID        |
+//	GOCLAW_SESSION_KEY   /  — origin session, for the service's result callback
 //
 // A skill's SKILL.md references these by name only — the shell expands them at
 // exec time, so the agent never handles the raw token. Tokens are minted per
@@ -113,6 +114,11 @@ func SkillServiceEnv(ctx context.Context) []string {
 	}
 	if rc.AgentKey != "" {
 		env = append(env, "GOCLAW_AGENT_ID="+rc.AgentKey)
+	}
+	// Origin session key — lets a skill-backed service post its async result
+	// back into the chat via the /callback/v1/messages endpoint.
+	if sk := ToolSessionKeyFromCtx(ctx); sk != "" {
+		env = append(env, "GOCLAW_SESSION_KEY="+sk)
 	}
 	return env
 }
