@@ -389,7 +389,7 @@ func runGateway() {
 
 	// Skill-callback API (/callback/v1/*) — workspace API key auth.
 	// Backs external skill services such as the code-runner behind the `code` skill.
-	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg))
+	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg, msgBus))
 
 	// Register all RPC methods
 	server.SetLogTee(logTee)

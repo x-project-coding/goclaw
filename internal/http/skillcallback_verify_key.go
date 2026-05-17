@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -30,17 +31,19 @@ import (
 // store instead of relying on the generic requireAuth middleware (which would
 // also accept the gateway token / no-auth dev mode).
 type SkillCallbackHandler struct {
-	cfg *config.Config
+	cfg    *config.Config
+	msgBus *bus.MessageBus // for /callback/v1/messages → chat session delivery
 }
 
 // NewSkillCallbackHandler creates the skill-callback HTTP handler.
-func NewSkillCallbackHandler(cfg *config.Config) *SkillCallbackHandler {
-	return &SkillCallbackHandler{cfg: cfg}
+func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus) *SkillCallbackHandler {
+	return &SkillCallbackHandler{cfg: cfg, msgBus: msgBus}
 }
 
 // RegisterRoutes registers the /callback/v1/* skill-callback routes on the mux.
 func (h *SkillCallbackHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /callback/v1/verify-key", h.handleVerifyKey)
+	mux.HandleFunc("POST /callback/v1/messages", h.handleMessages)
 }
 
 // verifyKeyRequest is the request body for POST /callback/v1/verify-key.
