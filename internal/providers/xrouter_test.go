@@ -94,10 +94,83 @@ func TestXRouterProvider_Chat_SkipsMissingIdentity(t *testing.T) {
 	if h == nil {
 		t.Fatal("no request captured")
 	}
-	for _, name := range []string{"X-Router-Agent-Id", "X-Router-User-Id", "X-Router-Session-Id"} {
+	for _, name := range []string{"X-Router-Agent-Id", "X-Router-User-Id", "X-Router-Session-Id", "X-Router-Mode"} {
 		if got := h.Get(name); got != "" {
 			t.Errorf("%s = %q, want empty when Options absent", name, got)
 		}
+	}
+}
+
+// TestXRouterProvider_Chat_SetsRoutingModeHeader — 42bucks fork patch. When
+// the agent loop populates OptRoutingMode (per-session routing mode), the
+// transport must surface it as the X-Router-Mode header so x-router dispatches
+// to the upstream model for the session's mode.
+func TestXRouterProvider_Chat_SetsRoutingModeHeader(t *testing.T) {
+	p, cap := mkXRouterProviderWithCapture(t)
+	_, err := p.Chat(context.Background(), ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		Model:    "openai/gpt-4o-mini",
+		Options: map[string]any{
+			OptAgentID:     "agent-42",
+			OptRoutingMode: "fast",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	h := cap.headers.Load()
+	if h == nil {
+		t.Fatal("no request captured")
+	}
+	if got := h.Get("X-Router-Mode"); got != "fast" {
+		t.Errorf("X-Router-Mode = %q, want fast", got)
+	}
+	if got := h.Get("X-Router-Agent-Id"); got != "agent-42" {
+		t.Errorf("X-Router-Agent-Id = %q, want agent-42", got)
+	}
+}
+
+// TestXRouterProvider_Chat_RoutingModeOnly — routingMode is the sole entry in
+// Options. The X-Router-Mode header must still be set even though no identity
+// fields are present (injectXRouterIdentity must not early-return).
+func TestXRouterProvider_Chat_RoutingModeOnly(t *testing.T) {
+	p, cap := mkXRouterProviderWithCapture(t)
+	_, err := p.Chat(context.Background(), ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		Model:    "openai/gpt-4o-mini",
+		Options:  map[string]any{OptRoutingMode: "complex"},
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	h := cap.headers.Load()
+	if h == nil {
+		t.Fatal("no request captured")
+	}
+	if got := h.Get("X-Router-Mode"); got != "complex" {
+		t.Errorf("X-Router-Mode = %q, want complex", got)
+	}
+}
+
+// TestXRouterProvider_Chat_SkipsMissingRoutingMode — no routingMode in Options
+// means no X-Router-Mode header (custom-mode runs use modelOverride only and
+// must send no routing-mode header — matches existing behaviour).
+func TestXRouterProvider_Chat_SkipsMissingRoutingMode(t *testing.T) {
+	p, cap := mkXRouterProviderWithCapture(t)
+	_, err := p.Chat(context.Background(), ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		Model:    "openai/gpt-4o-mini",
+		Options:  map[string]any{OptAgentID: "agent-42"},
+	})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	h := cap.headers.Load()
+	if h == nil {
+		t.Fatal("no request captured")
+	}
+	if got := h.Get("X-Router-Mode"); got != "" {
+		t.Errorf("X-Router-Mode = %q, want empty when routingMode absent", got)
 	}
 }
 
@@ -109,9 +182,10 @@ func TestXRouterProvider_Chat_SkipsEmptyStringIdentity(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "hi"}},
 		Model:    "openai/gpt-4o-mini",
 		Options: map[string]any{
-			OptAgentID:    "",
-			OptUserID:     "",
-			OptSessionKey: "",
+			OptAgentID:     "",
+			OptUserID:      "",
+			OptSessionKey:  "",
+			OptRoutingMode: "",
 		},
 	})
 	if err != nil {
@@ -121,7 +195,7 @@ func TestXRouterProvider_Chat_SkipsEmptyStringIdentity(t *testing.T) {
 	if h == nil {
 		t.Fatal("no request captured")
 	}
-	for _, name := range []string{"X-Router-Agent-Id", "X-Router-User-Id", "X-Router-Session-Id"} {
+	for _, name := range []string{"X-Router-Agent-Id", "X-Router-User-Id", "X-Router-Session-Id", "X-Router-Mode"} {
 		if got := h.Get(name); got != "" {
 			t.Errorf("%s = %q, want empty when Options is empty-string", name, got)
 		}

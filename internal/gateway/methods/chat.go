@@ -11,10 +11,10 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/audio"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/config"
-	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/media"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
+	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
@@ -25,14 +25,14 @@ import (
 
 // ChatMethods handles chat.send, chat.history, chat.abort, chat.inject.
 type ChatMethods struct {
-	agents          *agent.Router
-	sessions        store.SessionStore
-	cfg             *config.Config
-	rateLimiter     *gateway.RateLimiter
-	eventBus        bus.EventPublisher
-	postTurn        tools.PostTurnProcessor
-	audioMgr        *audio.Manager     // for TTS auto-apply on WS responses (nil = disabled)
-	providerReg     *providers.Registry // for modelOverride → provider swap (fork patch)
+	agents      *agent.Router
+	sessions    store.SessionStore
+	cfg         *config.Config
+	rateLimiter *gateway.RateLimiter
+	eventBus    bus.EventPublisher
+	postTurn    tools.PostTurnProcessor
+	audioMgr    *audio.Manager      // for TTS auto-apply on WS responses (nil = disabled)
+	providerReg *providers.Registry // for modelOverride → provider swap (fork patch)
 }
 
 func NewChatMethods(agents *agent.Router, sess store.SessionStore, cfg *config.Config, rl *gateway.RateLimiter, eventBus bus.EventPublisher) *ChatMethods {
@@ -123,10 +123,15 @@ type chatSendParams struct {
 	// session.routingMode → model and passes via this field. Empty = use
 	// agent's stored model.
 	ModelOverride string `json:"modelOverride,omitempty"`
-	SenderID      string `json:"senderId"`
-	SenderName    string `json:"senderName"`
-	PeerKind      string `json:"peerKind"`
-	ChatID        string `json:"chatId"`
+	// Per-session routing mode ('auto'|'fast'|'complex'). 42bucks fork patch:
+	// x-api resolves session.routingMode and passes it here so goclaw can emit
+	// it to x-router as the X-Router-Mode header. Never 'custom' (custom mode
+	// uses ModelOverride only). Empty = no routing-mode header.
+	RoutingMode string `json:"routingMode,omitempty"`
+	SenderID    string `json:"senderId"`
+	SenderName  string `json:"senderName"`
+	PeerKind    string `json:"peerKind"`
+	ChatID      string `json:"chatId"`
 }
 
 // parseMedia handles both legacy string paths and new {path,filename} objects.
@@ -311,36 +316,39 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			}
 		}
 
-		// 42bucks fork patch: when the caller passes modelOverride, also swap
-		// the agent's provider to the tenant's xrouter (if registered) — the
-		// agent's stored provider may not accept arbitrary models (e.g.
-		// openai-codex/ChatGPT-OAuth only serves gpt-5.x, and would 400 on
-		// `~anthropic/claude-sonnet-latest`). Falls back silently when no
+		// 42bucks fork patch: when the caller passes modelOverride OR a
+		// routingMode, also swap the agent's provider to the tenant's xrouter
+		// (if registered) — the agent's stored provider may not accept
+		// arbitrary models (e.g. openai-codex/ChatGPT-OAuth only serves
+		// gpt-5.x, and would 400 on `~anthropic/claude-sonnet-latest`), and
+		// routing-mode dispatch (X-Router-Mode header) is meaningful only when
+		// the call actually goes through x-router. Falls back silently when no
 		// xrouter is registered for the tenant; behaviour matches upstream
 		// in that case.
 		var providerOverride providers.Provider
-		if params.ModelOverride != "" && m.providerReg != nil {
+		if (params.ModelOverride != "" || params.RoutingMode != "") && m.providerReg != nil {
 			if p, err := m.providerReg.Get(runCtx, "xrouter"); err == nil {
 				providerOverride = p
 			}
 		}
 
 		result, err := loop.Run(runCtx, agent.RunRequest{
-			SessionKey:      sessionKey,
-			MessageID:       params.MessageID,
-			Message:         message,
-			Media:           mediaFiles,
-			Channel:         "ws",
-			ChannelType:     "ws",
-			ChatID:          chatID,
-			WorkspaceChatID: workspaceChatID,
-			PeerKind:        peerKind,
-			RunID:           runID,
-			UserID:          userID,
-			SenderID:        senderID,
-			SenderName:      params.SenderName,
-			Stream:          params.Stream,
+			SessionKey:       sessionKey,
+			MessageID:        params.MessageID,
+			Message:          message,
+			Media:            mediaFiles,
+			Channel:          "ws",
+			ChannelType:      "ws",
+			ChatID:           chatID,
+			WorkspaceChatID:  workspaceChatID,
+			PeerKind:         peerKind,
+			RunID:            runID,
+			UserID:           userID,
+			SenderID:         senderID,
+			SenderName:       params.SenderName,
+			Stream:           params.Stream,
 			ModelOverride:    params.ModelOverride,
+			RoutingMode:      params.RoutingMode, // 42bucks fork patch: per-session routing mode → X-Router-Mode header
 			ProviderOverride: providerOverride,
 			InjectCh:         injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the

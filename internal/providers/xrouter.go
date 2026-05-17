@@ -15,6 +15,10 @@ type xrouterIdentity struct {
 	agentID   string
 	userID    string
 	sessionID string
+	// routingMode is the per-session routing mode ('auto'|'fast'|'complex').
+	// 42bucks fork patch: surfaced as the X-Router-Mode header so x-router
+	// dispatches to the right upstream model for the session's mode.
+	routingMode string
 }
 
 // xrouterRoundTripper wraps an http.RoundTripper and adds X-Router-* headers
@@ -33,6 +37,10 @@ func (rt *xrouterRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		}
 		if id.sessionID != "" {
 			req.Header.Set("X-Router-Session-Id", id.sessionID)
+		}
+		// 42bucks fork patch: per-session routing mode → X-Router-Mode header.
+		if id.routingMode != "" {
+			req.Header.Set("X-Router-Mode", id.routingMode)
 		}
 	}
 	return rt.inner.RoundTrip(req)
@@ -72,10 +80,10 @@ func (p *XRouterProvider) ChatStream(ctx context.Context, req ChatRequest, onChu
 	return p.OpenAIProvider.ChatStream(injectXRouterIdentity(ctx, req), req, onChunk)
 }
 
-// injectXRouterIdentity reads OptAgentID / OptUserID / OptSessionKey off
-// req.Options and stashes them on a derived ctx so xrouterRoundTripper can
-// read them at HTTP send time. Returns ctx unchanged if nothing identity-y
-// is present.
+// injectXRouterIdentity reads OptAgentID / OptUserID / OptSessionKey and the
+// 42bucks-fork OptRoutingMode off req.Options and stashes them on a derived
+// ctx so xrouterRoundTripper can read them at HTTP send time. Returns ctx
+// unchanged if nothing identity-y is present.
 func injectXRouterIdentity(ctx context.Context, req ChatRequest) context.Context {
 	if req.Options == nil {
 		return ctx
@@ -90,7 +98,11 @@ func injectXRouterIdentity(ctx context.Context, req ChatRequest) context.Context
 	if v, ok := req.Options[OptSessionKey].(string); ok {
 		id.sessionID = v
 	}
-	if id.agentID == "" && id.userID == "" && id.sessionID == "" {
+	// 42bucks fork patch: per-session routing mode → X-Router-Mode header.
+	if v, ok := req.Options[OptRoutingMode].(string); ok {
+		id.routingMode = v
+	}
+	if id.agentID == "" && id.userID == "" && id.sessionID == "" && id.routingMode == "" {
 		return ctx
 	}
 	return context.WithValue(ctx, xrouterIdentityKey{}, id)

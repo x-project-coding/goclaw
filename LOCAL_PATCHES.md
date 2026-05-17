@@ -314,3 +314,46 @@ in append order. Do not place fork migrations below `099000`.
     internal/gateway/methods/chat.go cmd/gateway_methods.go
   ```
   Expects ≥ 3 hits.
+
+### Patch 11 — `feat(chat): thread routingMode through to x-router as X-Router-Mode header`
+
+- **Base upstream commit:** `5a64c5b4` (`origin/dev`)
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `chatSendParams` gains a
+    `RoutingMode string \`json:"routingMode,omitempty"\`` field. The
+    provider-swap block (Patch 10) now also fires when
+    `params.RoutingMode != ""`, and `handleSend` threads
+    `RoutingMode: params.RoutingMode` into `agent.RunRequest`.
+  - `internal/agent/loop_types.go` — `RunRequest` gains a `RoutingMode`
+    field next to `ModelOverride`.
+  - `internal/pipeline/run_state.go` — `RunInput` gains a matching
+    `RoutingMode` field so the pipeline adapter forwards it.
+  - `internal/agent/loop_pipeline_adapter.go` — `convertRunInput` copies
+    `RoutingMode` alongside `ModelOverride`.
+  - `internal/agent/loop_pipeline_callbacks.go` — `makeCallLLM` populates
+    `chatReq.Options[providers.OptRoutingMode]` from `req.RoutingMode`
+    (skipped when empty), alongside the existing identity opts.
+  - `internal/providers/claude_cli.go` — new `OptRoutingMode = "routing_mode"`
+    options-key constant (sits with `OptAgentID`/`OptUserID`/`OptSessionKey`).
+  - `internal/providers/xrouter.go` — `xrouterIdentity` gains a `routingMode`
+    field; `injectXRouterIdentity` reads `OptRoutingMode`;
+    `xrouterRoundTripper.RoundTrip` sets the `X-Router-Mode` request header
+    when `routingMode` is non-empty. OpenAI JSON body untouched.
+  - `internal/providers/xrouter_test.go` — adds coverage asserting
+    `X-Router-Mode` is set when the routingMode option is present and
+    absent when it is not.
+- **Why:** x-api's per-session routing exposes an Auto/Fast/Complex/Custom
+  mode picker. For 'auto'|'fast'|'complex' the mode value rides the WS
+  `chat.send` RPC as `routingMode`; goclaw must hand it to x-router so the
+  router picks the upstream model for that mode. Mode 'custom' keeps using
+  `modelOverride` (Patch 9) and sends no `X-Router-Mode` header. Upstream
+  goclaw has no concept of a routing mode — this is 42bucks-specific.
+- **Recovery grep:**
+  ```
+  grep -nE 'X-Router-Mode|OptRoutingMode|RoutingMode:[[:space:]]+(req|params)\.RoutingMode|"routingMode,omitempty"' \
+    internal/gateway/methods/chat.go internal/agent/loop_types.go \
+    internal/agent/loop_pipeline_adapter.go internal/agent/loop_pipeline_callbacks.go \
+    internal/pipeline/run_state.go internal/providers/claude_cli.go \
+    internal/providers/xrouter.go
+  ```
+  Expects ≥ 6 hits.
