@@ -6,6 +6,19 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-17
 
+### Deployment: VPS hybrid GoClaw setup
+
+**Operations**
+
+- Deployed GoClaw to a VPS using bare-metal `systemd` gateway plus Dockerized PostgreSQL 18 pgvector.
+- Restored the latest private PostgreSQL backup, then upgraded schema from `57` to `65`.
+- Installed Node.js 22 and Codex CLI on the host; interactive `codex --login` remains manual.
+- Configured Cloudflare-proxied deployment domain and issued SSL through Certbot/Nginx.
+- Added `goclaw-backup-r2.timer` to dump PostgreSQL every 6 hours, upload to private Cloudflare R2 storage, and retain the latest 20 backups.
+- Added deployment runbook in `docs/deployment-guide.md`.
+
+---
+
 ### CI/CD: dev branch beta automation
 
 **Features**
