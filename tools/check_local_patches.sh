@@ -123,6 +123,18 @@ check_grep "Patch 10: provider-swap on modelOverride" 3 \
   'SetProviderRegistry|ProviderOverride: providerOverride|providerReg\.Get\(runCtx, "xrouter"\)' \
   internal/gateway/methods/chat.go cmd/gateway_methods.go
 
+# Patch 11 — per-session routing mode ('auto'|'fast'|'complex') threaded from
+# the WS chat.send RPC down to x-router as the X-Router-Mode HTTP header.
+# x-api resolves session.routingMode and passes it on chat.send; goclaw
+# carries it RunRequest → RunInput → Options[OptRoutingMode] → xrouter
+# RoundTripper. Mode 'custom' uses modelOverride only and sends no header.
+check_grep "Patch 11: routingMode → X-Router-Mode header" 6 \
+  'X-Router-Mode|OptRoutingMode|RoutingMode:[[:space:]]+(req|params)\.RoutingMode|"routingMode,omitempty"' \
+  internal/gateway/methods/chat.go internal/agent/loop_types.go \
+  internal/agent/loop_pipeline_adapter.go internal/agent/loop_pipeline_callbacks.go \
+  internal/pipeline/run_state.go internal/providers/claude_cli.go \
+  internal/providers/xrouter.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

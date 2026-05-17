@@ -225,6 +225,7 @@ func convertRunInput(req *RunRequest) *pipeline.RunInput {
 		ParentAgentID:     req.ParentAgentID,
 		MaxIterations:     req.MaxIterations,
 		ModelOverride:     req.ModelOverride,
+		RoutingMode:       req.RoutingMode, // 42bucks fork patch: per-session routing mode → X-Router-Mode header
 		HideInput:         req.HideInput,
 		ContentSuffix:     req.ContentSuffix,
 		LeaderAgentID:     req.LeaderAgentID,

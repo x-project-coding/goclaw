@@ -97,6 +97,7 @@ type RunInput struct {
 	ParentAgentID     string
 	MaxIterations     int
 	ModelOverride     string
+	RoutingMode       string // 42bucks fork patch: per-session routing mode ('auto'|'fast'|'complex') for x-router dispatch
 	HideInput         bool
 	ContentSuffix     string
 	LeaderAgentID     string

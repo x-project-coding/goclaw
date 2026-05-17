@@ -239,6 +239,11 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		if tid := store.TenantIDFromContext(ctx); tid != uuid.Nil {
 			chatReq.Options[providers.OptTenantID] = tid.String()
 		}
+		// 42bucks fork patch: per-session routing mode ('auto'|'fast'|'complex').
+		// XRouterProvider reads this and emits it as the X-Router-Mode header.
+		if req.RoutingMode != "" {
+			chatReq.Options[providers.OptRoutingMode] = req.RoutingMode
+		}
 
 		// Reasoning decision: resolve effort level for thinking models (o3, DeepSeek-R1, Kimi).
 		reasoningDecision := providers.ResolveReasoningDecision(
