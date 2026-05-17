@@ -572,6 +572,10 @@ func runGateway() {
 		server.Router().SetPermissionCache(permCache)
 		httpapi.InitTenantStore(pgStores.Tenants, msgBus)
 		httpapi.InitOwnerIDs(cfg.Gateway.OwnerIDs)
+		// Standard skill-service auth: lets the shell tool mint per-workspace
+		// SKILL_RUNTIME_TOKEN values so skills can authenticate to 42bucks
+		// skill-backed services (code-runner, …).
+		tools.InitSkillServiceAuth(pgStores.APIKeys)
 	}
 
 	// Wire lifecycle: config-reload subscribers, consumer, task recovery, shutdown, server start.

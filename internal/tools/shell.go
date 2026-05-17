@@ -431,6 +431,12 @@ func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Resu
 		dynKeys = staticCredentialEnvKeys
 	}
 	cmd.Env = scrubCredentialEnv(os.Environ(), dynKeys)
+	// Standard skill-service auth: a skill authenticates to a 42bucks
+	// skill-backed service (e.g. code-runner) with $SKILL_RUNTIME_TOKEN +
+	// $GOCLAW_{WORKSPACE,USER,AGENT}_ID. Injected after the credential scrub so
+	// the values survive; the agent references them by name and the shell
+	// expands them, so the raw token is never exposed to the model.
+	cmd.Env = append(cmd.Env, SkillServiceEnv(ctx)...)
 
 	// Place the child in its own process group so killProcessGroup(-pgid, sig)
 	// reaches the shell and all of its forked children.
