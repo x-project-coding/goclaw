@@ -529,7 +529,12 @@ func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKe
 		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
 	}
 
-	result, err := sb.Exec(ctx, []string{"sh", "-c", command}, containerCwd) //nolint: no ExecOption for normal exec
+	// Inject the skill-service auth env (SKILL_RUNTIME_TOKEN, GOCLAW_SESSION_KEY,
+	// GOCLAW_USER_ID/AGENT_ID, …) so a skill's curl run inside the sandbox can
+	// authenticate and post its result callback to the originating chat —
+	// executeOnHost already does this, the sandbox path previously did not.
+	result, err := sb.Exec(ctx, []string{"sh", "-c", command}, containerCwd,
+		sandbox.WithEnv(skillServiceEnvMap(ctx)))
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("sandbox exec: %v", err))
 	}
