@@ -391,6 +391,13 @@ func runGateway() {
 	// Backs external skill services such as the code-runner behind the `code` skill.
 	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg, msgBus))
 
+	// User-facing code-jobs proxy (/v1/jobs*) — relays a chat user's request to
+	// code-runner with a minted workspace key. Enabled only when the code-runner
+	// URL is configured (GOCLAW_CODE_RUNNER_URL).
+	if codeRunnerURL := os.Getenv("GOCLAW_CODE_RUNNER_URL"); codeRunnerURL != "" {
+		server.SetJobsHandler(httpapi.NewJobsHandler(codeRunnerURL))
+	}
+
 	// Register all RPC methods
 	server.SetLogTee(logTee)
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, providerRegistry)

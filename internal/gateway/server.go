@@ -413,6 +413,11 @@ func (s *Server) SetSkillCallbackHandler(h *httpapi.SkillCallbackHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetJobsHandler sets the user-facing /v1/jobs* code-jobs proxy handler.
+func (s *Server) SetJobsHandler(h *httpapi.JobsHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetMCPHandler sets the MCP server management handler.
 func (s *Server) SetMCPHandler(h *httpapi.MCPHandler) { s.handlers = append(s.handlers, h) }
 func (s *Server) SetMCPUserCredentialsHandler(h *httpapi.MCPUserCredentialsHandler) {
