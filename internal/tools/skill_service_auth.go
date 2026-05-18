@@ -94,6 +94,15 @@ func workspaceSkillToken(ctx context.Context, tenantID uuid.UUID) string {
 	return raw
 }
 
+// WorkspaceSkillToken returns a workspace-scoped skill-service API key for the
+// tenant — the same key SkillServiceEnv injects as SKILL_RUNTIME_TOKEN. Used by
+// user-facing HTTP handlers that proxy a request to a 42bucks skill-backed
+// service (the code-runner behind the `code` skill). Returns "" when minting
+// is unavailable.
+func WorkspaceSkillToken(ctx context.Context, tenantID uuid.UUID) string {
+	return workspaceSkillToken(ctx, tenantID)
+}
+
 // SkillServiceEnv returns the standard skill-service auth env vars for the
 // current run context. Returns nil when there is no run context; callers
 // append it unconditionally.
