@@ -64,6 +64,11 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 	agentID, rest := sessions.ParseSessionKey(req.SessionKey)
 	parts := strings.SplitN(rest, ":", 3)
 	if agentID == "" || len(parts) < 3 {
+		// A malformed key here usually means the caller's shell never had
+		// GOCLAW_SESSION_KEY set (e.g. an unexpanded "$GOCLAW_SESSION_KEY").
+		// Log it loudly so the result drop is diagnosable, not silent.
+		slog.Warn("skillcallback.messages unsupported sessionKey",
+			"session_key", req.SessionKey, "job_id", req.JobID)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported sessionKey"})
 		return
 	}

@@ -103,31 +103,45 @@ func WorkspaceSkillToken(ctx context.Context, tenantID uuid.UUID) string {
 	return workspaceSkillToken(ctx, tenantID)
 }
 
-// SkillServiceEnv returns the standard skill-service auth env vars for the
-// current run context. Returns nil when there is no run context; callers
-// append it unconditionally.
-func SkillServiceEnv(ctx context.Context) []string {
+// skillServiceEnvMap builds the standard skill-service auth env vars for the
+// current run context as a map. Returns nil when there is no run context.
+func skillServiceEnvMap(ctx context.Context) map[string]string {
 	rc := store.RunContextFromCtx(ctx)
 	if rc == nil {
 		return nil
 	}
-	var env []string
+	m := map[string]string{}
 	if tok := workspaceSkillToken(ctx, rc.TenantID); tok != "" {
-		env = append(env, "SKILL_RUNTIME_TOKEN="+tok)
+		m["SKILL_RUNTIME_TOKEN"] = tok
 	}
 	if rc.Workspace != "" {
-		env = append(env, "GOCLAW_WORKSPACE_ID="+rc.Workspace)
+		m["GOCLAW_WORKSPACE_ID"] = rc.Workspace
 	}
 	if rc.UserID != "" {
-		env = append(env, "GOCLAW_USER_ID="+rc.UserID)
+		m["GOCLAW_USER_ID"] = rc.UserID
 	}
 	if rc.AgentKey != "" {
-		env = append(env, "GOCLAW_AGENT_ID="+rc.AgentKey)
+		m["GOCLAW_AGENT_ID"] = rc.AgentKey
 	}
 	// Origin session key — lets a skill-backed service post its async result
 	// back into the chat via the /callback/v1/messages endpoint.
 	if sk := ToolSessionKeyFromCtx(ctx); sk != "" {
-		env = append(env, "GOCLAW_SESSION_KEY="+sk)
+		m["GOCLAW_SESSION_KEY"] = sk
+	}
+	return m
+}
+
+// SkillServiceEnv returns the standard skill-service auth env vars for the
+// current run context as KEY=VALUE strings (for exec.Cmd.Env). Returns nil
+// when there is no run context; callers append it unconditionally.
+func SkillServiceEnv(ctx context.Context) []string {
+	m := skillServiceEnvMap(ctx)
+	if len(m) == 0 {
+		return nil
+	}
+	env := make([]string, 0, len(m))
+	for k, v := range m {
+		env = append(env, k+"="+v)
 	}
 	return env
 }
