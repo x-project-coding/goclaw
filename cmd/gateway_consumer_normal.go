@@ -402,6 +402,13 @@ func processNormalMessage(
 		ToolAllow:         msg.ToolAllow,
 		ExtraSystemPrompt: extraPrompt,
 		SkillFilter:       skillFilter,
+		// Code-skill job-completion callbacks arrive as a synthetic inbound
+		// message carrying the raw "Code job completed…" announcement. The
+		// agent still receives it as turn input and relays it in natural
+		// language, but the raw announcement must not persist as visible
+		// user-role history. (msg.Metadata may be nil — map index on a nil
+		// map is a safe zero-value read in Go.)
+		HideInput: msg.Metadata["source"] == "code-skill-callback",
 	}, scheduler.ScheduleOpts{
 		MaxConcurrent: maxConcurrent,
 	})
