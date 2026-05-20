@@ -66,13 +66,14 @@ func (l *Loop) finalizeRun(
 		rs.finalContent += "\n\n---\n_" + i18n.T(locale, i18n.MsgSkillNudgePostscript) + "_"
 	}
 
-	// 7. Fallback for empty content
-	if rs.finalContent == "" {
-		if len(rs.asyncToolCalls) > 0 {
-			rs.finalContent = "..."
-		} else {
-			rs.finalContent = "..."
-		}
+	// 7. Fallback for empty content.
+	// Only emit the literal "..." placeholder when async tool calls are still
+	// pending — there it's a real "more coming, check back" signal. For a
+	// truly empty wrap-up (the model's final iteration produced no visible
+	// content, common with extended-thinking models), leave finalContent
+	// blank; x-ui's chat-thread-filter drops empty assistant bubbles.
+	if rs.finalContent == "" && len(rs.asyncToolCalls) > 0 {
+		rs.finalContent = "..."
 	}
 
 	// Append content suffix (e.g. image markdown for WS) before saving to session.
