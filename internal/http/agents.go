@@ -96,7 +96,9 @@ type ToolPreviewLister interface {
 // SkillPreviewBuilder is satisfied by skills.Loader for system prompt preview.
 type SkillPreviewBuilder interface {
 	BuildPinnedSummary(ctx context.Context, names []string) string
-	BuildSummary(ctx context.Context, allowList []string) string
+	// GOCLAW_INLINE_BODY: variadic includeBody mirrors skills.Loader.BuildSummary;
+	// preview callers omit it to keep legacy metadata-only output.
+	BuildSummary(ctx context.Context, allowList []string, includeBody ...bool) string
 }
 
 // SetPreviewDeps attaches optional dependencies for system prompt preview.

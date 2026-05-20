@@ -30,7 +30,10 @@ type PreviewDeps struct {
 	}
 	SkillsLoader interface {
 		BuildPinnedSummary(ctx context.Context, names []string) string
-		BuildSummary(ctx context.Context, allowList []string) string
+		// GOCLAW_INLINE_BODY: variadic includeBody — when true, opt-in skills
+		// inline their SKILL.md body. Callers that omit it get legacy
+		// metadata-only behavior.
+		BuildSummary(ctx context.Context, allowList []string, includeBody ...bool) string
 	}
 	DataDir string // for team workspace path construction
 }
