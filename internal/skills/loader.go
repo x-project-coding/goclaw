@@ -29,6 +29,7 @@ import (
 type Metadata struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	InlineBody  bool   `json:"inline_body,omitempty"` // GOCLAW_INLINE_BODY: opt-in to inline SKILL.md body in <available_skills> XML
 }
 
 // Info describes a discovered skill.
@@ -39,6 +40,7 @@ type Info struct {
 	BaseDir     string `json:"baseDir"` // skill directory (parent of SKILL.md)
 	Source      string `json:"source"`  // "workspace", "global", "builtin"
 	Description string `json:"description"`
+	InlineBody  bool   `json:"inline_body"` // GOCLAW_INLINE_BODY: from SKILL.md frontmatter; gates body injection in BuildSummary
 }
 
 // Loader discovers and loads SKILL.md files from multiple directories.
@@ -146,6 +148,7 @@ func (l *Loader) ListSkills(_ context.Context) []Info {
 			}
 			if meta := parseMetadata(skillFile); meta != nil {
 				info.Description = meta.Description
+				info.InlineBody = meta.InlineBody // GOCLAW_INLINE_BODY
 				if meta.Name != "" {
 					info.Name = meta.Name
 				}
@@ -189,6 +192,7 @@ func (l *Loader) ListSkills(_ context.Context) []Info {
 				}
 				if meta := parseMetadata(skillFile); meta != nil {
 					info.Description = meta.Description
+					info.InlineBody = meta.InlineBody // GOCLAW_INLINE_BODY
 					if meta.Name != "" {
 						info.Name = meta.Name
 					}
@@ -239,6 +243,7 @@ func (l *Loader) listManagedSkills() []Info {
 		}
 		if meta := parseMetadata(skillFile); meta != nil {
 			info.Description = meta.Description
+			info.InlineBody = meta.InlineBody // GOCLAW_INLINE_BODY
 			if meta.Name != "" {
 				info.Name = meta.Name
 			}
@@ -363,14 +368,30 @@ func (l *Loader) LoadForContext(ctx context.Context, allowList []string) string 
 // discoverability with prompt budget. Full SKILL.md is read on actual use.
 const skillDescMaxLen = 200
 
+// inlineBodyMaxBytes caps the SKILL.md body size when inlined into the
+// <available_skills> XML via the inline_body opt-in. 8KB ≈ ~2000 tokens —
+// enough to carry a focused skill body without blowing the prompt budget.
+const inlineBodyMaxBytes = 8192 // GOCLAW_INLINE_BODY
+
+// inlineBodyTruncMarker is appended to bodies that exceed inlineBodyMaxBytes.
+const inlineBodyTruncMarker = "\n\n[… body truncated …]" // GOCLAW_INLINE_BODY
+
 // BuildSummary returns an XML summary of skills for context injection.
 // If allowList is nil, all skills are included. If non-nil, only listed skills are included.
 // The format matches the TS <available_skills> XML used in system prompts.
-func (l *Loader) BuildSummary(ctx context.Context, allowList []string) string {
+//
+// GOCLAW_INLINE_BODY: when includeBody[0] is true, skills whose frontmatter sets
+// `inline_body: true` get a <body>…</body> child carrying the SKILL.md body
+// (frontmatter stripped, capped at inlineBodyMaxBytes with a truncation marker).
+// Callers that don't pass the flag get the legacy metadata-only behavior.
+func (l *Loader) BuildSummary(ctx context.Context, allowList []string, includeBody ...bool) string { // GOCLAW_INLINE_BODY
 	allSkills := l.ListSkills(ctx)
 	if len(allSkills) == 0 {
 		return ""
 	}
+
+	// GOCLAW_INLINE_BODY: read variadic flag.
+	wantBody := len(includeBody) > 0 && includeBody[0]
 
 	// Filter by allowList if provided
 	var filtered []Info
@@ -403,6 +424,15 @@ func (l *Loader) BuildSummary(ctx context.Context, allowList []string) string {
 		}
 		lines = append(lines, fmt.Sprintf("    <description>%s</description>", escapeXML(desc)))
 		lines = append(lines, fmt.Sprintf("    <location>%s</location>", escapeXML(s.Path)))
+
+		// GOCLAW_INLINE_BODY: opt-in body injection.
+		if wantBody && s.InlineBody {
+			if body, ok := l.LoadSkill(ctx, s.Slug); ok {
+				body = truncateInlineBody(body, s.Slug)
+				lines = append(lines, fmt.Sprintf("    <body>%s</body>", escapeXML(body)))
+			}
+		}
+
 		lines = append(lines, "  </skill>")
 	}
 	lines = append(lines, "</available_skills>")
@@ -410,14 +440,26 @@ func (l *Loader) BuildSummary(ctx context.Context, allowList []string) string {
 	return strings.Join(lines, "\n")
 }
 
+// truncateInlineBody caps body at inlineBodyMaxBytes and appends a marker if
+// truncated. Logs at debug level on truncation so operators can spot oversize
+// SKILL.md files. GOCLAW_INLINE_BODY.
+func truncateInlineBody(body, slug string) string {
+	if len(body) <= inlineBodyMaxBytes {
+		return body
+	}
+	slog.Debug("skills: inline body truncated", "slug", slug, "bytes", len(body), "cap", inlineBodyMaxBytes)
+	return body[:inlineBodyMaxBytes] + inlineBodyTruncMarker
+}
+
 // BuildPinnedSummary generates XML summary for only the pinned skill names.
-// Delegates to BuildSummary with pinned names as allowlist.
+// Delegates to BuildSummary with pinned names as allowlist and the inline-body
+// flag set — pinned skills always get bodies inlined when they opt in.
 // Returns empty string if none match.
 func (l *Loader) BuildPinnedSummary(ctx context.Context, pinnedNames []string) string {
 	if len(pinnedNames) == 0 {
 		return ""
 	}
-	return l.BuildSummary(ctx, pinnedNames)
+	return l.BuildSummary(ctx, pinnedNames, true) // GOCLAW_INLINE_BODY
 }
 
 // Version returns the current skill snapshot version.
@@ -499,9 +541,17 @@ func parseMetadata(path string) *Metadata {
 
 	// Fall back to simple YAML key: value
 	kv := parseSimpleYAML(fm)
+	// GOCLAW_INLINE_BODY: parse opt-in flag from YAML; default false on absent or unparseable value.
+	inlineBody := false
+	if v, ok := kv["inline_body"]; ok {
+		if b, err := strconv.ParseBool(v); err == nil {
+			inlineBody = b
+		}
+	}
 	return &Metadata{
 		Name:        kv["name"],
 		Description: kv["description"],
+		InlineBody:  inlineBody, // GOCLAW_INLINE_BODY
 	}
 }
 

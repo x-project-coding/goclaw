@@ -62,7 +62,7 @@ func (m *mockSkillsLoader) BuildPinnedSummary(_ context.Context, _ []string) str
 	return m.pinned
 }
 
-func (m *mockSkillsLoader) BuildSummary(_ context.Context, allowList []string) string {
+func (m *mockSkillsLoader) BuildSummary(_ context.Context, allowList []string, _ ...bool) string {
 	m.capturedAllow = allowList
 	return m.summary
 }

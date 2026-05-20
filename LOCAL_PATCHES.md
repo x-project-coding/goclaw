@@ -357,3 +357,53 @@ in append order. Do not place fork migrations below `099000`.
     internal/providers/xrouter.go
   ```
   Expects ≥ 6 hits.
+
+### Patch 12 — `feat(skills): opt-in inline SKILL.md body for pinned skills`
+
+- **Base upstream commit:** `223ddd4a` (`origin/dev`)
+- **Files:**
+  - `internal/skills/loader.go` — adds `Metadata.InlineBody` + `Info.InlineBody`
+    fields (parsed from YAML/JSON frontmatter `inline_body: true|false`),
+    package-level `inlineBodyMaxBytes = 8192` constant, and extends
+    `BuildSummary(ctx, allowList, includeBody ...bool)` to emit a `<body>…</body>`
+    XML child inside `<skill>` when the caller passes `true` AND the skill
+    opted in via frontmatter. Body is loaded via `LoadSkill` (frontmatter
+    stripped, `{baseDir}` placeholder resolved), capped at
+    `inlineBodyMaxBytes` with a `"\n\n[… body truncated …]"` marker, and
+    `escapeXML`'d. `BuildPinnedSummary` now calls `BuildSummary(ctx, names, true)`
+    so pinned skills always inline opted-in bodies. Every new code site
+    is tagged with a `// GOCLAW_INLINE_BODY` comment for sync detection.
+  - `internal/skills/loader_test.go` — 4 new tests covering YAML+JSON
+    frontmatter parsing, opt-in gating, 8KB truncation, and pinned-summary
+    body inlining.
+  - `internal/agent/preview_prompt.go` — `SkillsLoader` preview interface
+    `BuildSummary` signature changed to variadic `(ctx, allowList, includeBody ...bool)`
+    to match the loader (Go variadic methods do not satisfy non-variadic
+    interface signatures, so the interface had to widen).
+  - `internal/agent/preview_prompt_test_helpers_test.go` — `mockSkillsLoader.BuildSummary`
+    signature widened to match.
+  - `internal/http/agents.go` — `SkillPreviewBuilder` interface `BuildSummary`
+    signature widened to variadic (same rationale as above).
+  - `internal/agent/systemprompt_sections.go` — doc-comment only update on
+    `buildSkillsHybridSection` and `buildPinnedSkillsMinimalSection` noting
+    that the pinned summary may now carry inlined `<body>` elements.
+- **Why:** Goclaw already inlines `<available_skills>` XML metadata for
+  pinned skills, but agents still need a `read_file` round-trip to load
+  each SKILL.md body — costly when a pinned skill's body is the actual
+  instructions you want the agent to follow. The new `inline_body: true`
+  frontmatter flag lets specific skills (e.g. role briefings, response
+  contracts, tone guides) ship their full body alongside the metadata.
+  Default `false` keeps backward compatibility — existing skills are
+  unaffected. Bodies cap at 8KB (~2000 tokens) with a truncation marker
+  to bound prompt growth. Pinned skills always honor the opt-in;
+  non-pinned skills loaded via `skill_search` never inline bodies.
+  Upstream is unlikely to take this — it's a 42bucks-shaped feature
+  for our specific agent flow. Design doc:
+  `/home/goclaw/workspace/pinned-skills-propagation-design-2026-05-20.md`.
+- **Recovery grep:**
+  ```
+  grep -nE 'GOCLAW_INLINE_BODY|InlineBody|inline_body|inlineBodyMaxBytes' \
+    internal/skills/loader.go internal/skills/loader_test.go \
+    internal/agent/systemprompt_sections.go
+  ```
+  Expects ≥ 12 hits.

@@ -301,6 +301,164 @@ func TestLoader_BuildSummary_XMLEscaping(t *testing.T) {
 	}
 }
 
+// --- InlineBody opt-in (GOCLAW_INLINE_BODY) ---
+
+// TestLoader_ParseMetadata_InlineBodyFlag verifies that both YAML and JSON
+// frontmatter forms parse the `inline_body` flag correctly.
+func TestLoader_ParseMetadata_InlineBodyFlag(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{
+			name:    "yaml_true",
+			content: "---\nname: yaml-true\ndescription: x\ninline_body: true\n---\nbody",
+			want:    true,
+		},
+		{
+			name:    "yaml_false",
+			content: "---\nname: yaml-false\ndescription: x\ninline_body: false\n---\nbody",
+			want:    false,
+		},
+		{
+			name:    "yaml_absent",
+			content: "---\nname: yaml-absent\ndescription: x\n---\nbody",
+			want:    false,
+		},
+		{
+			name:    "yaml_garbage_defaults_false",
+			content: "---\nname: yaml-garbage\ndescription: x\ninline_body: nottrue\n---\nbody",
+			want:    false,
+		},
+		{
+			name:    "json_true",
+			content: "---\n{\"name\":\"json-true\",\"description\":\"x\",\"inline_body\":true}\n---\nbody",
+			want:    true,
+		},
+		{
+			name:    "json_false",
+			content: "---\n{\"name\":\"json-false\",\"description\":\"x\",\"inline_body\":false}\n---\nbody",
+			want:    false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "SKILL.md")
+			if err := os.WriteFile(path, []byte(tc.content), 0644); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			meta := parseMetadata(path)
+			if meta == nil {
+				t.Fatal("expected non-nil metadata")
+			}
+			if meta.InlineBody != tc.want {
+				t.Errorf("InlineBody = %v, want %v", meta.InlineBody, tc.want)
+			}
+		})
+	}
+}
+
+// TestLoader_BuildSummary_InlineBodyOptIn verifies the variadic includeBody
+// arg gates the body injection, and only skills with `inline_body: true` are
+// inlined when the flag is set.
+func TestLoader_BuildSummary_InlineBodyOptIn(t *testing.T) {
+	ws := t.TempDir()
+	// Opted-in skill: inline_body: true. Body marker is "PINNED_BODY_MARKER".
+	makeSkillDir(t, filepath.Join(ws, "skills"), "pinned-opt-in",
+		"---\nname: pinned-opt-in\ndescription: opted in\ninline_body: true\n---\nPINNED_BODY_MARKER\n")
+	// Opted-out skill: no flag. Body marker is "OPTED_OUT_BODY_MARKER".
+	makeSkillDir(t, filepath.Join(ws, "skills"), "pinned-opt-out",
+		"---\nname: pinned-opt-out\ndescription: not opted in\n---\nOPTED_OUT_BODY_MARKER\n")
+
+	l := NewLoader(ws, "", "")
+	names := []string{"pinned-opt-in", "pinned-opt-out"}
+
+	// Without flag: never inline any body.
+	noFlag := l.BuildSummary(context.Background(), names)
+	if strings.Contains(noFlag, "<body>") {
+		t.Errorf("BuildSummary(ctx,names) without flag must not include <body>; got:\n%s", noFlag)
+	}
+	if strings.Contains(noFlag, "PINNED_BODY_MARKER") || strings.Contains(noFlag, "OPTED_OUT_BODY_MARKER") {
+		t.Errorf("BuildSummary(ctx,names) without flag must not include body content; got:\n%s", noFlag)
+	}
+
+	// With flag=true: inline only opted-in skill.
+	withFlag := l.BuildSummary(context.Background(), names, true)
+	if !strings.Contains(withFlag, "<body>") {
+		t.Errorf("BuildSummary(ctx,names,true) must include <body> for opted-in skill; got:\n%s", withFlag)
+	}
+	if !strings.Contains(withFlag, "PINNED_BODY_MARKER") {
+		t.Errorf("opted-in body content missing; got:\n%s", withFlag)
+	}
+	if strings.Contains(withFlag, "OPTED_OUT_BODY_MARKER") {
+		t.Errorf("opted-out skill body must not be inlined; got:\n%s", withFlag)
+	}
+
+	// With flag=false: behaves like no flag.
+	withFalse := l.BuildSummary(context.Background(), names, false)
+	if strings.Contains(withFalse, "<body>") {
+		t.Errorf("BuildSummary(ctx,names,false) must not include <body>; got:\n%s", withFalse)
+	}
+}
+
+// TestLoader_BuildSummary_InlineBodyTruncation verifies bodies > inlineBodyMaxBytes
+// are truncated with the marker, while smaller bodies are emitted whole.
+func TestLoader_BuildSummary_InlineBodyTruncation(t *testing.T) {
+	ws := t.TempDir()
+
+	// Small body (< 8KB): emitted whole.
+	smallBody := strings.Repeat("a", 100)
+	makeSkillDir(t, filepath.Join(ws, "skills"), "small",
+		"---\nname: small\ndescription: s\ninline_body: true\n---\n"+smallBody+"\n")
+
+	// Large body (> 8KB): must be truncated with marker.
+	largeBody := strings.Repeat("X", inlineBodyMaxBytes+500)
+	makeSkillDir(t, filepath.Join(ws, "skills"), "large",
+		"---\nname: large\ndescription: l\ninline_body: true\n---\n"+largeBody+"\n")
+
+	l := NewLoader(ws, "", "")
+	out := l.BuildSummary(context.Background(), []string{"small", "large"}, true)
+
+	// Small body is emitted whole.
+	if !strings.Contains(out, smallBody) {
+		t.Errorf("small body must be emitted whole; got:\n%s", out)
+	}
+	// Truncation marker present for large body.
+	if !strings.Contains(out, "[… body truncated …]") {
+		t.Errorf("large body must include truncation marker; got tail:\n%s", out[max(0, len(out)-400):])
+	}
+	// Large body must not be emitted whole — we should not see the entire over-cap string.
+	if strings.Contains(out, largeBody) {
+		t.Errorf("large body should be truncated, not emitted whole")
+	}
+}
+
+// TestLoader_BuildPinnedSummary_AlwaysInlinesOptedIn proves BuildPinnedSummary
+// always passes the includeBody flag to BuildSummary (i.e. opted-in skills
+// always get their body inlined when pinned).
+func TestLoader_BuildPinnedSummary_AlwaysInlinesOptedIn(t *testing.T) {
+	ws := t.TempDir()
+	makeSkillDir(t, filepath.Join(ws, "skills"), "pin-me",
+		"---\nname: pin-me\ndescription: opted in\ninline_body: true\n---\nPIN_BODY_MARKER\n")
+	makeSkillDir(t, filepath.Join(ws, "skills"), "no-inline",
+		"---\nname: no-inline\ndescription: not opted in\n---\nNO_INLINE_MARKER\n")
+
+	l := NewLoader(ws, "", "")
+	out := l.BuildPinnedSummary(context.Background(), []string{"pin-me", "no-inline"})
+
+	if !strings.Contains(out, "<body>") {
+		t.Errorf("BuildPinnedSummary must inline opted-in bodies; got:\n%s", out)
+	}
+	if !strings.Contains(out, "PIN_BODY_MARKER") {
+		t.Errorf("opted-in body content must appear; got:\n%s", out)
+	}
+	if strings.Contains(out, "NO_INLINE_MARKER") {
+		t.Errorf("opted-out skill body must not be inlined; got:\n%s", out)
+	}
+}
+
 // --- FilterSkills ---
 
 func TestLoader_FilterSkills_NilAllowList(t *testing.T) {

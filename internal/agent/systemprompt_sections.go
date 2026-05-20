@@ -155,6 +155,10 @@ func splitStableDynamicContextFiles(files []bootstrap.ContextFile) (stable, dyna
 
 // buildPinnedSkillsMinimalSection generates a slim pinned-skills-only section for minimal mode.
 // No search/manage — just inline the pinned tools so subagent/cron can use them.
+//
+// GOCLAW_INLINE_BODY: pinnedSummary may include a <body>…</body> child inside each
+// <skill> element when the underlying SKILL.md frontmatter sets `inline_body: true`.
+// This section just splices the XML through verbatim — no logic changes here.
 func buildPinnedSkillsMinimalSection(pinnedSummary string) []string {
 	return []string{
 		"## Pinned Skills",
@@ -166,6 +170,10 @@ func buildPinnedSkillsMinimalSection(pinnedSummary string) []string {
 }
 
 // buildSkillsHybridSection generates a hybrid skills section: pinned skills inline + search for rest.
+//
+// GOCLAW_INLINE_BODY: pinnedSummary may include a <body>…</body> child inside each
+// <skill> element when the underlying SKILL.md frontmatter sets `inline_body: true`.
+// This section just splices the XML through verbatim — no logic changes here.
 func buildSkillsHybridSection(pinnedSummary string, hasSearch, hasManage bool) []string {
 	lines := []string{"## Skills", ""}
 	if pinnedSummary != "" {
