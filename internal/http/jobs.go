@@ -40,6 +40,7 @@ func NewJobsHandler(codeRunnerURL string) *JobsHandler {
 // RegisterRoutes registers the /v1/jobs* routes on the mux.
 func (h *JobsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/jobs", h.auth(h.handleList))
+	mux.HandleFunc("GET /v1/jobs/{id}", h.auth(h.handleGet))
 	mux.HandleFunc("POST /v1/jobs/{id}/answer", h.auth(h.handleAnswer))
 }
 
@@ -50,6 +51,14 @@ func (h *JobsHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 // handleList proxies GET /v1/jobs — the caller workspace's recent jobs.
 func (h *JobsHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, http.MethodGet, "/v1/jobs", nil)
+}
+
+// handleGet proxies GET /v1/jobs/{id} — the full result of a single job,
+// including the captured message transcript. code-runner returns the whole
+// result JSONB; goclaw relays it verbatim.
+func (h *JobsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	h.proxy(w, r, http.MethodGet, "/v1/jobs/"+url.PathEscape(id), nil)
 }
 
 // handleAnswer proxies POST /v1/jobs/{id}/answer — the user's answer to a job
