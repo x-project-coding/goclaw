@@ -50,7 +50,7 @@ func (h *JobsHandler) auth(next http.HandlerFunc) http.HandlerFunc {
 
 // handleList proxies GET /v1/jobs — the caller workspace's recent jobs.
 func (h *JobsHandler) handleList(w http.ResponseWriter, r *http.Request) {
-	h.proxy(w, r, http.MethodGet, "/v1/jobs", nil)
+	h.proxy(w, r, http.MethodGet, "/v1/jobs", nil, 1<<20)
 }
 
 // handleGet proxies GET /v1/jobs/{id} — the full result of a single job,
@@ -58,7 +58,17 @@ func (h *JobsHandler) handleList(w http.ResponseWriter, r *http.Request) {
 // result JSONB; goclaw relays it verbatim.
 func (h *JobsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	h.proxy(w, r, http.MethodGet, "/v1/jobs/"+url.PathEscape(id), nil)
+	// Defense-in-depth path-safety: the {id} route pattern already cannot match
+	// a "/", but validate it as a UUID before proxying per the path-safety policy.
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid job id"})
+		return
+	}
+	// The job detail relays the full result JSONB — a messages array (up to ~200
+	// entries x ~8 KB) plus toolUseEvents — which can exceed the 1 MiB list cap
+	// and would otherwise be silently truncated mid-JSON into a corrupt body.
+	// id is validated as a UUID above, so it is safe to pass without escaping.
+	h.proxy(w, r, http.MethodGet, "/v1/jobs/"+id, nil, 8<<20)
 }
 
 // handleAnswer proxies POST /v1/jobs/{id}/answer — the user's answer to a job
@@ -72,12 +82,14 @@ func (h *JobsHandler) handleAnswer(w http.ResponseWriter, r *http.Request) {
 			i18n.T(extractLocale(r), i18n.MsgInvalidJSON))
 		return
 	}
-	h.proxy(w, r, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/answer", body)
+	h.proxy(w, r, http.MethodPost, "/v1/jobs/"+url.PathEscape(id)+"/answer", body, 1<<20)
 }
 
 // proxy authenticates the chat user, mints a workspace skill key for their
 // tenant, and relays the request to code-runner — streaming the response back.
-func (h *JobsHandler) proxy(w http.ResponseWriter, r *http.Request, method, path string, body []byte) {
+// maxResponseBytes caps the relayed response body to guard against unbounded
+// reads; callers size it to the largest legitimate payload (see handleGet).
+func (h *JobsHandler) proxy(w http.ResponseWriter, r *http.Request, method, path string, body []byte, maxResponseBytes int64) {
 	tenantID := store.TenantIDFromContext(r.Context())
 	if tenantID == uuid.Nil {
 		tenantID = store.MasterTenantID
@@ -114,5 +126,5 @@ func (h *JobsHandler) proxy(w http.ResponseWriter, r *http.Request, method, path
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, io.LimitReader(resp.Body, 1<<20))
+	_, _ = io.Copy(w, io.LimitReader(resp.Body, maxResponseBytes))
 }
