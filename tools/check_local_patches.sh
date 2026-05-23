@@ -135,6 +135,14 @@ check_grep "Patch 11: routingMode → X-Router-Mode header" 6 \
   internal/pipeline/run_state.go internal/providers/claude_cli.go \
   internal/providers/xrouter.go
 
+# Patch 12 — opt-in inline SKILL.md body for pinned skills. Pinned summaries
+# can inline opted-in SKILL.md bodies while non-pinned skill_search summaries
+# remain metadata-only.
+check_grep "Patch 12: pinned skill inline body" 12 \
+  'GOCLAW_INLINE_BODY|InlineBody|inline_body|inlineBodyMaxBytes' \
+  internal/skills/loader.go internal/skills/loader_test.go \
+  internal/agent/systemprompt_sections.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

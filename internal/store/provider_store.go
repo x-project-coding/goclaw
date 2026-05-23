@@ -33,6 +33,7 @@ const (
 	ProviderNovita          = "novita"          // Novita AI (OpenAI-compatible endpoint)
 	ProviderBytePlus        = "byteplus"        // BytePlus ModelArk (Seed 2.0 models)
 	ProviderBytePlusCoding  = "byteplus_coding" // BytePlus ModelArk Coding Plan
+	ProviderVertex          = "vertex"          // Google Cloud Vertex AI (OAuth2 service account + ADC)
 	ProviderXRouter         = "xrouter"         // 42bucks LLM gateway with workspace/agent/user/session attribution headers
 
 	// Novita AI defaults.
@@ -43,7 +44,12 @@ const (
 	BytePlusDefaultAPIBase       = "https://ark.ap-southeast.bytepluses.com/api/v3"
 	BytePlusCodingDefaultAPIBase = "https://ark.ap-southeast.bytepluses.com/api/coding/v3"
 	BytePlusDefaultModel         = "seed-2-0-lite-260228"
+
 )
+
+// Vertex AI constants live in internal/providers/vertex.go to avoid a store→providers import cycle
+// (store is imported by providers). DB-layer concerns (ProviderVertex type + settings parsing)
+// remain in this package.
 
 // ValidProviderTypes lists all accepted provider_type values.
 var ValidProviderTypes = map[string]bool{
@@ -71,7 +77,31 @@ var ValidProviderTypes = map[string]bool{
 	ProviderNovita:          true,
 	ProviderBytePlus:        true,
 	ProviderBytePlusCoding:  true,
+	ProviderVertex:          true,
 	ProviderXRouter:         true,
+}
+
+// VertexProviderSettings holds Vertex-specific config stored in llm_providers.settings JSONB.
+type VertexProviderSettings struct {
+	ProjectID string `json:"project_id"`
+	Region    string `json:"region"`
+	Model     string `json:"model,omitempty"` // optional default model override (e.g. "google/gemini-2.5-pro-001")
+}
+
+// ParseVertexProviderSettings extracts Vertex config from settings JSONB.
+// Returns nil if project_id or region is missing (both required).
+func ParseVertexProviderSettings(settings json.RawMessage) *VertexProviderSettings {
+	if len(settings) == 0 {
+		return nil
+	}
+	var s VertexProviderSettings
+	if json.Unmarshal(settings, &s) != nil {
+		return nil
+	}
+	if s.ProjectID == "" || s.Region == "" {
+		return nil
+	}
+	return &s
 }
 
 // LLMProviderData represents an LLM provider configuration.
@@ -181,6 +211,7 @@ var NoEmbeddingTypes = map[string]bool{
 	ProviderACP:             true,
 	ProviderClaudeCLI:       true,
 	ProviderChatGPTOAuth:    true,
+	ProviderVertex:          true, // Vertex embeddings live on a different native endpoint, not on /endpoints/openapi
 }
 
 // ProviderStore manages LLM providers.
