@@ -84,8 +84,8 @@ check_grep "Patch 7: tenants hard-delete code" 6 \
   internal/store/tenant_store.go internal/store/pg/tenant_store.go \
   internal/store/sqlitestore/tenants.go internal/http/tenants.go \
   internal/gateway/methods/tenants.go internal/bus/types.go
-check_grep "Patch 7: RequiredSchemaVersion bump" 1 \
-  'RequiredSchemaVersion uint = 99000' \
+check_grep "Patch 7: RequiredSchemaVersion in fork block" 1 \
+  'RequiredSchemaVersion uint = 99[0-9]{3}' \
   internal/upgrade/version.go
 check_file "Patch 7: tenant_cascade migration (up)" \
   migrations/099000_tenant_cascade.up.sql
@@ -142,6 +142,18 @@ check_grep "Patch 12: pinned skill inline body" 12 \
   'GOCLAW_INLINE_BODY|InlineBody|inline_body|inlineBodyMaxBytes' \
   internal/skills/loader.go internal/skills/loader_test.go \
   internal/agent/systemprompt_sections.go
+
+# Patch 13 — backfill skipped upstream v3.12.0 migrations for DBs already at 099000.
+check_file "Patch 13: upstream v3.12 backfill migration (up)" \
+  migrations/099001_upstream_v3_12_backfill.up.sql
+check_file "Patch 13: upstream v3.12 backfill migration (down)" \
+  migrations/099001_upstream_v3_12_backfill.down.sql
+check_grep "Patch 13: RequiredSchemaVersion 99001" 1 \
+  'RequiredSchemaVersion uint = 99001' \
+  internal/upgrade/version.go
+check_grep "Patch 13: upstream v3.12 backfill contents" 10 \
+  'secure_cli_agent_grants|webhooks|webhook_calls|workstations|workstation_permissions|workstation_activity|model_fallback|skill_agent_grants|can_manage|DELETE FROM skill_agent_grants' \
+  migrations/099001_upstream_v3_12_backfill.up.sql
 
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'

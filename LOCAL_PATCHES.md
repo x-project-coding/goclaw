@@ -161,10 +161,11 @@ in append order. Do not place fork migrations below `099000`.
   - `migrations/099000_tenant_cascade.up.sql` + `.down.sql` — one `DO $$`
     block that rewrites every FK on `tenants(id)` to `ON DELETE CASCADE`,
     so a single `DELETE FROM tenants WHERE id=$1` reclaims all child rows.
-  - `internal/upgrade/version.go` — `RequiredSchemaVersion` bumped to
-    `99000` so the migration runner picks the file up. Without this bump
-    `CheckSchema` short-circuits as "up to date" because `current ==
-    required (57)` and golang-migrate is never invoked.
+  - `internal/upgrade/version.go` — `RequiredSchemaVersion` bumped into the
+    fork-only `099xxx` block (currently `99001`) so the migration runner
+    picks fork-only files up. Without this bump `CheckSchema` short-circuits
+    as "up to date" because `current == required` and golang-migrate is never
+    invoked.
   - `internal/store/tenant_store.go` — `TenantStore.DeleteTenant` on the
     interface.
   - `internal/store/pg/tenant_store.go` — Postgres impl.
@@ -186,7 +187,7 @@ in append order. Do not place fork migrations below `099000`.
     internal/store/tenant_store.go internal/store/pg/tenant_store.go \
     internal/store/sqlitestore/tenants.go internal/http/tenants.go \
     internal/gateway/methods/tenants.go internal/bus/types.go
-  grep -nE 'RequiredSchemaVersion uint = 99000' internal/upgrade/version.go
+  grep -nE 'RequiredSchemaVersion uint = 99[0-9]{3}' internal/upgrade/version.go
   ```
   Plus migration presence:
   ```
@@ -407,3 +408,35 @@ in append order. Do not place fork migrations below `099000`.
     internal/agent/systemprompt_sections.go
   ```
   Expects ≥ 12 hits.
+
+### Patch 13 — `fix(upgrade): backfill skipped upstream v3.12 migrations after 099000`
+
+- **Base upstream commit:** `392f0fda` (`v3.12.0`)
+- **Files:**
+  - `migrations/099001_upstream_v3_12_backfill.up.sql` — idempotent copy of
+    upstream migrations `000058`..`000067` for databases already at schema
+    version `99000`, where golang-migrate will not visit lower-numbered
+    upstream migration files.
+  - `migrations/099001_upstream_v3_12_backfill.down.sql` — intentional no-op;
+    fresh databases already receive upstream `000058`..`000067` normally, so
+    the compatibility migration cannot safely know which objects it created.
+  - `internal/upgrade/version.go` — `RequiredSchemaVersion` raised to `99001`
+    so the upgrade runner applies the compatibility migration.
+  - `tools/check_local_patches.sh` — verifies the migration files, schema
+    version, and key backfilled table/column tokens.
+- **Why:** Patch 7 moved our production database schema version to `99000`.
+  Upstream v3.12.0 added lower-numbered migrations `000058`..`000067`, so
+  deploying the merged binary directly would skip the new webhook,
+  workstation, model fallback, and skill grant schema changes. This patch
+  preserves the reserved fork migration block while making existing `99000`
+  databases compatible with v3.12.0 code.
+- **Recovery grep:**
+  ```
+  test -f migrations/099001_upstream_v3_12_backfill.up.sql
+  test -f migrations/099001_upstream_v3_12_backfill.down.sql
+  grep -nE 'RequiredSchemaVersion uint = 99001' internal/upgrade/version.go
+  grep -nE 'secure_cli_agent_grants|webhooks|webhook_calls|workstations|workstation_permissions|workstation_activity|model_fallback|skill_agent_grants|can_manage|DELETE FROM skill_agent_grants' \
+    migrations/099001_upstream_v3_12_backfill.up.sql
+  ```
+  Expects both migration files present, 1 schema-version hit, and ≥ 10
+  migration-content hits.

@@ -1,0 +1,7 @@
+-- Intentionally no-op.
+--
+-- 099001 is a fork-only compatibility backfill for databases that skipped
+-- upstream migrations 000058..000067 after 099000_tenant_cascade moved the
+-- schema version into the reserved 099xxx block. Fresh databases already get
+-- those upstream migrations normally before this file runs, so a down migration
+-- cannot safely tell which objects it created and which came from upstream.
