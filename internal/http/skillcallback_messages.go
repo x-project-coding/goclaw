@@ -21,6 +21,12 @@ type messagesRequest struct {
 	Title      string `json:"title"`
 	Summary    string `json:"summary"`
 	JobID      string `json:"jobId"`
+	// Announce: when true, the summary is posted DIRECTLY into the session as an
+	// assistant message (no LLM relay turn) — see handleCodeAnnounce. The agent
+	// already wrote a user-facing summary, so re-running an agent turn to relay
+	// it is wasteful and unreliable. When false (default) the legacy path runs:
+	// the message is delivered as an inbound and the agent relays it.
+	Announce bool `json:"announce"`
 }
 
 // handleMessages receives an async result from a skill-backing service (the
@@ -74,12 +80,29 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 	}
 	channel, peerKind, chatID := parts[0], parts[1], parts[2]
 
-	content := strings.TrimSpace(strings.TrimSpace(req.Title) + "\n\n" + strings.TrimSpace(req.Summary))
-	if content == "" {
-		content = "A background code job finished."
-	}
-	if req.JobID != "" {
-		content += "\n\n(code job " + req.JobID + ")"
+	meta := map[string]string{"source": "code-skill-callback", "job_id": req.JobID}
+	var content string
+	if req.Announce {
+		// Direct-announce: the summary IS the user-facing message. Post it
+		// verbatim (no "Code job completed" title, no "(code job <id>)" suffix);
+		// handleCodeAnnounce persists it straight into the session.
+		content = strings.TrimSpace(req.Summary)
+		if content == "" {
+			content = strings.TrimSpace(req.Title)
+		}
+		if content == "" {
+			content = "A background code job finished."
+		}
+		meta["announce"] = "true"
+	} else {
+		// Legacy relay path: the agent rephrases title+summary for the user.
+		content = strings.TrimSpace(strings.TrimSpace(req.Title) + "\n\n" + strings.TrimSpace(req.Summary))
+		if content == "" {
+			content = "A background code job finished."
+		}
+		if req.JobID != "" {
+			content += "\n\n(code job " + req.JobID + ")"
+		}
 	}
 
 	h.msgBus.PublishInbound(bus.InboundMessage{
@@ -90,10 +113,10 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 		AgentID:  agentID,
 		PeerKind: peerKind,
 		TenantID: keyData.TenantID,
-		Metadata: map[string]string{"source": "code-skill-callback", "job_id": req.JobID},
+		Metadata: meta,
 	})
 
 	slog.Info("skillcallback.messages delivered to session",
-		"agent_id", agentID, "channel", channel, "job_id", req.JobID)
+		"agent_id", agentID, "channel", channel, "job_id", req.JobID, "announce", req.Announce)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "delivered"})
 }

@@ -383,6 +383,68 @@ func handleTeammateMessage(
 	return true
 }
 
+// handleCodeAnnounce posts a code job's completion message DIRECTLY into the
+// originating session as an assistant message — NO LLM relay turn. The
+// in-sandbox agent already wrote a user-facing summary ("It's live: <link>"), so
+// re-running a full agent turn just to relay it is wasteful (~90s) and
+// unreliable (the relay agent can run tools, error, or rephrase poorly). We
+// persist the message to the session transcript (web clients pick it up from
+// history) and deliver it to the originating channel, then we're done.
+//
+// Gated on Metadata: only code-skill-callback messages flagged announce=true take
+// this path (see skillcallback_messages.go). Everything else falls through to the
+// legacy relay. Returns true if handled (caller should continue).
+func handleCodeAnnounce(
+	ctx context.Context,
+	msg bus.InboundMessage,
+	deps *ConsumerDeps,
+) bool {
+	if msg.Metadata["source"] != "code-skill-callback" || msg.Metadata["announce"] != "true" {
+		return false
+	}
+
+	agentID := msg.AgentID
+	if agentID == "" {
+		agentID = resolveAgentRoute(deps.Cfg, msg.Channel, msg.ChatID, msg.PeerKind)
+	}
+	peerKind := msg.PeerKind
+	if peerKind == "" {
+		peerKind = string(sessions.PeerDirect)
+	}
+	sessionKey := sessions.BuildScopedSessionKey(agentID, msg.Channel, sessions.PeerKind(peerKind), msg.ChatID)
+
+	content := strings.TrimSpace(msg.Content)
+	if content == "" {
+		slog.Warn("code announce: empty content, skipping", "session", sessionKey, "job_id", msg.Metadata["job_id"])
+		return true
+	}
+
+	actx := store.WithTenantID(ctx, msg.TenantID)
+	// Persist as an assistant turn so the chat transcript (and the web UI's
+	// history poll) surfaces it immediately — no agent turn involved.
+	deps.SessStore.AddMessage(actx, sessionKey, providers.Message{
+		Role:     "assistant",
+		Content:  content,
+		SenderID: agentID,
+	})
+	if err := deps.SessStore.Save(actx, sessionKey); err != nil {
+		slog.Error("code announce: session save failed", "session", sessionKey, "job_id", msg.Metadata["job_id"], "error", err)
+	}
+
+	// Deliver to the originating channel too (Telegram/etc. need the outbound;
+	// web clients already have it from the persisted transcript).
+	deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+		Channel:  msg.Channel,
+		ChatID:   msg.ChatID,
+		Content:  content,
+		Metadata: msg.Metadata,
+	})
+
+	slog.Info("inbound: code job announce delivered",
+		"session", sessionKey, "job_id", msg.Metadata["job_id"])
+	return true
+}
+
 // handleResetCommand processes /reset command: clears session history.
 // Returns true if the message was handled (caller should continue).
 func handleResetCommand(

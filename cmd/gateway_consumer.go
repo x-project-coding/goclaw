@@ -122,6 +122,9 @@ func consumeInboundMessages(ctx context.Context, msgBus *bus.MessageBus, agents 
 		if handleSubagentAnnounce(ctx, msg, deps) {
 			continue
 		}
+		if handleCodeAnnounce(ctx, msg, deps) {
+			continue
+		}
 		if handleTeammateMessage(ctx, msg, deps) {
 			continue
 		}
