@@ -23,6 +23,9 @@ const (
 	// defaultMediaMaxBytes is the default max download size for the official Bot API (20 MB).
 	defaultMediaMaxBytes int64 = 20 * 1024 * 1024
 
+	// officialAPIOutboundMaxBytes is Telegram's upload limit for Bot API media sends.
+	officialAPIOutboundMaxBytes int64 = 50 * 1024 * 1024
+
 	// localAPIDefaultMaxBytes is the default max download size when a local Bot API server
 	// is configured. The local server supports up to 2 GB; we default to 200 MB and let
 	// downstream providers enforce their own limits.
