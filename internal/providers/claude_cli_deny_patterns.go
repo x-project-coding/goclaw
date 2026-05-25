@@ -9,7 +9,7 @@ var ShellDenyPatterns = []string{
 	`\brm\s+.*--force`,
 	`\bdel\s+/[fq]\b`,
 	`\brmdir\s+/s\b`,
-	`\b(mkfs|diskpart)\b|\bformat\s`,
+	`\b(mkfs|diskpart)\b|\bformat\s+(?:/dev/|[a-zA-Z]:)`, // only disk/device targets, not benign "format ..."
 	`\bdd\s+if=`,
 	`>\s*/dev/sd[a-z]\b`,
 	`\b(shutdown|reboot|poweroff)\b`,

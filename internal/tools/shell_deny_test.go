@@ -10,6 +10,48 @@ import (
 	"testing"
 )
 
+func TestFormatShellDeny(t *testing.T) {
+	patterns := DenyGroupRegistry["destructive_ops"].Patterns
+
+	denied := []string{
+		"format C:",
+		"format c:\\",
+		"format /dev/sda",
+		"mkfs.ext4 /dev/sdb",
+		"diskpart",
+	}
+
+	// Benign uses of the word "format" must NOT be blocked — the old
+	// `\bformat\s` pattern false-positived on all of these.
+	allowed := []string{
+		`echo "WS_ID format check:"`,
+		"prettier --format json",
+		"date --format=%s",
+		"git log --format=oneline",
+		"go test -run TestFormat ./...",
+	}
+
+	matchAny := func(cmd string) bool {
+		for _, p := range patterns {
+			if p.MatchString(cmd) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, cmd := range denied {
+		if !matchAny(cmd) {
+			t.Errorf("expected deny for %q", cmd)
+		}
+	}
+	for _, cmd := range allowed {
+		if matchAny(cmd) {
+			t.Errorf("expected ALLOW for %q (benign use of \"format\")", cmd)
+		}
+	}
+}
+
 func TestBase64DecodeShellDeny(t *testing.T) {
 	patterns := DenyGroupRegistry["code_injection"].Patterns
 

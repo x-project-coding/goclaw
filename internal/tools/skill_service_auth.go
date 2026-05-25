@@ -20,7 +20,8 @@ import (
 //	SKILL_RUNTIME_TOKEN  — a workspace-scoped goclaw API key for the
 //	                       X-Workspace-Key header; the service resolves the
 //	                       workspace + gateway from it via /callback/v1/verify-key
-//	GOCLAW_WORKSPACE_ID  \
+//	GOCLAW_WORKSPACE_ID  \  — tenant workspace identifier (the tenant UUID),
+//	                       |   sent as the service's workspace id; NOT a path
 //	GOCLAW_USER_ID         }— request identity (non-secret)
 //	GOCLAW_AGENT_ID        |
 //	GOCLAW_SESSION_KEY   /  — origin session, for the service's result callback
@@ -114,8 +115,17 @@ func skillServiceEnvMap(ctx context.Context) map[string]string {
 	if tok := workspaceSkillToken(ctx, rc.TenantID); tok != "" {
 		m["SKILL_RUNTIME_TOKEN"] = tok
 	}
-	if rc.Workspace != "" {
-		m["GOCLAW_WORKSPACE_ID"] = rc.Workspace
+	// GOCLAW_WORKSPACE_ID is the tenant's stable workspace IDENTIFIER, not its
+	// filesystem path. Skill-backed services send it as the workspace id
+	// (x-code's `workspaceCuid` → x-api `x-workspace-id`), which x-api resolves
+	// against {Workspace.id, gatewayTenantId, verify-key tenantId/workspaceId}
+	// and validates as `^[A-Za-z0-9_-]+$`. The tenant UUID always matches the
+	// verify-key `tenantId` / `gatewayTenantId`, so it both passes validation
+	// and resolves the right workspace. (Historically this was rc.Workspace —
+	// the resolved per-user *path*, which contains `/` and fails the regex once
+	// user/chat isolation layering is applied, breaking every job launch.)
+	if rc.TenantID != uuid.Nil {
+		m["GOCLAW_WORKSPACE_ID"] = rc.TenantID.String()
 	}
 	if rc.UserID != "" {
 		m["GOCLAW_USER_ID"] = rc.UserID

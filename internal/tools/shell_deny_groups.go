@@ -25,7 +25,10 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 			regexp.MustCompile(`\brm\s+.*--force`),
 			regexp.MustCompile(`\bdel\s+/[fq]\b`),
 			regexp.MustCompile(`\brmdir\s+/s\b`),
-			regexp.MustCompile(`\b(mkfs|diskpart)\b|\bformat\s`),
+			// `format` only when it targets a disk/device (Windows `format C:`
+			// or a `/dev/` node) — a bare `\bformat\s` blocked benign English
+			// like `echo "format check"`.
+			regexp.MustCompile(`\b(mkfs|diskpart)\b|\bformat\s+(?:/dev/|[a-zA-Z]:)`),
 			regexp.MustCompile(`\bdd\s+if=`),
 			regexp.MustCompile(`>\s*/dev/sd[a-z]\b`),
 			regexp.MustCompile(`\b(shutdown|reboot|poweroff|halt)\b`),
