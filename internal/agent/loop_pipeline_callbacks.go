@@ -188,6 +188,7 @@ func (l *Loop) makeEnrichMedia(req *RunRequest) func(ctx context.Context, state 
 func (l *Loop) makeInjectReminders(req *RunRequest) func(ctx context.Context, input *pipeline.RunInput, msgs []providers.Message) []providers.Message {
 	return func(ctx context.Context, input *pipeline.RunInput, msgs []providers.Message) []providers.Message {
 		updated, _ := l.injectTeamTaskReminders(ctx, req, msgs)
+		updated = l.injectLatestJobResultReminder(ctx, req, updated)
 		return updated
 	}
 }

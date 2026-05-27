@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -383,6 +384,22 @@ func handleTeammateMessage(
 	return true
 }
 
+// codeJobResultURLRe matches the result URL(s) in a code-job announce summary.
+var codeJobResultURLRe = regexp.MustCompile(`https?://[^\s)>\]]+`)
+
+// dedupeStrings returns ss with duplicates removed, preserving first-seen order.
+func dedupeStrings(ss []string) []string {
+	seen := make(map[string]bool, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // handleCodeAnnounce posts a code job's completion message DIRECTLY into the
 // originating session as an assistant message — NO LLM relay turn. The
 // in-sandbox agent already wrote a user-facing summary ("It's live: <link>"), so
@@ -429,6 +446,22 @@ func handleCodeAnnounce(
 	})
 	if err := deps.SessStore.Save(actx, sessionKey); err != nil {
 		slog.Error("code announce: session save failed", "session", sessionKey, "job_id", msg.Metadata["job_id"], "error", err)
+	}
+
+	// Record this completion's result link(s) as the session's "latest job
+	// result". Across several iterations a chat accumulates many old result
+	// links (one per build); a weaker model can grab a stale one. We surface
+	// the freshest link as a context reminder on later turns (see
+	// injectLatestJobResultReminder) so the agent always points at the current
+	// version. Best-effort: if there's no URL, leave any prior pointer intact.
+	if links := codeJobResultURLRe.FindAllString(content, -1); len(links) > 0 {
+		deps.SessStore.SetSessionMetadata(actx, sessionKey, map[string]string{
+			agent.MetaLatestJobResultLinks: strings.Join(dedupeStrings(links), " "),
+			agent.MetaLatestJobResultAt:    strconv.FormatInt(time.Now().Unix(), 10),
+		})
+		if err := deps.SessStore.Save(actx, sessionKey); err != nil {
+			slog.Warn("code announce: metadata save failed", "session", sessionKey, "error", err)
+		}
 	}
 
 	// Deliver to the originating channel too (Telegram/etc. need the outbound;
