@@ -237,6 +237,23 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		runCtxBase = store.WithUserID(runCtxBase, userID)
 	}
 
+	// Eagerly persist a brand-new session so it surfaces in sessions.list (the
+	// app's chat sidebar) the instant the user's message arrives. goclaw
+	// otherwise only writes the session row at finalize, so a freshly-created
+	// chat is invisible in the sidebar until the AI's first reply completes.
+	// Setting UserID is required — sessions.list filters by user_id, so a bare
+	// GetOrCreate row (no user_id) would be excluded. agent_id/label/messages
+	// fill in at finalize. No-op for an already-persisted session.
+	if userID != "" {
+		sess := m.sessions.GetOrCreate(runCtxBase, sessionKey)
+		if sess.UserID == "" {
+			sess.UserID = userID
+			if err := m.sessions.Save(runCtxBase, sessionKey); err != nil {
+				slog.Warn("chat.eager_session_persist_failed", "sessionKey", sessionKey, "error", err)
+			}
+		}
+	}
+
 	// Mid-run injection: if session already has an active run, inject the message
 	// into the running loop instead of starting a new concurrent run.
 	if m.agents.IsSessionBusy(sessionKey) {
