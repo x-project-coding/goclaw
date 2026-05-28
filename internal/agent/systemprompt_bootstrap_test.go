@@ -176,6 +176,32 @@ func TestBuildSystemPrompt_PredefinedNoOnboarding(t *testing.T) {
 	}
 }
 
+// TestBuildSystemPrompt_PredefinedBootstrapTrueNoOnboarding proves the real
+// removal: even with IsBootstrap=true AND a BOOTSTRAP.md / blank USER.md present
+// (the exact state that used to trigger predefined onboarding), the prompt must
+// NOT contain the removed predefined-onboarding copy. Unlike the IsBootstrap=false
+// cases, this does not pass trivially via the "## FIRST RUN" gate — the OPEN
+// "## FIRST RUN — MANDATORY" block may still render here, which is expected, so we
+// only assert the two removed predefined-onboarding phrases are absent.
+func TestBuildSystemPrompt_PredefinedBootstrapTrueNoOnboarding(t *testing.T) {
+	blankUserMD := "# USER.md\n\n- **Name:**\n- **Language:**\n- **Timezone:**\n"
+	cfg := SystemPromptConfig{
+		IsBootstrap: true,
+		AgentType:   store.AgentTypePredefined,
+		ContextFiles: []bootstrap.ContextFile{
+			{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
+			{Path: bootstrap.UserFile, Content: blankUserMD},
+		},
+		ToolNames: []string{"write_file", "web_search"},
+	}
+	prompt := BuildSystemPrompt(cfg)
+	for _, f := range []string{"GET TO KNOW THE USER", "USER PROFILE INCOMPLETE"} {
+		if strings.Contains(prompt, f) {
+			t.Errorf("predefined prompt (IsBootstrap=true) must not contain %q", f)
+		}
+	}
+}
+
 // TestBuildSystemPrompt_OpenBootstrapUnchanged verifies Phase 04 did NOT
 // touch the open-agent slim branch — its existing mandate copy stays.
 func TestBuildSystemPrompt_OpenBootstrapUnchanged(t *testing.T) {

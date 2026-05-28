@@ -94,7 +94,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 
 	// Bootstrap auto-contact: inject known sender info from channel metadata.
 	// DM only — group chats have permission checks and multiple senders.
-	if hadBootstrap && peerKind == "direct" {
+	if hadBootstrap && peerKind == "direct" && l.agentType != store.AgentTypePredefined {
 		if senderName := store.SenderNameFromContext(ctx); senderName != "" {
 			hint := fmt.Sprintf("Known user info (from %s): Name=%q\nTimezone: not yet known. When the user mentions times, schedules, or reminders, ask for their timezone and update USER.md.", channelType, senderName)
 			if extraSystemPrompt != "" {
