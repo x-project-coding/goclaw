@@ -135,103 +135,25 @@ func TestBuildPrefilledUser_SanitizesMarkdownInjection(t *testing.T) {
 	}
 }
 
-// TestSeedUserFiles_PredefinedAgent_UsesAgentLevelUserMD is the primary regression test.
-// When a predefined agent has wizard-written USER.md in agent_context_files, SeedUserFiles
-// must seed that content into user_context_files — NOT the blank embedded template.
-func TestSeedUserFiles_PredefinedAgent_UsesAgentLevelUserMD(t *testing.T) {
+// TestSeedUserFiles_PredefinedSeedsNothing verifies that predefined agents seed
+// ZERO per-user files. Predefined (42bucks brand) agents have no per-user USER.md
+// or BOOTSTRAP.md — user identity comes from the external user-info skill.
+func TestSeedUserFiles_PredefinedSeedsNothing(t *testing.T) {
 	as := newSeedStub()
 	agentID := uuid.New()
-	wizardContent := "# User Profile\nOwner: Alice\nLanguage: English\nNotes: Prefers concise answers"
 
-	// Simulate wizard writing USER.md at agent level via agents.files.set
-	as.agentFiles[UserFile] = wizardContent
+	// Even with wizard-written agent-level files present, predefined seeds nothing.
+	as.agentFiles[UserFile] = "# User Profile\nOwner: Alice"
 
 	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-alice", store.AgentTypePredefined, false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
-
-	// USER.md must be in the seeded list
-	foundUserMD := false
-	for _, f := range seeded {
-		if f == UserFile {
-			foundUserMD = true
-		}
+	if len(seeded) != 0 {
+		t.Errorf("predefined agent should seed zero files, but seeded: %v", seeded)
 	}
-	if !foundUserMD {
-		t.Errorf("USER.md not in seeded files list: %v", seeded)
-	}
-
-	// The seeded USER.md must contain wizard content, not the blank template
-	got, ok := as.seededUserFiles[UserFile]
-	if !ok {
-		t.Fatal("USER.md was not written to user_context_files")
-	}
-	if got != wizardContent {
-		t.Errorf("seeded USER.md content mismatch:\n  want: %q\n  got:  %q", wizardContent, got)
-	}
-}
-
-// TestSeedUserFiles_PredefinedAgent_FallsBackToTemplateWhenNoAgentLevelUserMD verifies
-// that when there is no wizard-written USER.md at agent level, the blank template is used.
-func TestSeedUserFiles_PredefinedAgent_FallsBackToTemplateWhenNoAgentLevelUserMD(t *testing.T) {
-	as := newSeedStub()
-	agentID := uuid.New()
-	// No agent-level USER.md — wizard did not write one
-
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-bob", store.AgentTypePredefined, false, nil)
-	if err != nil {
-		t.Fatalf("SeedUserFiles returned error: %v", err)
-	}
-
-	// USER.md should still be seeded (from embedded template)
-	foundUserMD := false
-	for _, f := range seeded {
-		if f == UserFile {
-			foundUserMD = true
-		}
-	}
-	if !foundUserMD {
-		t.Errorf("USER.md should be seeded from template when no agent-level file exists: %v", seeded)
-	}
-
-	// Content should be the embedded template (non-empty — the template file exists)
-	got, ok := as.seededUserFiles[UserFile]
-	if !ok {
-		t.Fatal("USER.md was not written to user_context_files")
-	}
-	if got == "" {
-		t.Error("seeded USER.md should not be empty (expected embedded template content)")
-	}
-}
-
-// TestSeedUserFiles_PredefinedAgent_DoesNotOverwriteExistingPerUserContent verifies
-// that personalized per-user USER.md written via conversation is never overwritten.
-func TestSeedUserFiles_PredefinedAgent_DoesNotOverwriteExistingPerUserContent(t *testing.T) {
-	as := newSeedStub()
-	agentID := uuid.New()
-	personalContent := "# User Profile\nMy customized personal content"
-
-	// Pre-populate per-user USER.md (simulates user who already chatted and personalized)
-	as.userFiles[UserFile] = personalContent
-	// Also set wizard content at agent level
-	as.agentFiles[UserFile] = "wizard content that should NOT override personal content"
-
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-charlie", store.AgentTypePredefined, false, nil)
-	if err != nil {
-		t.Fatalf("SeedUserFiles returned error: %v", err)
-	}
-
-	// USER.md must NOT be in the seeded list (existing content, should skip)
-	for _, f := range seeded {
-		if f == UserFile {
-			t.Error("USER.md should NOT be re-seeded when per-user content already exists")
-		}
-	}
-
-	// SetUserContextFile must not have been called for USER.md
-	if _, wrote := as.seededUserFiles[UserFile]; wrote {
-		t.Error("SetUserContextFile should not be called when per-user USER.md already has content")
+	if len(as.seededUserFiles) != 0 {
+		t.Errorf("predefined agent should write zero per-user files, but wrote: %v", as.seededUserFiles)
 	}
 }
 
@@ -270,19 +192,20 @@ func TestSeedUserFiles_OpenAgent_UsesEmbeddedTemplate(t *testing.T) {
 
 // TestSeedUserFiles_IdempotentOnSecondCall verifies that calling SeedUserFiles
 // a second time for the same user does not re-seed already-present files.
+// Uses an open agent — predefined agents seed nothing.
 func TestSeedUserFiles_IdempotentOnSecondCall(t *testing.T) {
 	as := newSeedStub()
 	agentID := uuid.New()
 
 	// First call — seeds files
-	SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypePredefined, false, nil)
+	SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypeOpen, false, nil)
 
 	// Simulate what the first call wrote (move seededUserFiles → userFiles)
 	maps.Copy(as.userFiles, as.seededUserFiles)
 	as.seededUserFiles = make(map[string]string)
 
 	// Second call — must seed nothing (all files already exist)
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypePredefined, false, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-frank", store.AgentTypeOpen, false, nil)
 	if err != nil {
 		t.Fatalf("second SeedUserFiles returned error: %v", err)
 	}
@@ -298,12 +221,13 @@ func TestSeedUserFiles_IdempotentOnSecondCall(t *testing.T) {
 // re-seeding BOOTSTRAP.md after auto-cleanup (which DELETEs the row).
 // This is the key scenario: server restart → ensureUserFiles called → existing profile
 // has USER.md but BOOTSTRAP.md was cleaned up → must NOT re-seed BOOTSTRAP.md.
+// Uses an open agent — predefined agents have no per-user BOOTSTRAP.md.
 func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	as := newSeedStub()
 	agentID := uuid.New()
 
 	// Step 1: Seed initial files (new user, skipIfAnyExist=false)
-	SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, false, nil)
+	SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypeOpen, false, nil)
 	maps.Copy(as.userFiles, as.seededUserFiles)
 	as.seededUserFiles = make(map[string]string)
 
@@ -311,7 +235,7 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	delete(as.userFiles, BootstrapFile)
 
 	// Step 3: skipIfAnyExist=true (existing profile) → must NOT re-seed
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, true, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypeOpen, true, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles(skipIfAnyExist=true) returned error: %v", err)
 	}
@@ -320,7 +244,7 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 	}
 
 	// Step 4: skipIfAnyExist=false (force) → SHOULD re-seed missing BOOTSTRAP.md
-	seeded, err = SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypePredefined, false, nil)
+	seeded, err = SeedUserFiles(context.Background(), as, agentID, "user-eve", store.AgentTypeOpen, false, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles(skipIfAnyExist=false) returned error: %v", err)
 	}
@@ -337,12 +261,13 @@ func TestSeedUserFiles_SkipIfAnyExist(t *testing.T) {
 
 // TestSeedUserFiles_SkipIfAnyExist_EmptyUser verifies that skipIfAnyExist=true
 // still seeds when the user has NO files at all (EnsureUserProfile pre-creation case).
+// Uses an open agent — predefined agents seed nothing regardless.
 func TestSeedUserFiles_SkipIfAnyExist_EmptyUser(t *testing.T) {
 	as := newSeedStub()
 	agentID := uuid.New()
 
 	// No existing user files → skipIfAnyExist=true should still seed
-	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-ghost", store.AgentTypePredefined, true, nil)
+	seeded, err := SeedUserFiles(context.Background(), as, agentID, "user-ghost", store.AgentTypeOpen, true, nil)
 	if err != nil {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}

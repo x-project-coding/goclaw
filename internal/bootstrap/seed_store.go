@@ -152,16 +152,16 @@ var userSeedFilesOpen = []string{
 }
 
 // userSeedFilesPredefined is the set of files seeded per-user for predefined agents.
-// Only USER.md — predefined agents already have full context (SOUL.md, IDENTITY.md, AGENTS.md)
-// and don't need a bootstrap onboarding ritual. They just need to learn the user's profile.
-var userSeedFilesPredefined = []string{
-	UserFile,
-	BootstrapFile,
-}
+// Empty: predefined (42bucks brand) agents seed NO per-user files. They already carry
+// full agent-level context (SOUL.md, IDENTITY.md, AGENTS.md) and no longer use a per-user
+// USER.md or a first-run BOOTSTRAP onboarding ritual — user identity comes from the
+// external user-info skill, not from files.
+var userSeedFilesPredefined = []string{}
 
 // SeedUserFiles seeds embedded templates into user_context_files for a new user.
-// For "open" agents: all 5 files (including BOOTSTRAP.md).
-// For "predefined" agents: USER.md + BOOTSTRAP.md (user-focused onboarding template).
+// For "open" agents: all files (including BOOTSTRAP.md).
+// For "predefined" agents: nothing (userSeedFilesPredefined is empty) — predefined
+// agents have no per-user USER.md/BOOTSTRAP.md; user identity comes from the user-info skill.
 // Only writes files that don't already exist — safe to call multiple times.
 //
 // When skipIfAnyExist is true, returns immediately if the user already has ANY context
@@ -169,11 +169,6 @@ var userSeedFilesPredefined = []string{
 // auto-cleanup (which DELETEs the row) on server restart — existing files like USER.md
 // indicate the user is not brand-new, so BOOTSTRAP.md should stay gone.
 // Use skipIfAnyExist=true for existing profiles, false for newly created profiles.
-//
-// For predefined agents seeding USER.md: if the agent already has a populated
-// USER.md in agent_context_files (e.g. written by the wizard or management dashboard),
-// that content is used as the per-user seed instead of the blank embedded template.
-// This ensures wizard-configured owner profiles are preserved on first chat.
 //
 // Returns the list of file names that were seeded.
 func SeedUserFiles(ctx context.Context, agentStore store.AgentStore, agentID uuid.UUID, userID, agentType string, skipIfAnyExist bool, channelMeta *ChannelMeta) ([]string, error) {
@@ -199,7 +194,8 @@ func SeedUserFiles(ctx context.Context, agentStore store.AgentStore, agentID uui
 	// Channel-provided contact info: skip bootstrap, pre-fill USER.md directly.
 	// Currently only Pancake channel (Facebook Messenger) provides enough user info
 	// (display_name from Facebook profile) to skip the interactive onboarding flow.
-	if shouldSkipBootstrap(channelMeta) {
+	// Open agents only — predefined agents have no per-user USER.md.
+	if agentType == store.AgentTypeOpen && shouldSkipBootstrap(channelMeta) {
 		userContent := buildPrefilledUser(channelMeta)
 		if err := retryOnBusy(func() error {
 			return agentStore.SetUserContextFile(ctx, agentID, userID, UserFile, userContent)
@@ -241,49 +237,15 @@ func SeedUserFiles(ctx context.Context, agentStore store.AgentStore, agentID uui
 		}
 	}
 
-	// For predefined agents: load agent-level files once to use as seed fallback.
-	// USER.md at agent-level may contain a pre-configured owner profile (e.g. set by
-	// the wizard or management dashboard). Use it as the per-user seed instead of the
-	// blank embedded template so the agent starts with the correct owner context.
-	var agentLevelFiles map[string]string
-	if agentType == store.AgentTypePredefined {
-		agentFiles, err := agentStore.GetAgentContextFiles(ctx, agentID)
-		if err == nil && len(agentFiles) > 0 {
-			agentLevelFiles = make(map[string]string, len(agentFiles))
-			for _, f := range agentFiles {
-				if f.Content != "" {
-					agentLevelFiles[f.FileName] = f.Content
-				}
-			}
-		}
-	}
-
+	// Predefined agents seed no per-user files (userSeedFilesPredefined is empty);
+	// this loop only runs for open agents seeding their per-user template set.
 	var seeded []string
 	for _, name := range files {
 		if hasFile[name] {
 			continue // already has personalized content, don't overwrite
 		}
 
-		// For predefined agents seeding USER.md: prefer agent-level content as seed.
-		// This propagates wizard/dashboard-configured owner profile to the first user.
-		if agentType == store.AgentTypePredefined && name == UserFile {
-			if agentContent, ok := agentLevelFiles[name]; ok {
-				if err := retryOnBusy(func() error { return agentStore.SetUserContextFile(ctx, agentID, userID, name, agentContent) }); err != nil {
-					return seeded, err
-				}
-				seeded = append(seeded, name)
-				continue
-			}
-			// No agent-level USER.md → fall through to blank embedded template
-		}
-
-		// Predefined agents use a user-focused bootstrap template
-		templateName := name
-		if agentType == store.AgentTypePredefined && name == BootstrapFile {
-			templateName = "BOOTSTRAP_PREDEFINED.md"
-		}
-
-		content, err := templateFS.ReadFile(templatePath(templateName))
+		content, err := templateFS.ReadFile(templatePath(name))
 		if err != nil {
 			slog.Warn("bootstrap: failed to read embedded template for user seed", "file", name, "error", err)
 			continue
@@ -312,11 +274,7 @@ func EmbeddedUserFiles(agentType string) []ContextFile {
 	}
 	var result []ContextFile
 	for _, name := range files {
-		templateName := name
-		if agentType == store.AgentTypePredefined && name == BootstrapFile {
-			templateName = "BOOTSTRAP_PREDEFINED.md"
-		}
-		content, err := templateFS.ReadFile(templatePath(templateName))
+		content, err := templateFS.ReadFile(templatePath(name))
 		if err != nil {
 			continue
 		}
