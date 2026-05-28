@@ -107,7 +107,8 @@ func (b *ContextFileInterceptor) SetConfigPermStore(s store.ConfigPermissionStor
 // ReadFile attempts to read a context file from the DB (with cache).
 // Routes based on agent type from context:
 //   - "open": all files per-user → fallback to agent-level
-//   - "predefined": USER.md + BOOTSTRAP.md per-user → all others agent-level
+//   - "predefined": no per-user files → all reads agent-level (shared identity files
+//     are blocked from re-reading; USER.md/BOOTSTRAP.md fall through to agent-level)
 //
 // Returns (content, true, nil) if handled, or ("", false, nil) if not a context file.
 func (b *ContextFileInterceptor) ReadFile(ctx context.Context, path string) (string, bool, error) {
@@ -137,17 +138,9 @@ func (b *ContextFileInterceptor) ReadFile(ctx context.Context, path string) (str
 		return b.readAgentFile(ctx, agentID, fileName)
 	}
 
-	// Predefined agent: USER.md and BOOTSTRAP.md per-user
-	if agentType == store.AgentTypePredefined && userID != "" && (fileName == bootstrap.UserFile || fileName == bootstrap.BootstrapFile) {
-		content, handled, err := b.readUserFile(ctx, agentID, userID, fileName)
-		if err != nil {
-			return "", handled, err
-		}
-		if content != "" {
-			return content, handled, nil
-		}
-		return b.readAgentFile(ctx, agentID, fileName)
-	}
+	// Predefined agents have no per-user USER.md / BOOTSTRAP.md (user identity comes from
+	// the user-info skill). USER.md and BOOTSTRAP.md are not in the block list below, so
+	// they fall through to the agent-level read at the end of this function.
 
 	// Predefined agent: block reads of shared identity files (SOUL.md, IDENTITY.md, AGENTS.md).
 	// These are already injected into the system prompt — allowing read_file would let the

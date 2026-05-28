@@ -605,6 +605,40 @@ func TestInterceptor_SharedContextReadsAgentLevelForOpenAgent(t *testing.T) {
 	}
 }
 
+// TestInterceptor_PredefinedUserMDReadsAgentLevel verifies that predefined agents
+// (which have no per-user USER.md) read USER.md from the agent level rather than
+// erroring or returning per-user content. Identity comes from the user-info skill.
+func TestInterceptor_PredefinedUserMDReadsAgentLevel(t *testing.T) {
+	agentID := uuid.New()
+	as := &stubAgentStore{
+		agentFiles: []store.AgentContextFileData{
+			{AgentID: agentID, FileName: "USER.md", Content: "agent-level fallback"},
+		},
+		userFiles: []store.UserContextFileData{
+			{AgentID: agentID, UserID: "user-1", FileName: "USER.md", Content: "should-not-be-read"},
+		},
+	}
+	intc := NewContextFileInterceptor(as, "/workspace",
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+		cache.NewInMemoryCache[[]store.AgentContextFileData](),
+	)
+
+	ctx := store.WithAgentID(context.Background(), agentID)
+	ctx = store.WithAgentType(ctx, store.AgentTypePredefined)
+	ctx = store.WithUserID(ctx, "user-1")
+
+	content, handled, err := intc.ReadFile(ctx, "USER.md")
+	if err != nil {
+		t.Fatalf("predefined USER.md read returned error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected USER.md read to be handled")
+	}
+	if content != "agent-level fallback" {
+		t.Fatalf("expected agent-level content, got %q", content)
+	}
+}
+
 func TestInterceptor_SharedContextWritesAgentLevelForOpenAgent(t *testing.T) {
 	agentID := uuid.New()
 	as := &stubAgentStore{}
