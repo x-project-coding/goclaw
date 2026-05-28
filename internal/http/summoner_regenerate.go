@@ -197,7 +197,7 @@ func (s *AgentSummoner) ensureBackfillFiles(ctx context.Context, agentID uuid.UU
 	for _, f := range existing {
 		has[f.FileName] = true
 	}
-	backfill := []string{bootstrap.UserPredefinedFile, bootstrap.CapabilitiesFile}
+	backfill := []string{bootstrap.CapabilitiesFile}
 	for _, name := range backfill {
 		if has[name] {
 			continue

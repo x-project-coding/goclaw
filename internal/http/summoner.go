@@ -28,11 +28,9 @@ const frontmatterKey = "__frontmatter__"
 // summoningFiles is the ordered list of context files the LLM should generate.
 // Only personality files — operational files (AGENTS.md, TOOLS.md)
 // are kept as fixed templates from bootstrap.SeedToStore().
-// USER_PREDEFINED.md is optional — generated only when description mentions user context.
 var summoningFiles = []string{
 	bootstrap.SoulFile,
 	bootstrap.IdentityFile,
-	bootstrap.UserPredefinedFile,
 	bootstrap.CapabilitiesFile,
 }
 
@@ -66,7 +64,7 @@ const singleCallTimeout = 300 * time.Second
 // SummonAgent generates context files from a natural language description.
 // Meant to be called as a goroutine: go summoner.SummonAgent(...)
 // Tries a single LLM call first (all files at once). On timeout, falls back to
-// 2 sequential calls (SOUL.md → IDENTITY.md + USER_PREDEFINED.md).
+// 2 sequential calls (SOUL.md → IDENTITY.md).
 // On retry (resummon), skips files that were already generated (differ from template).
 // On success: stores generated files and sets agent status to "active".
 // On failure: keeps template files (already seeded) and sets status to store.AgentStatusSummonFailed.
@@ -150,14 +148,13 @@ func (s *AgentSummoner) SummonAgent(agentID uuid.UUID, tenantID uuid.UUID, provi
 		}
 	}
 
-	// Step 2: Generate IDENTITY.md + USER_PREDEFINED.md using SOUL.md as context
+	// Step 2: Generate IDENTITY.md using SOUL.md as context
 	identityNeeded := !s.isGenerated(existingMap, bootstrap.IdentityFile)
-	userPredNeeded := !s.isGenerated(existingMap, bootstrap.UserPredefinedFile)
 
 	var identityContent string
-	if !identityNeeded && !userPredNeeded {
+	if !identityNeeded {
 		identityContent = existingMap[bootstrap.IdentityFile]
-		slog.Info("summoning: IDENTITY.md + USER_PREDEFINED.md already generated, skipping", "agent", agentID)
+		slog.Info("summoning: IDENTITY.md already generated, skipping", "agent", agentID)
 		s.emitEvent(agentID, tenantID, SummonEventFileGenerated, bootstrap.IdentityFile, "")
 	} else {
 		idFiles, idErr := s.generateFiles(ctx, providerName, model, s.buildIdentityPrompt(description, soulContent))
@@ -171,18 +168,11 @@ func (s *AgentSummoner) SummonAgent(agentID uuid.UUID, tenantID uuid.UUID, provi
 		if frontmatter == "" {
 			frontmatter = idFiles[frontmatterKey]
 		}
-		if identityContent != "" && identityNeeded {
+		if identityContent != "" {
 			if storeErr := s.agents.SetAgentContextFile(ctx, agentID, bootstrap.IdentityFile, identityContent); storeErr != nil {
 				slog.Warn("summoning: failed to store IDENTITY.md", "agent", agentID, "error", storeErr)
 			} else {
 				s.emitEvent(agentID, tenantID, SummonEventFileGenerated, bootstrap.IdentityFile, "")
-			}
-		}
-		if upContent := idFiles[bootstrap.UserPredefinedFile]; upContent != "" && userPredNeeded {
-			if storeErr := s.agents.SetAgentContextFile(ctx, agentID, bootstrap.UserPredefinedFile, upContent); storeErr != nil {
-				slog.Warn("summoning: failed to store USER_PREDEFINED.md", "agent", agentID, "error", storeErr)
-			} else {
-				s.emitEvent(agentID, tenantID, SummonEventFileGenerated, bootstrap.UserPredefinedFile, "")
 			}
 		}
 	}
