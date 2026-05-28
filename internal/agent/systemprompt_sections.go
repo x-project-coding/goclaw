@@ -634,26 +634,6 @@ func extractMarkdownSection(content, heading string) string {
 	return body
 }
 
-// hasBootstrapFile checks if BOOTSTRAP.md is present in context files.
-func hasBootstrapFile(files []bootstrap.ContextFile) bool {
-	for _, f := range files {
-		if filepath.Base(f.Path) == bootstrap.BootstrapFile {
-			return true
-		}
-	}
-	return false
-}
-
-// findContextFileContent returns the content of a context file by name, or "" if not found.
-func findContextFileContent(files []bootstrap.ContextFile, name string) string {
-	for _, f := range files {
-		if f.Path == name {
-			return f.Content
-		}
-	}
-	return ""
-}
-
 // buildOrchestrationSection generates the delegation targets prompt section.
 // Only shown when orchestration mode is delegate or team.
 func buildOrchestrationSection(data OrchestrationSectionData) []string {

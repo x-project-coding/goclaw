@@ -35,7 +35,7 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			wantNotIn: "USER PROFILE INCOMPLETE",
 		},
 		{
-			name: "predefined agent with BOOTSTRAP.md → FIRST RUN full capabilities",
+			name: "predefined agent with BOOTSTRAP.md → NO onboarding section",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
 				AgentType:   store.AgentTypePredefined,
@@ -45,11 +45,10 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 				},
 				ToolNames: []string{"write_file", "Write", "skill_search"},
 			},
-			wantIn:    "## FIRST RUN",
-			wantNotIn: "USER PROFILE INCOMPLETE",
+			wantNotIn: "FIRST RUN",
 		},
 		{
-			name: "no BOOTSTRAP.md + blank USER.md → USER PROFILE INCOMPLETE",
+			name: "predefined agent + blank USER.md → NO USER PROFILE INCOMPLETE",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
 				AgentType:   store.AgentTypePredefined,
@@ -58,11 +57,10 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 				},
 				ToolNames: []string{"write_file"},
 			},
-			wantIn:    "## USER PROFILE INCOMPLETE",
-			wantNotIn: "FIRST RUN",
+			wantNotIn: "USER PROFILE INCOMPLETE",
 		},
 		{
-			name: "no BOOTSTRAP.md + populated USER.md → no nudge at all",
+			name: "predefined agent + populated USER.md → no nudge at all",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
 				AgentType:   store.AgentTypePredefined,
@@ -86,7 +84,7 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			wantIn: "only have write_file available",
 		},
 		{
-			name: "predefined agent first run uses softened get-to-know copy",
+			name: "predefined agent first run → NO get-to-know onboarding copy",
 			cfg: SystemPromptConfig{
 				IsBootstrap: false,
 				AgentType:   store.AgentTypePredefined,
@@ -95,8 +93,7 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 				},
 				ToolNames: []string{"write_file", "web_search"},
 			},
-			wantIn:    "GET TO KNOW THE USER",
-			wantNotIn: "only have write_file available",
+			wantNotIn: "GET TO KNOW THE USER",
 		},
 	}
 
@@ -112,7 +109,7 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 			}
 
 			// Always verify: populated USER.md must never trigger INCOMPLETE
-			if tt.name == "no BOOTSTRAP.md + populated USER.md → no nudge at all" {
+			if tt.name == "predefined agent + populated USER.md → no nudge at all" {
 				if strings.Contains(prompt, "USER PROFILE INCOMPLETE") {
 					t.Error("populated USER.md should not trigger USER PROFILE INCOMPLETE")
 				}
@@ -121,82 +118,58 @@ func TestBuildSystemPrompt_BootstrapStates(t *testing.T) {
 	}
 }
 
-// TestBuildSystemPrompt_PredefinedBootstrapSoftened verifies that the
-// predefined+BOOTSTRAP.md branch no longer forces write_file on turn 1.
-// Context: Gemini 3 with thinking_level=low exhausted its 8192-token budget
-// before emitting tool args, resulting in write_file({}) → HTTP 400.
-// Removing the MUST-call-write_file-this-turn mandate lets small models
-// respond conversationally when they lack real user info to write.
-// Trace: 019d8f33-2de1-7ab2-9a32-9df92cd610dd.
-func TestBuildSystemPrompt_PredefinedBootstrapSoftened(t *testing.T) {
-	baseCfg := func(channel string) SystemPromptConfig {
-		return SystemPromptConfig{
-			IsBootstrap: false,
-			AgentType:   store.AgentTypePredefined,
-			Channel:     channel,
-			ContextFiles: []bootstrap.ContextFile{
-				{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
-			},
-			ToolNames: []string{"write_file", "web_search"},
-		}
+// TestBuildSystemPrompt_PredefinedNoOnboarding is the guard test for the predefined
+// onboarding removal. Predefined (42bucks brand) agents no longer ask name/timezone/
+// language on first run — user identity comes from the external user-info skill — so the
+// prompt must NEVER contain the old onboarding sections, regardless of whether a
+// BOOTSTRAP.md / blank USER.md is present in context.
+func TestBuildSystemPrompt_PredefinedNoOnboarding(t *testing.T) {
+	blankUserMD := "# USER.md\n\n- **Name:**\n- **Language:**\n- **Timezone:**\n"
+	forbidden := []string{
+		"FIRST RUN",
+		"GET TO KNOW THE USER",
+		"USER PROFILE INCOMPLETE",
 	}
 
-	tests := []struct {
-		name       string
-		cfg        SystemPromptConfig
-		wantIn     []string
-		wantNotIn  []string
+	cases := []struct {
+		name string
+		cfg  SystemPromptConfig
 	}{
 		{
-			name: "A: ws channel uses softened copy",
-			cfg:  baseCfg("ws"),
-			wantIn: []string{
-				"GET TO KNOW THE USER",
-			},
-			wantNotIn: []string{
-				"before your response ends",
-				"MUST ALSO call write_file",
+			name: "full mode, no context files",
+			cfg: SystemPromptConfig{
+				AgentType: store.AgentTypePredefined,
+				ToolNames: []string{"write_file", "web_search"},
 			},
 		},
 		{
-			name: "B: forbids empty/placeholder args explicitly",
-			cfg:  baseCfg("ws"),
-			wantIn: []string{
-				"Do NOT call write_file",
-				"empty or placeholder",
+			name: "with BOOTSTRAP.md present",
+			cfg: SystemPromptConfig{
+				AgentType: store.AgentTypePredefined,
+				ContextFiles: []bootstrap.ContextFile{
+					{Path: bootstrap.BootstrapFile, Content: "# BOOTSTRAP"},
+				},
+				ToolNames: []string{"write_file", "web_search"},
 			},
 		},
 		{
-			name: "C: forbids session-identifier content",
-			cfg:  baseCfg("ws"),
-			wantIn: []string{
-				"never copy session identifiers",
-			},
-		},
-		{
-			name: "D: telegram channel uses same softened copy (uniform)",
-			cfg:  baseCfg("telegram"),
-			wantIn: []string{
-				"GET TO KNOW THE USER",
-			},
-			wantNotIn: []string{
-				"before your response ends",
-				"MUST ALSO call write_file",
+			name: "with blank USER.md present",
+			cfg: SystemPromptConfig{
+				AgentType: store.AgentTypePredefined,
+				ContextFiles: []bootstrap.ContextFile{
+					{Path: bootstrap.UserFile, Content: blankUserMD},
+				},
+				ToolNames: []string{"write_file"},
 			},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			prompt := BuildSystemPrompt(tt.cfg)
-			for _, want := range tt.wantIn {
-				if !strings.Contains(prompt, want) {
-					t.Errorf("expected %q in prompt", want)
-				}
-			}
-			for _, notWant := range tt.wantNotIn {
-				if strings.Contains(prompt, notWant) {
-					t.Errorf("unexpected %q in prompt (must be removed)", notWant)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prompt := BuildSystemPrompt(tc.cfg)
+			for _, f := range forbidden {
+				if strings.Contains(prompt, f) {
+					t.Errorf("predefined prompt must not contain %q", f)
 				}
 			}
 		})
