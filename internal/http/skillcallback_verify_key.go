@@ -94,7 +94,9 @@ func (h *SkillCallbackHandler) handleSpend(w http.ResponseWriter, r *http.Reques
 
 	var req spendRequest
 	if r.Body != nil {
-		dec := json.NewDecoder(r.Body)
+		// Cap the body — this payload is tiny; the limit just bounds memory for a
+		// misbehaving/replayed authenticated caller (matches the package convention).
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
 		if err := dec.Decode(&req); err != nil && err != io.EOF {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"error": i18n.T(locale, i18n.MsgInvalidJSON),
@@ -103,14 +105,15 @@ func (h *SkillCallbackHandler) handleSpend(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Attribute to a tenant/workspace the same way verify-key does, so the
-	// usage log carries a stable identity even if the runner's workspaceId
-	// differs from the external one.
+	// Attribute to a tenant/workspace the same way verify-key does: anchor on the
+	// AUTHENTICATED tenant identity, then optionally overlay the external/x-api
+	// workspace id. Never seed from the caller-supplied req.WorkspaceID — that is
+	// untrusted and is logged separately as runner_workspace_id.
 	tenantID := keyData.TenantID
 	if tenantID == uuid.Nil {
 		tenantID = store.MasterTenantID
 	}
-	workspaceID := req.WorkspaceID
+	workspaceID := tenantID.String()
 	if pkgTenantCache != nil {
 		if tenant, err := pkgTenantCache.GetTenant(r.Context(), tenantID); err == nil && tenant != nil {
 			if ext := externalWorkspaceID(tenant.Settings); ext != "" {
