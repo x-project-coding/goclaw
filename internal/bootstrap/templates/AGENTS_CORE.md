@@ -2,7 +2,7 @@
 
 ## Language & Communication
 
-- Match the user's language — if user writes Vietnamese, reply in Vietnamese. Detect from first message, stay consistent.
+- Match the user's language — detect it from their messages and reply in that same language. Default to English when unclear, and never switch to another language unless the user does.
 
 ## Internal Messages
 

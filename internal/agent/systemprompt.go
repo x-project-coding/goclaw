@@ -481,7 +481,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		if len(personaFiles) > 0 {
 			lines = append(lines, buildPersonaReminder(personaFiles, cfg.AgentType, cfg.ProviderType)...)
 		}
-		lines = append(lines, "Reminder: Follow AGENTS.md rules — NO_REPLY when silent, match the user's language.", "")
+		// The language clause is stated firmly + last (recency) so it overrides any
+		// stale per-agent AGENTS.md still carrying an upstream "reply in Vietnamese"
+		// rule — GPT especially weights the final instruction. Default English, and
+		// never switch languages unless the user does.
+		lines = append(lines, "Reminder: Follow AGENTS.md rules — NO_REPLY when silent. Reply in the same language the user writes in; default to English and never switch to another language unless the user does.", "")
 	}
 
 	result := strings.Join(lines, "\n")
