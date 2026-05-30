@@ -44,6 +44,96 @@ func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus) *SkillC
 func (h *SkillCallbackHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /callback/v1/verify-key", h.handleVerifyKey)
 	mux.HandleFunc("POST /callback/v1/messages", h.handleMessages)
+	mux.HandleFunc("POST /callback/v1/spend", h.handleSpend)
+}
+
+// spendRequest is the POST /callback/v1/spend body: a per-job usage event the
+// code-runner submits after a job finishes (container time + token counts at a
+// tier). Mirrors the runner's SpendRequest payload.
+type spendRequest struct {
+	WorkspaceID string `json:"workspaceId"`
+	JobID       string `json:"jobId"`
+	AmountCents int64  `json:"amountCents"`
+	Breakdown   struct {
+		ContainerSeconds int64  `json:"containerSeconds"`
+		TokensIn         int64  `json:"tokensIn"`
+		TokensOut        int64  `json:"tokensOut"`
+		Tier             string `json:"tier"`
+	} `json:"breakdown"`
+}
+
+// spendResponse is the JSON the runner expects back on success. AppliedCents
+// echoes the accepted amount; BalanceCents is informational only (the runner
+// logs it and never gates on it) — left 0 until usage debits a real ledger.
+type spendResponse struct {
+	BalanceCents int64 `json:"balanceCents"`
+	AppliedCents int64 `json:"appliedCents"`
+}
+
+// handleSpend records a per-job usage/spend event from the code-runner.
+//
+// v1 is capture-only: it authenticates the workspace key, attributes the event
+// to a tenant/workspace, and emits a structured `skillcallback.spend` log line
+// (the same "structured log, no balance debit" stage x-api uses for skill-call
+// usage). It returns valid JSON so the runner marks the spend submitted instead
+// of retrying forever — previously this route did not exist, so the request
+// fell through to the SPA catch-all (HTTP 200 + HTML), the runner's res.json()
+// threw "Failed to parse JSON", and every job's usage event churned into the
+// dead-letter queue. Debiting a real credit ledger is a deliberate follow-up.
+func (h *SkillCallbackHandler) handleSpend(w http.ResponseWriter, r *http.Request) {
+	locale := extractLocale(r)
+
+	token := extractBearerToken(r)
+	keyData, role := ResolveAPIKey(r.Context(), token)
+	if keyData == nil || role == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"error": i18n.T(locale, i18n.MsgUnauthorized),
+		})
+		return
+	}
+
+	var req spendRequest
+	if r.Body != nil {
+		dec := json.NewDecoder(r.Body)
+		if err := dec.Decode(&req); err != nil && err != io.EOF {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": i18n.T(locale, i18n.MsgInvalidJSON),
+			})
+			return
+		}
+	}
+
+	// Attribute to a tenant/workspace the same way verify-key does, so the
+	// usage log carries a stable identity even if the runner's workspaceId
+	// differs from the external one.
+	tenantID := keyData.TenantID
+	if tenantID == uuid.Nil {
+		tenantID = store.MasterTenantID
+	}
+	workspaceID := req.WorkspaceID
+	if pkgTenantCache != nil {
+		if tenant, err := pkgTenantCache.GetTenant(r.Context(), tenantID); err == nil && tenant != nil {
+			if ext := externalWorkspaceID(tenant.Settings); ext != "" {
+				workspaceID = ext
+			}
+		}
+	}
+
+	eventID := r.Header.Get("X-Spend-Event-Id")
+	slog.Info("skillcallback.spend",
+		"event_id", eventID,
+		"tenant_id", tenantID.String(),
+		"workspace_id", workspaceID,
+		"runner_workspace_id", req.WorkspaceID,
+		"job_id", req.JobID,
+		"amount_cents", req.AmountCents,
+		"container_seconds", req.Breakdown.ContainerSeconds,
+		"tokens_in", req.Breakdown.TokensIn,
+		"tokens_out", req.Breakdown.TokensOut,
+		"tier", req.Breakdown.Tier,
+	)
+
+	writeJSON(w, http.StatusOK, spendResponse{BalanceCents: 0, AppliedCents: req.AmountCents})
 }
 
 // verifyKeyRequest is the request body for POST /callback/v1/verify-key.
