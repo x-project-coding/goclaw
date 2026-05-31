@@ -517,6 +517,7 @@ The Discord channel uses the `discordgo` library to connect via the Discord Gate
 - **Bot identity**: Fetches `@me` on startup to detect and ignore own messages
 - **Typing indicator**: 9-second keepalive while agent processes
 - **Group history**: Pending message buffer for context when mentioned
+- **Thread backfill**: When the bot is mentioned inside a Discord thread, the channel fetches up to 25 prior thread messages before the triggering message through Discord REST, prepends their text as context, and downloads up to 15 prior attachments for the same inbound media pipeline. This is thread-only, bounded to 5 MB per backfilled file with a 30-second timeout, and gracefully falls back to the current message when Discord lacks `READ_MESSAGE_HISTORY` or the REST request fails.
 
 ---
 

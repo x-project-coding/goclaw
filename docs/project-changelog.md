@@ -6,6 +6,16 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-05-29
 
+### Discord thread history and attachment backfill (issue #69)
+
+**Fixes**
+
+- Discord thread mentions now fetch recent thread messages before the triggering mention and prepend them as context for the agent run.
+- Prior thread image and document attachments are downloaded immediately and passed through the existing inbound media pipeline, so `read_image` and `read_document` can use files posted earlier in the thread.
+- Backfill is limited to addressed Discord threads, 25 prior messages, 15 attachments, 5 MB per backfilled file, and a 30-second timeout. Missing Discord history permission or REST failures fall back to the current message without crashing.
+
+---
+
 ### Telegram voice transcription and read_audio fallback (issue #85)
 
 **Fixes**
