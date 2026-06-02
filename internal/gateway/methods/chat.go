@@ -349,6 +349,34 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			}
 		}
 
+		// Auto-generate the conversation title from the user's FIRST message,
+		// kicked off CONCURRENTLY with the run rather than after it. The title
+		// only needs the user message + the agent's base provider/model (neither
+		// mutated by Run), so the chat is named within seconds even when the run
+		// itself takes minutes (tool loops, code jobs). Previously this ran only
+		// after loop.Run() returned, leaving long runs "pending" the whole run.
+		if label := m.sessions.GetLabel(ctx, sessionKey); label == "" {
+			agentProvider := loop.Provider()
+			agentModel := loop.Model()
+			userMsg := params.Message
+			// Use runCtxBase (WithoutCancel + tenant-aware) so title save uses correct tenant.
+			titleCtx := runCtxBase
+			go func() {
+				title := agent.GenerateTitle(titleCtx, agentProvider, agentModel, userMsg)
+				if title == "" {
+					return
+				}
+				m.sessions.SetLabel(titleCtx, sessionKey, title)
+				if err := m.sessions.Save(titleCtx, sessionKey); err != nil {
+					slog.Warn("failed to save session title", "sessionKey", sessionKey, "error", err)
+					return
+				}
+				bus.BroadcastForTenant(m.eventBus, protocol.EventSessionUpdated,
+					client.TenantID(),
+					map[string]string{"sessionKey": sessionKey, "label": title, "userId": userID})
+			}()
+		}
+
 		result, err := loop.Run(runCtx, agent.RunRequest{
 			SessionKey:       sessionKey,
 			MessageID:        params.MessageID,
@@ -386,29 +414,6 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			}
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
 			return
-		}
-
-		// Auto-generate conversation title on first message (label empty = never titled).
-		if label := m.sessions.GetLabel(ctx, sessionKey); label == "" {
-			agentProvider := loop.Provider()
-			agentModel := loop.Model()
-			userMsg := params.Message
-			// Use runCtxBase (WithoutCancel + tenant-aware) so title save uses correct tenant.
-			titleCtx := runCtxBase
-			go func() {
-				title := agent.GenerateTitle(titleCtx, agentProvider, agentModel, userMsg)
-				if title == "" {
-					return
-				}
-				m.sessions.SetLabel(titleCtx, sessionKey, title)
-				if err := m.sessions.Save(titleCtx, sessionKey); err != nil {
-					slog.Warn("failed to save session title", "sessionKey", sessionKey, "error", err)
-					return
-				}
-				bus.BroadcastForTenant(m.eventBus, protocol.EventSessionUpdated,
-					client.TenantID(),
-					map[string]string{"sessionKey": sessionKey, "label": title, "userId": userID})
-			}()
 		}
 
 		// TTS auto-apply: convert [[tts]] tagged responses to voice audio
