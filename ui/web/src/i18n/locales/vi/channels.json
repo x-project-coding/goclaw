@@ -304,7 +304,7 @@
     "dm_stream": { "label": "Stream DM", "help": "Truyền phản hồi liên tục trong DM" },
     "group_stream": { "label": "Stream nhóm", "help": "Truyền phản hồi liên tục trong nhóm" },
     "draft_transport": { "label": "Xem trước nháp", "help": "Dùng bản nháp ẩn cho stream trả lời trong DM — không thông báo mỗi lần chỉnh sửa (cần bật Stream DM)" },
-    "reasoning_stream": { "label": "Hiện suy luận", "help": "Hiển thị quá trình suy nghĩ của AI thành tin nhắn riêng trước câu trả lời (cần bật streaming)" },
+    "reasoning_delivery": { "label": "Hiện suy luận", "help": "Chọn cách hiển thị suy luận của model trong tin nhắn channel." },
     "reaction_level": { "label": "Mức độ reaction" },
     "media_max_mb": { "label": "Kích thước media tối đa (MB)" },
     "link_preview": { "label": "Xem trước liên kết" },
@@ -363,6 +363,11 @@
       "minimal": "Tối thiểu",
       "full": "Đầy đủ"
     },
+    "reasoning_delivery": {
+      "streaming_only": "Chỉ khi streaming",
+      "always_bubbles": "Luôn thành bubble",
+      "off": "Tắt"
+    },
     "domain": {
       "lark": "Lark (Quốc tế)",
       "feishu": "Feishu (Trung Quốc)"
@@ -410,7 +415,7 @@
       "dm_stream": { "label": "Stream DM", "help": "Truyền phản hồi liên tục trong DM" },
       "group_stream": { "label": "Stream Nhóm", "help": "Truyền phản hồi liên tục trong nhóm" },
       "draft_transport": { "label": "Xem trước nháp", "help": "Dùng bản nháp ẩn cho stream trả lời trong DM — không thông báo mỗi lần chỉnh sửa (cần bật Stream DM)" },
-      "reasoning_stream": { "label": "Hiện suy luận", "help": "Hiển thị quá trình suy nghĩ của AI thành tin nhắn riêng trước câu trả lời (cần bật streaming)" }
+      "reasoning_delivery": { "label": "Hiện suy luận", "help": "Chọn cách hiển thị suy luận của model trong tin nhắn channel." }
     },
     "fields": {
       "groupPolicy": "Chính sách nhóm",

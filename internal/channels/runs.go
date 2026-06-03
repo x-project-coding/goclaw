@@ -16,7 +16,11 @@ func (m *Manager) RegisterRun(runID, channelName, chatID, messageID string, meta
 
 // RegisterRunWithBehavior associates a run ID with channel context and
 // resolved delivery behavior so event handlers do not read mutable config mid-run.
-func (m *Manager) RegisterRunWithBehavior(runID, channelName, chatID, messageID string, metadata map[string]string, tenantID uuid.UUID, streaming, blockReply, toolStatus bool, chatBehavior ResolvedChatBehavior) {
+func (m *Manager) RegisterRunWithBehavior(runID, channelName, chatID, messageID string, metadata map[string]string, tenantID uuid.UUID, streaming, blockReply, toolStatus bool, chatBehavior ResolvedChatBehavior, reasoningDelivery ...ResolvedReasoningDelivery) {
+	delivery := ResolveReasoningDelivery("", nil)
+	if len(reasoningDelivery) > 0 {
+		delivery = reasoningDelivery[0]
+	}
 	m.runs.Store(runID, &RunContext{
 		ChannelName:       channelName,
 		ChatID:            chatID,
@@ -27,6 +31,7 @@ func (m *Manager) RegisterRunWithBehavior(runID, channelName, chatID, messageID 
 		BlockReplyEnabled: blockReply,
 		ToolStatusEnabled: toolStatus,
 		ChatBehavior:      chatBehavior,
+		ReasoningDelivery: delivery,
 	})
 }
 
@@ -35,6 +40,7 @@ func (m *Manager) UnregisterRun(runID string) {
 	if val, ok := m.runs.LoadAndDelete(runID); ok {
 		if rc, ok := val.(*RunContext); ok {
 			m.cancelQuickAck(rc)
+			m.flushReasoningBubblesForContext(rc)
 		}
 	}
 }
@@ -98,4 +104,22 @@ func (m *Manager) ResolveChatBehavior(channelName string, globalDefault *config.
 		}
 	}
 	return ResolveChatBehavior(globalDefault, override)
+}
+
+func (m *Manager) ResolveReasoningDelivery(channelName string) ResolvedReasoningDelivery {
+	m.mu.RLock()
+	ch, exists := m.channels[channelName]
+	m.mu.RUnlock()
+	if !exists {
+		return ResolveReasoningDelivery("", nil)
+	}
+	if rc, ok := ch.(ReasoningDeliveryChannel); ok {
+		mode, legacy := rc.ReasoningDeliveryConfig()
+		return ResolveReasoningDelivery(mode, legacy)
+	}
+	if sc, ok := ch.(StreamingChannel); ok {
+		legacy := sc.ReasoningStreamEnabled()
+		return ResolveReasoningDelivery("", &legacy)
+	}
+	return ResolveReasoningDelivery("", nil)
 }

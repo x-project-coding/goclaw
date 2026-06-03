@@ -171,6 +171,12 @@ type ChatBehaviorChannel interface {
 	ChatBehaviorConfig() *config.ChatBehaviorConfig
 }
 
+// ReasoningDeliveryChannel is optionally implemented by channels that expose
+// how model reasoning should be delivered to end users.
+type ReasoningDeliveryChannel interface {
+	ReasoningDeliveryConfig() (mode string, legacyReasoningStream *bool)
+}
+
 // WebhookChannel extends Channel with an HTTP handler that can be mounted
 // on the main gateway mux instead of starting a separate HTTP server.
 // This allows webhook-based channels (e.g. Feishu/Lark) to share the main

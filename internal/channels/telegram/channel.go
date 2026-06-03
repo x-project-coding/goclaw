@@ -367,12 +367,13 @@ func (c *Channel) draftTransportEnabled() bool {
 }
 
 // ReasoningStreamEnabled returns whether reasoning should be shown as a separate message.
-// Default: true. Set "reasoning_stream": false to hide reasoning (only show answer).
+// Default: true. Set "reasoning_delivery": "off" or legacy "reasoning_stream": false to hide reasoning.
 func (c *Channel) ReasoningStreamEnabled() bool {
-	if c.config.ReasoningStream == nil {
-		return true
-	}
-	return *c.config.ReasoningStream
+	return channels.ResolveReasoningDelivery(c.config.ReasoningDelivery, c.config.ReasoningStream).ShowInChannel
+}
+
+func (c *Channel) ReasoningDeliveryConfig() (string, *bool) {
+	return c.config.ReasoningDelivery, c.config.ReasoningStream
 }
 
 // BlockReplyEnabled returns the per-channel block_reply override (nil = inherit gateway default).

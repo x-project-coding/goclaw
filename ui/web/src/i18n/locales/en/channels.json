@@ -338,9 +338,9 @@
       "label": "Draft Preview",
       "help": "Use stealth draft preview for answer stream in DMs — no notification per edit (requires DM Streaming)"
     },
-    "reasoning_stream": {
+    "reasoning_delivery": {
       "label": "Show Reasoning",
-      "help": "Display AI thinking as a separate message before the answer (requires streaming)"
+      "help": "Choose how model reasoning is shown in channel messages."
     },
     "reaction_level": { "label": "Reaction Level" },
     "media_max_mb": { "label": "Max Media Size (MB)" },
@@ -436,6 +436,11 @@
       "minimal": "Minimal",
       "full": "Full"
     },
+    "reasoning_delivery": {
+      "streaming_only": "Streaming only",
+      "always_bubbles": "Always as bubbles",
+      "off": "Off"
+    },
     "domain": {
       "lark": "Lark (Global)",
       "feishu": "Feishu (China)"
@@ -492,9 +497,9 @@
         "label": "Draft Preview",
         "help": "Use stealth draft preview for answer stream in DMs — no notification per edit (requires DM Streaming)"
       },
-      "reasoning_stream": {
+      "reasoning_delivery": {
         "label": "Show Reasoning",
-        "help": "Display AI thinking as a separate message before the answer (requires streaming)"
+        "help": "Choose how model reasoning is shown in channel messages."
       }
     },
     "fields": {

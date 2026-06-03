@@ -261,8 +261,8 @@ func TestHandleAgentEvent_QuickAckDisabledSuppressesInitialExplicitBlockReply(t 
 
 			mgr.HandleAgentEvent(protocol.AgentEventRunCompleted, "run-1", nil)
 			delivered, last = mgr.InterimDeliverySnapshot("run-1")
-			if delivered != 0 || last != "" {
-				t.Fatalf("completed interim delivery snapshot = (%d, %q), want none", delivered, last)
+			if delivered != 1 || last != "Second iteration update." {
+				t.Fatalf("completed interim delivery snapshot = (%d, %q), want preserved second reply until unregister", delivered, last)
 			}
 			mgr.UnregisterRun("run-1")
 			delivered, last = mgr.InterimDeliverySnapshot("run-1")

@@ -201,10 +201,13 @@ func processNormalMessage(
 		"user_id", userID,
 	)
 
-	// Enable streaming when the channel supports it (so agent emits chunk events).
-	// The channel decides per chat type via separate dm_stream / group_stream flags.
 	isGroup := peerKind == string(sessions.PeerGroup)
-	enableStream := deps.ChannelMgr != nil && deps.ChannelMgr.IsStreamingChannel(msg.Channel, isGroup)
+	channelStream := deps.ChannelMgr != nil && deps.ChannelMgr.IsStreamingChannel(msg.Channel, isGroup)
+	reasoningDelivery := channels.ResolveReasoningDelivery("", nil)
+	if deps.ChannelMgr != nil {
+		reasoningDelivery = deps.ChannelMgr.ResolveReasoningDelivery(msg.Channel)
+	}
+	providerStream := channels.ShouldStreamProviderForDelivery(channelStream, reasoningDelivery)
 
 	// Group chats allow concurrent runs (multiple users can chat simultaneously).
 	maxConcurrent := 1
@@ -246,7 +249,7 @@ func processNormalMessage(
 	}
 	toolStatus := deps.Cfg.Gateway.ToolStatus == nil || *deps.Cfg.Gateway.ToolStatus // default true
 	if deps.ChannelMgr != nil {
-		deps.ChannelMgr.RegisterRunWithBehavior(runID, msg.Channel, chatIDForRun, messageID, outMeta, msg.TenantID, enableStream, blockReply, toolStatus, chatBehavior)
+		deps.ChannelMgr.RegisterRunWithBehavior(runID, msg.Channel, chatIDForRun, messageID, outMeta, msg.TenantID, channelStream, blockReply, toolStatus, chatBehavior, reasoningDelivery)
 	}
 
 	// Group-aware system prompt: help the LLM adapt tone and behavior for group chats.
@@ -454,7 +457,7 @@ func processNormalMessage(
 		Role:               effectiveRole,
 		SenderName:         resolveSenderName(msg),
 		RunID:              runID,
-		Stream:             enableStream,
+		Stream:             providerStream,
 		HistoryLimit:       msg.HistoryLimit,
 		ToolAllow:          msg.ToolAllow,
 		ExtraSystemPrompt:  extraPrompt,
@@ -602,7 +605,7 @@ func processNormalMessage(
 		if deps.TeamStore != nil && channel != tools.ChannelSystem && channel != tools.ChannelTeammate && channel != tools.ChannelDashboard {
 			go autoSetFollowup(ctx, deps.TeamStore, deps.AgentStore, agentKey, channel, chatID, replyContent)
 		}
-	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, msg.Content, outMeta, blockReply, chatBehavior, enableStream, ptd, msg.TenantID, agentLoop.UUID(), agentLoop.OtherConfig())
+	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, msg.Content, outMeta, blockReply, chatBehavior, channelStream, ptd, msg.TenantID, agentLoop.UUID(), agentLoop.OtherConfig())
 }
 
 // isSafeBitrixEntityToken validates a webhook-sourced Bitrix entity token before

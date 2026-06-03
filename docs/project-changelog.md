@@ -4,6 +4,28 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-06-01
+
+### Telegram Show Reasoning delivery modes (issues #132, #133)
+
+**Fixes**
+
+- Added `reasoning_delivery=streaming_only|always_bubbles|off` with backward compatibility for legacy `reasoning_stream`.
+- HTTP and WebSocket channel-instance writes normalize explicit `reasoning_delivery` over legacy `reasoning_stream`.
+- `always_bubbles` forces provider streaming internally so reasoning can be delivered as bounded channel bubbles even when Telegram live streaming is disabled.
+- Stream-path final `resp.Thinking` is now emitted when no thinking chunk arrived during the stream.
+- Terminal channel events preserve interim delivery state until the consumer reads the final dedup snapshot.
+
+**UI**
+
+- Web and desktop channel settings now expose Show Reasoning as a mode selector instead of a streaming-only boolean.
+
+**Tests**
+
+- Added channel delivery, config resolution, and agent stream final-thinking coverage.
+
+---
+
 ## 2026-05-31
 
 ### CI/CD: zuey release asset race fix

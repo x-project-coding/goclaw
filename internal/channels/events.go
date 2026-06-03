@@ -50,7 +50,8 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	if sc, ok := ch.(StreamingChannel); ok && rc.Streaming {
 		switch eventType {
 		case protocol.AgentEventRunStarted:
-			stream, err := sc.CreateStream(ctx, rc.ChatID, true)
+			firstStreamIsReasoning := rc.ReasoningDelivery.ShowInChannel && !rc.ReasoningDelivery.BubbleDelivery && sc.ReasoningStreamEnabled()
+			stream, err := sc.CreateStream(ctx, rc.ChatID, firstStreamIsReasoning)
 			if err != nil {
 				slog.Debug("stream start failed", "channel", rc.ChannelName, "error", err)
 			} else {
@@ -66,11 +67,15 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			// When the first chunk arrives, this stream is stopped (reasoning message stays
 			// visible) and a new stream is created for the answer lane.
 			// Gated by ReasoningStreamEnabled() — channels can opt out (e.g. Slack).
-			if !sc.ReasoningStreamEnabled() {
-				break
-			}
 			content := extractPayloadString(payload, "content")
 			if content != "" {
+				if rc.ReasoningDelivery.BubbleDelivery {
+					m.appendReasoningBubble(runID, rc, content)
+					break
+				}
+				if !rc.ReasoningDelivery.ShowInChannel || !sc.ReasoningStreamEnabled() {
+					break
+				}
 				rc.mu.Lock()
 				rc.thinkingBuffer += content
 				rc.hasThinking = true
@@ -82,6 +87,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				}
 			}
 		case protocol.AgentEventToolCall:
+			if rc.ReasoningDelivery.BubbleDelivery {
+				m.flushReasoningBubbles(runID)
+			}
 			// Agent is executing a tool — mark tool phase so the next chunk
 			// (new LLM iteration) resets the stream buffer.
 			// Stop the current stream (reasoning or answer) and finalize only
@@ -126,6 +134,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			// Accumulate chunk deltas into full text.
 			content := extractPayloadString(payload, "content")
 			if content != "" {
+				if rc.ReasoningDelivery.BubbleDelivery {
+					m.flushReasoningBubbles(runID)
+				}
 				rc.mu.Lock()
 				needNewStream := rc.inToolPhase
 				if needNewStream {
@@ -140,28 +151,54 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 					candidate := rc.streamBuffer + content
 					split := SplitThinkTags(candidate)
 					if split.Thinking != "" {
-						// Found think tags — commit to buffer and route to reasoning lane
+						// Found think tags — commit to buffer and route or suppress reasoning
+						// before any tagged content can leak into the answer lane.
+						displayReasoningInStream := rc.ReasoningDelivery.ShowInChannel && !rc.ReasoningDelivery.BubbleDelivery && sc.ReasoningStreamEnabled()
+						previousThinking := rc.thinkingBuffer
 						rc.streamBuffer = candidate
-						rc.hasThinking = true
 						rc.thinkingBuffer = split.Thinking
 						thinkText := rc.thinkingBuffer
 						currentStream := rc.stream
 						if split.Partial {
-							// Still inside <think> — update reasoning stream, wait for close
+							// Still inside <think> — wait for the close tag before streaming
+							// answer content. Native thinking uses hasThinking; tag parsing
+							// keeps it false until close so later chunks continue parsing.
 							rc.mu.Unlock()
-							if currentStream != nil {
+							if rc.ReasoningDelivery.BubbleDelivery {
+								if delta := reasoningDelta(previousThinking, thinkText); delta != "" {
+									m.appendReasoningBubble(runID, rc, delta)
+								}
+							} else if displayReasoningInStream && currentStream != nil {
 								currentStream.Update(ctx, formatReasoningPreview(thinkText))
 							}
 							break
 						}
-						// Tag closed — transition to answer
+						// Tag closed — transition to answer, or strip reasoning entirely
+						// when Show Reasoning is off.
+						answerText := split.Answer
 						rc.thinkingDone = true
-						rc.streamBuffer = split.Answer
+						rc.hasThinking = displayReasoningInStream
+						rc.streamBuffer = answerText
 						reasoningStream := currentStream
 						rc.mu.Unlock()
 
-						// Stop reasoning stream
+						if rc.ReasoningDelivery.BubbleDelivery {
+							if delta := reasoningDelta(previousThinking, thinkText); delta != "" {
+								m.appendReasoningBubble(runID, rc, delta)
+							}
+							m.flushReasoningBubbles(runID)
+						}
+
+						if !displayReasoningInStream {
+							if reasoningStream != nil && answerText != "" {
+								reasoningStream.Update(ctx, answerText)
+							}
+							break
+						}
+
+						// Stop reasoning stream after showing the final extracted thinking.
 						if reasoningStream != nil {
+							reasoningStream.Update(ctx, formatReasoningPreview(thinkText))
 							_ = reasoningStream.Stop(ctx)
 						}
 						// Create answer stream
@@ -174,12 +211,12 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 							rc.mu.Unlock()
 						}
 						// Update answer stream with extracted answer content
-						if split.Answer != "" {
+						if answerText != "" {
 							rc.mu.Lock()
 							currentStream = rc.stream
 							rc.mu.Unlock()
 							if currentStream != nil {
-								currentStream.Update(ctx, split.Answer)
+								currentStream.Update(ctx, answerText)
 							}
 						}
 						break
@@ -267,6 +304,26 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			if currentStream != nil {
 				_ = currentStream.Stop(ctx)
 			}
+		}
+	}
+
+	if !rc.Streaming && rc.ReasoningDelivery.BubbleDelivery {
+		switch eventType {
+		case protocol.ChatEventThinking:
+			content := extractPayloadString(payload, "content")
+			if content != "" {
+				m.appendReasoningBubble(runID, rc, content)
+			}
+			return
+		case protocol.ChatEventChunk:
+			content := extractPayloadString(payload, "content")
+			if content != "" {
+				m.appendReasoningBubbleFromThinkTagChunk(runID, rc, content)
+			}
+			m.flushReasoningBubbles(runID)
+			return
+		case protocol.AgentEventToolCall, protocol.AgentEventRunCompleted, protocol.AgentEventRunFailed, protocol.AgentEventRunCancelled:
+			m.flushReasoningBubbles(runID)
 		}
 	}
 
@@ -377,7 +434,9 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	// Clean up on terminal events
 	if eventType == protocol.AgentEventRunCompleted || eventType == protocol.AgentEventRunFailed || eventType == protocol.AgentEventRunCancelled {
 		m.cancelQuickAck(rc)
-		m.runs.Delete(runID)
+		rc.mu.Lock()
+		stopReasoningBubbleTimerLocked(rc)
+		rc.mu.Unlock()
 	}
 }
 

@@ -11,6 +11,7 @@ import {
 import { ConfigGroupHeader } from "@/components/shared/config-group-header";
 import { ChannelFields } from "../channel-fields";
 import { configSchema } from "../channel-schemas";
+import { normalizeReasoningDeliveryConfig } from "../reasoning-delivery-config";
 import type { ChannelInstanceData } from "@/types/channel";
 
 interface ChannelAdvancedDialogProps {
@@ -24,7 +25,7 @@ const ESSENTIAL_CONFIG_KEYS = new Set(["dm_policy", "group_policy", "require_men
 
 const NETWORK_KEYS = new Set(["api_server", "proxy", "domain", "connection_mode", "webhook_port", "webhook_path", "webhook_url"]);
 const LIMITS_KEYS = new Set(["history_limit", "media_max_mb", "text_chunk_limit"]);
-const STREAMING_KEYS = new Set(["dm_stream", "group_stream", "draft_transport", "reasoning_stream", "native_stream", "debounce_delay", "thread_ttl"]);
+const STREAMING_KEYS = new Set(["dm_stream", "group_stream", "draft_transport", "reasoning_delivery", "native_stream", "debounce_delay", "thread_ttl"]);
 const BEHAVIOR_KEYS = new Set(["reaction_level", "link_preview", "block_reply", "render_mode", "topic_session_mode"]);
 const ACCESS_KEYS = new Set(["allow_from", "group_allow_from"]);
 
@@ -41,7 +42,7 @@ function getAdvancedFields(channelType: string) {
 }
 
 function deriveInitialValues(instance: ChannelInstanceData): Record<string, unknown> {
-  const config = (instance.config ?? {}) as Record<string, unknown>;
+  const config = normalizeReasoningDeliveryConfig((instance.config ?? {}) as Record<string, unknown>);
   // Only keep advanced keys (exclude essential + groups)
   return Object.fromEntries(
     Object.entries(config).filter(([k]) => !ESSENTIAL_CONFIG_KEYS.has(k) && k !== "groups"),
@@ -79,7 +80,7 @@ export function ChannelAdvancedDialog({
         Object.entries(values).filter(([, v]) => v !== undefined && v !== "" && v !== null),
       );
       // Merge: preserve essential keys and groups from existing, overwrite advanced keys
-      const merged = { ...existingConfig, ...cleanAdvanced };
+      const merged = normalizeReasoningDeliveryConfig({ ...existingConfig, ...cleanAdvanced });
       await onUpdate({ config: merged });
       onOpenChange(false);
     } catch { // toast shown by hook

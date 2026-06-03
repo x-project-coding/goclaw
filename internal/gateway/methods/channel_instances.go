@@ -9,6 +9,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -169,7 +170,7 @@ func (m *ChannelInstancesMethods) handleCreate(ctx context.Context, client *gate
 		ChannelType: params.ChannelType,
 		AgentID:     agentID,
 		Credentials: params.Credentials,
-		Config:      params.Config,
+		Config:      config.NormalizeChannelInstanceConfigRaw(params.ChannelType, params.Config),
 		Enabled:     enabled,
 	}
 
@@ -215,6 +216,7 @@ func (m *ChannelInstancesMethods) handleUpdate(ctx context.Context, client *gate
 			slog.Warn("security.filtered_unknown_field", "field", k, "handler", "channels.instances.update")
 		}
 	}
+	m.normalizeChannelInstanceConfigUpdate(ctx, id, updates)
 
 	if err := m.store.Update(ctx, id, updates); err != nil {
 		slog.Error("channels.instances.update", "error", err)
@@ -225,6 +227,20 @@ func (m *ChannelInstancesMethods) handleUpdate(ctx context.Context, client *gate
 	m.emitCacheInvalidate("")
 	emitAudit(m.eventBus, client, "channel_instance.updated", "channel_instance", id.String())
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{"status": "updated"}))
+}
+
+func (m *ChannelInstancesMethods) normalizeChannelInstanceConfigUpdate(ctx context.Context, id uuid.UUID, updates map[string]any) {
+	value, ok := updates["config"]
+	if !ok {
+		return
+	}
+	channelType, _ := updates["channel_type"].(string)
+	if channelType == "" {
+		if inst, err := m.store.Get(ctx, id); err == nil {
+			channelType = inst.ChannelType
+		}
+	}
+	updates["config"] = config.NormalizeChannelInstanceConfigValue(channelType, value)
 }
 
 func (m *ChannelInstancesMethods) handleDelete(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {

@@ -176,6 +176,20 @@ flowchart TD
 | DashScope | Same as OpenAI (when tools absent) | Same as OpenAI |
 | Codex | `reasoning` items with text summaries | `content` items |
 
+### Channel Delivery
+
+Provider streaming and channel streaming are separate decisions. A channel may request provider streaming only to receive reasoning events, while still delivering the final answer as a normal non-streamed message.
+
+Telegram exposes this through `reasoning_delivery`:
+
+| Mode | Channel output |
+|------|----------------|
+| `streaming_only` | Show reasoning only when `dm_stream` / `group_stream` is enabled. |
+| `always_bubbles` | Force provider streaming and flush reasoning into bounded channel bubbles. |
+| `off` | Do not show reasoning in channel messages. |
+
+`reasoning_stream=false` remains a legacy alias for `off` when no explicit mode is present. The bubble path is not persisted as assistant history; it is only a channel delivery surface.
+
 ### Token Estimation
 
 Thinking tokens are estimated as `character_count / 4` for context window tracking. This rough estimate ensures the agent loop can account for thinking overhead when calculating context usage.

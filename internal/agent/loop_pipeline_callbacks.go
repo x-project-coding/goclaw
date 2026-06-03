@@ -301,8 +301,10 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			}
 		}
 
+		streamThinkingEmitted := false
 		emitChunk := func(chunk providers.StreamChunk) {
 			if chunk.Thinking != "" {
+				streamThinkingEmitted = true
 				emitRun(AgentEvent{
 					Type:    protocol.ChatEventThinking,
 					AgentID: l.id,
@@ -408,6 +410,15 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 					}
 					return len(resp.ToolCalls)
 				}())
+		}
+
+		if req.Stream && err == nil && resp != nil && resp.Thinking != "" && !streamThinkingEmitted {
+			emitRun(AgentEvent{
+				Type:    protocol.ChatEventThinking,
+				AgentID: l.id,
+				RunID:   req.RunID,
+				Payload: map[string]string{"content": resp.Thinking},
+			})
 		}
 
 		// Non-streaming: emit content events matching v2 behavior (channels need these).

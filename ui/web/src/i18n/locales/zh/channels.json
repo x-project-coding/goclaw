@@ -304,7 +304,7 @@
     "dm_stream": { "label": "私聊流式传输", "help": "在私聊中逐步传输回复" },
     "group_stream": { "label": "群聊流式传输", "help": "在群聊中逐步传输回复" },
     "draft_transport": { "label": "草稿预览", "help": "在私聊中使用隐形草稿预览回答流 — 每次编辑无通知（需启用私聊流式传输）" },
-    "reasoning_stream": { "label": "显示推理", "help": "将AI思考过程显示为单独的消息（需启用流式传输）" },
+    "reasoning_delivery": { "label": "显示推理", "help": "选择如何在频道消息中显示模型推理。" },
     "reaction_level": { "label": "表情回应级别" },
     "media_max_mb": { "label": "最大媒体大小 (MB)" },
     "link_preview": { "label": "链接预览" },
@@ -363,6 +363,11 @@
       "minimal": "最小",
       "full": "全部"
     },
+    "reasoning_delivery": {
+      "streaming_only": "仅流式传输时",
+      "always_bubbles": "始终作为气泡",
+      "off": "关闭"
+    },
     "domain": {
       "lark": "Lark（国际版）",
       "feishu": "飞书（中国版）"
@@ -410,7 +415,7 @@
       "dm_stream": { "label": "私聊流式传输", "help": "在私聊中逐步传输回复" },
       "group_stream": { "label": "群聊流式传输", "help": "在群聊中逐步传输回复" },
       "draft_transport": { "label": "草稿预览", "help": "在私聊中使用隐形草稿预览回答流 — 每次编辑无通知（需启用私聊流式传输）" },
-      "reasoning_stream": { "label": "显示推理", "help": "将AI思考过程显示为单独的消息（需启用流式传输）" }
+      "reasoning_delivery": { "label": "显示推理", "help": "选择如何在频道消息中显示模型推理。" }
     },
     "fields": {
       "groupPolicy": "群组策略",

@@ -13,6 +13,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channelmemory"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
+	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -268,7 +269,7 @@ func (h *ChannelInstancesHandler) handleCreate(w http.ResponseWriter, r *http.Re
 		ChannelType: body.ChannelType,
 		AgentID:     agentID,
 		Credentials: body.Credentials,
-		Config:      body.Config,
+		Config:      config.NormalizeChannelInstanceConfigRaw(body.ChannelType, body.Config),
 		Enabled:     enabled,
 		CreatedBy:   userID,
 	}
@@ -317,6 +318,7 @@ func (h *ChannelInstancesHandler) handleUpdate(w http.ResponseWriter, r *http.Re
 
 	// Allowlist: only permit known channel instance columns.
 	updates = filterAllowedKeys(updates, channelInstanceAllowedFields)
+	h.normalizeChannelInstanceConfigUpdate(r.Context(), id, updates)
 
 	if err := h.store.Update(r.Context(), id, updates); err != nil {
 		slog.Error("channel_instances.update", "error", err)
@@ -327,6 +329,20 @@ func (h *ChannelInstancesHandler) handleUpdate(w http.ResponseWriter, r *http.Re
 	h.emitCacheInvalidate("")
 	emitAudit(h.msgBus, r, "channel_instance.updated", "channel_instance", id.String())
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (h *ChannelInstancesHandler) normalizeChannelInstanceConfigUpdate(ctx context.Context, id uuid.UUID, updates map[string]any) {
+	value, ok := updates["config"]
+	if !ok {
+		return
+	}
+	channelType, _ := updates["channel_type"].(string)
+	if channelType == "" {
+		if inst, err := h.store.Get(ctx, id); err == nil {
+			channelType = inst.ChannelType
+		}
+	}
+	updates["config"] = config.NormalizeChannelInstanceConfigValue(channelType, value)
 }
 
 func (h *ChannelInstancesHandler) handleDelete(w http.ResponseWriter, r *http.Request) {

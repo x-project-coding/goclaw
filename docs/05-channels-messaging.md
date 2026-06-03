@@ -87,6 +87,18 @@ Splitting is intentionally conservative. Replies containing fenced code, tables,
 
 Progress messages are not added to session history by this behavior. Existing run timeline handling for `block.reply` remains unchanged.
 
+### Reasoning Delivery
+
+Telegram channel config supports explicit reasoning delivery:
+
+| `reasoning_delivery` | Behavior |
+|----------------------|----------|
+| `streaming_only` | Legacy behavior. Show model reasoning only in the live streaming lane. |
+| `always_bubbles` | Force provider streaming internally and send reasoning as bounded channel bubbles, even when `dm_stream` / `group_stream` are off. |
+| `off` | Suppress reasoning output in the channel. Traces and provider usage remain unaffected. |
+
+Backward compatibility: if `reasoning_delivery` is missing, legacy `reasoning_stream=false` resolves to `off`; otherwise it resolves to `streaming_only`. Explicit `reasoning_delivery` always wins over the legacy boolean. Reasoning bubbles are delivery-only messages and are not added to assistant history.
+
 **Multi-attachment coalescing (#63).** Messages carrying attachments do NOT bypass the debouncer — that pre-fix shortcut was the source of N-replies for one user action. Instead, when media is present the effective window is `max(configured, mediaFloor)` so multi-file uploads land in the same buffer and flush together. Three surfaces apply the same invariant:
 
 | Surface | Buffer key | Trigger |
@@ -122,6 +134,7 @@ Every channel must implement the base interface:
 | `ReactionChannel` | Status reactions on messages | Telegram, Slack, Feishu |
 | `BlockReplyChannel` | Override gateway block_reply setting | Discord, Feishu/Lark, Pancake, Slack, Zalo OA, Zalo Personal |
 | `ChatBehaviorChannel` | Override gateway chat_behavior setting | Bitrix24, Discord, Feishu/Lark, Pancake, Slack, Telegram, WhatsApp, Zalo OA, Zalo Personal |
+| `ReasoningDeliveryChannel` | Override channel-visible reasoning delivery | Telegram |
 
 `BaseChannel` provides a shared implementation that all channels embed: allowlist matching, `HandleMessage()`, `CheckPolicy()`, and user ID extraction.
 
@@ -216,6 +229,7 @@ The Telegram channel uses long polling via the `telego` library (Telegram Bot AP
 - **Cancel commands**: `/stop` and `/stopall` intercepted before the 800ms debouncer. See [08-scheduling-cron.md](./08-scheduling-cron.md) for details.
 - **Concurrent group support**: Group sessions support up to 3 concurrent agent runs.
 - **Bot reply as implicit mention**: Replying to a bot message in a group counts as mentioning the bot.
+- **Show Reasoning delivery**: `reasoning_delivery=always_bubbles` decouples provider streaming from Telegram live streaming so reasoning can appear as bounded normal messages while the final answer remains non-streaming.
 
 ### Formatting Pipeline
 
