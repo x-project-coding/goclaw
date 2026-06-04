@@ -5,11 +5,31 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+// isNonDeliverableScaffold reports whether a written file is internal scaffolding
+// that must never be auto-attached to the user's chat: shell helper scripts and the
+// fixed payload filenames our first-party skills (manage-view, jobs) write purely to
+// drive a curl/skill HTTP call. These leaked to end users as download links — end
+// users receive apps, links, and documents, never raw scripts or skill payloads.
+// Matched case-insensitively on the base name. An explicit deliver:true overrides it.
+func isNonDeliverableScaffold(path string) bool {
+	base := strings.ToLower(filepath.Base(path))
+	switch filepath.Ext(base) {
+	case ".sh", ".bash", ".zsh":
+		return true
+	}
+	switch base {
+	case "manage-view.json", "set-pills.json", "clear-pills.json", "prompt.txt", "launch-job.json":
+		return true
+	}
+	return false
+}
 
 // WriteFileTool writes content to a file, optionally through a sandbox container.
 type WriteFileTool struct {
@@ -108,11 +128,20 @@ func (t *WriteFileTool) Execute(ctx context.Context, args map[string]any) *Resul
 	content, _ := args["content"].(string)
 	appendMode, _ := args["append"].(bool)
 	deliver := true
+	deliverExplicit := false
 	if v, ok := args["deliver"].(bool); ok {
 		deliver = v
+		deliverExplicit = true
 	}
 	if path == "" {
 		return ErrorResult("path is required")
+	}
+
+	// Defense-in-depth against internal scaffolding leaking into the user's chat.
+	// Flip the deliver default to false for shell helpers and first-party skill
+	// payload files; honour an explicit deliver:true as an escape hatch.
+	if deliver && !deliverExplicit && isNonDeliverableScaffold(path) {
+		deliver = false
 	}
 
 	// Group write permission check
