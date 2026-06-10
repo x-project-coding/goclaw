@@ -52,7 +52,7 @@ func (l *Loop) injectLatestJobResultReminder(ctx context.Context, req *RunReques
 	}
 
 	reminder := "[System] The current version of what you built/published is at: " + links +
-		" — this is the latest result from your background code jobs. If you share or reference a link, use this one; any earlier links in this conversation are outdated."
+		" — this is the latest result from your background jobs. If you share or reference a link, use this one; any earlier links in this conversation are outdated."
 
 	last := messages[len(messages)-1]
 	last.Content = reminder + "\n\n" + last.Content
