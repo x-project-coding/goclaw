@@ -91,17 +91,17 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 			content = strings.TrimSpace(req.Title)
 		}
 		if content == "" {
-			content = "A background code job finished."
+			content = "A background job finished."
 		}
 		meta["announce"] = "true"
 	} else {
 		// Legacy relay path: the agent rephrases title+summary for the user.
 		content = strings.TrimSpace(strings.TrimSpace(req.Title) + "\n\n" + strings.TrimSpace(req.Summary))
 		if content == "" {
-			content = "A background code job finished."
+			content = "A background job finished."
 		}
 		if req.JobID != "" {
-			content += "\n\n(code job " + req.JobID + ")"
+			content += "\n\n(job " + req.JobID + ")"
 		}
 	}
 
