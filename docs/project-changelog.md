@@ -4,6 +4,23 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ---
 
+## 2026-06-12
+
+### Mid-flight request preservation (issue #137)
+
+**Fixes**
+
+- Busy-session `chat.send` follow-ups that arrive after a no-tool final answer
+  now force one more pipeline iteration instead of finalizing the earlier answer.
+- The earlier final answer is preserved as assistant context and the follow-up is
+  appended after it, so the next model turn can answer both accepted requests.
+
+**Tests**
+
+- Added pipeline regressions for late injected follow-ups after a final answer.
+
+---
+
 ## 2026-06-11
 
 ### Trace search and advanced filters (issue #152)
