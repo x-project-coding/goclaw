@@ -1358,7 +1358,26 @@ LLM call tracing and cost analysis.
 | `GET` | `/v1/traces/{traceID}/export` | Export trace tree (gzipped JSON) |
 | `GET` | `/v1/runs/{runID}/timeline` | Get persisted run archive timeline items |
 
-**Filters:** `agent_id`, `user_id`, `session_key`, `status`, `channel`
+`GET /v1/traces` query params:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `q` | string | Contains search across trace ID, trace name, input/output previews, session key, raw channel, joined agent/channel labels, and span tool/input/output previews |
+| `agent_id` | UUID | Exact agent UUID filter |
+| `user_id` | string | Exact user filter; non-admin callers are always forced to their own user scope |
+| `session_key` | string | Exact session key filter |
+| `status` | string | Exact trace status filter |
+| `channel` | string | Exact raw channel filter |
+| `agent` | string | Contains search over joined agent display name and key |
+| `channel_query` | string | Contains search over tenant-scoped channel instance name, display name, and type |
+| `from` / `to` | RFC 3339 timestamp | Start-time range; `from` is inclusive, `to` is exclusive |
+| `min_input_tokens` / `max_input_tokens` | int | Input token range |
+| `min_output_tokens` / `max_output_tokens` | int | Output token range |
+| `min_tool_calls` / `max_tool_calls` | int | Tool-call count range |
+| `tool_name` | string | Contains search over span tool names |
+| `has_tool_calls` | boolean | Convenience filter for traces with or without tool calls |
+| `limit` | int | Page size, default 50, max 200 |
+| `offset` | int | Pagination offset |
 
 `GET /v1/traces/follow` requires `session_key` or `agent_id`. Query params: `session_key`, `agent_id`, `status`, `channel`, `since` (RFC 3339), `limit` (default 50, max 200), `include_spans` (default false). Non-admin callers only see their own traces. When `since` is provided, the server returns traces matching existing filters and `(created_at > since OR end_time > since OR status = "running")`.
 

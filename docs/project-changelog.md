@@ -6,6 +6,23 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-06-11
 
+### Trace search and advanced filters (issue #152)
+
+**Changes**
+
+- Extended `GET /v1/traces` with keyword search, partial Trace ID search, date
+  ranges, token ranges, tool-call filters, and agent/channel label search.
+- Added equivalent PostgreSQL and SQLite query-builder behavior with tenant
+  guards on joined channel/span search.
+- Added Web Traces search/filter controls with active filter chips.
+
+**Tests**
+
+- Added HTTP contract coverage for advanced trace filter parsing and user scope.
+- Added PostgreSQL and SQLite where-builder coverage for search, ranges, tool
+  filters, tenant predicates, and wildcard escaping.
+- Added Web filter serialization and trace i18n key coverage.
+
 ### Secure CLI GitHub credential runtime diagnostics (issues #138, #151)
 
 **Fixes**
