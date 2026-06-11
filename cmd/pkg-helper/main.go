@@ -222,14 +222,25 @@ func handleRequest(req request) response {
 	}
 }
 
+var runApkFunc = runApk
+
+func runApk(args ...string) ([]byte, error) {
+	if os.Getuid() != 0 {
+		if sudo, err := exec.LookPath("sudo"); err == nil {
+			sudoArgs := append([]string{"apk"}, args...)
+			return exec.Command(sudo, sudoArgs...).CombinedOutput()
+		}
+	}
+	return exec.Command("apk", args...).CombinedOutput()
+}
+
 func doInstall(pkg string) response {
 	apkMutex.Lock()
 	defer apkMutex.Unlock()
 
 	slog.Info("pkg-helper: installing", "package", pkg)
 
-	cmd := exec.Command("apk", "add", "--no-cache", pkg)
-	out, err := cmd.CombinedOutput()
+	out, err := runApkFunc("add", "--no-cache", pkg)
 	if err != nil {
 		msg, code := classifyApkOutput(string(out), err)
 		slog.Error("pkg-helper: install failed", "package", pkg, "error", msg, "code", code)
@@ -247,8 +258,7 @@ func doUninstall(pkg string) response {
 
 	slog.Info("pkg-helper: uninstalling", "package", pkg)
 
-	cmd := exec.Command("apk", "del", pkg)
-	out, err := cmd.CombinedOutput()
+	out, err := runApkFunc("del", pkg)
 	if err != nil {
 		msg, code := classifyApkOutput(string(out), err)
 		slog.Error("pkg-helper: uninstall failed", "package", pkg, "error", msg, "code", code)
@@ -269,8 +279,7 @@ func doUpgrade(pkg string) response {
 
 	slog.Info("pkg-helper: upgrading", "package", pkg)
 
-	cmd := exec.Command("apk", "add", "-u", pkg)
-	out, err := cmd.CombinedOutput()
+	out, err := runApkFunc("add", "-u", pkg)
 	if err != nil {
 		msg, code := classifyApkOutput(string(out), err)
 		slog.Error("pkg-helper: upgrade failed", "package", pkg, "error", msg, "code", code)
@@ -288,8 +297,7 @@ func doUpdateIndex() response {
 
 	slog.Info("pkg-helper: updating index")
 
-	cmd := exec.Command("apk", "update")
-	out, err := cmd.CombinedOutput()
+	out, err := runApkFunc("update")
 	if err != nil {
 		msg, code := classifyApkOutput(string(out), err)
 		slog.Warn("pkg-helper: update-index failed", "error", msg, "code", code)
@@ -306,8 +314,7 @@ func doListOutdated() response {
 	apkMutex.Lock()
 	defer apkMutex.Unlock()
 
-	cmd := exec.Command("apk", "version", "-l", "<")
-	out, err := cmd.CombinedOutput()
+	out, err := runApkFunc("version", "-l", "<")
 	if err != nil {
 		msg, code := classifyApkOutput(string(out), err)
 		return response{Error: msg, Code: code}
