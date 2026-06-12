@@ -267,13 +267,18 @@ func (h *SkillsHandler) handleSuggestionStatus(w http.ResponseWriter, r *http.Re
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid suggestion id"})
 		return
 	}
-	updated, err := h.evolutionStore.UpdateSuggestionStatus(r.Context(), suggestionID, status, "user", store.ActorIDFromContext(r.Context()))
+	sg, err := h.evolutionStore.GetSuggestion(r.Context(), suggestionID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if updated.SkillID != skillID {
+	if sg == nil || sg.SkillID != skillID {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "suggestion not found"})
+		return
+	}
+	updated, err := h.evolutionStore.UpdateSuggestionStatus(r.Context(), suggestionID, status, "user", store.ActorIDFromContext(r.Context()))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	h.logSkillActivity(r, action, skillID, map[string]any{"suggestion_id": suggestionID.String()})

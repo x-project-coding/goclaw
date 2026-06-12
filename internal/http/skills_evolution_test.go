@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,8 +68,45 @@ func TestApplySkillSuggestionPatchCreatesNewReferenceFile(t *testing.T) {
 	}
 }
 
+func TestHandleSuggestionStatusDoesNotUpdateDifferentSkillSuggestion(t *testing.T) {
+	handler, skillStore, ctx, root := newTestUploadHandler(t)
+	requestSkillID := skillStore.seedCustomSkill("request-skill", filepath.Join(root, "skills-store", "request-skill", "1"), "active", nil)
+	ownerSkillID := skillStore.seedCustomSkill("owner-skill", filepath.Join(root, "skills-store", "owner-skill", "1"), "active", nil)
+	suggestionID := uuid.New()
+	evolution := &skillEvolutionStoreStub{
+		suggestions: map[uuid.UUID]*store.SkillImprovementSuggestion{
+			suggestionID: {
+				ID:             suggestionID,
+				SkillID:        ownerSkillID,
+				Status:         store.SkillSuggestionStatusPending,
+				SuggestionType: "skill_reference_add",
+			},
+		},
+	}
+	handler.SetEvolutionStore(evolution, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/skills/"+requestSkillID.String()+"/evolution/suggestions/"+suggestionID.String()+"/approve", nil).WithContext(ctx)
+	req.SetPathValue("id", requestSkillID.String())
+	req.SetPathValue("suggestionID", suggestionID.String())
+	w := httptest.NewRecorder()
+
+	handler.handleApproveSkillSuggestion(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s, want 404", w.Code, w.Body.String())
+	}
+	if evolution.statusUpdates != 0 {
+		t.Fatalf("status updates = %d, want 0", evolution.statusUpdates)
+	}
+	if got := evolution.suggestions[suggestionID].Status; got != store.SkillSuggestionStatusPending {
+		t.Fatalf("suggestion status = %q, want pending", got)
+	}
+}
+
 type skillEvolutionStoreStub struct {
-	versions []store.SkillVersion
+	versions      []store.SkillVersion
+	suggestions   map[uuid.UUID]*store.SkillImprovementSuggestion
+	statusUpdates int
 }
 
 func (s *skillEvolutionStoreStub) GetSettings(context.Context, uuid.UUID) (*store.SkillEvolutionSettings, error) {
@@ -99,12 +137,33 @@ func (s *skillEvolutionStoreStub) ListSuggestions(context.Context, uuid.UUID, st
 	return nil, nil
 }
 
-func (s *skillEvolutionStoreStub) GetSuggestion(context.Context, uuid.UUID) (*store.SkillImprovementSuggestion, error) {
-	return nil, nil
+func (s *skillEvolutionStoreStub) GetSuggestion(_ context.Context, id uuid.UUID) (*store.SkillImprovementSuggestion, error) {
+	if s.suggestions == nil {
+		return nil, nil
+	}
+	sg, ok := s.suggestions[id]
+	if !ok {
+		return nil, nil
+	}
+	copied := *sg
+	return &copied, nil
 }
 
-func (s *skillEvolutionStoreStub) UpdateSuggestionStatus(context.Context, uuid.UUID, string, string, string) (*store.SkillImprovementSuggestion, error) {
-	return nil, nil
+func (s *skillEvolutionStoreStub) UpdateSuggestionStatus(_ context.Context, id uuid.UUID, status, actorType, actorID string) (*store.SkillImprovementSuggestion, error) {
+	s.statusUpdates++
+	if s.suggestions == nil {
+		return nil, fmt.Errorf("suggestion not found")
+	}
+	sg, ok := s.suggestions[id]
+	if !ok {
+		return nil, fmt.Errorf("suggestion not found")
+	}
+	sg.Status = status
+	sg.ReviewedByActorType = actorType
+	sg.ReviewedByActorID = actorID
+	now := time.Now()
+	sg.ReviewedAt = &now
+	return sg, nil
 }
 
 func (s *skillEvolutionStoreStub) MarkSuggestionApplied(_ context.Context, id uuid.UUID, version int, actorType, actorID string) (*store.SkillImprovementSuggestion, error) {

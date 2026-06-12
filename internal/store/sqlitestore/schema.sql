@@ -2104,7 +2104,7 @@ CREATE INDEX IF NOT EXISTS idx_browser_cookies_expires_at
     ON browser_cookies (expires_at);
 
 -- ============================================================
--- Skill self-evolution (migration 000078 / SQLite schema 47)
+-- Skill self-evolution (migration 000079 / SQLite schema 48)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS skill_evolution_settings (
