@@ -24,6 +24,24 @@ Significant changes, features, and fixes in reverse chronological order.
 - Added command/client regressions for gateway URL and token overrides, trace
   query serialization, follow scope validation, and timeline run ID handling.
 
+### Skill lifecycle API and CLI (issue #159)
+
+**Changes**
+
+- Added per-skill dependency scan/check/install endpoints and CLI commands.
+- Added access read/update, agent/user grant aliases, and effective-access
+  inspection for operator workflows.
+- Dependency status now reports system, pip, npm, and GitHub release deps in
+  structured output.
+- Skill user grants are now tenant-scoped so shared system skills can be
+  granted to the same user ID in different tenants without conflicts.
+
+**Tests**
+
+- Added HTTP, CLI, PostgreSQL, and SQLite coverage for dependency lifecycle,
+  access mode changes, grants, effective access, grant-driven visibility, and
+  tenant-scoped user grants.
+
 ### Mid-flight request preservation (issue #137)
 
 **Fixes**
