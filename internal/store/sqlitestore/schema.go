@@ -16,7 +16,7 @@ var schemaSQL string
 
 // SchemaVersion is the current SQLite schema version.
 // Bump this when adding new migration steps below.
-const SchemaVersion = 46
+const SchemaVersion = 47
 
 // migrations maps version → SQL to apply when upgrading FROM that version.
 // schema.sql always represents the LATEST full schema (for fresh DBs).
@@ -831,6 +831,23 @@ CREATE TABLE IF NOT EXISTS secure_cli_agent_credentials (
 CREATE INDEX IF NOT EXISTS idx_scac_tenant ON secure_cli_agent_credentials(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_scac_binary ON secure_cli_agent_credentials(binary_id);
 CREATE INDEX IF NOT EXISTS idx_scac_agent ON secure_cli_agent_credentials(agent_id);`,
+	// Version 46 → 47: scope skill user-grant uniqueness by tenant.
+	46: `CREATE TABLE skill_user_grants_new (
+    id         TEXT NOT NULL PRIMARY KEY,
+    skill_id   TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    user_id    VARCHAR(255) NOT NULL,
+    granted_by VARCHAR(255) NOT NULL,
+    tenant_id  TEXT NOT NULL REFERENCES tenants(id),
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE(skill_id, user_id, tenant_id)
+);
+INSERT OR IGNORE INTO skill_user_grants_new (id, skill_id, user_id, granted_by, tenant_id, created_at)
+    SELECT id, skill_id, user_id, granted_by, tenant_id, created_at
+    FROM skill_user_grants;
+DROP TABLE skill_user_grants;
+ALTER TABLE skill_user_grants_new RENAME TO skill_user_grants;
+CREATE INDEX IF NOT EXISTS idx_skill_user_grants_user ON skill_user_grants(user_id);
+CREATE INDEX IF NOT EXISTS idx_skill_user_grants_tenant ON skill_user_grants(tenant_id);`,
 }
 
 const addChannelMemoryExtractionTables = `

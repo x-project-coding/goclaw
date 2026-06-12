@@ -92,12 +92,26 @@ func (h *SkillsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/skills/upload", h.adminMiddleware(h.handleUpload))
 	mux.HandleFunc("PUT /v1/skills/{id}", h.adminMiddleware(h.handleUpdate))
 	mux.HandleFunc("DELETE /v1/skills/{id}", h.adminMiddleware(h.handleDelete))
+	mux.HandleFunc("GET /v1/skills/{id}/dependencies", h.adminMiddleware(h.handleSkillDependenciesStatus))
+	mux.HandleFunc("POST /v1/skills/{id}/dependencies/scan", h.adminMiddleware(h.handleSkillDependenciesStatus))
+	mux.HandleFunc("POST /v1/skills/{id}/dependencies/check", h.adminMiddleware(h.handleSkillDependenciesStatus))
+	mux.HandleFunc("POST /v1/skills/{id}/dependencies/install", h.adminMiddleware(h.handleSkillDependenciesInstall))
+	mux.HandleFunc("GET /v1/skills/{id}/access", h.adminMiddleware(h.handleGetSkillAccess))
+	mux.HandleFunc("PATCH /v1/skills/{id}/access", h.adminMiddleware(h.handlePatchSkillAccess))
+	mux.HandleFunc("GET /v1/skills/{id}/access/effective", h.adminMiddleware(h.handleGetSkillEffectiveAccess))
+	mux.HandleFunc("GET /v1/skills/access/effective", h.adminMiddleware(h.handleListEffectiveAccess))
 	// Skill grants (admin+)
 	mux.HandleFunc("GET /v1/skills/{id}/grants/agent", h.adminMiddleware(h.handleListAgentGrants))
 	mux.HandleFunc("POST /v1/skills/{id}/grants/agent", h.adminMiddleware(h.handleGrantAgent))
 	mux.HandleFunc("DELETE /v1/skills/{id}/grants/agent/{agentID}", h.adminMiddleware(h.handleRevokeAgent))
+	mux.HandleFunc("GET /v1/skills/{id}/grants/agents", h.adminMiddleware(h.handleListAgentGrants))
+	mux.HandleFunc("POST /v1/skills/{id}/grants/agents", h.adminMiddleware(h.handleGrantAgent))
+	mux.HandleFunc("DELETE /v1/skills/{id}/grants/agents/{agentID}", h.adminMiddleware(h.handleRevokeAgent))
+	mux.HandleFunc("GET /v1/skills/{id}/grants/users", h.adminMiddleware(h.handleListUserGrants))
 	mux.HandleFunc("POST /v1/skills/{id}/grants/user", h.adminMiddleware(h.handleGrantUser))
 	mux.HandleFunc("DELETE /v1/skills/{id}/grants/user/{userID}", h.adminMiddleware(h.handleRevokeUser))
+	mux.HandleFunc("POST /v1/skills/{id}/grants/users", h.adminMiddleware(h.handleGrantUser))
+	mux.HandleFunc("DELETE /v1/skills/{id}/grants/users/{userID}", h.adminMiddleware(h.handleRevokeUser))
 	// System-level operations: admin + master tenant only.
 	// These execute shell commands (pip/npm install) and affect the entire server.
 	mux.HandleFunc("POST /v1/skills/rescan-deps", h.adminMiddleware(h.handleRescanDeps))
@@ -128,19 +142,7 @@ func (h *SkillsHandler) adminMiddleware(next http.HandlerFunc) http.HandlerFunc 
 // System skill management (install packages, rescan deps) is a server-wide operation
 // that should only be accessible to the master tenant or cross-tenant admins.
 func (h *SkillsHandler) requireMasterTenant(w http.ResponseWriter, r *http.Request) bool {
-	ctx := r.Context()
-	if store.IsOwnerRole(ctx) {
-		return true
-	}
-	tid := store.TenantIDFromContext(ctx)
-	if tid == store.MasterTenantID {
-		return true
-	}
-	locale := store.LocaleFromContext(ctx)
-	writeJSON(w, http.StatusForbidden, map[string]string{
-		"error": i18n.T(locale, i18n.MsgPermissionDenied, "system skill management"),
-	})
-	return false
+	return requireMasterScope(w, r)
 }
 
 func (h *SkillsHandler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +505,7 @@ func stringSlicesEqual(a, b []string) bool {
 // bundled dir if the managed copy's scripts/ directory is missing or empty.
 // If a fallback scan succeeds, re-copies the bundled scripts to the managed dir.
 func (h *SkillsHandler) scanWithFallback(sk store.SkillInfo) *skills.SkillManifest {
-	manifest := skills.ScanSkillDeps(sk.BaseDir)
+	manifest := scanSkillDeps(sk.BaseDir)
 	if manifest != nil && !manifest.IsEmpty() {
 		return manifest
 	}
@@ -520,7 +522,7 @@ func (h *SkillsHandler) scanWithFallback(sk store.SkillInfo) *skills.SkillManife
 	}
 
 	bundledSkillDir := filepath.Join(h.bundledDir, sk.Slug)
-	bundledManifest := skills.ScanSkillDeps(bundledSkillDir)
+	bundledManifest := scanSkillDeps(bundledSkillDir)
 	if bundledManifest == nil || bundledManifest.IsEmpty() {
 		return manifest
 	}

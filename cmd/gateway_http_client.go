@@ -7,10 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
-
-	"github.com/nextlevelbuilder/goclaw/internal/config"
 )
 
 // gatewayHTTPError represents a structured error from the gateway HTTP API.
@@ -28,38 +25,7 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 // healthClient has a shorter timeout for quick health checks.
 var healthClient = &http.Client{Timeout: 3 * time.Second}
 
-// resolveGatewayBaseURL reads host/port from config and returns http://host:port.
-func resolveGatewayBaseURL() string {
-	if server := strings.TrimSpace(os.Getenv("GOCLAW_SERVER")); server != "" {
-		return strings.TrimRight(server, "/")
-	}
-	cfg, err := config.Load(resolveConfigPath())
-	if err != nil {
-		return "http://127.0.0.1:18790"
-	}
-	host := cfg.Gateway.Host
-	if host == "" || host == "0.0.0.0" {
-		host = "127.0.0.1"
-	}
-	port := cfg.Gateway.Port
-	if port == 0 {
-		port = 18790
-	}
-	return fmt.Sprintf("http://%s:%d", host, port)
-}
-
-// resolveGatewayToken returns the gateway auth token.
-// Priority: GOCLAW_GATEWAY_TOKEN env → config file token.
-func resolveGatewayToken() string {
-	if t := os.Getenv("GOCLAW_GATEWAY_TOKEN"); t != "" {
-		return t
-	}
-	cfg, _ := config.Load(resolveConfigPath())
-	if cfg != nil {
-		return cfg.Gateway.Token
-	}
-	return ""
-}
+const gatewayHTTPResponseLimit = 1 << 20
 
 // gatewayHTTPDo sends an HTTP request to the gateway with auth and returns the parsed JSON response.
 func gatewayHTTPDo(method, path string, body any) (map[string]any, error) {
@@ -99,6 +65,10 @@ func gatewayHTTPPut(path string, body any) (map[string]any, error) {
 	return gatewayHTTPDo(http.MethodPut, path, body)
 }
 
+func gatewayHTTPPatch(path string, body any) (map[string]any, error) {
+	return gatewayHTTPDo(http.MethodPatch, path, body)
+}
+
 func gatewayHTTPDelete(path string) error {
 	_, err := gatewayHTTPDo(http.MethodDelete, path, nil)
 	return err
@@ -107,6 +77,10 @@ func gatewayHTTPDelete(path string) error {
 // gatewayHTTPDoRaw executes an HTTP request and returns the raw response bytes.
 // Shared by both map-based and typed response functions.
 func gatewayHTTPDoRaw(method, path string, body any) ([]byte, int, error) {
+	return gatewayHTTPDoRawWithLimit(method, path, body, gatewayHTTPResponseLimit)
+}
+
+func gatewayHTTPDoRawWithLimit(method, path string, body any, limit int64) ([]byte, int, error) {
 	base := resolveGatewayBaseURL()
 
 	var bodyReader io.Reader
@@ -134,7 +108,13 @@ func gatewayHTTPDoRaw(method, path string, body any) ([]byte, int, error) {
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read gateway response: %w", err)
+	}
+	if int64(len(raw)) > limit {
+		return nil, resp.StatusCode, fmt.Errorf("gateway response exceeds %d bytes", limit)
+	}
 	return raw, resp.StatusCode, nil
 }
 

@@ -6,6 +6,42 @@ Significant changes, features, and fixes in reverse chronological order.
 
 ## 2026-06-12
 
+### Operator trace CLI (issue #158)
+
+**Changes**
+
+- Added first-class `goclaw traces` operator commands to the main binary:
+  `list`, `get`, `export`, `follow`, and `timeline`.
+- Added remote client overrides with `--server` and `--token`; trace commands
+  support trace-scoped output selection via `--output` / `-o`.
+- Shared the URL/token resolver with WebSocket/RPC-backed admin commands so
+  `sessions`, `cron`, and `pairing` can use the same remote gateway overrides.
+- Kept trace commands as thin wrappers over existing HTTP endpoints so the
+  server/runtime and operator CLI share one binary without new API contracts.
+
+**Tests**
+
+- Added command/client regressions for gateway URL and token overrides, trace
+  query serialization, follow scope validation, and timeline run ID handling.
+
+### Skill lifecycle API and CLI (issue #159)
+
+**Changes**
+
+- Added per-skill dependency scan/check/install endpoints and CLI commands.
+- Added access read/update, agent/user grant aliases, and effective-access
+  inspection for operator workflows.
+- Dependency status now reports system, pip, npm, and GitHub release deps in
+  structured output.
+- Skill user grants are now tenant-scoped so shared system skills can be
+  granted to the same user ID in different tenants without conflicts.
+
+**Tests**
+
+- Added HTTP, CLI, PostgreSQL, and SQLite coverage for dependency lifecycle,
+  access mode changes, grants, effective access, grant-driven visibility, and
+  tenant-scoped user grants.
+
 ### Mid-flight request preservation (issue #137)
 
 **Fixes**
