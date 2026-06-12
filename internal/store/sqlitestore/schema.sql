@@ -428,7 +428,7 @@ CREATE TABLE IF NOT EXISTS skill_user_grants (
     granted_by VARCHAR(255) NOT NULL,
     tenant_id  TEXT NOT NULL REFERENCES tenants(id),
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    UNIQUE(skill_id, user_id)
+    UNIQUE(skill_id, user_id, tenant_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_skill_user_grants_user ON skill_user_grants(user_id);

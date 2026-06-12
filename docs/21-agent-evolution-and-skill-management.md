@@ -345,10 +345,18 @@ All endpoints require authentication (`authMiddleware`). Mutation endpoints requ
 | `PUT` | `/v1/skills/{id}` | Update metadata (owner/admin) |
 | `DELETE` | `/v1/skills/{id}` | Delete/archive skill (owner/admin) |
 | `POST` | `/v1/skills/{id}/toggle` | Enable/disable skill (owner/admin) |
+| `GET` | `/v1/skills/{id}/dependencies` | Structured dependency status by source |
+| `POST` | `/v1/skills/{id}/dependencies/scan` | Re-scan skill dependencies |
+| `POST` | `/v1/skills/{id}/dependencies/check` | Check missing skill dependencies |
+| `POST` | `/v1/skills/{id}/dependencies/install` | Install missing deps for one skill (master tenant) |
+| `GET` | `/v1/skills/{id}/access` | Read visibility and grants |
+| `PATCH` | `/v1/skills/{id}/access` | Set visibility/access mode |
+| `GET` | `/v1/skills/{id}/access/effective` | Explain access for one skill/agent/user |
+| `GET` | `/v1/skills/access/effective` | Explain effective access across skills |
 | `POST` | `/v1/skills/{id}/grants/agent` | Grant skill to agent (owner/admin) |
-| `DELETE` | `/v1/skills/{id}/grants/agent` | Revoke agent grant (owner/admin) |
+| `DELETE` | `/v1/skills/{id}/grants/agent/{agentID}` | Revoke agent grant (owner/admin) |
 | `POST` | `/v1/skills/{id}/grants/user` | Grant skill to user (owner/admin) |
-| `DELETE` | `/v1/skills/{id}/grants/user` | Revoke user grant (owner/admin) |
+| `DELETE` | `/v1/skills/{id}/grants/user/{userID}` | Revoke user grant (owner/admin) |
 | `POST` | `/v1/skills/upload` | Upload custom skill ZIP |
 | `POST` | `/v1/skills/rescan-deps` | Re-scan all enabled skills |
 | `POST` | `/v1/skills/install-deps` | Install all missing deps |

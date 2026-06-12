@@ -65,6 +65,10 @@ func gatewayHTTPPut(path string, body any) (map[string]any, error) {
 	return gatewayHTTPDo(http.MethodPut, path, body)
 }
 
+func gatewayHTTPPatch(path string, body any) (map[string]any, error) {
+	return gatewayHTTPDo(http.MethodPatch, path, body)
+}
+
 func gatewayHTTPDelete(path string) error {
 	_, err := gatewayHTTPDo(http.MethodDelete, path, nil)
 	return err
