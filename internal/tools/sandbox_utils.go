@@ -8,14 +8,36 @@ import (
 	"strings"
 )
 
+// SandboxMountWorkspace returns the host directory to bind-mount into the
+// sandbox container for the current request. It is the per-request,
+// tenant-scoped workspace subtree (ToolWorkspaceFromCtx) when available, and
+// falls back to the global workspace only when no request workspace is set
+// (mirrors the existing fallback used throughout the exec/filesystem tools).
+//
+// Mounting the tenant subtree — not the process-global multi-tenant root —
+// is what keeps a sandboxed `sh -c` command from reaching sibling tenants'
+// files via absolute container paths like /workspace/tenants/<other> (G3).
+// Sandbox containers are keyed per session (a single tenant), so a reused
+// container never spans tenants once the mount is narrowed.
+//
+// The returned value MUST be used as BOTH the mount source passed to
+// Manager.Get AND the globalWorkspace argument to SandboxCwd so the container
+// cwd resolves relative to the same mount root.
+func SandboxMountWorkspace(ctx context.Context, globalWorkspace string) string {
+	if ws := ToolWorkspaceFromCtx(ctx); ws != "" {
+		return ws
+	}
+	return globalWorkspace
+}
+
 // SandboxCwd maps the current effective workspace (from context) to its
 // corresponding path inside the sandbox container. The sandbox mounts the
-// global workspace root at containerBase (usually "/workspace"). This function
-// computes the relative path from globalWorkspace to the context workspace
-// and joins it with containerBase.
+// per-request workspace subtree (see SandboxMountWorkspace) at containerBase
+// (usually "/workspace"). This function computes the relative path from
+// globalWorkspace to the context workspace and joins it with containerBase.
 //
-// Example: globalWorkspace="/app/workspace", ctx workspace="/app/workspace/agent-a/user-123"
-// → returns "/workspace/agent-a/user-123"
+// When globalWorkspace is the per-request workspace (the common case after the
+// G3 fix), the relative path is "." and the function returns containerBase.
 func SandboxCwd(ctx context.Context, globalWorkspace, containerBase string) (string, error) {
 	ws := ToolWorkspaceFromCtx(ctx)
 	if ws == "" {

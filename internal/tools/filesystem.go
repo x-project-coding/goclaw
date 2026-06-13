@@ -196,7 +196,9 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *Result
 }
 
 func (t *ReadFileTool) executeInSandbox(ctx context.Context, path, sandboxKey string, args map[string]any) *Result {
-	containerCwd, cwdErr := SandboxCwd(ctx, t.workspace, sandbox.DefaultContainerWorkdir)
+	// Per-request tenant-scoped mount (G3): containerCwd is derived from the
+	// same workspace that getFsBridge mounts, so it resolves to the mount root.
+	containerCwd, cwdErr := SandboxCwd(ctx, SandboxMountWorkspace(ctx, t.workspace), sandbox.DefaultContainerWorkdir)
 	if cwdErr != nil {
 		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
 	}
@@ -215,7 +217,9 @@ func (t *ReadFileTool) executeInSandbox(ctx context.Context, path, sandboxKey st
 }
 
 func (t *ReadFileTool) getFsBridge(ctx context.Context, sandboxKey, containerCwd string) (*sandbox.FsBridge, error) {
-	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, t.workspace, SandboxConfigFromCtx(ctx))
+	// Mount only the per-request tenant-scoped workspace subtree, not the
+	// global multi-tenant root (G3).
+	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, SandboxMountWorkspace(ctx, t.workspace), SandboxConfigFromCtx(ctx))
 	if err != nil {
 		return nil, err
 	}

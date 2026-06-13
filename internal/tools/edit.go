@@ -207,12 +207,16 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) *Result {
 }
 
 func (t *EditTool) executeInSandbox(ctx context.Context, path, oldStr, newStr string, replaceAll bool, sandboxKey string) *Result {
-	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, t.workspace, SandboxConfigFromCtx(ctx))
+	// Mount only the per-request tenant-scoped workspace subtree, not the
+	// global multi-tenant root (G3). Used for both the mount source and the
+	// cwd mapping so the container cwd resolves to the mount root.
+	mountWorkspace := SandboxMountWorkspace(ctx, t.workspace)
+	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, mountWorkspace, SandboxConfigFromCtx(ctx))
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("sandbox error: %v", err))
 	}
 
-	containerCwd, cwdErr := SandboxCwd(ctx, t.workspace, sandbox.DefaultContainerWorkdir)
+	containerCwd, cwdErr := SandboxCwd(ctx, mountWorkspace, sandbox.DefaultContainerWorkdir)
 	if cwdErr != nil {
 		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
 	}

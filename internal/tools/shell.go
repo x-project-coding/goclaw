@@ -520,7 +520,13 @@ func buildHostResult(err error, stdout, stderr *limitedBuffer, ctx context.Conte
 
 // executeInSandbox routes a command through a Docker sandbox container.
 func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKey string) *Result {
-	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, t.workspace, SandboxConfigFromCtx(ctx))
+	// Mount only the per-request tenant-scoped workspace subtree, not the
+	// process-global multi-tenant root. t.workspace is the global (master)
+	// root; mounting it would expose every tenant's files under
+	// /workspace/tenants/<other> to this arbitrary `sh -c` command (G3),
+	// since the cwd `-w` is trivially bypassed by absolute paths.
+	mountWorkspace := SandboxMountWorkspace(ctx, t.workspace)
+	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, mountWorkspace, SandboxConfigFromCtx(ctx))
 	if err != nil {
 		if errors.Is(err, sandbox.ErrSandboxDisabled) {
 			return t.executeOnHost(ctx, command, cwd)
@@ -534,8 +540,10 @@ func (t *ExecTool) executeInSandbox(ctx context.Context, command, cwd, sandboxKe
 		return ErrorResult(fmt.Sprintf("sandbox unavailable: %v (will not fall back to unsandboxed host execution)", err))
 	}
 
-	// Map host workdir to container workdir via SandboxCwd helper.
-	containerCwd, cwdErr := SandboxCwd(ctx, t.workspace, sandbox.DefaultContainerWorkdir)
+	// Map host workdir to container workdir via SandboxCwd helper. The mount
+	// source above is the per-request workspace, so the cwd resolves to the
+	// mount root (containerBase).
+	containerCwd, cwdErr := SandboxCwd(ctx, mountWorkspace, sandbox.DefaultContainerWorkdir)
 	if cwdErr != nil {
 		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
 	}
