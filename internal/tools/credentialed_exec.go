@@ -489,7 +489,13 @@ func (t *ExecTool) executeCredentialedHost(ctx context.Context, absPath string, 
 func (t *ExecTool) executeCredentialedSandbox(ctx context.Context, absPath string, args []string,
 	cwd string, sandboxKey string, envMap map[string]string, timeout time.Duration) *Result {
 
-	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, t.workspace, SandboxConfigFromCtx(ctx))
+	// Mount only the per-request tenant-scoped workspace subtree, not the
+	// global multi-tenant root (G3). This container is shared by session key
+	// with the plain exec / filesystem tools, so the mount source must match
+	// theirs to keep the narrowing consistent regardless of which tool runs
+	// first.
+	mountWorkspace := SandboxMountWorkspace(ctx, t.workspace)
+	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, mountWorkspace, SandboxConfigFromCtx(ctx))
 	if err != nil {
 		slog.Warn("security.credentialed_exec_sandbox_unavailable",
 			"binary", absPath, "error", err)

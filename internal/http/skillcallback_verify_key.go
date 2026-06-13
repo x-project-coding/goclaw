@@ -32,12 +32,13 @@ import (
 // also accept the gateway token / no-auth dev mode).
 type SkillCallbackHandler struct {
 	cfg    *config.Config
-	msgBus *bus.MessageBus // for /callback/v1/messages → chat session delivery
+	msgBus *bus.MessageBus  // for /callback/v1/messages → chat session delivery
+	agents store.AgentStore // for /callback/v1/messages → authorize target agent against caller tenant
 }
 
 // NewSkillCallbackHandler creates the skill-callback HTTP handler.
-func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus) *SkillCallbackHandler {
-	return &SkillCallbackHandler{cfg: cfg, msgBus: msgBus}
+func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus, agents store.AgentStore) *SkillCallbackHandler {
+	return &SkillCallbackHandler{cfg: cfg, msgBus: msgBus, agents: agents}
 }
 
 // RegisterRoutes registers the /callback/v1/* skill-callback routes on the mux.

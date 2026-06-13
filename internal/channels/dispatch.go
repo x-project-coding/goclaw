@@ -50,6 +50,28 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				continue
 			}
 
+			// Defense-in-depth tenant guard: the channel registry is keyed by bare
+			// instance name, but channel_instances.name is only unique per (tenant_id,
+			// name). If two tenants register identically-named instances, the global map
+			// holds whichever loaded last, so routing by name alone could deliver one
+			// tenant's outbound through another tenant's channel/credentials. Verify the
+			// resolved instance belongs to the message's tenant before sending; drop on
+			// mismatch (fail closed). Skipped for legacy/config channels (zero channel
+			// tenant) and system/master sends (zero msg.TenantID), matching the agent
+			// message tool's validateChannelTenant semantics.
+			if msg.TenantID != uuid.Nil {
+				if tc, ok := channel.(interface{ TenantID() uuid.UUID }); ok {
+					if chTenant := tc.TenantID(); chTenant != uuid.Nil && chTenant != msg.TenantID {
+						slog.Warn("security.cross_tenant_send_blocked",
+							"channel", msg.Channel,
+							"chat_id", msg.ChatID,
+							"msg_tenant", msg.TenantID,
+							"ch_tenant", chTenant)
+						continue
+					}
+				}
+			}
+
 			// Filter out temp media files that no longer exist (already sent by another dispatch).
 			if len(msg.Media) > 0 {
 				tmpDir := os.TempDir()

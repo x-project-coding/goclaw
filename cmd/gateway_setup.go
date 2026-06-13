@@ -66,6 +66,15 @@ func setupToolRegistry(
 			resolved := sbCfg.ToSandboxConfig()
 			sandboxMgr = sandbox.NewDockerManager(resolved)
 			slog.Info("sandbox enabled", "mode", string(resolved.Mode), "image", resolved.Image, "scope", string(resolved.Scope))
+			// RestrictedDomains is parsed but NOT enforced (no egress proxy/firewall).
+			// Warn loudly so an operator is never given a false sense of egress control:
+			// with network enabled the container has unrestricted outbound access.
+			if resolved.NetworkEnabled && len(resolved.RestrictedDomains) > 0 {
+				slog.Warn("security.sandbox.restricted_domains_not_enforced",
+					"restricted_domains", resolved.RestrictedDomains,
+					"note", "egress allow-listing is not implemented; the sandbox has UNRESTRICTED network egress",
+				)
+			}
 		}
 	}
 
@@ -215,11 +224,15 @@ func setupToolRegistry(
 			// Per-agent overrides via store.WithShellDenyGroups still win per-key.
 			et.SetGlobalShellDenyGroups(cfg.Tools.ShellDenyGroups)
 			et.DenyPaths(dataDir, ".goclaw/")
-			// Allow skills execution: master-tenant skills-store + all tenant-scoped skills-store dirs.
+			// Allow skills execution for the master-tenant skills-store. Non-master
+			// tenants' skills-store dirs are exempted per-request and scoped to the
+			// CALLER's own tenant (see ExecTool.dynamicPathExemptions); a static
+			// filepath.Join(dataDir,"tenants")+"/" exemption would instead expose
+			// EVERY tenant's subtree to the exec tool, breaking tenant isolation.
+			et.SetDataDir(dataDir)
 			et.AllowPathExemptions(
 				".goclaw/skills-store/",
 				filepath.Join(dataDir, "skills-store")+"/",
-				filepath.Join(dataDir, "tenants")+"/",
 			)
 			// Harden: block access to internal workspace files via shell commands.
 			// Prevents `cat ../config.json`, `cat memory.db` etc. from user workspaces.
