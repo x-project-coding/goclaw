@@ -8,11 +8,17 @@ import (
 	"strings"
 
 	shellwords "github.com/mattn/go-shellwords"
+
+	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // dynamicPathExemptions builds runtime exemptions for the active user's workspace
-// upload directories and team workspace root. Only exempts paths that are nested
-// under a denied root — paths outside deny roots don't need exemptions.
+// upload directories, team workspace root, and the CALLER's own tenant-scoped
+// skills-store. Only exempts paths that are nested under a denied root — paths
+// outside deny roots don't need exemptions. The exemption is derived per-request
+// from the request's tenant context so it covers only the caller's tenant, never
+// any other tenant's subtree under tenants/.
 func (t *ExecTool) dynamicPathExemptions(ctx context.Context) []string {
 	var exemptions []string
 	seen := make(map[string]struct{}, 4)
@@ -26,6 +32,16 @@ func (t *ExecTool) dynamicPathExemptions(ctx context.Context) []string {
 	if workspace != "" && filepath.Clean(workspace) != filepath.Clean(teamWorkspace) {
 		dirs = append(dirs, filepath.Join(workspace, ".uploads"))
 		dirs = append(dirs, filepath.Join(workspace, "uploads"))
+	}
+	// Skills may ship executable scripts, so the skills-store is deny-exempt. Scope
+	// the exemption to the CALLER's tenant skills-store only (resolved per request
+	// via the tenant context), mirroring how skill_manage/publish_skill resolve it.
+	// This replaces the former process-global filepath.Join(dataDir,"tenants")+"/"
+	// exemption, which exposed every other tenant's entire subtree to the exec tool.
+	if t.dataDir != "" {
+		tid := store.TenantIDFromContext(ctx)
+		slug := store.TenantSlugFromContext(ctx)
+		dirs = append(dirs, config.TenantSkillsStoreDir(t.dataDir, tid, slug))
 	}
 
 	for _, dir := range dirs {

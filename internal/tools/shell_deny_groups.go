@@ -31,6 +31,8 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 			regexp.MustCompile(`\b(mkfs|diskpart)\b|\bformat\s+(?:/dev/|[a-zA-Z]:)`),
 			regexp.MustCompile(`\bdd\s+if=`),
 			regexp.MustCompile(`>\s*/dev/sd[a-z]\b`),
+			regexp.MustCompile(`\bfind\b.*\s-delete\b`),  // recursive delete via find
+			regexp.MustCompile(`\bfind\b.*-exec\s+rm\b`), // recursive delete via find -exec rm
 			regexp.MustCompile(`\b(shutdown|reboot|poweroff|halt)\b`),
 			regexp.MustCompile(`\b(init|telinit)\s+[06]\b`),          // SysV shutdown/reboot
 			regexp.MustCompile(`\bsystemctl\s+(suspend|hibernate)\b`), // power management
@@ -177,14 +179,16 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 		Description: "Package Installation",
 		Default:     true,
 		Patterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bpip3?\s+install\b`),
+			regexp.MustCompile(`\bpip[0-9.]*\s+install\b`), // pip, pip3, pip3.11, ...
 			regexp.MustCompile(`\bnpm\s+install\b`),
 			regexp.MustCompile(`\bnpm\s+i\b`),
+			regexp.MustCompile(`\bnpx\b`),               // npx <pkg> runs an arbitrary package
+			regexp.MustCompile(`\b(pnpm|yarn)\s+dlx\b`), // pnpm/yarn dlx <pkg>
 			regexp.MustCompile(`\bapk\s+(add|del)\b`),
 			regexp.MustCompile(`\bdoas\s+apk\b`),
 			regexp.MustCompile(`\byarn\s+(add|global)\b`),
 			regexp.MustCompile(`\bpnpm\s+(add|install)\b`),
-			regexp.MustCompile(`\bpip3?\s+uninstall\b`),
+			regexp.MustCompile(`\bpip[0-9.]*\s+uninstall\b`),
 			regexp.MustCompile(`\bnpm\s+uninstall\b`),
 			regexp.MustCompile(`\bpython[23]?\b.*-m\s+pip\b`),
 		},
@@ -216,16 +220,39 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 			regexp.MustCompile(`^\s*env\s*$`),
 			regexp.MustCompile(`^\s*env\s*\|`),
 			regexp.MustCompile(`^\s*env\s*>\s`),
+			// absolute-path `env` (e.g. /usr/bin/env, /bin/env) defeats the
+			// ^\s*env anchor above.
+			regexp.MustCompile(`(^|\s|;|&|\|)(/[^\s]*/)?env\s*($|\||>)`),
 			regexp.MustCompile(`\bprintenv\b`),
-			regexp.MustCompile(`^\s*(set|export\s+-p|declare\s+-x)\s*($|\|)`),
-			regexp.MustCompile(`\bcompgen\s+-e\b`),
+			regexp.MustCompile(`^\s*(set|export\s+-p|readonly\s+-p|declare\s+-[px])\s*($|\||>)`),
+			// declare/typeset -p (print) and -x (exported) dump variable values
+			// whether or not a specific name is given.
+			regexp.MustCompile(`\b(declare|typeset)\s+-[xp]\b`),
+			regexp.MustCompile(`\bcompgen\s+-[ev]\b`),
 			regexp.MustCompile(`/proc/[^/]+/environ`),
 			regexp.MustCompile(`/proc/self/environ`),
 			regexp.MustCompile(`(?i)\bstrings\b.*/proc/`),
-			regexp.MustCompile(`(?i)\becho\b.*\$\{?GOCLAW_(GATEWAY_TOKEN|ENCRYPTION_KEY|POSTGRES_DSN)`),
-			regexp.MustCompile(`(?i)\bprintf\b.*\$\{?GOCLAW_(GATEWAY_TOKEN|ENCRYPTION_KEY|POSTGRES_DSN)`),
-			regexp.MustCompile(`\bpython[23]?\b.*os\.(environ|getenv).*GOCLAW_`),
-			regexp.MustCompile(`\bnode\b.*-e.*process\.env\.GOCLAW_`),
+			// Named gateway-internal secrets via echo/printf — covers both the
+			// master secrets and SKILL_RUNTIME_TOKEN (incl. ${VAR}). echo/printf
+			// of these only ever exists to dump the value to the tool result; a
+			// legitimate skill passes SKILL_RUNTIME_TOKEN in a request header, not
+			// via echo, so this does not break the skill-service path.
+			regexp.MustCompile(`(?i)\b(echo|printf)\b.*\$\{?(GOCLAW_(GATEWAY_TOKEN|ENCRYPTION_KEY|POSTGRES_DSN)|SKILL_RUNTIME_TOKEN)\b`),
+			// Any reference to a GOCLAW master secret, incl. the indirection form
+			// `X=$GOCLAW_GATEWAY_TOKEN`. These have no legitimate use in agent
+			// exec (the skill-service path uses only SKILL_RUNTIME_TOKEN plus
+			// non-secret identifiers), so a bare reference is always an exfil
+			// attempt. SKILL_RUNTIME_TOKEN is intentionally excluded here so a
+			// skill may still pass it in a header.
+			regexp.MustCompile(`(?i)\$\{?GOCLAW_(GATEWAY_TOKEN|ENCRYPTION_KEY|POSTGRES_DSN)\b`),
+			// Interpreter full-environment dumps (defense-in-depth — the env
+			// scrub is the real control). These do not need to name a variable.
+			regexp.MustCompile(`\bpython[23]?\b.*\bos\.(environ|getenv)\b`),
+			regexp.MustCompile(`\bnode\b.*\bprocess\.env\b`),
+			regexp.MustCompile(`\b(ruby|irb)\b.*\bENV\b`),
+			regexp.MustCompile(`\bperl\b.*%ENV\b`),
+			regexp.MustCompile(`\bperl\b.*\$ENV\{`),
+			regexp.MustCompile(`\bawk\b.*\bENVIRON\b`),
 		},
 	},
 }
