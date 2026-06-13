@@ -50,7 +50,11 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 
 	var req messagesRequest
 	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		// Cap the body — a result callback is small (a title + summary); the limit
+		// just bounds memory for a misbehaving/replayed authenticated caller and
+		// keeps this handler consistent with handleSpend (matches the package convention).
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
+		if err := dec.Decode(&req); err != nil && err != io.EOF {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"error": i18n.T(locale, i18n.MsgInvalidJSON),
 			})
