@@ -61,6 +61,14 @@ type Config struct {
 	CPUs              float64           `json:"cpus"`
 	TimeoutSec        int               `json:"timeout_sec"`
 	NetworkEnabled    bool              `json:"network_enabled"`
+	// RestrictedDomains is NOT yet enforced. Egress allow-listing requires an
+	// egress proxy or in-container firewall (NET_ADMIN), which conflicts with the
+	// sandbox's `--cap-drop ALL` + `no-new-privileges` hardening, so it is not wired
+	// into newDockerSandbox. When NetworkEnabled is true the container gets the
+	// default Docker bridge with UNRESTRICTED egress regardless of this list. Setting
+	// it logs a security warning at startup (see cmd/gateway_setup.go) so operators
+	// are not given a false sense of egress control. Do not rely on it to confine
+	// outbound traffic until proper enforcement lands.
 	RestrictedDomains []string          `json:"restricted_domains,omitempty"`
 	Env               map[string]string `json:"env,omitempty"`
 

@@ -66,6 +66,15 @@ func setupToolRegistry(
 			resolved := sbCfg.ToSandboxConfig()
 			sandboxMgr = sandbox.NewDockerManager(resolved)
 			slog.Info("sandbox enabled", "mode", string(resolved.Mode), "image", resolved.Image, "scope", string(resolved.Scope))
+			// RestrictedDomains is parsed but NOT enforced (no egress proxy/firewall).
+			// Warn loudly so an operator is never given a false sense of egress control:
+			// with network enabled the container has unrestricted outbound access.
+			if resolved.NetworkEnabled && len(resolved.RestrictedDomains) > 0 {
+				slog.Warn("security.sandbox.restricted_domains_not_enforced",
+					"restricted_domains", resolved.RestrictedDomains,
+					"note", "egress allow-listing is not implemented; the sandbox has UNRESTRICTED network egress",
+				)
+			}
 		}
 	}
 
