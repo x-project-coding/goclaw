@@ -31,6 +31,8 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 			regexp.MustCompile(`\b(mkfs|diskpart)\b|\bformat\s+(?:/dev/|[a-zA-Z]:)`),
 			regexp.MustCompile(`\bdd\s+if=`),
 			regexp.MustCompile(`>\s*/dev/sd[a-z]\b`),
+			regexp.MustCompile(`\bfind\b.*\s-delete\b`),  // recursive delete via find
+			regexp.MustCompile(`\bfind\b.*-exec\s+rm\b`), // recursive delete via find -exec rm
 			regexp.MustCompile(`\b(shutdown|reboot|poweroff|halt)\b`),
 			regexp.MustCompile(`\b(init|telinit)\s+[06]\b`),          // SysV shutdown/reboot
 			regexp.MustCompile(`\bsystemctl\s+(suspend|hibernate)\b`), // power management
@@ -177,14 +179,16 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 		Description: "Package Installation",
 		Default:     true,
 		Patterns: []*regexp.Regexp{
-			regexp.MustCompile(`\bpip3?\s+install\b`),
+			regexp.MustCompile(`\bpip[0-9.]*\s+install\b`), // pip, pip3, pip3.11, ...
 			regexp.MustCompile(`\bnpm\s+install\b`),
 			regexp.MustCompile(`\bnpm\s+i\b`),
+			regexp.MustCompile(`\bnpx\b`),               // npx <pkg> runs an arbitrary package
+			regexp.MustCompile(`\b(pnpm|yarn)\s+dlx\b`), // pnpm/yarn dlx <pkg>
 			regexp.MustCompile(`\bapk\s+(add|del)\b`),
 			regexp.MustCompile(`\bdoas\s+apk\b`),
 			regexp.MustCompile(`\byarn\s+(add|global)\b`),
 			regexp.MustCompile(`\bpnpm\s+(add|install)\b`),
-			regexp.MustCompile(`\bpip3?\s+uninstall\b`),
+			regexp.MustCompile(`\bpip[0-9.]*\s+uninstall\b`),
 			regexp.MustCompile(`\bnpm\s+uninstall\b`),
 			regexp.MustCompile(`\bpython[23]?\b.*-m\s+pip\b`),
 		},
@@ -217,7 +221,8 @@ var DenyGroupRegistry = map[string]*DenyGroup{
 			regexp.MustCompile(`^\s*env\s*\|`),
 			regexp.MustCompile(`^\s*env\s*>\s`),
 			regexp.MustCompile(`\bprintenv\b`),
-			regexp.MustCompile(`^\s*(set|export\s+-p|declare\s+-x)\s*($|\|)`),
+			regexp.MustCompile(`^\s*(set|export\s+-p|declare\s+-[px])\s*($|\|)`),
+			regexp.MustCompile(`\bdeclare\s+-[px]\b`), // declare -p VAR / declare -x FOO dumps a single var's value
 			regexp.MustCompile(`\bcompgen\s+-e\b`),
 			regexp.MustCompile(`/proc/[^/]+/environ`),
 			regexp.MustCompile(`/proc/self/environ`),
