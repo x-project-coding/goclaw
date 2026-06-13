@@ -402,7 +402,7 @@ func runGateway() {
 
 	// Skill-callback API (/callback/v1/*) — workspace API key auth.
 	// Backs external skill services such as the code-runner behind the `code` skill.
-	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg, msgBus))
+	server.SetSkillCallbackHandler(httpapi.NewSkillCallbackHandler(cfg, msgBus, pgStores.Agents))
 
 	// User-facing code-jobs proxy (/v1/jobs*) — relays a chat user's request to
 	// code-runner with a minted workspace key. Enabled only when the code-runner
