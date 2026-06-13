@@ -29,6 +29,23 @@ var staticCredentialEnvKeys = []string{
 	"GCP_SA_KEY",
 	"AZURE_CLIENT_SECRET",
 	"CLOUDFLARE_API_TOKEN",
+	// goclaw gateway master secrets — these live in the gateway process env
+	// (onboard exports GOCLAW_POSTGRES_DSN/GATEWAY_TOKEN/ENCRYPTION_KEY into
+	// .env.local, which is sourced before the gateway runs) so without this
+	// they are inherited by every fall-through exec child. GOCLAW_ENCRYPTION_KEY
+	// decrypts every tenant's stored provider keys, GOCLAW_POSTGRES_DSN is full
+	// cross-tenant DB access, and GOCLAW_GATEWAY_TOKEN is the master/super-admin
+	// token. SKILL_RUNTIME_TOKEN is a tenant-scoped operator API key; it is
+	// minted per-exec and re-injected after the scrub (shell.go), so listing it
+	// here only strips any stale value inherited from the host env.
+	// The catch-all GOCLAW_ prefix in scrubCredentialEnv covers every other
+	// gateway-internal secret (provider/channel API keys, etc.); the named keys
+	// are kept explicit for clarity. Mirrors isBlockedEnvKey in
+	// internal/workstation/security/allowlist.go and crypto.IsDeniedEnvKey.
+	"GOCLAW_ENCRYPTION_KEY",
+	"GOCLAW_POSTGRES_DSN",
+	"GOCLAW_GATEWAY_TOKEN",
+	"SKILL_RUNTIME_TOKEN",
 }
 
 // scrubCredentialEnv returns env with any KEY=VALUE pair removed whose key
@@ -55,7 +72,18 @@ func scrubCredentialEnv(env []string, dynamicKeys []string) []string {
 			out = append(out, kv)
 			continue
 		}
-		if _, drop := deny[kv[:i]]; drop {
+		key := kv[:i]
+		if _, drop := deny[key]; drop {
+			continue
+		}
+		// Strip every gateway-internal GOCLAW_* var so no goclaw master secret,
+		// provider/channel API key, or other internal leaks into the exec child
+		// via inherited env. The legitimate skill-service identifiers
+		// (GOCLAW_WORKSPACE_ID/USER_ID/AGENT_ID/SESSION_KEY) are NOT sourced from
+		// os.Environ() — they are minted per-run and appended after this scrub
+		// (shell.go) — so dropping the prefix here does not break them. Mirrors
+		// isBlockedEnvKey in internal/workstation/security/allowlist.go.
+		if strings.HasPrefix(key, "GOCLAW_") {
 			continue
 		}
 		out = append(out, kv)
