@@ -215,11 +215,15 @@ func setupToolRegistry(
 			// Per-agent overrides via store.WithShellDenyGroups still win per-key.
 			et.SetGlobalShellDenyGroups(cfg.Tools.ShellDenyGroups)
 			et.DenyPaths(dataDir, ".goclaw/")
-			// Allow skills execution: master-tenant skills-store + all tenant-scoped skills-store dirs.
+			// Allow skills execution for the master-tenant skills-store. Non-master
+			// tenants' skills-store dirs are exempted per-request and scoped to the
+			// CALLER's own tenant (see ExecTool.dynamicPathExemptions); a static
+			// filepath.Join(dataDir,"tenants")+"/" exemption would instead expose
+			// EVERY tenant's subtree to the exec tool, breaking tenant isolation.
+			et.SetDataDir(dataDir)
 			et.AllowPathExemptions(
 				".goclaw/skills-store/",
 				filepath.Join(dataDir, "skills-store")+"/",
-				filepath.Join(dataDir, "tenants")+"/",
 			)
 			// Harden: block access to internal workspace files via shell commands.
 			// Prevents `cat ../config.json`, `cat memory.db` etc. from user workspaces.

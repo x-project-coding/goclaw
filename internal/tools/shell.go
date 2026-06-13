@@ -49,6 +49,17 @@ type ExecTool struct {
 	// Per-agent overrides from context (store.WithShellDenyGroups) win per-key.
 	// Updated at startup and via TopicConfigChanged pub/sub for runtime reload.
 	globalDenyGroups map[string]bool
+	// dataDir is the resolved data directory root. Used to derive the CALLER's
+	// own tenant-scoped skills-store as a per-request deny exemption (see
+	// dynamicPathExemptions). Empty when unset — no per-tenant exemption is added.
+	dataDir string
+}
+
+// SetDataDir records the data directory root so dynamicPathExemptions can build
+// the caller's tenant-scoped skills-store exemption per request. Passing an empty
+// string disables the per-tenant exemption.
+func (t *ExecTool) SetDataDir(dir string) {
+	t.dataDir = dir
 }
 
 // SetGlobalShellDenyGroups replaces the global shell deny-group toggles. The
