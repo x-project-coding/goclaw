@@ -10,6 +10,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // messagesRequest is the body POSTed by a skill-backing service to deliver an
@@ -65,6 +66,12 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "message bus unavailable"})
 		return
 	}
+	if h.agents == nil {
+		// Fail closed: without the agent store we cannot authorize the target
+		// session against the caller, so we must not deliver.
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "agent store unavailable"})
+		return
+	}
 
 	// Canonical session key: agent:{agentID}:{channel}:{peerKind}:{chatID}
 	agentID, rest := sessions.ParseSessionKey(req.SessionKey)
@@ -79,6 +86,25 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 		return
 	}
 	channel, peerKind, chatID := parts[0], parts[1], parts[2]
+
+	// Authorize the caller-supplied sessionKey against the calling key. The whole
+	// session key (agentID/channel/chatID) comes from the request body, so without
+	// this check any holder of a workspace key — e.g. the SKILL_RUNTIME_TOKEN every
+	// skill exec receives — could forge a key for another agent in the tenant and
+	// inject assistant messages / drive agent turns / poison job-result links in a
+	// co-tenant's session. Tenant is already pinned to keyData.TenantID, so resolve
+	// the parsed agent scoped to that tenant: GetByKey filters on tenant_id, so a
+	// forged or cross-tenant agentID does not resolve and is rejected with 403.
+	authCtx := store.WithTenantID(r.Context(), keyData.TenantID)
+	if _, err := h.agents.GetByKey(authCtx, agentID); err != nil {
+		slog.Warn("security.skillcallback_messages_agent_unauthorized",
+			"agent_id", agentID, "tenant_id", keyData.TenantID.String(),
+			"job_id", req.JobID, "error", err)
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": i18n.T(locale, i18n.MsgNoAccess, "agent"),
+		})
+		return
+	}
 
 	meta := map[string]string{"source": "code-skill-callback", "job_id": req.JobID}
 	var content string
