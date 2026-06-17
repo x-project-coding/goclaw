@@ -35,6 +35,10 @@ func GenerateTitle(ctx context.Context, provider providers.Provider, model, user
 			// that doesn't benefit from reasoning and defaults (esp. Gemini's "high")
 			// otherwise eat the entire max_tokens budget, truncating the title to 1 word.
 			providers.OptThinkingLevel: "off",
+			// Route via x-router "fast" mode so this trivial call ignores the
+			// agent's pinned model (e.g. gpt-5.4) and uses the cheap tier. With no
+			// mode, x-router forwards the pinned model verbatim to OpenRouter.
+			providers.OptRoutingMode: "fast",
 		},
 	})
 	if err != nil {

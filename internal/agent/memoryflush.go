@@ -193,6 +193,10 @@ func (l *Loop) runMemoryFlush(ctx context.Context, sessionKey string, settings *
 			Options: map[string]any{
 				"max_tokens":  4096,
 				"temperature": 0.3,
+				// "auto" routing mode → x-router ignores the agent's pinned model
+				// (e.g. gpt-5.4) and picks the model; without a mode it would
+				// forward the pinned model verbatim to OpenRouter.
+				providers.OptRoutingMode: "auto",
 			},
 		})
 		if err != nil {

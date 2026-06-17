@@ -287,7 +287,9 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 		resp, err := l.provider.Chat(sctx, providers.ChatRequest{
 			Messages: []providers.Message{{Role: "user", Content: prompt.String()}},
 			Model:    l.model,
-			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3},
+			// "auto" routing mode → x-router ignores the agent's pinned model and
+			// picks the model itself, instead of forwarding it to OpenRouter.
+			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "auto"},
 		})
 		if err != nil {
 			slog.Warn("summarization failed", "session", sessionKey, "error", err)
