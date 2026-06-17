@@ -100,7 +100,9 @@ func CompactGroup(ctx context.Context, s store.PendingMessageStore, channelName,
 			Content: "Summarize these group chat messages concisely, preserving key topics, decisions, names, and important context:\n\n" + sb.String(),
 		}},
 		Model:   model,
-		Options: map[string]any{"max_tokens": maxTokens, "temperature": 0.3},
+		// "auto" routing mode → x-router ignores the agent's pinned model and
+		// picks the model itself, instead of forwarding it to OpenRouter.
+		Options: map[string]any{"max_tokens": maxTokens, "temperature": 0.3, providers.OptRoutingMode: "auto"},
 	})
 	if err != nil {
 		return 0, fmt.Errorf("llm summarize: %w", err)

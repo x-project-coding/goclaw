@@ -125,6 +125,9 @@ func ClassifyIntent(ctx context.Context, provider providers.Provider, model, use
 		Options: map[string]any{
 			providers.OptMaxTokens:   20,
 			providers.OptTemperature: 0.0,
+			// Route via x-router "fast" mode so this trivial classification ignores
+			// the agent's pinned model (e.g. gpt-5.4) and uses the cheap tier.
+			providers.OptRoutingMode: "fast",
 		},
 	})
 	if err != nil {
