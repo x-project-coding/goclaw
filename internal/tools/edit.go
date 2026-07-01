@@ -208,18 +208,22 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) *Result {
 
 func (t *EditTool) executeInSandbox(ctx context.Context, path, oldStr, newStr string, replaceAll bool, sandboxKey string) *Result {
 	// Mount only the per-request tenant-scoped workspace subtree, not the
-	// global multi-tenant root (G3). Used for both the mount source and the
-	// cwd mapping so the container cwd resolves to the mount root.
-	mountWorkspace := SandboxMountWorkspace(ctx, t.workspace)
+	// global multi-tenant root (G3). effectiveSandboxWorkspace narrows to
+	// ToolWorkspaceFromCtx and errors on cross-tenant execution.
+	mountWorkspace, err := effectiveSandboxWorkspace(ctx, t.workspace)
+	if err != nil {
+		return ErrorResult(err.Error())
+	}
+	containerCwd, cwdErr := sandboxCwdForHostPath(mountWorkspace, mountWorkspace, sandbox.DefaultContainerWorkdir)
+	if cwdErr != nil {
+		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
+	}
+
 	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, mountWorkspace, SandboxConfigFromCtx(ctx))
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("sandbox error: %v", err))
 	}
 
-	containerCwd, cwdErr := SandboxCwd(ctx, mountWorkspace, sandbox.DefaultContainerWorkdir)
-	if cwdErr != nil {
-		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
-	}
 	containerPath := ResolveSandboxPath(path, containerCwd)
 
 	bridge := sandbox.NewFsBridge(sb.ID(), containerCwd)

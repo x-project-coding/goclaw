@@ -196,13 +196,18 @@ func (t *ReadFileTool) Execute(ctx context.Context, args map[string]any) *Result
 }
 
 func (t *ReadFileTool) executeInSandbox(ctx context.Context, path, sandboxKey string, args map[string]any) *Result {
-	// Per-request tenant-scoped mount (G3): containerCwd is derived from the
-	// same workspace that getFsBridge mounts, so it resolves to the mount root.
-	containerCwd, cwdErr := SandboxCwd(ctx, SandboxMountWorkspace(ctx, t.workspace), sandbox.DefaultContainerWorkdir)
+	// Per-request tenant-scoped mount (G3): effectiveSandboxWorkspace narrows
+	// to ToolWorkspaceFromCtx and errors on cross-tenant execution; containerCwd
+	// is derived from the same workspace that getFsBridge mounts.
+	mountWorkspace, err := effectiveSandboxWorkspace(ctx, t.workspace)
+	if err != nil {
+		return ErrorResult(err.Error())
+	}
+	containerCwd, cwdErr := sandboxCwdForHostPath(mountWorkspace, mountWorkspace, sandbox.DefaultContainerWorkdir)
 	if cwdErr != nil {
 		return ErrorResult(fmt.Sprintf("sandbox path mapping: %v", cwdErr))
 	}
-	bridge, err := t.getFsBridge(ctx, sandboxKey, containerCwd)
+	bridge, err := t.getFsBridge(ctx, sandboxKey, mountWorkspace, containerCwd)
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("sandbox error: %v", err))
 	}
@@ -216,10 +221,10 @@ func (t *ReadFileTool) executeInSandbox(ctx context.Context, path, sandboxKey st
 	return t.paginateOutput(data, args)
 }
 
-func (t *ReadFileTool) getFsBridge(ctx context.Context, sandboxKey, containerCwd string) (*sandbox.FsBridge, error) {
-	// Mount only the per-request tenant-scoped workspace subtree, not the
-	// global multi-tenant root (G3).
-	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, SandboxMountWorkspace(ctx, t.workspace), SandboxConfigFromCtx(ctx))
+func (t *ReadFileTool) getFsBridge(ctx context.Context, sandboxKey, mountWorkspace, containerCwd string) (*sandbox.FsBridge, error) {
+	// Mount only the per-request tenant-scoped workspace subtree (G3) — the
+	// caller resolves it via effectiveSandboxWorkspace.
+	sb, err := t.sandboxMgr.Get(ctx, sandboxKey, mountWorkspace, SandboxConfigFromCtx(ctx))
 	if err != nil {
 		return nil, err
 	}

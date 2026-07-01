@@ -27,14 +27,15 @@ const (
 	ProviderYesScale        = "yescale"
 	ProviderZai             = "zai"
 	ProviderZaiCoding       = "zai_coding"
-	ProviderOllama          = "ollama"       // local or self-hosted Ollama (no API key)
-	ProviderOllamaCloud     = "ollama_cloud" // Ollama Cloud (Bearer token required)
-	ProviderACP             = "acp"          // ACP (Agent Client Protocol) agent subprocess
+	ProviderOllama          = "ollama"          // local or self-hosted Ollama (no API key)
+	ProviderOllamaCloud     = "ollama_cloud"    // Ollama Cloud (Bearer token required)
+	ProviderACP             = "acp"             // ACP (Agent Client Protocol) agent subprocess
 	ProviderNovita          = "novita"          // Novita AI (OpenAI-compatible endpoint)
 	ProviderBytePlus        = "byteplus"        // BytePlus ModelArk (Seed 2.0 models)
 	ProviderBytePlusCoding  = "byteplus_coding" // BytePlus ModelArk Coding Plan
 	ProviderVertex          = "vertex"          // Google Cloud Vertex AI (OAuth2 service account + ADC)
 	ProviderXRouter         = "xrouter"         // 42bucks LLM gateway with workspace/agent/user/session attribution headers
+	ProviderKimiCoding      = "kimi_coding"     // Moonshot Kimi Coding (OpenAI-compat, requires fixed User-Agent)
 
 	// Novita AI defaults.
 	NovitaDefaultAPIBase = "https://api.novita.ai/openai"
@@ -45,6 +46,12 @@ const (
 	BytePlusCodingDefaultAPIBase = "https://ark.ap-southeast.bytepluses.com/api/coding/v3"
 	BytePlusDefaultModel         = "seed-2-0-lite-260228"
 
+	// Kimi Coding defaults. The upstream requires a fixed User-Agent on every
+	// request — handled by the runtime in cmd/gateway_providers.go via
+	// OpenAIProvider.WithExtraHeaders.
+	KimiCodingDefaultAPIBase    = "https://api.kimi.com/coding/v1"
+	KimiCodingDefaultModel      = "kimi-k2-turbo-preview"
+	KimiCodingRequiredUserAgent = "claude-code/0.1.0"
 )
 
 // Vertex AI constants live in internal/providers/vertex.go to avoid a store→providers import cycle
@@ -79,6 +86,7 @@ var ValidProviderTypes = map[string]bool{
 	ProviderBytePlusCoding:  true,
 	ProviderVertex:          true,
 	ProviderXRouter:         true,
+	ProviderKimiCoding:      true,
 }
 
 // VertexProviderSettings holds Vertex-specific config stored in llm_providers.settings JSONB.

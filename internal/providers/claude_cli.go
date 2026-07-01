@@ -3,6 +3,7 @@ package providers
 import (
 	"log/slog"
 	"os"
+	"regexp"
 	"sync"
 )
 
@@ -110,9 +111,9 @@ func WithClaudeCLIPermMode(mode string) ClaudeCLIOption {
 // WithClaudeCLISecurityHooks enables GoClaw security hooks for CLI tool calls.
 // Generates a settings file with PreToolUse hooks that enforce shell deny patterns
 // and workspace path restrictions.
-func WithClaudeCLISecurityHooks(workspace string, restrictToWorkspace bool) ClaudeCLIOption {
+func WithClaudeCLISecurityHooks(workspace string, restrictToWorkspace bool, denyPatternSets ...[]*regexp.Regexp) ClaudeCLIOption {
 	return func(p *ClaudeCLIProvider) {
-		settingsPath, cleanup, err := BuildCLIHooksConfig(workspace, restrictToWorkspace)
+		settingsPath, cleanup, err := BuildCLIHooksConfig(workspace, restrictToWorkspace, denyPatternSets...)
 		if err != nil {
 			slog.Warn("claude-cli: failed to build security hooks", "error", err)
 			return

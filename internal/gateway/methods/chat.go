@@ -21,6 +21,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
+	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -34,15 +35,23 @@ type ChatMethods struct {
 	postTurn    tools.PostTurnProcessor
 	audioMgr    *audio.Manager      // for TTS auto-apply on WS responses (nil = disabled)
 	providerReg *providers.Registry // for modelOverride → provider swap (fork patch)
+	usageCaps   *usagecaps.Service
+	debouncer   *chatDebouncer
 }
 
 func NewChatMethods(agents *agent.Router, sess store.SessionStore, cfg *config.Config, rl *gateway.RateLimiter, eventBus bus.EventPublisher) *ChatMethods {
-	return &ChatMethods{agents: agents, sessions: sess, cfg: cfg, rateLimiter: rl, eventBus: eventBus}
+	m := &ChatMethods{agents: agents, sessions: sess, cfg: cfg, rateLimiter: rl, eventBus: eventBus}
+	m.debouncer = newChatDebouncer(m.dispatchChatSends)
+	return m
 }
 
 // SetAudioManager sets the audio manager for TTS auto-apply on WS responses.
 func (m *ChatMethods) SetAudioManager(mgr *audio.Manager) {
 	m.audioMgr = mgr
+}
+
+func (m *ChatMethods) SetUsageCapService(s *usagecaps.Service) {
+	m.usageCaps = s
 }
 
 // SetPostTurnProcessor sets the post-turn processor for team task dispatch.
@@ -205,6 +214,84 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgUserIDRequired)))
 		return
 	}
+
+	providedSessionKey := params.SessionKey != ""
+	sessionKey := params.SessionKey
+	if sessionKey == "" {
+		sessionKey = sessions.BuildWSSessionKey(params.AgentID, uuid.NewString())
+	}
+	params.SessionKey = sessionKey
+
+	// Ownership check: when resuming an existing session, verify the caller owns it.
+	// Skip for new sessions (Get returns nil) so first-message creation is not blocked.
+	if providedSessionKey && !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, userID) {
+		if sess := m.sessions.Get(ctx, sessionKey); sess != nil && sess.UserID != userID {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+			return
+		}
+	}
+
+	item := chatSendRequest{
+		ctx:        ctx,
+		client:     client,
+		requestID:  req.ID,
+		params:     params,
+		loop:       loop,
+		userID:     userID,
+		sessionKey: sessionKey,
+		receivedAt: receivedAt,
+	}
+	debounceKey := chatDebounceKey(userID, sessionKey)
+	if m.debouncer == nil {
+		m.debouncer = newChatDebouncer(m.dispatchChatSends)
+	}
+	if m.agents.IsSessionBusy(sessionKey) && agent.IsExactCancelKeyword(params.Message) {
+		m.debouncer.Discard(debounceKey)
+		m.abortChatSession(req.ID, client, sessionKey)
+		return
+	}
+	// Media-bearing sends route through the same debouncer path as text.
+	// The media floor in chatDebounceDelay guarantees a non-zero window when
+	// the operator has disabled debouncing, so multi-attachment bursts coalesce
+	// into a single dispatch (issue #63).
+	hasMedia := len(params.parseMedia()) > 0
+	delay := chatDebounceDelay(m.cfg, loop.OtherConfig(), hasMedia)
+	if delay > 0 {
+		m.debouncer.Push(debounceKey, delay, item)
+		return
+	}
+	// delay == 0: Push merges into existing buffer (if any) or dispatches.
+	m.debouncer.Push(debounceKey, 0, item)
+}
+
+func (m *ChatMethods) abortChatSession(reqID string, client *gateway.Client, sessionKey string) {
+	results := m.agents.AbortRunsForSession(sessionKey)
+	aborted := false
+	for _, r := range results {
+		if r.Stopped || r.Forced {
+			aborted = true
+			break
+		}
+	}
+	client.SendResponse(protocol.NewOKResponse(reqID, map[string]any{
+		"cancelled": true,
+		"aborted":   aborted,
+	}))
+}
+
+func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
+	if len(requests) == 0 {
+		return
+	}
+	primary := requests[len(requests)-1]
+	params := mergeChatSendRequests(requests)
+	sessionKey := primary.sessionKey
+	userID := primary.userID
+	loop := primary.loop
+	receivedAt := primary.receivedAt
+	hasMedia := len(params.parseMedia()) > 0
+
+	// 42bucks fork patch: resolve caller identity with fallbacks to userID.
 	senderID := params.SenderID
 	if senderID == "" {
 		senderID = userID
@@ -219,37 +306,39 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 	}
 	workspaceChatID := userID
 
-	runID := uuid.NewString()
-	sessionKey := params.SessionKey
-	if sessionKey == "" {
-		sessionKey = sessions.BuildWSSessionKey(params.AgentID, uuid.NewString())
-	}
-
-	// Ownership check: when resuming an existing session, verify the caller owns it.
-	// Skip for new sessions (Get returns nil) so first-message creation is not blocked.
-	if params.SessionKey != "" && !canSeeAll(client.Role(), m.cfg.Gateway.OwnerIDs, userID) {
-		if sess := m.sessions.Get(ctx, sessionKey); sess != nil && sess.UserID != userID {
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "session")))
+	// Mid-run injection: debounce rapid follow-ups into a single injected message.
+	if !hasMedia && m.agents.IsSessionBusy(sessionKey) {
+		injected := m.agents.InjectMessage(sessionKey, agent.InjectedMessage{
+			MessageID:  params.MessageID,
+			Content:    params.Message,
+			UserID:     userID,
+			SenderID:   senderID,
+			SenderName: params.SenderName,
+			CreatedAt:  receivedAt,
+		})
+		if injected {
+			sendChatOK(requests, map[string]any{"injected": true})
 			return
 		}
+		// Fallback: injection failed (channel full), proceed with new run.
 	}
 
 	// Detach from HTTP request context so agent runs survive page navigation/reconnect.
 	// WithoutCancel preserves all context values (locale, user ID, etc.)
 	// but HTTP request cancellation no longer propagates.
 	// Explicit abort via chat.abort still works through the per-run cancel().
-	runCtxBase := context.WithoutCancel(ctx)
+	runCtxBase := context.WithoutCancel(primary.ctx)
 	if userID != "" {
 		runCtxBase = store.WithUserID(runCtxBase, userID)
 	}
 
-	// Eagerly persist a brand-new session so it surfaces in sessions.list (the
-	// app's chat sidebar) the instant the user's message arrives. goclaw
-	// otherwise only writes the session row at finalize, so a freshly-created
-	// chat is invisible in the sidebar until the AI's first reply completes.
-	// Setting UserID is required — sessions.list filters by user_id, so a bare
-	// GetOrCreate row (no user_id) would be excluded. agent_id/label/messages
-	// fill in at finalize. No-op for an already-persisted session.
+	// 42bucks fork patch: eagerly persist a brand-new session so it surfaces in
+	// sessions.list (the app's chat sidebar) the instant the user's message
+	// arrives. goclaw otherwise only writes the session row at finalize, so a
+	// freshly-created chat is invisible in the sidebar until the AI's first
+	// reply completes. Setting UserID is required — sessions.list filters by
+	// user_id, so a bare GetOrCreate row (no user_id) would be excluded.
+	// agent_id/label/messages fill in at finalize. No-op for an already-persisted session.
 	if userID != "" {
 		sess := m.sessions.GetOrCreate(runCtxBase, sessionKey)
 		if sess.UserID == "" {
@@ -260,49 +349,13 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		}
 	}
 
-	// Mid-run injection: if session already has an active run, inject the message
-	// into the running loop instead of starting a new concurrent run.
-	if m.agents.IsSessionBusy(sessionKey) {
-		// Exact cancel keyword detection: auto-abort when user sends "stop", "cancel", etc.
-		if agent.IsExactCancelKeyword(params.Message) {
-			results := m.agents.AbortRunsForSession(sessionKey)
-			aborted := false
-			for _, r := range results {
-				if r.Stopped || r.Forced {
-					aborted = true
-					break
-				}
-			}
-			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
-				"cancelled": true,
-				"aborted":   aborted,
-			}))
-			return
-		}
-
-		injected := m.agents.InjectMessage(sessionKey, agent.InjectedMessage{
-			MessageID:  params.MessageID,
-			Content:    params.Message,
-			UserID:     userID,
-			SenderID:   senderID,
-			SenderName: params.SenderName,
-			CreatedAt:  receivedAt,
-		})
-		if injected {
-			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
-				"injected": true,
-			}))
-			return
-		}
-		// Fallback: injection failed (channel full), proceed with new run
-	}
-
 	// Inject team dispatch tracker: gates team_tasks create (must search/list first)
 	// and defers task dispatch to post-turn.
 	runCtxBase, drainTeamDispatch := tools.InjectTeamDispatch(runCtxBase, m.postTurn)
 
 	// Create cancellable context for abort support (matching TS AbortController pattern).
 	runCtx, cancel := context.WithCancel(runCtxBase)
+	runID := uuid.NewString()
 	injectCh := m.agents.RegisterRun(runCtxBase, runID, sessionKey, params.AgentID, cancel)
 
 	// Run agent asynchronously - events are broadcast via the event system
@@ -356,34 +409,6 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			}
 		}
 
-		// Auto-generate the conversation title from the user's FIRST message,
-		// kicked off CONCURRENTLY with the run rather than after it. The title
-		// only needs the user message + the agent's base provider/model (neither
-		// mutated by Run), so the chat is named within seconds even when the run
-		// itself takes minutes (tool loops, code jobs). Previously this ran only
-		// after loop.Run() returned, leaving long runs "pending" the whole run.
-		if label := m.sessions.GetLabel(ctx, sessionKey); label == "" {
-			agentProvider := loop.Provider()
-			agentModel := loop.Model()
-			userMsg := params.Message
-			// Use runCtxBase (WithoutCancel + tenant-aware) so title save uses correct tenant.
-			titleCtx := runCtxBase
-			go func() {
-				title := agent.GenerateTitle(titleCtx, agentProvider, agentModel, userMsg)
-				if title == "" {
-					return
-				}
-				m.sessions.SetLabel(titleCtx, sessionKey, title)
-				if err := m.sessions.Save(titleCtx, sessionKey); err != nil {
-					slog.Warn("failed to save session title", "sessionKey", sessionKey, "error", err)
-					return
-				}
-				bus.BroadcastForTenant(m.eventBus, protocol.EventSessionUpdated,
-					client.TenantID(),
-					map[string]string{"sessionKey": sessionKey, "label": title, "userId": userID})
-			}()
-		}
-
 		result, err := loop.Run(runCtx, agent.RunRequest{
 			SessionKey:       sessionKey,
 			MessageID:        params.MessageID,
@@ -415,13 +440,37 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			// Send cancelled response so the frontend's chat.send promise resolves
 			// instead of hanging until the 600s timeout.
 			if runCtx.Err() != nil {
-				client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
-					"cancelled": true,
-				}))
+				sendChatOK(requests, map[string]any{"cancelled": true})
 				return
 			}
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+			sendChatError(requests, protocol.ErrInternal, err.Error())
 			return
+		}
+
+		// Auto-generate conversation title on first message (label empty = never titled).
+		if label := m.sessions.GetLabel(primary.ctx, sessionKey); label == "" {
+			agentProvider := loop.Provider()
+			agentModel := loop.Model()
+			userMsg := params.Message
+			// Use runCtxBase (WithoutCancel + tenant-aware) so title save uses correct tenant.
+			titleCtx := runCtxBase
+			go func() {
+				if uid := loop.UUID(); uid != uuid.Nil {
+					titleCtx = store.WithAgentID(titleCtx, uid)
+				}
+				title := agent.GenerateTitleWithUsageCaps(titleCtx, m.usageCaps, agentProvider, agentModel, userMsg)
+				if title == "" {
+					return
+				}
+				m.sessions.SetLabel(titleCtx, sessionKey, title)
+				if err := m.sessions.Save(titleCtx, sessionKey); err != nil {
+					slog.Warn("failed to save session title", "sessionKey", sessionKey, "error", err)
+					return
+				}
+				bus.BroadcastForTenant(m.eventBus, protocol.EventSessionUpdated,
+					primary.client.TenantID(),
+					map[string]string{"sessionKey": sessionKey, "label": title, "userId": userID})
+			}()
 		}
 
 		// TTS auto-apply: convert [[tts]] tagged responses to voice audio
@@ -459,8 +508,20 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		if len(mediaResults) > 0 {
 			resp["media"] = mediaResults
 		}
-		client.SendResponse(protocol.NewOKResponse(req.ID, resp))
+		sendChatOK(requests, resp)
 	}()
+}
+
+func sendChatOK(requests []chatSendRequest, payload map[string]any) {
+	for _, request := range requests {
+		request.client.SendResponse(protocol.NewOKResponse(request.requestID, payload))
+	}
+}
+
+func sendChatError(requests []chatSendRequest, code, message string) {
+	for _, request := range requests {
+		request.client.SendResponse(protocol.NewErrorResponse(request.requestID, code, message))
+	}
 }
 
 type chatHistoryParams struct {
