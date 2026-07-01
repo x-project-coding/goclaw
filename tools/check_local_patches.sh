@@ -148,12 +148,21 @@ check_file "Patch 13: upstream v3.12 backfill migration (up)" \
   migrations/099001_upstream_v3_12_backfill.up.sql
 check_file "Patch 13: upstream v3.12 backfill migration (down)" \
   migrations/099001_upstream_v3_12_backfill.down.sql
-check_grep "Patch 13: RequiredSchemaVersion 99001" 1 \
-  'RequiredSchemaVersion uint = 99001' \
+check_grep "Patch 13: RequiredSchemaVersion 99002" 1 \
+  'RequiredSchemaVersion uint = 99002' \
   internal/upgrade/version.go
 check_grep "Patch 13: upstream v3.12 backfill contents" 10 \
   'secure_cli_agent_grants|webhooks|webhook_calls|workstations|workstation_permissions|workstation_activity|model_fallback|skill_agent_grants|can_manage|DELETE FROM skill_agent_grants' \
   migrations/099001_upstream_v3_12_backfill.up.sql
+
+# Patch 14 — backfill skipped upstream v3.13/v3.14 migrations for DBs already at 099001.
+check_file "Patch 14: upstream v3.13/v3.14 backfill migration (up)" \
+  migrations/099002_upstream_v3_13_v3_14_backfill.up.sql
+check_file "Patch 14: upstream v3.13/v3.14 backfill migration (down)" \
+  migrations/099002_upstream_v3_13_v3_14_backfill.down.sql
+check_grep "Patch 14: upstream v3.13/v3.14 backfill contents" 10 \
+  'bitrix_portals|browser_cookies|usage_pricing_catalog|usage_cap_policies|run_timeline_items|mcp_context_grants|channel_memory_extraction_runs|secure_cli_agent_credentials|skill_user_grants_skill_id_user_id_tenant_id_key|skill_versions|usage_events|usage_event_rollups' \
+  migrations/099002_upstream_v3_13_v3_14_backfill.up.sql
 
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'

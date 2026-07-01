@@ -434,9 +434,47 @@ in append order. Do not place fork migrations below `099000`.
   ```
   test -f migrations/099001_upstream_v3_12_backfill.up.sql
   test -f migrations/099001_upstream_v3_12_backfill.down.sql
-  grep -nE 'RequiredSchemaVersion uint = 99001' internal/upgrade/version.go
+  grep -nE 'RequiredSchemaVersion uint = 99002' internal/upgrade/version.go
   grep -nE 'secure_cli_agent_grants|webhooks|webhook_calls|workstations|workstation_permissions|workstation_activity|model_fallback|skill_agent_grants|can_manage|DELETE FROM skill_agent_grants' \
     migrations/099001_upstream_v3_12_backfill.up.sql
+  ```
+  Expects both migration files present, 1 schema-version hit, and ≥ 10
+  migration-content hits. (`RequiredSchemaVersion` is a single shared constant;
+  it now sits at `99002`, bumped by Patch 14 which is the newest fork-only
+  backfill on top of this one.)
+
+### Patch 14 — `fix(upgrade): backfill skipped upstream v3.13/v3.14 migrations after 099001`
+
+- **Base upstream commit:** `2f3d68e8` (`v3.14.0`)
+- **Files:**
+  - `migrations/099002_upstream_v3_13_v3_14_backfill.up.sql` — idempotent copy of
+    upstream migrations `000068`..`000080` (v3.13 + v3.14) for databases already
+    at schema version `99001`, where golang-migrate will not visit the
+    lower-numbered upstream migration files.
+  - `migrations/099002_upstream_v3_13_v3_14_backfill.down.sql` — intentional no-op;
+    fresh databases already receive upstream `000068`..`000080` normally, so the
+    compatibility migration cannot safely know which objects it created (mirrors
+    the `099001` down convention).
+  - `internal/upgrade/version.go` — `RequiredSchemaVersion` raised to `99002`
+    so the upgrade runner applies the compatibility migration.
+  - `tools/check_local_patches.sh` — verifies the migration files, the bumped
+    schema version, and key backfilled table tokens.
+- **Why:** Patch 7 moved our production database schema version into the reserved
+  `099xxx` block, and Patch 13 backfilled v3.12's `000058`..`000067`. Upstream
+  v3.13/v3.14 then added lower-numbered migrations `000068`..`000080` (Bitrix
+  portals, browser cookies, usage pricing/cap/event catalog, run-timeline items,
+  MCP context grants, channel-memory extraction runs, secure-CLI agent
+  credentials, skill user grants + skill versions, etc.). Deploying the merged
+  binary directly would skip every one of those on an already-`99001` database.
+  This patch preserves the reserved fork migration block while making existing
+  `99001` databases compatible with v3.14.0 code.
+- **Recovery grep:**
+  ```
+  test -f migrations/099002_upstream_v3_13_v3_14_backfill.up.sql
+  test -f migrations/099002_upstream_v3_13_v3_14_backfill.down.sql
+  grep -nE 'RequiredSchemaVersion uint = 99002' internal/upgrade/version.go
+  grep -nE 'bitrix_portals|browser_cookies|usage_pricing_catalog|usage_cap_policies|run_timeline_items|mcp_context_grants|channel_memory_extraction_runs|secure_cli_agent_credentials|skill_user_grants_skill_id_user_id_tenant_id_key|skill_versions|usage_events|usage_event_rollups' \
+    migrations/099002_upstream_v3_13_v3_14_backfill.up.sql
   ```
   Expects both migration files present, 1 schema-version hit, and ≥ 10
   migration-content hits.

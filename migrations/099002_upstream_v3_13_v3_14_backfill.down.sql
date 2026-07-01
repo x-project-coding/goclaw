@@ -1,0 +1,8 @@
+-- Intentionally no-op.
+--
+-- 099002 is a fork-only compatibility backfill for databases that skipped
+-- upstream migrations 000068..000080 after the reserved 099xxx fork block moved
+-- the schema version past them. Fresh databases already get those upstream
+-- migrations normally before this file runs, so a down migration cannot safely
+-- tell which objects it created and which came from upstream — dropping them
+-- would corrupt a fresh DB. A reversing down is therefore deliberately omitted.

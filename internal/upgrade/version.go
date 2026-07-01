@@ -9,4 +9,4 @@ package upgrade
 // even when migrations files exist on disk — golang-migrate is never asked
 // to scan them. On every upstream merge that raises this constant, max
 // it with our current fork-only 099xxx top.
-const RequiredSchemaVersion uint = 99001
+const RequiredSchemaVersion uint = 99002
