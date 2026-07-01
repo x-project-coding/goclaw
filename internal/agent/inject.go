@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
@@ -18,6 +19,25 @@ type InjectedMessage struct {
 	UserID     string
 	SenderID   string
 	SenderName string
+	CreatedAt  time.Time // arrival time; persisted as created_at (Router.InjectMessage stamps when zero)
+}
+
+// 42bucks fork patch: injectedSessionMessage converts an injected message to the providers.Message
+// persisted in session history, carrying sender identity and the true arrival
+// time so created_at reflects when the user sent it, not when the run flushed.
+func injectedSessionMessage(injected InjectedMessage) providers.Message {
+	msg := providers.Message{
+		ID:         injected.MessageID,
+		Role:       "user",
+		Content:    injected.Content,
+		SenderID:   injected.SenderID,
+		SenderName: injected.SenderName,
+	}
+	if !injected.CreatedAt.IsZero() {
+		createdAt := injected.CreatedAt
+		msg.CreatedAt = &createdAt
+	}
+	return msg
 }
 
 // processedInjection holds the two message forms: one for the LLM (with context wrapper)
@@ -86,15 +106,11 @@ func (l *Loop) processInjectedMessage(injected InjectedMessage, emitRun func(Age
 		})
 	}
 
+	forSession := injectedSessionMessage(injected)
+	forSession.Content = content // truncated copy
 	return &processedInjection{
-		forLLM: providers.Message{Role: "user", Content: wrapped},
-		forSession: providers.Message{
-			ID:         injected.MessageID,
-			Role:       "user",
-			Content:    content,
-			SenderID:   injected.SenderID,
-			SenderName: injected.SenderName,
-		},
+		forLLM:     providers.Message{Role: "user", Content: wrapped},
+		forSession: forSession,
 	}, true
 }
 

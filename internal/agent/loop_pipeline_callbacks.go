@@ -385,6 +385,15 @@ func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sess
 	// (via BuildMessages) so it never reaches FlushPending. This closure
 	// persists the user message on first flush to match v2 session format.
 	var userMsgFlushed bool
+	// 42bucks fork patch: stamp the user message with its receipt time so created_at reflects when
+	// the user sent it, not when the run flushed (the first flush can land
+	// many minutes later on long tool loops). Callers that don't set
+	// MessageCreatedAt fall back to run start — still far closer to arrival
+	// than flush time.
+	userMsgCreatedAt := req.MessageCreatedAt
+	if userMsgCreatedAt.IsZero() {
+		userMsgCreatedAt = time.Now().UTC()
+	}
 	return func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
 		if !userMsgFlushed && !req.HideInput && req.Message != "" {
 			userMsgFlushed = true
@@ -394,6 +403,7 @@ func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sess
 				Content:    req.Message,
 				SenderID:   req.SenderID,
 				SenderName: req.SenderName,
+				CreatedAt:  &userMsgCreatedAt,
 			})
 		}
 		for _, msg := range msgs {
