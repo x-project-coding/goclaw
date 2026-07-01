@@ -177,7 +177,9 @@ func (w *episodicWorker) summarizeFromMessages(ctx context.Context, provider pro
 			{Role: "user", Content: sb.String()},
 		},
 		Model:   model,
-		Options: map[string]any{"max_tokens": 1024, "temperature": 0.3},
+		// "auto" routing mode → x-router ignores the agent's pinned model and
+		// picks the model itself, instead of forwarding it to OpenRouter.
+		Options: map[string]any{"max_tokens": 1024, "temperature": 0.3, providers.OptRoutingMode: "auto"},
 	}
 	resp, err := w.usageCaps.Chat(sctx, provider, req, usagecaps.ChatOptions{
 		ModelID:         model,

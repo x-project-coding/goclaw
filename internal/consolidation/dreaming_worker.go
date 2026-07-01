@@ -220,6 +220,9 @@ func (w *dreamingWorker) synthesize(ctx context.Context, provider providers.Prov
 		Model: model,
 		Options: map[string]any{
 			providers.OptMaxTokens: dreamingMaxTokens,
+			// "auto" routing mode → x-router ignores the agent's pinned model and
+			// picks the model itself, instead of forwarding it to OpenRouter.
+			providers.OptRoutingMode: "auto",
 		},
 	}
 	resp, err := w.usageCaps.Chat(ctx, provider, req, usagecaps.ChatOptions{
