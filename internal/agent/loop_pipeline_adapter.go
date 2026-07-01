@@ -155,10 +155,7 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.P
 			for {
 				select {
 				case injected := <-req.InjectCh:
-					msgs = append(msgs, providers.Message{
-						Role:    "user",
-						Content: injected.Content,
-					})
+					msgs = append(msgs, injectedSessionMessage(injected))
 				default:
 					return msgs
 				}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -584,6 +585,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 type RunRequest struct {
 	SessionKey        string             // composite key: agent:{agentId}:{channel}:{peerKind}:{chatId}
 	MessageID         string             // stable ID for the persisted user message
+	MessageCreatedAt  time.Time          // receipt time of the user message; persisted as created_at (zero = stamp at run start)
 	Message           string             // user message
 	Media             []bus.MediaFile    // local media files with MIME types
 	ForwardMedia      []bus.MediaFile    // media files to forward to output (from delegation results)

@@ -1,6 +1,10 @@
 package pipeline
 
-import "github.com/nextlevelbuilder/goclaw/internal/providers"
+import (
+	"time"
+
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
+)
 
 // MessageBuffer wraps the message list with append/replace semantics.
 // Sequential pipeline guarantees only one stage writes at a time — no mutex needed.
@@ -36,8 +40,15 @@ func (mb *MessageBuffer) History() []providers.Message { return mb.history }
 // SetHistory replaces history (used when loading from session store).
 func (mb *MessageBuffer) SetHistory(msgs []providers.Message) { mb.history = msgs }
 
-// AppendPending adds a new message to the pending buffer.
+// AppendPending adds a new message to the pending buffer. Messages without a
+// CreatedAt are stamped at append (emission) time so the persisted created_at
+// reflects when the message was produced, not when a later checkpoint/finalize
+// flush wrote it to the session store (which can be minutes later).
 func (mb *MessageBuffer) AppendPending(msg providers.Message) {
+	if msg.CreatedAt == nil {
+		now := time.Now().UTC()
+		msg.CreatedAt = &now
+	}
 	mb.pending = append(mb.pending, msg)
 }
 

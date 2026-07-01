@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -175,6 +176,11 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		return
 	}
 
+	// Capture receipt time so the persisted message's created_at reflects when
+	// the user sent it — the run pipeline flushes messages minutes later on
+	// long tool loops, and flush-time stamping loses the real send time.
+	receivedAt := time.Now().UTC()
+
 	if params.AgentID == "" {
 		// Extract agent key from session key (format: "agent:{key}:{rest}")
 		// so resuming an existing session routes to the correct agent.
@@ -280,6 +286,7 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 			UserID:     userID,
 			SenderID:   senderID,
 			SenderName: params.SenderName,
+			CreatedAt:  receivedAt,
 		})
 		if injected {
 			client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
@@ -380,6 +387,7 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		result, err := loop.Run(runCtx, agent.RunRequest{
 			SessionKey:       sessionKey,
 			MessageID:        params.MessageID,
+			MessageCreatedAt: receivedAt,
 			Message:          message,
 			Media:            mediaFiles,
 			Channel:          "ws",
