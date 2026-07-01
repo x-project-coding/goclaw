@@ -22,7 +22,7 @@ type InjectedMessage struct {
 	CreatedAt  time.Time // arrival time; persisted as created_at (Router.InjectMessage stamps when zero)
 }
 
-// injectedSessionMessage converts an injected message to the providers.Message
+// 42bucks fork patch: injectedSessionMessage converts an injected message to the providers.Message
 // persisted in session history, carrying sender identity and the true arrival
 // time so created_at reflects when the user sent it, not when the run flushed.
 func injectedSessionMessage(injected InjectedMessage) providers.Message {

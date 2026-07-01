@@ -176,7 +176,7 @@ func (m *ChatMethods) handleSend(ctx context.Context, client *gateway.Client, re
 		return
 	}
 
-	// Capture receipt time so the persisted message's created_at reflects when
+	// 42bucks fork patch: capture receipt time so the persisted message's created_at reflects when
 	// the user sent it — the run pipeline flushes messages minutes later on
 	// long tool loops, and flush-time stamping loses the real send time.
 	receivedAt := time.Now().UTC()

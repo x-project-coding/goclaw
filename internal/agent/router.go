@@ -416,7 +416,7 @@ func (r *Router) AbortRunsForSession(sessionKey string) []AbortResult {
 // InjectMessage sends a user message to the running loop for a session.
 // Returns true if the message was accepted, false if no active run or channel full.
 func (r *Router) InjectMessage(sessionKey string, msg InjectedMessage) bool {
-	// Stamp arrival time so the persisted created_at reflects when the user
+	// 42bucks fork patch: stamp arrival time so the persisted created_at reflects when the user
 	// sent the message, not when the running loop drained/flushed it.
 	if msg.CreatedAt.IsZero() {
 		msg.CreatedAt = time.Now().UTC()

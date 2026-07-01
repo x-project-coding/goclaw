@@ -41,7 +41,7 @@ func (mb *MessageBuffer) History() []providers.Message { return mb.history }
 func (mb *MessageBuffer) SetHistory(msgs []providers.Message) { mb.history = msgs }
 
 // AppendPending adds a new message to the pending buffer. Messages without a
-// CreatedAt are stamped at append (emission) time so the persisted created_at
+// CreatedAt are stamped at append (emission) time (42bucks fork patch) so the persisted created_at
 // reflects when the message was produced, not when a later checkpoint/finalize
 // flush wrote it to the session store (which can be minutes later).
 func (mb *MessageBuffer) AppendPending(msg providers.Message) {
