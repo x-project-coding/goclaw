@@ -478,3 +478,20 @@ in append order. Do not place fork migrations below `099000`.
   ```
   Expects both migration files present, 1 schema-version hit, and ≥ 10
   migration-content hits.
+
+### Patch 15 — `feat: brand-agent memory baseline (seed-on-import, AGENTS.md taxonomy, auto-index on memory PUT)`
+
+- **Base upstream commit:** `9d86f0ef` (v3.14.0 fork merge)
+- **Files:**
+  - `internal/http/agents_import_sections.go` — after the context_files section in `doMergeImport`, unconditionally call `bootstrap.SeedToStore` (only-if-missing, warn-and-continue) so archive-imported agents get the AGENTS.md/AGENTS_CORE.md/AGENTS_TASK.md baseline.
+  - `internal/bootstrap/templates/AGENTS.md` — adds `### Memory layout` (memory taxonomy: company.md, use-cases.md, people/, projects/, decisions.md) and a `## Files` section (workspace file hygiene).
+  - `internal/http/memory_handlers.go` — `handlePutDocument` indexes `.md` documents after write (mirrors the memory interceptor), so HTTP-written memory is searchable.
+  - Tests: `internal/http/agents_import_seed_test.go` (new), `internal/bootstrap/seed_test.go` (new), `internal/http/memory_handlers_test.go` (extended).
+- **Why:** 42bucks brand agents are provisioned exclusively via archive import, which never seeded the baseline instruction files — production agents lacked all memory-write and file-hygiene guidance. The Settings Memory editor and onboarding memory-seeding pipeline write via the HTTP PUT endpoint, which did not index.
+- **Recovery grep:**
+  ```
+  grep -n "SeedToStore" internal/http/agents_import_sections.go
+  grep -n "Memory layout" internal/bootstrap/templates/AGENTS.md
+  grep -nE 'IndexDocument' internal/http/memory_handlers.go
+  ```
+  Expects >=1 hit in each file.
