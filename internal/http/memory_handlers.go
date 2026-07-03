@@ -3,6 +3,7 @@ package http
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -85,6 +86,16 @@ func (h *MemoryHandler) handlePutDocument(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// Only index .md files (chunk + embed), mirroring the in-agent write path
+	// (internal/tools/memory_interceptor.go WriteFile). Indexing failure is
+	// non-fatal: the document write already persisted, indexing will catch up.
+	if strings.HasSuffix(path, ".md") {
+		if err := h.store.IndexDocument(r.Context(), agentID, body.UserID, path); err != nil {
+			slog.Warn("memory.put_document: index failed after write", "error", err, "path", path)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "path": path})
 }
 

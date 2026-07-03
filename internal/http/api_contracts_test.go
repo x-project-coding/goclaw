@@ -3,8 +3,10 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -108,6 +110,76 @@ func TestSessionsHandler_ReadAPIKeyWithoutUserHeaderIsRejected(t *testing.T) {
 	}
 }
 
+func TestMemoryHandler_PutDocument_IndexesMarkdown(t *testing.T) {
+	setupTestToken(t, "")
+	setupTestNoAuthFallback(t, true)
+	agentID := uuid.New()
+	mem := &recordingMemoryStore{}
+	h := &MemoryHandler{store: mem}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/agents/"+agentID.String()+"/memory/documents/notes.md",
+		strings.NewReader(`{"content":"hello","user_id":"user-1"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if !mem.indexCalled {
+		t.Fatalf("expected IndexDocument to be called for a .md path")
+	}
+	if mem.indexAgentID != agentID.String() || mem.indexUserID != "user-1" || mem.indexPath != "notes.md" {
+		t.Fatalf("IndexDocument called with agent=%q user=%q path=%q, want agent=%q user=%q path=%q",
+			mem.indexAgentID, mem.indexUserID, mem.indexPath, agentID.String(), "user-1", "notes.md")
+	}
+}
+
+func TestMemoryHandler_PutDocument_IndexFailureStillReturnsSuccess(t *testing.T) {
+	setupTestToken(t, "")
+	setupTestNoAuthFallback(t, true)
+	agentID := uuid.New()
+	mem := &recordingMemoryStore{indexErr: errors.New("index boom")}
+	h := &MemoryHandler{store: mem}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/agents/"+agentID.String()+"/memory/documents/notes.md",
+		strings.NewReader(`{"content":"hello"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 even when indexing fails; body=%s", rec.Code, rec.Body.String())
+	}
+	if !mem.indexCalled {
+		t.Fatalf("expected IndexDocument to still be attempted")
+	}
+}
+
+func TestMemoryHandler_PutDocument_NonMarkdownNotIndexed(t *testing.T) {
+	setupTestToken(t, "")
+	setupTestNoAuthFallback(t, true)
+	agentID := uuid.New()
+	mem := &recordingMemoryStore{}
+	h := &MemoryHandler{store: mem}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/agents/"+agentID.String()+"/memory/documents/MEMORY.json",
+		strings.NewReader(`{"content":"{}"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if mem.indexCalled {
+		t.Fatalf("expected IndexDocument NOT to be called for a non-.md path")
+	}
+}
+
 func TestRegisterAPINotFoundRoute_UsesStructuredError(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterAPINotFoundRoute(mux)
@@ -138,6 +210,12 @@ func (r *memoryAgentResolver) GetByKey(context.Context, string) (*store.AgentDat
 
 type recordingMemoryStore struct {
 	listAllAgentID string
+
+	indexCalled  bool
+	indexAgentID string
+	indexUserID  string
+	indexPath    string
+	indexErr     error
 }
 
 func (s *recordingMemoryStore) GetDocument(context.Context, string, string, string) (string, error) {
@@ -168,8 +246,12 @@ func (s *recordingMemoryStore) ListChunks(context.Context, string, string, strin
 func (s *recordingMemoryStore) Search(context.Context, string, string, string, store.MemorySearchOptions) ([]store.MemorySearchResult, error) {
 	return nil, nil
 }
-func (s *recordingMemoryStore) IndexDocument(context.Context, string, string, string) error {
-	return nil
+func (s *recordingMemoryStore) IndexDocument(_ context.Context, agentID, userID, path string) error {
+	s.indexCalled = true
+	s.indexAgentID = agentID
+	s.indexUserID = userID
+	s.indexPath = path
+	return s.indexErr
 }
 func (s *recordingMemoryStore) IndexAll(context.Context, string, string) error { return nil }
 func (s *recordingMemoryStore) SetEmbeddingProvider(store.EmbeddingProvider)   {}
