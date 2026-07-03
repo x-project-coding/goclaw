@@ -22,15 +22,18 @@ func (h *AgentsHandler) doMergeImport(ctx context.Context, ag *store.AgentData, 
 		if err := h.importContextFiles(ctx, ag, arc, summary, progressFn); err != nil {
 			return nil, err
 		}
-		// Seed agent-level baseline templates (AGENTS.md, AGENTS_CORE.md,
-		// AGENTS_TASK.md, ...) that the archive did not provide. SeedToStore
-		// only writes files that have no existing content, so archive-provided
-		// files are never overwritten, and it is a no-op for open agents.
-		// Runs even when the archive ships zero context files. Best-effort:
-		// a seeding failure must not fail an import that already succeeded.
-		if _, err := bootstrap.SeedToStore(ctx, h.agents, ag.ID, ag.AgentType); err != nil {
-			slog.Warn("agents.import: failed to seed baseline context files", "agent_id", ag.ID, "error", err)
-		}
+	}
+
+	// Seed agent-level baseline templates (AGENTS.md, AGENTS_CORE.md,
+	// AGENTS_TASK.md, ...) that the archive did not provide. SeedToStore
+	// only writes files that have no existing content, so archive-provided
+	// files are never overwritten, and it is a no-op for open agents.
+	// Runs unconditionally — after the context_files import above so archive
+	// files land first, and even when the archive ships zero context files
+	// or the caller excluded the context_files section. Best-effort: a
+	// seeding failure must not fail an import that already succeeded.
+	if _, err := bootstrap.SeedToStore(ctx, h.agents, ag.ID, ag.AgentType); err != nil {
+		slog.Warn("agents.import: failed to seed baseline context files", "agent_id", ag.ID, "error", err)
 	}
 
 	// Section: memory

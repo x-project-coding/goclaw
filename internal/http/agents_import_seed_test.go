@@ -35,7 +35,7 @@ func newImportSeedAgentStore() *importSeedAgentStore {
 
 func (s *importSeedAgentStore) Create(_ context.Context, agent *store.AgentData) error {
 	if agent.ID == uuid.Nil {
-		agent.ID = uuid.New()
+		agent.ID = store.GenNewID()
 	}
 	cp := *agent
 	s.agents[agent.ID] = &cp
@@ -235,5 +235,48 @@ func TestDoMergeImport_SeedsMissingBaselineOnExistingAgent(t *testing.T) {
 	}
 	if files[bootstrap.AgentsFile] == "" {
 		t.Fatal("expected AGENTS.md to be seeded on merge-import for an existing agent missing it")
+	}
+}
+
+// TestDoMergeImport_SeedsBaselineWhenContextFilesSectionExcluded verifies that
+// baseline seeding runs unconditionally on merge-import — even when the caller
+// excludes the context_files section via ?include= (e.g. ?include=memory).
+func TestDoMergeImport_SeedsBaselineWhenContextFilesSectionExcluded(t *testing.T) {
+	agents := newImportSeedAgentStore()
+	ctx := importSeedTestContext()
+
+	existing := &store.AgentData{
+		AgentKey:  "memory-only-merge-agent",
+		AgentType: store.AgentTypePredefined,
+		Provider:  "anthropic",
+		Model:     "claude-3-5-sonnet",
+	}
+	if err := agents.Create(ctx, existing); err != nil {
+		t.Fatalf("seed existing agent: %v", err)
+	}
+	agents.files[existing.ID] = map[string]string{
+		bootstrap.SoulFile: "# Existing Soul",
+	}
+
+	handler := &AgentsHandler{agents: agents, defaultWorkspace: "/tmp/workspace"}
+
+	arc := &importArchive{
+		contextFiles: []importContextFile{
+			// Must NOT be imported: the section is excluded.
+			{fileName: bootstrap.SoulFile, content: "# Archive Soul that must be skipped"},
+		},
+	}
+	sections := map[string]bool{"memory": true} // context_files excluded
+
+	if _, err := handler.doMergeImport(ctx, existing, arc, sections, nil); err != nil {
+		t.Fatalf("doMergeImport returned error: %v", err)
+	}
+
+	files := agents.files[existing.ID]
+	if files[bootstrap.SoulFile] != "# Existing Soul" {
+		t.Fatalf("excluded context_files section must not import archive files, got SOUL.md=%q", files[bootstrap.SoulFile])
+	}
+	if files[bootstrap.AgentsFile] == "" {
+		t.Fatal("expected AGENTS.md to be seeded even when context_files section is excluded")
 	}
 }
