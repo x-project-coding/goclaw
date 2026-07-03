@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -20,6 +21,15 @@ func (h *AgentsHandler) doMergeImport(ctx context.Context, ag *store.AgentData, 
 	if sections["context_files"] {
 		if err := h.importContextFiles(ctx, ag, arc, summary, progressFn); err != nil {
 			return nil, err
+		}
+		// Seed agent-level baseline templates (AGENTS.md, AGENTS_CORE.md,
+		// AGENTS_TASK.md, ...) that the archive did not provide. SeedToStore
+		// only writes files that have no existing content, so archive-provided
+		// files are never overwritten, and it is a no-op for open agents.
+		// Runs even when the archive ships zero context files. Best-effort:
+		// a seeding failure must not fail an import that already succeeded.
+		if _, err := bootstrap.SeedToStore(ctx, h.agents, ag.ID, ag.AgentType); err != nil {
+			slog.Warn("agents.import: failed to seed baseline context files", "agent_id", ag.ID, "error", err)
 		}
 	}
 
