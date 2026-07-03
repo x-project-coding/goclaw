@@ -12,6 +12,12 @@ import (
 
 const titleGenerateTimeout = 120 * time.Second
 
+// Output-token budget for the title call. Reasoning-capable cheap-tier models
+// can spend part of the budget on thinking traces even with thinkingLevel=off,
+// so leave generous room for the actual title to survive. If it still comes
+// back empty, GenerateTitle falls back to the first message (never unnamed).
+const titleMaxTokens = 512
+
 const titleSystemPrompt = `Generate a short title (max 15 words) for this conversation based on the user's message. Reply with only the title, no quotes or punctuation wrapping.`
 
 // GenerateTitle uses a lightweight LLM call to create a short conversation title
@@ -31,10 +37,10 @@ func GenerateTitleWithUsageCaps(ctx context.Context, usageCaps *usagecaps.Servic
 		},
 		Model: model,
 		Options: map[string]any{
-			// Larger budget: thinking-capable models (Gemini 2.5/3, GPT-5 reasoning)
-			// can consume output tokens on reasoning traces. 256 leaves room for a
-			// 15-word title even when the provider allocates some budget to thinking.
-			providers.OptMaxTokens:   256,
+			// Larger budget: thinking-capable models (Gemini 2.5/3, GPT-5, glm)
+			// can consume output tokens on reasoning traces even with thinking
+			// disabled, which otherwise leaves no room for the title itself.
+			providers.OptMaxTokens:   titleMaxTokens,
 			providers.OptTemperature: 0.3,
 			// Disable extended thinking for title generation — it's a trivial task
 			// that doesn't benefit from reasoning and defaults (esp. Gemini's "high")
@@ -49,11 +55,11 @@ func GenerateTitleWithUsageCaps(ctx context.Context, usageCaps *usagecaps.Servic
 	resp, err := usageCaps.Chat(ctx, provider, req, usagecaps.ChatOptions{
 		ModelID:         model,
 		Purpose:         "session-title",
-		MaxOutputTokens: 256,
+		MaxOutputTokens: titleMaxTokens,
 	})
 	if err != nil {
-		slog.Warn("title generation failed", "error", err)
-		return ""
+		slog.Warn("title generation failed; using first-message fallback", "error", err)
+		return fallbackTitle(userMessage)
 	}
 
 	title := strings.TrimSpace(resp.Content)
@@ -61,8 +67,40 @@ func GenerateTitleWithUsageCaps(ctx context.Context, usageCaps *usagecaps.Servic
 	title = strings.Trim(title, "\"'`")
 	title = strings.TrimSpace(title)
 
+	if title == "" {
+		// Reasoning-capable cheap-tier models (e.g. glm) can spend the entire
+		// output budget on thinking traces despite thinkingLevel=off and return
+		// no title text. Never leave the session unnamed — fall back to a short
+		// form of the user's first message.
+		slog.Warn("title generation returned empty content; using first-message fallback")
+		return fallbackTitle(userMessage)
+	}
+
 	if runes := []rune(title); len(runes) > 100 {
 		title = string(runes[:100])
 	}
 	return title
+}
+
+// fallbackTitle derives a short, deterministic conversation title from the
+// user's first message so a chat is never left unnamed when the LLM title call
+// fails or returns empty content.
+func fallbackTitle(userMessage string) string {
+	s := strings.TrimSpace(userMessage)
+	// Drop the hidden-user "[System]" marker prefix if present.
+	s = strings.TrimSpace(strings.TrimPrefix(s, "[System]"))
+	// Use the first non-empty line so multi-line messages give a tidy title.
+	for _, line := range strings.Split(s, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			s = t
+			break
+		}
+	}
+	if runes := []rune(s); len(runes) > 60 {
+		s = strings.TrimSpace(string(runes[:60]))
+	}
+	if s == "" {
+		return "New chat"
+	}
+	return s
 }
