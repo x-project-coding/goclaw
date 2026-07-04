@@ -525,6 +525,21 @@ func (h *AgentsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		h.syncIdentityName(r.Context(), ag, newName)
 	}
 
+	// Seed agent-level baseline templates (AGENTS.md, AGENTS_CORE.md, AGENTS_TASK.md,
+	// ...) on an open→predefined transition. Provisioning flows commonly import a
+	// brand-agent archive as agent_type 'open' (or unset) and then flip it to
+	// 'predefined' via this endpoint — bootstrap.SeedToStore no-ops for 'open', so
+	// without this call the agent would go predefined without ever getting its
+	// baseline context files. SeedToStore only writes files that have no existing
+	// content, so it is idempotent and never overwrites archive/import-provided
+	// files. Best-effort: a seeding failure must not fail an update that already
+	// succeeded.
+	if newType, ok := allowed["agent_type"].(string); ok && newType == store.AgentTypePredefined && ag.AgentType != store.AgentTypePredefined {
+		if _, err := bootstrap.SeedToStore(r.Context(), h.agents, id, newType); err != nil {
+			slog.Warn("agents.update: failed to seed baseline context files on predefined transition", "agent_id", id, "error", err)
+		}
+	}
+
 	// Invalidate caches: agent Loop + bootstrap files
 	h.emitCacheInvalidate(bus.CacheKindAgent, ag.AgentKey)
 	h.emitCacheInvalidate(bus.CacheKindBootstrap, id.String())
