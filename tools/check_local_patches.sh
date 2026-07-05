@@ -164,6 +164,15 @@ check_grep "Patch 14: upstream v3.13/v3.14 backfill contents" 10 \
   'bitrix_portals|browser_cookies|usage_pricing_catalog|usage_cap_policies|run_timeline_items|mcp_context_grants|channel_memory_extraction_runs|secure_cli_agent_credentials|skill_user_grants_skill_id_user_id_tenant_id_key|skill_versions|usage_events|usage_event_rollups' \
   migrations/099002_upstream_v3_13_v3_14_backfill.up.sql
 
+# Patch 15 — per-call viewContext on WS chat.send → run-only ExtraSystemPrompt.
+# x-api sends the app view-context; goclaw injects it for THAT run only.
+check_grep "Patch 15: chat viewContext → ExtraSystemPrompt" 2 \
+  '"viewContext,omitempty"|ExtraSystemPrompt: params\.ViewContext' \
+  internal/gateway/methods/chat.go
+check_grep "Patch 15: chat viewContext tests" 1 \
+  'ViewContext|viewContext' \
+  internal/gateway/methods/chat_view_context_test.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

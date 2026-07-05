@@ -478,3 +478,48 @@ in append order. Do not place fork migrations below `099000`.
   ```
   Expects both migration files present, 1 schema-version hit, and ≥ 10
   migration-content hits.
+
+### Patch 15 — `feat(chat): per-call viewContext → run-only ExtraSystemPrompt on WS chat.send`
+
+- **Base upstream commit:** `9d86f0ef` (`origin/dev` merge-base;
+  `v3.15.0-beta.81`)
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `chatSendParams` gains a
+    `ViewContext string \`json:"viewContext,omitempty"\`` field (WS RPC
+    `chat.send`). In `dispatchChatSends` the handler seeds
+    `agent.RunRequest{ExtraSystemPrompt: params.ViewContext}` on the run it
+    builds. This WS path sets nothing else on `ExtraSystemPrompt`, so the
+    assignment is the seed value; `buildMessages`
+    (`internal/agent/loop_history.go`) still appends any bootstrap /
+    group-writer prompt onto it. The context is injected into the system
+    prompt for THAT run only and is **never** persisted as a visible history
+    message (`ExtraSystemPrompt` rides `RunInput` →
+    `loop_pipeline_adapter.go:convertRunInput` →
+    `loop_pipeline_callbacks.go:makeBuildMessages` → system prompt, not the
+    user/assistant transcript).
+  - `internal/gateway/methods/chat_view_context_test.go` — 4 unit tests:
+    `viewContext` unmarshals off the wire; absent → empty; `omitempty` keeps
+    empty sends byte-identical to today; `mergeChatSendRequests` preserves it
+    across a debounced burst (so the value handleSend reads is the latest
+    x-api attached).
+  - `tools/check_local_patches.sh` — two `check_grep` invocations verifying the
+    `chat.go` field + assignment and the test tokens survive a merge.
+- **Why:** 42bucks embeds prebuilt "agent apps" full-screen with a chat
+  bubble. When the user chats from that bubble, x-api (`workspace-chat.routes`
+  → `buildBubbleViewContext`) server-builds a one-sentence context —
+  *which app + which in-app page the user is looking at* — after confirming
+  the sender's fullscreen presence is fresh and its `bubbleSessionKey`
+  matches the target session, then passes it as `viewContext`. goclaw injects
+  it so the agent can reason about the on-screen context ("summarize this
+  page", "what am I looking at") without the user re-describing it. It is
+  **always server-built and never trusted from a client**, and must not leak
+  into stored history — hence run-only `ExtraSystemPrompt` rather than an
+  injected message. Upstream has no notion of an embedded app surface, so this
+  is 42bucks-specific. Companion to the iframe-surface batch (x-api Slice A).
+- **Recovery grep:**
+  ```
+  grep -nE '"viewContext,omitempty"|ExtraSystemPrompt: params\.ViewContext' \
+    internal/gateway/methods/chat.go
+  grep -nE 'ViewContext|viewContext' internal/gateway/methods/chat_view_context_test.go
+  ```
+  Expects ≥ 2 hits on the first grep and ≥ 1 on the second.
