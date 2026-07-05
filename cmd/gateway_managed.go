@@ -312,9 +312,23 @@ func wireExtras(
 	// Share ONE ContextFileInterceptor instance between read_file and write_file
 	// so they share the same cache.
 	// Write-capable tools share a memory interceptor with optional KG extraction hook.
+	// All memory interceptors share ONE cached agent-type resolver so shared/private
+	// path routing works even on entry paths that don't thread WithAgentType into
+	// the tool ctx (e.g. MCP bridge calls).
+	var agentTypeResolver tools.AgentTypeResolverFunc
+	if stores.Agents != nil {
+		agentTypeResolver = tools.NewCachedAgentTypeResolver(stores.Agents, 5*time.Minute)
+	}
+	newMemIntc := func() *tools.MemoryInterceptor {
+		mi := tools.NewMemoryInterceptor(stores.Memory, workspace)
+		if agentTypeResolver != nil {
+			mi.SetAgentTypeResolver(agentTypeResolver)
+		}
+		return mi
+	}
 	var writeMemIntc *tools.MemoryInterceptor
 	if stores.Memory != nil {
-		writeMemIntc = tools.NewMemoryInterceptor(stores.Memory, workspace)
+		writeMemIntc = newMemIntc()
 		// Hook KG extraction on memory writes if KG store is available
 		if stores.KnowledgeGraph != nil && stores.BuiltinTools != nil {
 			writeMemIntc.SetKGExtractFunc(buildKGExtractFunc(stores.KnowledgeGraph, stores.BuiltinTools, providerReg, usageCapSvc))
@@ -326,7 +340,7 @@ func wireExtras(
 				ia.SetContextFileInterceptor(contextFileInterceptor)
 			}
 			if stores.Memory != nil {
-				ia.SetMemoryInterceptor(tools.NewMemoryInterceptor(stores.Memory, workspace))
+				ia.SetMemoryInterceptor(newMemIntc())
 			}
 		}
 	}
@@ -353,7 +367,7 @@ func wireExtras(
 	if listTool, ok := toolsReg.Get("list_files"); ok {
 		if ia, ok := listTool.(tools.InterceptorAware); ok {
 			if stores.Memory != nil {
-				ia.SetMemoryInterceptor(tools.NewMemoryInterceptor(stores.Memory, workspace))
+				ia.SetMemoryInterceptor(newMemIntc())
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -671,5 +672,146 @@ func TestListFiles_OpenAgent_DoesNotMergeGlobalScope(t *testing.T) {
 	}
 	if strings.Contains(listing, "memory/company.md") {
 		t.Errorf("open agent listing should not merge global-scope docs, got: %s", listing)
+	}
+}
+
+// --- Agent-type resolver fallback (ctx without agent type, e.g. MCP bridge path) ---
+
+func TestWriteFile_NoCtxType_ResolverPredefined_StoresGlobal(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// Simulates the MCP bridge / background paths: ctx carries agent ID + user
+	// ID but NOT the agent type. The authoritative resolver must supply it.
+	mi.SetAgentTypeResolver(func(_ context.Context, id uuid.UUID) string {
+		if id == agentID {
+			return store.AgentTypePredefined
+		}
+		return ""
+	})
+
+	ctx := memCtx(agentID, "user1", "") // no WithAgentType
+	if _, err := mi.WriteFile(ctx, "memory/decisions.md", "Launch is Sept 15", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, gerr := ms.GetDocument(ctx, agentID.String(), "", "memory/decisions.md")
+	if gerr != nil || got != "Launch is Sept 15" {
+		t.Errorf("expected shared doc at global scope via resolver, got %q, err %v", got, gerr)
+	}
+	if _, err := ms.GetDocument(ctx, agentID.String(), "user1", "memory/decisions.md"); err == nil {
+		t.Error("did not expect per-user storage when resolver reports predefined")
+	}
+}
+
+func TestReadFile_NoCtxType_ResolverPredefined_ReadsGlobal(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	ms.docs[docKey(agentID.String(), "", "memory/company.md")] = "Acme Corp"
+	mi.SetAgentTypeResolver(func(_ context.Context, _ uuid.UUID) string {
+		return store.AgentTypePredefined
+	})
+
+	ctx := memCtx(agentID, "user2", "") // no WithAgentType
+	content, handled, err := mi.ReadFile(ctx, "memory/company.md")
+	if err != nil || !handled {
+		t.Fatalf("unexpected: handled=%v err=%v", handled, err)
+	}
+	if content != "Acme Corp" {
+		t.Errorf("expected shared doc via resolver, got %q", content)
+	}
+}
+
+func TestWriteFile_NoCtxType_NoResolver_StaysPerUser(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// Neither ctx nor resolver knows the type → safe per-user default.
+	ctx := memCtx(agentID, "user1", "")
+	if _, err := mi.WriteFile(ctx, "memory/decisions.md", "notes", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, gerr := ms.GetDocument(ctx, agentID.String(), "user1", "memory/decisions.md"); gerr != nil || got != "notes" {
+		t.Errorf("expected per-user storage without type info, got %q, err %v", got, gerr)
+	}
+}
+
+func TestWriteFile_CtxTypeWinsOverResolver(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// ctx says open; resolver would say predefined. ctx is the fast path and wins.
+	mi.SetAgentTypeResolver(func(_ context.Context, _ uuid.UUID) string {
+		return store.AgentTypePredefined
+	})
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypeOpen)
+	if _, err := mi.WriteFile(ctx, "memory/decisions.md", "open agent notes", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := ms.GetDocument(ctx, agentID.String(), "user1", "memory/decisions.md"); err != nil {
+		t.Error("expected per-user storage when ctx type is open")
+	}
+}
+
+// --- NewCachedAgentTypeResolver ---
+
+type stubAgentTypeLookup struct {
+	agentType string
+	err       error
+	calls     int
+}
+
+func (s *stubAgentTypeLookup) GetByIDUnscoped(_ context.Context, _ uuid.UUID) (*store.AgentData, error) {
+	s.calls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &store.AgentData{AgentType: s.agentType}, nil
+}
+
+func TestCachedAgentTypeResolver_LooksUpAndCaches(t *testing.T) {
+	lookup := &stubAgentTypeLookup{agentType: store.AgentTypePredefined}
+	resolver := NewCachedAgentTypeResolver(lookup, time.Minute)
+	agentID := uuid.New()
+
+	for range 3 {
+		if got := resolver(context.Background(), agentID); got != store.AgentTypePredefined {
+			t.Fatalf("resolver = %q, want predefined", got)
+		}
+	}
+	if lookup.calls != 1 {
+		t.Errorf("expected 1 store call (cached afterwards), got %d", lookup.calls)
+	}
+}
+
+func TestCachedAgentTypeResolver_ErrorNotCached(t *testing.T) {
+	lookup := &stubAgentTypeLookup{err: fmt.Errorf("db down")}
+	resolver := NewCachedAgentTypeResolver(lookup, time.Minute)
+	agentID := uuid.New()
+
+	if got := resolver(context.Background(), agentID); got != "" {
+		t.Errorf("expected empty type on error, got %q", got)
+	}
+	// Error must not be cached — recovery on next call.
+	lookup.err = nil
+	lookup.agentType = store.AgentTypeOpen
+	if got := resolver(context.Background(), agentID); got != store.AgentTypeOpen {
+		t.Errorf("expected retry after error to succeed, got %q", got)
+	}
+}
+
+func TestCachedAgentTypeResolver_NilAgentID(t *testing.T) {
+	lookup := &stubAgentTypeLookup{agentType: store.AgentTypePredefined}
+	resolver := NewCachedAgentTypeResolver(lookup, time.Minute)
+	if got := resolver(context.Background(), uuid.Nil); got != "" {
+		t.Errorf("expected empty type for nil agent ID, got %q", got)
+	}
+	if lookup.calls != 0 {
+		t.Errorf("expected no store call for nil agent ID, got %d", lookup.calls)
 	}
 }

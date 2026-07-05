@@ -107,6 +107,7 @@ type MemoryInterceptor struct {
 	memStore    store.MemoryStore
 	workspace   string
 	kgExtractFn KGExtractFunc
+	agentTypeFn AgentTypeResolverFunc // authoritative agent-type lookup (fallback when ctx lacks it)
 }
 
 // NewMemoryInterceptor creates an interceptor backed by the given memory store.
@@ -117,6 +118,29 @@ func NewMemoryInterceptor(ms store.MemoryStore, workspace string) *MemoryInterce
 // SetKGExtractFunc sets the callback for KG extraction after memory writes.
 func (m *MemoryInterceptor) SetKGExtractFunc(fn KGExtractFunc) {
 	m.kgExtractFn = fn
+}
+
+// SetAgentTypeResolver sets an authoritative agent-type lookup used when the
+// context does not carry the agent type. Not every entry path that executes
+// tools threads WithAgentType (the MCP bridge builds a fresh ctx from HTTP
+// headers, background flushes derive their own contexts, etc.), so
+// shared/private path routing must not depend solely on ctx wiring.
+func (m *MemoryInterceptor) SetAgentTypeResolver(fn AgentTypeResolverFunc) {
+	m.agentTypeFn = fn
+}
+
+// resolveAgentType returns the agent type for routing decisions: the ctx value
+// when present (fast path, set by the agent loop), otherwise the authoritative
+// resolver. Returns "" when neither knows — callers treat that as "not
+// predefined" and keep the safe per-user-private default.
+func (m *MemoryInterceptor) resolveAgentType(ctx context.Context, agentID uuid.UUID) string {
+	if t := store.AgentTypeFromContext(ctx); t != "" {
+		return t
+	}
+	if m.agentTypeFn != nil {
+		return m.agentTypeFn(ctx, agentID)
+	}
+	return ""
 }
 
 // ReadFile attempts to read a memory file from the DB.
@@ -140,7 +164,7 @@ func (m *MemoryInterceptor) ReadFile(ctx context.Context, path string) (string, 
 	// memory/projects/*, memory/decisions.md, etc.) live at global scope —
 	// read that scope directly (exact-scope first) instead of the per-user
 	// attempt below, so every member finds the same shared doc.
-	if store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && isSharedMemoryPath(relPath) {
+	if isSharedMemoryPath(relPath) && m.resolveAgentType(ctx, agentID) == store.AgentTypePredefined {
 		userID = ""
 	}
 	agentStr := agentID.String()
@@ -207,7 +231,7 @@ func (m *MemoryInterceptor) WriteFile(ctx context.Context, path, content string,
 	// workspace member benefits from the fact. Everything else under
 	// memory/ (MEMORY.md, memory/people/*, daily notes) keeps the existing
 	// per-user-private behavior.
-	sharedScope := store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && isSharedMemoryPath(relPath)
+	sharedScope := isSharedMemoryPath(relPath) && m.resolveAgentType(ctx, agentID) == store.AgentTypePredefined
 	if sharedScope {
 		userID = ""
 	}
@@ -284,7 +308,7 @@ func (m *MemoryInterceptor) ListFiles(ctx context.Context, path string) (string,
 	// Only merge docs that are actually routed as shared paths; other
 	// global-scope docs (e.g. a fallback template) are unrelated to this
 	// routing and stay out of the listing here.
-	if store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && userID != "" {
+	if userID != "" && m.resolveAgentType(ctx, agentID) == store.AgentTypePredefined {
 		sharedDocs, serr := m.memStore.ListDocuments(ctx, agentStr, "")
 		if serr == nil {
 			seen := make(map[string]bool, len(docs))
