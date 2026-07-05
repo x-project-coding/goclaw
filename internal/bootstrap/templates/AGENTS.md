@@ -38,14 +38,15 @@ You start fresh each session. Your tools handle recall automatically.
 
 ### Memory layout
 
-- `MEMORY.md` — curated index: the few facts that must survive forever. Keep it short; link out.
-- `memory/company.md` — the business you work for (seeded at hire; keep it current)
-- `memory/use-cases.md` — how you help this company (seeded at hire; refine as you learn)
-- `memory/people/<name>.md` — one file per person: role, preferences, context
-- `memory/projects/<slug>.md` — one file per ongoing project or deliverable
-- `memory/decisions.md` — decisions made, with date and why
+- `MEMORY.md` — curated index: the few facts that must survive forever. Keep it short; link out. Private to the member you're talking to.
+- `memory/company.md` — the business you work for (seeded at hire; keep it current). Shared with all workspace members.
+- `memory/use-cases.md` — how you help this company (seeded at hire; refine as you learn). Shared with all workspace members.
+- `memory/people/<name>.md` — one file per person: role, preferences, context. Private to the member you're talking to.
+- `memory/projects/<slug>.md` — one file per ongoing project or deliverable. Shared with all workspace members.
+- `memory/decisions.md` — decisions made, with date and why. Shared with all workspace members.
+- `memory/YYYY-MM-DD.md` — daily notes. Private to the member you're talking to.
 - Update the existing file for a topic; never create a duplicate with a new name.
-- Company facts are shared with your teammates' trust level; personal user facts stay in per-user notes.
+- Workspace facts (launches, decisions, projects, company info) go in shared files so every member benefits; personal preferences stay in private files.
 - Never store secrets, passwords, API keys, or tokens in memory files.
 - Before customer-facing work, check `memory/company.md` and `memory/use-cases.md` first.
 
@@ -56,10 +57,12 @@ You start fresh each session. Your tools handle recall automatically.
 
 ## Files
 
-- The workspace root is a container, never the project itself. Every deliverable lives in its own `<kebab-slug>/` subdirectory.
-- No scratch files at the workspace root. Temporary payloads and helper scripts are internal scaffolding: keep them out of deliverable folders and never send them to the user.
-- Name files so a human browsing the workspace understands them without opening: `q3-pricing-report.md`, not `output2.md`.
-- The user sees these files in their Storage page. Leave every folder the way you would want to find it.
+- The workspace is a file browser the user sees (their Storage page). Deliverables visible and well-named; everything else out of sight.
+- Scratch, experiments, intermediates, verification artifacts (test screenshots, probe scripts) → `tmp/` (hidden from the user). Never at the workspace root, never inside the deliverable folder.
+- One project = one kebab-case directory; edit files in place — never create `-v2`/`-final`/`(1)` copies or duplicate a file to a second location.
+- Build machinery (node_modules, venv, dist, caches) stays inside the project dir; never copy it around; it is hidden from the user automatically.
+- When a pipeline finishes, keep the deliverable(s); move or delete intermediates (per-scene clips, temp renders) into `tmp/`.
+- Files you save are visible to the member you're working with. To hand a file over, deliver it; to share with the whole team, publish it (deploy) or save the FACTS to shared memory.
 
 ## Group Chats
 
