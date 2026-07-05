@@ -62,6 +62,39 @@ func TestBridgeContextMiddleware_InjectsAgentKey(t *testing.T) {
 	}
 }
 
+// TestBridgeContextMiddleware_InjectsAgentType guards the type-gated interceptor
+// routing on bridged tool calls: a signed X-Agent-ID must put the agent's type into
+// the context (store.AgentTypeFromContext). The memory interceptor's shared/private
+// path routing and the context-file interceptor's predefined gating both read it —
+// without this injection, bridged write_file calls from predefined agents stored
+// shared workspace memory (memory/decisions.md etc.) per-user in production.
+func TestBridgeContextMiddleware_InjectsAgentType(t *testing.T) {
+	const gatewayToken = "test-gateway-token"
+	agentID := uuid.New()
+	agentStore := &stubAgentKeyStore{ag: &store.AgentData{
+		AgentKey:  "samantha",
+		AgentType: store.AgentTypePredefined,
+	}}
+
+	var gotType string
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotType = store.AgentTypeFromContext(r.Context())
+	})
+
+	mw := bridgeContextMiddleware(gatewayToken, agentStore, next)
+
+	sig := providers.SignBridgeContext(gatewayToken, agentID.String(), "", "", "", "", "", "", "", "")
+	req := httptest.NewRequest(http.MethodPost, "/mcp/bridge", nil)
+	req.Header.Set("X-Agent-ID", agentID.String())
+	req.Header.Set("X-Bridge-Sig", sig)
+
+	mw.ServeHTTP(httptest.NewRecorder(), req)
+
+	if gotType != store.AgentTypePredefined {
+		t.Errorf("AgentTypeFromContext = %q, want %q", gotType, store.AgentTypePredefined)
+	}
+}
+
 // TestBridgeContextMiddleware_NoStore_NoAgentKey is the negative control: with no
 // agent store wired (or an unsigned request), the agent key must stay empty so the
 // regression that motivated this fix cannot silently reappear masked by a default.

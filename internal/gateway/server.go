@@ -284,6 +284,12 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 							// bridge otherwise injects only the agent UUID, leaving the key empty
 							// -> session tools fail with "agent context required".
 							ctx = tools.WithToolAgentKey(ctx, ag.AgentKey)
+							// Propagate agent type so type-gated interceptor routing
+							// (memory shared/private paths, context-file gating) behaves
+							// the same on bridged tool calls as in the main agent loop.
+							if ag.AgentType != "" {
+								ctx = store.WithAgentType(ctx, ag.AgentType)
+							}
 							groups := ag.ParseShellDenyGroups()
 							if groups != nil {
 								ctx = store.WithShellDenyGroups(ctx, groups)
