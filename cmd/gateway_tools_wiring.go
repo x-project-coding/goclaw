@@ -41,6 +41,13 @@ func wireExtraTools(
 	toolsReg.Register(tools.NewDateTimeTool())
 	toolsReg.Register(tools.NewWaitTool())
 
+	// call_skill_service: structured calls to 42bucks skill-service endpoints,
+	// replacing hand-written curl/python. Token minted + identity headers set
+	// server-side; the operation is catalog-enum-gated so invalid routes cannot
+	// be named. Enable/disable is DB-seeded (see builtinToolSeedData).
+	toolsReg.Register(tools.NewCallSkillServiceTool())
+	slog.Info("call_skill_service tool registered")
+
 	// Cron tool (agent-facing)
 	toolsReg.Register(tools.NewCronTool(pgStores.Cron))
 	slog.Info("cron tool registered")

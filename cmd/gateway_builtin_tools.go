@@ -26,6 +26,9 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 			Metadata: json.RawMessage(`{"config_hint":"Config → Tools → Exec Approval"}`),
 		},
 		{Name: "wait", DisplayName: "Wait", Description: "Pause the current agent tool sequence for a bounded number of milliseconds", Category: "runtime", Enabled: true},
+		{Name: "call_skill_service", DisplayName: "Call Skill Service", Description: "Invoke a named 42bucks skill-service operation (structured tool-calling instead of curl/python). Auth and identity headers are handled internally.", Category: "skills", Enabled: true,
+			Metadata: json.RawMessage(`{"config_hint":"Config → Tools → Skill Services"}`),
+		},
 
 		// web
 		{Name: "web_search", DisplayName: "Web Search", Description: "Search the web for information using a search engine (Brave or DuckDuckGo)", Category: "web", Enabled: true,
