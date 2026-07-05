@@ -496,3 +496,19 @@ in append order. Do not place fork migrations below `099000`.
   grep -nE 'IndexDocument' internal/http/memory_handlers.go
   ```
   Expects >=1 hit in each file.
+
+### Patch 16 — `feat(memory): path-based shared/private scoping for predefined-agent memory + AGENTS.md sharing semantics`
+
+- **Base upstream commit:** `9d86f0ef` (v3.14.0 fork merge, same base as Patch 15)
+- **Files:**
+  - `internal/tools/memory_interceptor.go` — for **predefined** agents (`store.AgentTypeFromContext(ctx) == store.AgentTypePredefined`), `MemoryInterceptor.ReadFile`/`WriteFile`/`ListFiles` route by path: `memory/company.md`, `memory/company-research.md`, `memory/use-cases.md`, `memory/projects/*`, `memory/decisions.md` are written/read at global scope (`userID=""`) so every workspace member shares the same fact; everything else under `memory/` (`MEMORY.md`, `memory/people/*`, daily notes `memory/YYYY-MM-DD.md`) keeps the existing per-user-private scoping. `ListFiles` additionally merges the global-scope shared docs into a per-user listing so they show up alongside private files. KG extraction after a shared-path write uses the same global scope (`kgUserID=""`), regardless of the ambient `KGUserID`. **Open agents are unaffected** — all memory stays per-user. The pre-existing team-member write-block (`LeaderAgentIDFromCtx`) and leader-fallback reads are untouched.
+  - `internal/bootstrap/templates/AGENTS.md` — `### Memory layout` now annotates each file's sharing scope inline (`memory/company.md`, `memory/use-cases.md`, `memory/projects/<slug>.md`, `memory/decisions.md` marked "shared with all workspace members"; `MEMORY.md`, `memory/people/<name>.md`, `memory/YYYY-MM-DD.md` marked "private to the member you're talking to") plus a rule-of-thumb line. `## Files` rewritten around the workspace-as-file-browser model: `tmp/` for scratch/intermediates/verification artifacts, no `-v2`/`-final`/`(1)` duplicate files, build machinery stays inside the project dir, and the deliver-vs-publish-vs-shared-memory distinction for handing files to one member vs. the whole team.
+  - Tests: `internal/tools/memory_interceptor_test.go` (extended — `isSharedMemoryPath` table test, predefined-agent shared/private read+write+KG-scope tests, open-agent/no-agent-type unaffected tests, `ListFiles` shared-doc merge tests), `internal/bootstrap/seed_test.go` (extended — asserts the shared/private annotations and the `## Files` conventions are present in the embedded template).
+- **Why:** Memory docs are scoped per `(agent_id, user_id)`, and `MemoryUserID(ctx)` returns the chat user for predefined agents — so *everything* a predefined agent saved in chat landed per-user only. In production this meant one workspace member telling the agent "our launch is Sept 15" left every other member's chat with the same agent unaware of it. Workspace-level facts (company info, projects, decisions) need to be shareable across members; personal facts (people notes, daily logs) must stay private. Path-based routing in the interceptor is the minimal fix: no schema change, no new tool, and the existing per-path storage in `memory/` already matched the desired shared/private split — the interceptor just wasn't honoring it for predefined agents.
+- **Recovery grep:**
+  ```
+  grep -n "isSharedMemoryPath" internal/tools/memory_interceptor.go
+  grep -n "shared with all workspace members" internal/bootstrap/templates/AGENTS.md
+  grep -n "private to the member you're talking to" internal/bootstrap/templates/AGENTS.md
+  ```
+  Expects >=1 hit in each file.

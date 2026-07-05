@@ -38,6 +38,33 @@ func isMemoryDir(path, workspace string) bool {
 	return false
 }
 
+// sharedMemoryFiles are workspace-wide memory documents for predefined agents.
+// Unlike the default per-user-private scoping, these are stored and read at
+// global scope (userID="") so every workspace member sees the same facts.
+var sharedMemoryFiles = map[string]bool{
+	"memory/company.md":          true,
+	"memory/company-research.md": true,
+	"memory/use-cases.md":        true,
+	"memory/decisions.md":        true,
+}
+
+// sharedMemoryProjectsPrefix matches any file under memory/projects/ — one
+// shared doc per ongoing project or deliverable.
+const sharedMemoryProjectsPrefix = "memory/projects/"
+
+// isSharedMemoryPath reports whether relPath (a workspace-relative memory
+// path, as returned by normalizeToRelative) is a shared workspace document
+// for predefined agents. Everything else under memory/ — MEMORY.md,
+// memory/people/*, daily notes (memory/YYYY-MM-DD.md), etc. — stays private
+// per-user (the existing/default behavior).
+func isSharedMemoryPath(relPath string) bool {
+	clean := filepath.ToSlash(filepath.Clean(relPath))
+	if sharedMemoryFiles[clean] {
+		return true
+	}
+	return strings.HasPrefix(clean, sharedMemoryProjectsPrefix)
+}
+
 // isMemoryPath checks if a path refers to a memory file (MEMORY.md, memory.md, memory/*).
 // Handles both relative and absolute paths (when workspace is provided).
 func isMemoryPath(path, workspace string) bool {
@@ -109,6 +136,13 @@ func (m *MemoryInterceptor) ReadFile(ctx context.Context, path string) (string, 
 	relPath := normalizeToRelative(path, ws)
 
 	userID := store.MemoryUserID(ctx)
+	// Predefined agents: shared workspace-memory paths (memory/company.md,
+	// memory/projects/*, memory/decisions.md, etc.) live at global scope —
+	// read that scope directly (exact-scope first) instead of the per-user
+	// attempt below, so every member finds the same shared doc.
+	if store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && isSharedMemoryPath(relPath) {
+		userID = ""
+	}
 	agentStr := agentID.String()
 
 	// Try per-user first, then global
@@ -167,6 +201,16 @@ func (m *MemoryInterceptor) WriteFile(ctx context.Context, path, content string,
 	relPath := normalizeToRelative(path, ws)
 
 	userID := store.MemoryUserID(ctx)
+	// Predefined agents: shared workspace-memory paths (memory/company.md,
+	// memory/projects/*, memory/decisions.md, etc.) are written at global
+	// scope regardless of the caller's per-user MemoryUserID, so every
+	// workspace member benefits from the fact. Everything else under
+	// memory/ (MEMORY.md, memory/people/*, daily notes) keeps the existing
+	// per-user-private behavior.
+	sharedScope := store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && isSharedMemoryPath(relPath)
+	if sharedScope {
+		userID = ""
+	}
 
 	var previousContent string
 
@@ -199,9 +243,14 @@ func (m *MemoryInterceptor) WriteFile(ctx context.Context, path, content string,
 
 	// Trigger KG extraction in background if configured.
 	// Use KGUserID (not MemoryUserID) so shared KG entities go into agent-level scope.
+	// Shared memory-path writes always extract at global scope, matching the
+	// document scope above, regardless of the ambient KGUserID setting.
 	kgTriggered := false
 	if m.kgExtractFn != nil && content != "" {
 		kgUserID := store.KGUserID(ctx)
+		if sharedScope {
+			kgUserID = ""
+		}
 		go m.kgExtractFn(context.WithoutCancel(ctx), agentStr, kgUserID, content)
 		kgTriggered = true
 	}
@@ -227,6 +276,28 @@ func (m *MemoryInterceptor) ListFiles(ctx context.Context, path string) (string,
 	docs, err := m.memStore.ListDocuments(ctx, agentStr, userID)
 	if err != nil {
 		return "", true, err
+	}
+
+	// Predefined agents: merge in shared (global-scope) workspace documents —
+	// memory/company.md, memory/projects/*, memory/decisions.md, etc. — so
+	// they show up alongside the caller's private per-user memory files.
+	// Only merge docs that are actually routed as shared paths; other
+	// global-scope docs (e.g. a fallback template) are unrelated to this
+	// routing and stay out of the listing here.
+	if store.AgentTypeFromContext(ctx) == store.AgentTypePredefined && userID != "" {
+		sharedDocs, serr := m.memStore.ListDocuments(ctx, agentStr, "")
+		if serr == nil {
+			seen := make(map[string]bool, len(docs))
+			for _, d := range docs {
+				seen[d.Path] = true
+			}
+			for _, d := range sharedDocs {
+				if !seen[d.Path] && isSharedMemoryPath(d.Path) {
+					docs = append(docs, d)
+					seen[d.Path] = true
+				}
+			}
+		}
 	}
 
 	// Merge leader's documents for team members (fallback, deduplicate by path).

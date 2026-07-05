@@ -87,6 +87,16 @@ func memCtx(agentID uuid.UUID, userID, leaderID string) context.Context {
 	return ctx
 }
 
+// memCtxTyped builds on memCtx, additionally stamping the agent type — used
+// by the shared/private path-routing tests below.
+func memCtxTyped(agentID uuid.UUID, userID, leaderID, agentType string) context.Context {
+	ctx := memCtx(agentID, userID, leaderID)
+	if agentType != "" {
+		ctx = store.WithAgentType(ctx, agentType)
+	}
+	return ctx
+}
+
 // --- ReadFile tests ---
 
 func TestReadFile_NoLeader_OwnMemory(t *testing.T) {
@@ -417,5 +427,249 @@ func TestListFiles_LeaderIsSelf_NoDuplication(t *testing.T) {
 	count := strings.Count(listing, "MEMORY.md")
 	if count != 1 {
 		t.Errorf("expected MEMORY.md once, got %d times in: %s", count, listing)
+	}
+}
+
+// --- Path-based shared/private memory scoping (predefined agents) ---
+
+func TestIsSharedMemoryPath(t *testing.T) {
+	cases := []struct {
+		path   string
+		shared bool
+	}{
+		{"memory/company.md", true},
+		{"memory/company-research.md", true},
+		{"memory/use-cases.md", true},
+		{"memory/decisions.md", true},
+		{"memory/projects/falcon.md", true},
+		{"memory/projects/falcon/notes.md", true},
+		{"MEMORY.md", false},
+		{"memory/people/mark.md", false},
+		{"memory/2026-07-05.md", false},
+		{"memory/notes.md", false},
+		{"memory/projects", false}, // the directory itself, not a file under it
+	}
+	for _, c := range cases {
+		if got := isSharedMemoryPath(c.path); got != c.shared {
+			t.Errorf("isSharedMemoryPath(%q) = %v, want %v", c.path, got, c.shared)
+		}
+	}
+}
+
+func TestWriteFile_PredefinedAgent_SharedPath_StoresGlobal(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	result, err := mi.WriteFile(ctx, "memory/projects/falcon.md", "Falcon launches Sept 15", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Handled {
+		t.Fatal("expected handled=true")
+	}
+
+	// Stored at global scope (userID=""), not per-user.
+	got, gerr := ms.GetDocument(ctx, agentID.String(), "", "memory/projects/falcon.md")
+	if gerr != nil || got != "Falcon launches Sept 15" {
+		t.Errorf("expected shared doc at global scope, got %q, err %v", got, gerr)
+	}
+	if _, err := ms.GetDocument(ctx, agentID.String(), "user1", "memory/projects/falcon.md"); err == nil {
+		t.Error("did not expect shared path to also be stored per-user")
+	}
+}
+
+func TestWriteFile_PredefinedAgent_PrivatePath_StoresPerUser(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	result, err := mi.WriteFile(ctx, "memory/people/mark.md", "Mark prefers async updates", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Handled {
+		t.Fatal("expected handled=true")
+	}
+
+	// Stored per-user (existing/private behavior), not at global scope.
+	got, gerr := ms.GetDocument(ctx, agentID.String(), "user1", "memory/people/mark.md")
+	if gerr != nil || got != "Mark prefers async updates" {
+		t.Errorf("expected private doc per-user, got %q, err %v", got, gerr)
+	}
+	if _, err := ms.GetDocument(ctx, agentID.String(), "", "memory/people/mark.md"); err == nil {
+		t.Error("did not expect private path to be stored at global scope")
+	}
+}
+
+func TestReadFile_PredefinedAgent_SharedPath_ReadsGlobal(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// Doc lives at global scope only — never written per-user.
+	ms.docs[docKey(agentID.String(), "", "memory/company.md")] = "Acme Corp, B2B SaaS"
+
+	ctx := memCtxTyped(agentID, "user2", "", store.AgentTypePredefined)
+	content, handled, err := mi.ReadFile(ctx, "memory/company.md")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	if content != "Acme Corp, B2B SaaS" {
+		t.Errorf("expected shared doc content, got %q", content)
+	}
+}
+
+func TestReadFile_PredefinedAgent_PrivatePath_ReadsPerUser(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	ms.docs[docKey(agentID.String(), "user1", "memory/people/mark.md")] = "Mark: prefers async"
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	content, handled, err := mi.ReadFile(ctx, "memory/people/mark.md")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	if content != "Mark: prefers async" {
+		t.Errorf("expected private per-user doc, got %q", content)
+	}
+}
+
+func TestWriteFile_OpenAgent_ProjectsPath_StaysPerUser(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// Open agents are unaffected by shared-path routing — always per-user.
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypeOpen)
+	_, err := mi.WriteFile(ctx, "memory/projects/falcon.md", "personal project notes", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, gerr := ms.GetDocument(ctx, agentID.String(), "user1", "memory/projects/falcon.md")
+	if gerr != nil || got != "personal project notes" {
+		t.Errorf("expected open agent to store per-user, got %q, err %v", got, gerr)
+	}
+	if _, err := ms.GetDocument(ctx, agentID.String(), "", "memory/projects/falcon.md"); err == nil {
+		t.Error("open agent should not route memory/projects/* to global scope")
+	}
+}
+
+func TestWriteFile_NoAgentType_ProjectsPath_StaysPerUser(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// No agent type set at all (agentType == "") — same as open, unaffected.
+	ctx := memCtx(agentID, "user1", "")
+	_, err := mi.WriteFile(ctx, "memory/projects/falcon.md", "notes", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got, gerr := ms.GetDocument(ctx, agentID.String(), "user1", "memory/projects/falcon.md"); gerr != nil || got != "notes" {
+		t.Errorf("expected per-user storage when agent type unset, got %q, err %v", got, gerr)
+	}
+}
+
+func TestWriteFile_PredefinedAgent_SharedPath_KGExtractGlobalScope(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	gotUserID := "unset"
+	done := make(chan struct{})
+	mi.SetKGExtractFunc(func(_ context.Context, _, userID, _ string) {
+		gotUserID = userID
+		close(done)
+	})
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	if _, err := mi.WriteFile(ctx, "memory/decisions.md", "Decided to ship v2 in Q3", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	<-done
+	if gotUserID != "" {
+		t.Errorf("expected KG extraction at global scope (userID=\"\"), got %q", gotUserID)
+	}
+}
+
+func TestWriteFile_PredefinedAgent_PrivatePath_KGExtractPerUserScope(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	gotUserID := "unset"
+	done := make(chan struct{})
+	mi.SetKGExtractFunc(func(_ context.Context, _, userID, _ string) {
+		gotUserID = userID
+		close(done)
+	})
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	if _, err := mi.WriteFile(ctx, "memory/people/mark.md", "Mark: likes concise updates", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	<-done
+	if gotUserID != "user1" {
+		t.Errorf("expected KG extraction at per-user scope, got %q", gotUserID)
+	}
+}
+
+func TestListFiles_PredefinedAgent_MergesSharedDocs(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	// Private per-user doc.
+	ms.docs[docKey(agentID.String(), "user1", "memory/people/mark.md")] = "Mark notes"
+	// Shared workspace docs at global scope.
+	ms.docs[docKey(agentID.String(), "", "memory/company.md")] = "Acme Corp"
+	ms.docs[docKey(agentID.String(), "", "memory/projects/falcon.md")] = "Falcon project"
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypePredefined)
+	listing, handled, err := mi.ListFiles(ctx, "memory")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	for _, want := range []string{"memory/people/mark.md", "memory/company.md", "memory/projects/falcon.md"} {
+		if !strings.Contains(listing, want) {
+			t.Errorf("expected %q in listing, got: %s", want, listing)
+		}
+	}
+}
+
+func TestListFiles_OpenAgent_DoesNotMergeGlobalScope(t *testing.T) {
+	ms := newMockMemoryStore()
+	mi := NewMemoryInterceptor(ms, "/workspace")
+	agentID := uuid.New()
+
+	ms.docs[docKey(agentID.String(), "user1", "MEMORY.md")] = "own mem"
+	// Some unrelated global-scope doc — open agents must not see it via merge.
+	ms.docs[docKey(agentID.String(), "", "memory/company.md")] = "Acme Corp"
+
+	ctx := memCtxTyped(agentID, "user1", "", store.AgentTypeOpen)
+	listing, handled, err := mi.ListFiles(ctx, "memory")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected handled=true")
+	}
+	if strings.Contains(listing, "memory/company.md") {
+		t.Errorf("open agent listing should not merge global-scope docs, got: %s", listing)
 	}
 }
