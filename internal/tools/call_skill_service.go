@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/skillcatalog"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -40,22 +42,28 @@ func NewCallSkillServiceTool() *CallSkillServiceTool {
 
 func (t *CallSkillServiceTool) Name() string { return "call_skill_service" }
 
+// callSkillServicePreamble is the static lead-in of the tool description; the
+// operation reference block (full or per-agent-pruned) is appended to it.
+const callSkillServicePreamble = "Call a 42bucks skill-service operation. Prefer this over writing curl or python — " +
+	"authentication, identity headers, and the base URL are handled for you, and you cannot " +
+	"call an operation that does not exist. Pick an `operation` and pass its arguments as " +
+	"`input`. Async operations return an id; poll it with the paired status operation.\n\n" +
+	"Operations:\n"
+
 func (t *CallSkillServiceTool) Description() string {
-	return "Call a 42bucks skill-service operation. Prefer this over writing curl or python — " +
-		"authentication, identity headers, and the base URL are handled for you, and you cannot " +
-		"call an operation that does not exist. Pick an `operation` and pass its arguments as " +
-		"`input`. Async operations return an id; poll it with the paired status operation.\n\n" +
-		"Operations:\n" + catalogDescription()
+	return callSkillServicePreamble + catalogDescription()
 }
 
-func (t *CallSkillServiceTool) Parameters() map[string]any {
+// callSkillServiceParameters builds the tool's JSON schema for a given
+// operation enum. Always a fresh map so callers may hold or replace it freely.
+func callSkillServiceParameters(enum []string) map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"operation": map[string]any{
 				"type":        "string",
 				"description": "The skill-service operation to call (service.operation).",
-				"enum":        catalogOperationIDs(),
+				"enum":        enum,
 			},
 			"input": map[string]any{
 				"type":                 "object",
@@ -65,6 +73,34 @@ func (t *CallSkillServiceTool) Parameters() map[string]any {
 		},
 		"required": []string{"operation"},
 	}
+}
+
+func (t *CallSkillServiceTool) Parameters() map[string]any {
+	return callSkillServiceParameters(catalogOperationIDs())
+}
+
+// FilterCallSkillServiceDef narrows a call_skill_service tool definition to the
+// operations whose owning skill slug is in allowed (the agent's accessible
+// skills). It replaces td.Function wholesale with a freshly built schema, so it
+// is safe regardless of whether the incoming definition shares state with the
+// registry. Returns false when no operations remain — the caller should drop
+// the definition entirely (an agent with none of the catalog's skills gets no
+// tool rather than an empty enum).
+func FilterCallSkillServiceDef(td *providers.ToolDefinition, allowed map[string]bool) bool {
+	if td == nil || td.Function == nil {
+		return false
+	}
+	ids := skillcatalog.OperationIDsFor(allowed)
+	if len(ids) == 0 {
+		return false
+	}
+	td.Function = &providers.ToolFunctionSchema{
+		Name:        td.Function.Name,
+		Description: callSkillServicePreamble + skillcatalog.DescriptionFor(allowed),
+		Parameters:  callSkillServiceParameters(ids),
+		Strict:      td.Function.Strict,
+	}
+	return true
 }
 
 func (t *CallSkillServiceTool) Execute(ctx context.Context, args map[string]any) *Result {

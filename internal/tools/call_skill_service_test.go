@@ -161,3 +161,54 @@ func TestCallSkillService_SurfacesUpstreamError(t *testing.T) {
 		t.Fatalf("upstream error code not surfaced: %s", res.ForLLM)
 	}
 }
+
+// ─── FilterCallSkillServiceDef (per-skill operation gating) ────────────────
+
+func TestFilterCallSkillServiceDef_NarrowsEnumAndDescription(t *testing.T) {
+	td := ToProviderDef(NewCallSkillServiceTool())
+	allowed := map[string]bool{"manage-skills": true}
+
+	if !FilterCallSkillServiceDef(&td, allowed) {
+		t.Fatal("expected the def to survive with manage-skills allowed")
+	}
+	enum := td.Function.Parameters["properties"].(map[string]any)["operation"].(map[string]any)["enum"].([]string)
+	for _, id := range enum {
+		if !strings.HasPrefix(id, "manage-skills.") {
+			t.Fatalf("gated enum leaked %q", id)
+		}
+	}
+	if len(enum) == 0 {
+		t.Fatal("enum unexpectedly empty")
+	}
+	if !strings.Contains(td.Function.Description, "manage-skills.catalog") {
+		t.Fatal("description missing an allowed operation")
+	}
+	if strings.Contains(td.Function.Description, "research.search") {
+		t.Fatal("description leaked a gated operation")
+	}
+	if !strings.HasPrefix(td.Function.Description, callSkillServicePreamble[:40]) {
+		t.Fatal("description lost the static preamble")
+	}
+}
+
+func TestFilterCallSkillServiceDef_NoOpsLeft(t *testing.T) {
+	td := ToProviderDef(NewCallSkillServiceTool())
+	if FilterCallSkillServiceDef(&td, map[string]bool{"brainstorming": true}) {
+		t.Fatal("expected false when the agent has none of the catalog's skills")
+	}
+}
+
+func TestFilterCallSkillServiceDef_DoesNotMutateToolSchema(t *testing.T) {
+	tool := NewCallSkillServiceTool()
+	td := ToProviderDef(tool)
+	if !FilterCallSkillServiceDef(&td, map[string]bool{"deploy": true}) {
+		t.Fatal("filter unexpectedly dropped the def")
+	}
+	// A fresh def from the tool must still carry the FULL enum — gating one
+	// agent's definition must never poison the shared tool.
+	fresh := tool.Parameters()
+	enum := fresh["properties"].(map[string]any)["operation"].(map[string]any)["enum"].([]string)
+	if len(enum) != len(skillServiceCatalog) {
+		t.Fatalf("tool schema mutated: enum now %d ops, want %d", len(enum), len(skillServiceCatalog))
+	}
+}

@@ -18,6 +18,8 @@
 package skillcatalog
 
 import (
+	_ "embed"
+	"encoding/json"
 	"os"
 	"sort"
 	"strings"
@@ -48,82 +50,31 @@ type Operation struct {
 	PollWith string
 }
 
-// Catalog — Phase 1 set. Keep sorted by ID for a stable enum/description.
-var Catalog = []Operation{
-	{
-		ID: "deploy.static", Skill: "deploy", Method: "POST", Path: "/deploy/static",
-		Summary:   "Publish a static file to the CDN and get a public immutable URL.",
-		InputHint: "file:{file:string, data:string(base64 or utf-8), encoding?:'base64'|'utf-8', contentType?:string}, note?:string",
-	},
-	{
-		ID: "manage-connections.catalog", Skill: "manage-connections", Method: "GET", Path: "/manage-connections/catalog",
-		Summary:   "List the connectable app toolkits (name, auth mode, tool counts).",
-		InputHint: "(no input)",
-	},
-	{
-		ID: "manage-connections.list", Skill: "manage-connections", Method: "GET", Path: "/manage-connections/list",
-		Summary:   "List this workspace's existing app connections and their status.",
-		InputHint: "(no input)",
-	},
-	{
-		ID: "manage-qa.run", Skill: "manage-qa", Method: "POST", Path: "/manage-qa/runs",
-		Summary:   "Enqueue a QA run for a test or a project (async).",
-		InputHint: "one of {testId:string} or {projectId:string}; trigger?:'UI'|'CLAUDE'|'API'|'SCHEDULE', triggeredBy?:string",
-		Async:     true, PollWith: "manage-qa.run-status",
-	},
-	{
-		ID: "manage-qa.run-status", Skill: "manage-qa", Method: "GET", Path: "/manage-qa/runs/{id}",
-		PathParams: []string{"id"},
-		Summary:    "Poll a QA run (terminal statuses: PASSED, FAILED, BLOCKED, ERRORED).",
-		InputHint:  "id:string (the run id from manage-qa.run)",
-	},
-	{
-		ID: "manage-skills.catalog", Skill: "manage-skills", Method: "GET", Path: "/manage-skills/catalog",
-		Summary:   "List the workspace skill catalog and each employee's skills.",
-		InputHint: "(no input)",
-	},
-	{
-		ID: "manage-skills.connect", Skill: "manage-skills", Method: "POST", Path: "/manage-skills/connect",
-		Summary:   "Attach an available skill to yourself (or a teammate via agentKey).",
-		InputHint: "slug:string; agentKey?:string (omit for yourself)",
-	},
-	{
-		ID: "manage-skills.disconnect", Skill: "manage-skills", Method: "POST", Path: "/manage-skills/disconnect",
-		Summary:   "Detach a skill you added.",
-		InputHint: "slug:string; agentKey?:string",
-	},
-	{
-		ID: "manage-skills.duplicate", Skill: "manage-skills", Method: "POST", Path: "/manage-skills/duplicate",
-		Summary:   "Fork a platform/brand skill into an editable workspace copy.",
-		InputHint: "slug:string; newSlug?:string, name?:string, description?:string, connectToSelf?:bool, agentKey?:string",
-	},
-	{
-		ID: "manage-skills.publish", Skill: "manage-skills", Method: "POST", Path: "/manage-skills/publish",
-		Summary:   "Author or update a workspace skill from a files map (upsert by slug).",
-		InputHint: "slug:string, files:{path:contents} (must include SKILL.md); name?:string, description?:string, connectToSelf?:bool, agentKey?:string",
-	},
-	{
-		ID: "manage-view.set", Skill: "manage-view", Method: "POST", Path: "/manage-view/set",
-		Summary:   "Set the chat view hints (prompt pills, placeholder, templates, browser pane).",
-		InputHint: "sessionKey:string, hints:{pills?, placeholder?, templates?, browser?}",
-	},
-	{
-		ID: "media-forge.image", Skill: "media-forge", Method: "POST", Path: "/media-forge/image",
-		Summary:   "Generate an image and get its URL (synchronous).",
-		InputHint: "prompt:string; tier?:'default'|'premium'|'budget', aspect_ratio?:string, count?:1..4, maxCostUsd?:number",
-	},
-	{
-		ID: "media-forge.job", Skill: "media-forge", Method: "GET", Path: "/media-forge/job/{id}",
-		PathParams: []string{"id"},
-		Summary:    "Poll a media-forge async job (terminal statuses: DONE, FAILED).",
-		InputHint:  "id:string (the job id)",
-	},
-	{
-		ID: "research.search", Skill: "research", Method: "POST", Path: "/research/search",
-		Summary:   "Web search grounded via the research provider (metered).",
-		InputHint: "query:string; numResults?:1..100, type?:'auto'|'neural'|'keyword'|'fast', maxCostUsd?:0..5",
-	},
-}
+// Catalog is loaded from the embedded catalog.json, which is GENERATED from
+// x-api's route schemas — do not edit catalog.json by hand. To regenerate:
+//
+//	cd x-api && npm run catalog:dump     # verifies every op against the live
+//	cp dist/skill-catalog.json .../internal/skillcatalog/catalog.json  # schemas
+//
+// The generator (x-api scripts/generate-skill-catalog.mjs) holds the curated
+// operation allowlist + summaries; the mechanical parts (existence, method,
+// path params, input hints) come from the TypeBox schemas, so a drifted route
+// fails generation instead of shipping a broken operation.
+//
+//go:embed catalog.json
+var catalogJSON []byte
+
+// Catalog is the generated operation set.
+var Catalog = func() []Operation {
+	var ops []Operation
+	if err := json.Unmarshal(catalogJSON, &ops); err != nil {
+		panic("skillcatalog: embedded catalog.json is invalid: " + err.Error())
+	}
+	if len(ops) == 0 {
+		panic("skillcatalog: embedded catalog.json is empty")
+	}
+	return ops
+}()
 
 // byID indexes the catalog for O(1) lookup.
 var byID = func() map[string]Operation {
@@ -136,8 +87,18 @@ var byID = func() map[string]Operation {
 
 // OperationIDs returns the sorted list of operation ids (the tool enum).
 func OperationIDs() []string {
+	return OperationIDsFor(nil)
+}
+
+// OperationIDsFor returns the sorted operation ids whose owning skill slug is in
+// allowed. A nil map means unrestricted (the full catalog); a non-nil map gates
+// strictly, so an empty map yields no operations.
+func OperationIDsFor(allowed map[string]bool) []string {
 	ids := make([]string, 0, len(Catalog))
 	for _, op := range Catalog {
+		if allowed != nil && !allowed[op.Skill] {
+			continue
+		}
 		ids = append(ids, op.ID)
 	}
 	sort.Strings(ids)
@@ -155,7 +116,15 @@ func Lookup(id string) (Operation, bool) {
 // (weak models call more reliably from an inline reference than from a separate
 // discovery round-trip).
 func Description() string {
-	ids := OperationIDs()
+	return DescriptionFor(nil)
+}
+
+// DescriptionFor renders the reference block for the operations whose owning
+// skill slug is in allowed, with the same nil-means-all semantics as
+// OperationIDsFor. Used to prune the tool description to an agent's granted
+// skills alongside the enum.
+func DescriptionFor(allowed map[string]bool) string {
+	ids := OperationIDsFor(allowed)
 	var b strings.Builder
 	for _, id := range ids {
 		op := byID[id]

@@ -84,6 +84,35 @@ func (l *Loop) buildFilteredTools(req *RunRequest, hadBootstrap bool, iteration,
 		toolDefs = filtered
 	}
 
+	// Prune call_skill_service's operation catalog to the agent's accessible
+	// skills, so the enum/description only steer toward operations for skills
+	// the agent actually has. nil allow-list = unrestricted or list unavailable
+	// → keep the full catalog (fail open, matching the skill-filter semantics).
+	// Execution stays safe either way — Execute validates against the full
+	// catalog and x-api enforces workspace scoping server-side.
+	if l.skillAllowList != nil {
+		allowed := make(map[string]bool, len(l.skillAllowList)+len(l.pinnedSkills))
+		for _, s := range l.skillAllowList {
+			allowed[s] = true
+		}
+		for _, s := range l.pinnedSkills {
+			allowed[s] = true
+		}
+		filtered := toolDefs[:0:0]
+		for _, td := range toolDefs {
+			if td.Function != nil && td.Function.Name == "call_skill_service" {
+				if !tools.FilterCallSkillServiceDef(&td, allowed) {
+					// None of the agent's skills have catalog operations —
+					// drop the tool instead of showing an empty enum.
+					delete(allowedTools, td.Function.Name)
+					continue
+				}
+			}
+			filtered = append(filtered, td)
+		}
+		toolDefs = filtered
+	}
+
 	// Hide channel-specific tools when channel type doesn't match.
 	if req.ChannelType != "" {
 		filtered := toolDefs[:0:0]
