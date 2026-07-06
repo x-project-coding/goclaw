@@ -1,0 +1,364 @@
+[
+  {
+    "ID": "deploy.app",
+    "Skill": "deploy",
+    "Method": "POST",
+    "Path": "/deploy/app",
+    "Summary": "Deploy a multi-file app/page (HTML+CSS+JS) and get its public URL.",
+    "InputHint": "projectName:string, files:[{file:any, data:any, encoding?:any, contentType?:any}], projectSettings?:object"
+  },
+  {
+    "ID": "deploy.static",
+    "Skill": "deploy",
+    "Method": "POST",
+    "Path": "/deploy/static",
+    "Summary": "Publish a static file to the CDN and get a public immutable URL.",
+    "InputHint": "file:{file:string, data:string(base64 or utf-8), encoding?:'base64'|'utf-8', contentType?:string}, note?:string"
+  },
+  {
+    "ID": "manage-connections.catalog",
+    "Skill": "manage-connections",
+    "Method": "GET",
+    "Path": "/manage-connections/catalog",
+    "Summary": "List the connectable app toolkits (name, auth mode, tool counts).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-connections.execute",
+    "Skill": "manage-connections",
+    "Method": "POST",
+    "Path": "/manage-connections/execute",
+    "Summary": "Execute a connected-app tool by slug with its arguments.",
+    "InputHint": "connectionId:string, toolSlug:string, arguments:object, confirmedByUser?:bool"
+  },
+  {
+    "ID": "manage-connections.initiate",
+    "Skill": "manage-connections",
+    "Method": "POST",
+    "Path": "/manage-connections/initiate",
+    "Summary": "Start connecting an app: returns the auth link to send to the user.",
+    "InputHint": "toolkitSlug:string, alias?:string, credentials?:object"
+  },
+  {
+    "ID": "manage-connections.list",
+    "Skill": "manage-connections",
+    "Method": "GET",
+    "Path": "/manage-connections/list",
+    "Summary": "List this workspace's existing app connections and their status.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-connections.tools-search",
+    "Skill": "manage-connections",
+    "Method": "POST",
+    "Path": "/manage-connections/tools/search",
+    "Summary": "Search the tools available on a connected app (by use-case text).",
+    "InputHint": "query?:string, limit?:1..25, toolkitSlug?:string"
+  },
+  {
+    "ID": "manage-emails.address",
+    "Skill": "manage-emails",
+    "Method": "GET",
+    "Path": "/manage-emails/address",
+    "Summary": "Get this agent's own email address (for receiving replies).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-emails.inbox",
+    "Skill": "manage-emails",
+    "Method": "GET",
+    "Path": "/manage-emails/inbox",
+    "Summary": "List received emails (newest first).",
+    "InputHint": "address:string, limit?:1..100, cursor?:string"
+  },
+  {
+    "ID": "manage-emails.message",
+    "Skill": "manage-emails",
+    "Method": "GET",
+    "Path": "/manage-emails/messages/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Read one received email in full.",
+    "InputHint": "address:string"
+  },
+  {
+    "ID": "manage-emails.send",
+    "Skill": "manage-emails",
+    "Method": "POST",
+    "Path": "/manage-emails/send",
+    "Summary": "Send an email from your agent address.",
+    "InputHint": "from:string, to:[string], cc?:[string], subject:string, text?:string, html?:string, idempotencyKey?:string"
+  },
+  {
+    "ID": "manage-qa.report",
+    "Skill": "manage-qa",
+    "Method": "POST",
+    "Path": "/manage-qa/runs/report",
+    "Summary": "Report a QA run result (status, notes, artifacts) as the executing agent.",
+    "InputHint": "testId:string, status:'PASSED'|'FAILED'|'BLOCKED'|'ERRORED', durationMs?:number, exitCode?:number, stdoutTail?:string, errorMessage?:string, errorAnalysis?:string, fixSuggestion?:string, tracePath?:string, videoPath?:string, recordingStatus?:'RECORDED'|'NOT_NEEDED'|'SKIPPED_SHORT'"
+  },
+  {
+    "ID": "manage-qa.run",
+    "Skill": "manage-qa",
+    "Method": "POST",
+    "Path": "/manage-qa/runs",
+    "Summary": "Enqueue a QA run for a test or a project (async).",
+    "InputHint": "one of {testId:string} or {projectId:string}; trigger?:'UI'|'CLAUDE'|'API'|'SCHEDULE', triggeredBy?:string",
+    "Async": true,
+    "PollWith": "manage-qa.run-status"
+  },
+  {
+    "ID": "manage-qa.run-status",
+    "Skill": "manage-qa",
+    "Method": "GET",
+    "Path": "/manage-qa/runs/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Poll a QA run (terminal statuses: PASSED, FAILED, BLOCKED, ERRORED).",
+    "InputHint": "id:string (the run id from manage-qa.run)"
+  },
+  {
+    "ID": "manage-skills.catalog",
+    "Skill": "manage-skills",
+    "Method": "GET",
+    "Path": "/manage-skills/catalog",
+    "Summary": "List the workspace skill catalog and each employee's skills.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-skills.connect",
+    "Skill": "manage-skills",
+    "Method": "POST",
+    "Path": "/manage-skills/connect",
+    "Summary": "Attach an available skill to yourself (or a teammate via agentKey).",
+    "InputHint": "slug:string, agentKey?:string"
+  },
+  {
+    "ID": "manage-skills.disconnect",
+    "Skill": "manage-skills",
+    "Method": "POST",
+    "Path": "/manage-skills/disconnect",
+    "Summary": "Detach a skill you added.",
+    "InputHint": "slug:string, agentKey?:string"
+  },
+  {
+    "ID": "manage-skills.duplicate",
+    "Skill": "manage-skills",
+    "Method": "POST",
+    "Path": "/manage-skills/duplicate",
+    "Summary": "Fork a platform/brand skill into an editable workspace copy.",
+    "InputHint": "slug:string, newSlug?:string, name?:string, description?:string, connectToSelf?:bool, agentKey?:string"
+  },
+  {
+    "ID": "manage-skills.publish",
+    "Skill": "manage-skills",
+    "Method": "POST",
+    "Path": "/manage-skills/publish",
+    "Summary": "Author or update a workspace skill from a files map (upsert by slug).",
+    "InputHint": "slug:string, files:{path:contents} (must include SKILL.md); name?:string, description?:string, connectToSelf?:bool, agentKey?:string"
+  },
+  {
+    "ID": "manage-tasks.create",
+    "Skill": "manage-tasks",
+    "Method": "POST",
+    "Path": "/manage-tasks/create",
+    "Summary": "Create a task for a human (approval, input, handoff); optionally assign a user.",
+    "InputHint": "kind:'approval'|'acknowledgement'|'action'|'question', title:string, description:string, body?:string, preview?:{kind:any, subject?:any, snippet?:any}|{kind:any, language?:any, lines:any}|{kind:any, title?:any, excerpt?:any}|{kind:any, url:any, alt?:any}, priority?:'low'|'normal'|'high'|'urgent', dueInMinutes?:1..525600, assignedUserId?:string|any, dedupeKey?:string"
+  },
+  {
+    "ID": "manage-tasks.list",
+    "Skill": "manage-tasks",
+    "Method": "GET",
+    "Path": "/manage-tasks/list",
+    "Summary": "List tasks you created, filterable by status.",
+    "InputHint": "status?:'open'|'resolved'|'cancelled'|'expired', dedupeKey?:string, limit?:1..100"
+  },
+  {
+    "ID": "manage-tasks.users",
+    "Skill": "manage-tasks",
+    "Method": "GET",
+    "Path": "/manage-tasks/users",
+    "Summary": "List workspace users a task can be assigned to.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-view.set",
+    "Skill": "manage-view",
+    "Method": "POST",
+    "Path": "/manage-view/set",
+    "Summary": "Set the chat view hints (prompt pills, placeholder, templates, browser pane).",
+    "InputHint": "sessionKey:string, hints:{pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?,title?}}"
+  },
+  {
+    "ID": "media-forge.edit",
+    "Skill": "media-forge",
+    "Method": "POST",
+    "Path": "/media-forge/edit",
+    "Summary": "Edit an existing image with a text instruction (synchronous).",
+    "InputHint": "prompt:string, image_urls:[string], model?:string, tier?:'default'|'text-in-image'|'regional', use_case?:string, aspect_ratio?:'1:1'|'3:4'|'4:3'|'16:9'|'9:16'|'2:3'|'3:2'|'match-input', maxCostUsd?:number, idempotencyKey?:string"
+  },
+  {
+    "ID": "media-forge.image",
+    "Skill": "media-forge",
+    "Method": "POST",
+    "Path": "/media-forge/image",
+    "Summary": "Generate an image and get its URL (synchronous).",
+    "InputHint": "prompt:string, model?:string, tier?:'default'|'premium'|'budget', use_case?:string, aspect_ratio?:'1:1'|'3:4'|'4:3'|'16:9'|'9:16'|'2:3'|'3:2'|'match-input', count?:1..4, seed?:number, size?:string, maxCostUsd?:number, idempotencyKey?:string"
+  },
+  {
+    "ID": "media-forge.job",
+    "Skill": "media-forge",
+    "Method": "GET",
+    "Path": "/media-forge/job/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Poll a media-forge async job (terminal statuses: DONE, FAILED).",
+    "InputHint": "id:string (the job id)"
+  },
+  {
+    "ID": "media-forge.video",
+    "Skill": "media-forge",
+    "Method": "POST",
+    "Path": "/media-forge/video",
+    "Summary": "Generate a short video (async).",
+    "InputHint": "prompt:string, image_url?:string, duration_seconds?:2..15, audio?:bool, aspect_ratio?:'1:1'|'3:4'|'4:3'|'16:9'|'9:16'|'2:3'|'3:2'|'match-input', model?:string, tier?:'default'|'premium'|'budget', use_case?:string, maxCostUsd?:number, idempotencyKey?:string, audio_url?:string",
+    "Async": true,
+    "PollWith": "media-forge.job"
+  },
+  {
+    "ID": "media-forge.voice",
+    "Skill": "media-forge",
+    "Method": "POST",
+    "Path": "/media-forge/voice",
+    "Summary": "Generate speech audio from text.",
+    "InputHint": "text:string, voice?:string, model?:string, tier?:'default'|'budget'|'clone', use_case?:string, format?:'mp3'|'wav'|'ogg'|'flac'|'pcm', speed?:0.5..2, stability?:0..1, reference_audio_url?:string, maxCostUsd?:number, idempotencyKey?:string"
+  },
+  {
+    "ID": "remote-browser.run",
+    "Skill": "remote-browser",
+    "Method": "POST",
+    "Path": "/remote-browser/sessions",
+    "Summary": "Start a cloud browser-agent task (async).",
+    "InputHint": "task:string, model?:string, profileId?:string, maxCostUsd?:0.01..2, keepAlive?:bool, outputSchema?:object, sensitiveData?:object, proxyCountryCode?:string|any, enableRecording?:bool",
+    "Async": true,
+    "PollWith": "remote-browser.session"
+  },
+  {
+    "ID": "remote-browser.session",
+    "Skill": "remote-browser",
+    "Method": "GET",
+    "Path": "/remote-browser/sessions/{sessionId}",
+    "PathParams": [
+      "sessionId"
+    ],
+    "Summary": "Poll a remote-browser session (status, output, live view URL).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "research.answer",
+    "Skill": "research",
+    "Method": "POST",
+    "Path": "/research/answer",
+    "Summary": "Ask a question and get a grounded answer with citations (metered).",
+    "InputHint": "query:string, text?:bool, maxCostUsd?:0..5"
+  },
+  {
+    "ID": "research.contents",
+    "Skill": "research",
+    "Method": "POST",
+    "Path": "/research/contents",
+    "Summary": "Fetch the full text/highlights of result URLs from a search.",
+    "InputHint": "urls:[string], text?:bool, highlights?:bool, summary?:bool, maxCostUsd?:0..5"
+  },
+  {
+    "ID": "research.find-similar",
+    "Skill": "research",
+    "Method": "POST",
+    "Path": "/research/find-similar",
+    "Summary": "Find pages similar to a given URL.",
+    "InputHint": "url:string, numResults?:1..100, includeDomains?:[string], excludeDomains?:[string], contents?:{text?:bool, highlights?:bool, summary?:bool}, maxCostUsd?:0..5"
+  },
+  {
+    "ID": "research.search",
+    "Skill": "research",
+    "Method": "POST",
+    "Path": "/research/search",
+    "Summary": "Web search grounded via the research provider (metered).",
+    "InputHint": "query:string, numResults?:1..100, type?:'auto'|'neural'|'keyword'|'fast', category?:string, includeDomains?:[string], excludeDomains?:[string], startPublishedDate?:string, endPublishedDate?:string, contents?:{text?:bool, highlights?:bool, summary?:bool}, maxCostUsd?:0..5"
+  },
+  {
+    "ID": "scrape.map",
+    "Skill": "scrape",
+    "Method": "POST",
+    "Path": "/scrape/map",
+    "Summary": "Map a site's URLs (sitemap discovery).",
+    "InputHint": "url:string, limit?:1..1000, search?:string"
+  },
+  {
+    "ID": "scrape.search",
+    "Skill": "scrape",
+    "Method": "POST",
+    "Path": "/scrape/search",
+    "Summary": "Web search with optional page-content fetch.",
+    "InputHint": "query:string, limit?:1..50, fetchContent?:bool"
+  },
+  {
+    "ID": "scrape.url",
+    "Skill": "scrape",
+    "Method": "POST",
+    "Path": "/scrape/url",
+    "Summary": "Scrape one URL to markdown/structured content.",
+    "InputHint": "url:string, formats?:[any], onlyMainContent?:bool, maxAge?:number, proxy?:'basic'|'stealth'|'auto', extract?:{prompt?:string, schema?:object}"
+  },
+  {
+    "ID": "user-info.me",
+    "Skill": "user-info",
+    "Method": "GET",
+    "Path": "/user-info/me",
+    "Summary": "Get the current user's profile (name, email, locale).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "user-info.preferences",
+    "Skill": "user-info",
+    "Method": "GET",
+    "Path": "/user-info/preferences",
+    "Summary": "Get the current user's preferences (language, formatting, report style).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "workspace-info.agents",
+    "Skill": "workspace-info",
+    "Method": "GET",
+    "Path": "/workspace-info/agents",
+    "Summary": "List the workspace AI employees and their skills.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "workspace-info.balance",
+    "Skill": "workspace-info",
+    "Method": "GET",
+    "Path": "/workspace-info/balance",
+    "Summary": "Get the workspace's credit balance.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "workspace-info.members",
+    "Skill": "workspace-info",
+    "Method": "GET",
+    "Path": "/workspace-info/members",
+    "Summary": "List workspace members (names, emails, roles).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "workspace-info.workspace",
+    "Skill": "workspace-info",
+    "Method": "GET",
+    "Path": "/workspace-info/workspace",
+    "Summary": "Get workspace name/slug/branding basics.",
+    "InputHint": "(no input)"
+  }
+]
