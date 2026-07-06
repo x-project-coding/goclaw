@@ -64,7 +64,9 @@ RUN set -eux; \
     go build -ldflags="-s -w -X github.com/nextlevelbuilder/goclaw/cmd.Version=${VERSION}" \
     ${TAGS} -o /out/goclaw . && \
     CGO_ENABLED=0 GOOS=linux \
-    go build -ldflags="-s -w" -o /out/pkg-helper ./cmd/pkg-helper
+    go build -ldflags="-s -w" -o /out/pkg-helper ./cmd/pkg-helper && \
+    CGO_ENABLED=0 GOOS=linux \
+    go build -ldflags="-s -w" -o /out/skill ./cmd/skill
 
 # ── Stage 2: Runtime ──
 FROM alpine:3.23
@@ -117,6 +119,9 @@ WORKDIR /app
 # Copy binary, migrations, and bundled skills
 COPY --from=builder /out/goclaw /app/goclaw
 COPY --from=builder /out/pkg-helper /app/pkg-helper
+# `skill` CLI — on PATH for every skill's bash (host-exec), the code-context twin
+# of the native call_skill_service tool. Supersedes the old runtime-dropped xskill.
+COPY --from=builder /out/skill /usr/local/bin/skill
 COPY --from=builder /src/migrations/ /app/migrations/
 COPY --from=builder /src/skills/ /app/bundled-skills/
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

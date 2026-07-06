@@ -517,3 +517,21 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "private to the member you're talking to" internal/bootstrap/templates/AGENTS.md
   ```
   Expects >=1 hit in each file.
+
+### Patch 17 — `feat(skill-cli): static `skill` CLI + shared operation catalog`
+
+- **Base upstream commit:** `d03d185f` (call_skill_service merge, PR #46 → dev)
+- **Files:**
+  - `internal/skillcatalog/catalog.go` (new) — the skill-service operation catalog extracted into a stdlib-only package as the single source of truth. Exports `Operation`, `Catalog`, `Lookup`, `OperationIDs`, `Description`, `BaseURL`. Verbatim move of the Phase-1 hand-curated 14-op set (enum/description output byte-identical).
+  - `internal/tools/skill_service_catalog.go` — reduced to thin aliases (`type skillOperation = skillcatalog.Operation`, `var skillServiceCatalog = skillcatalog.Catalog`, and `catalogOperationIDs`/`catalogLookup`/`catalogDescription`/`skillServiceBaseURL` delegating to `skillcatalog`). `call_skill_service.go` and `call_skill_service_test.go` are unchanged — the native tool keeps its exact behavior.
+  - `cmd/skill/main.go` (new) — the static CLI baked into the image at `/usr/local/bin/skill`. The code-context twin of `call_skill_service`: reads the runtime-injected `SKILL_RUNTIME_TOKEN` + `GOCLAW_WORKSPACE_ID`/`GOCLAW_USER_ID`/`GOCLAW_AGENT_ID` (no server-side mint available in an exec) and sets the same auth + identity headers. Commands: `skill ls`; `skill call <operation> [json]` (typed, catalog-driven, path-param fill + URL-escape, body from json arg or stdin); `skill raw <METHOD> <path> [--base URL] [--auth NAME] [--skill SLUG] [-H 'H: v']` (escape hatch for the untyped passthrough namespaces + jobs/crm/drive via `--base`/`--auth X-Workspace-Key`). Exit codes 0/1/2/3; upstream `{code,message}` body printed verbatim + a `[skill] HTTP <code>` line to stderr. Supersedes the unversioned shell `xskill` (which dies in a curl-blocked sandbox).
+  - `Dockerfile` — builds `/out/skill` (CGO_ENABLED=0 static) in the Go builder stage and `COPY`s it to `/usr/local/bin/skill` in the Alpine runtime image, on PATH for every host-exec skill bash.
+- **Why:** Phase 1 covered the chat-turn path (native tool) but a code job / skill bash has no tool loop, so it still hand-wrote curl/python (fragile: quoting, header block, URL assembly, hallucinated routes). The CLI gives those execs the same typed, auth-handled, route-constrained calling surface from one shared catalog, and survives the curl-blocked sandbox where a shell script cannot.
+- **Recovery grep:**
+  ```
+  grep -n "package skillcatalog" internal/skillcatalog/catalog.go
+  grep -n "skillcatalog.Catalog" internal/tools/skill_service_catalog.go
+  grep -n "SKILL_RUNTIME_TOKEN" cmd/skill/main.go
+  grep -n "/out/skill" Dockerfile
+  ```
+  Expects >=1 hit in each file.
