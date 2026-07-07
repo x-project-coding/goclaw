@@ -206,6 +206,17 @@ func (p *OpenAIProvider) ChatStream(ctx context.Context, req ChatRequest, onChun
 		result.ToolCalls = append(result.ToolCalls, acc.ToolCall)
 	}
 
+	// Rescue textual tool calls some upstreams (GLM via OpenRouter) emit in
+	// content instead of tool_call deltas — otherwise the raw markup leaks to
+	// the user and the call never executes. Runs on the fully-accumulated
+	// content, after the stream ends.
+	if cleaned, rescued := rescueTextToolCalls(result.Content); len(rescued) > 0 {
+		slog.Warn("openai_stream: rescued textual tool calls from content",
+			"provider", p.name, "count", len(rescued), "first_tool", rescued[0].Name)
+		result.Content = cleaned
+		result.ToolCalls = append(result.ToolCalls, rescued...)
+	}
+
 	// Only override finish_reason when stream wasn't truncated.
 	// Preserve "length" so agent loop can detect truncation and retry.
 	if len(result.ToolCalls) > 0 && result.FinishReason != "length" {

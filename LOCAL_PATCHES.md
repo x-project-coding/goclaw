@@ -553,3 +553,18 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "FilterCallSkillServiceDef" internal/tools/call_skill_service.go internal/agent/loop_tool_filter.go
   ```
   Expects >=1 hit in each file.
+
+### Patch 19 — `fix(providers): rescue textual (GLM-style) tool calls from content`
+
+- **Base upstream commit:** `a2363cdf` (skill-op-gating merge, PR #48 → dev)
+- **Files:**
+  - `internal/providers/text_tool_call_rescue.go` (new) — `rescueTextToolCalls(content)` parses `[<tool_call>]NAME(<arg_key>K</arg_key><arg_value>V</arg_value>)+</tool_call>` blocks out of assistant content into `ToolCall`s (values JSON-decoded when valid, raw string otherwise; unique `textcall_<hex>` ids; tolerates the opening `<tool_call>` tag already being consumed upstream — observed in prod). RE2 ASCII `\w` keeps non-ASCII prose out of the name capture; requiring arg pairs + the closing tag keeps false positives out of ordinary text.
+  - `internal/providers/openai_http.go` — non-streaming `parseResponse` runs the rescue after structured tool calls, before the finish-reason override.
+  - `internal/providers/openai_chat.go` — streaming path runs the rescue on the fully-accumulated content after the stream ends.
+  - `internal/providers/text_tool_call_rescue_test.go` (new) — anchored on the exact 2026-07-07 prod payload (opener missing), plus opener+prose, multi-block, false-positive, and parseResponse integration cases.
+- **Why:** xrouter deliberately aliases every `gpt-5*` model to `z-ai/glm-5.2` (ModelAlias rows since 2026-06-17); GLM via OpenRouter sometimes emits tool calls as text in content instead of the tool_calls array. Without rescue the raw markup leaked into user-visible replies and the tool never executed (prod incident 2026-07-07, multiple tenants).
+- **Recovery grep:**
+  ```
+  grep -n "rescueTextToolCalls" internal/providers/text_tool_call_rescue.go internal/providers/openai_http.go internal/providers/openai_chat.go
+  ```
+  Expects >=1 hit in each file.
