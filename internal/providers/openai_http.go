@@ -102,6 +102,16 @@ func (p *OpenAIProvider) parseResponse(resp *openAIResponse) *ChatResponse {
 			result.ToolCalls = append(result.ToolCalls, call)
 		}
 
+		// Rescue textual tool calls some upstreams (GLM via OpenRouter) emit
+		// in content instead of the tool_calls array — otherwise the raw
+		// markup leaks to the user and the call never executes.
+		if cleaned, rescued := rescueTextToolCalls(result.Content); len(rescued) > 0 {
+			slog.Warn("openai: rescued textual tool calls from content",
+				"provider", p.name, "count", len(rescued), "first_tool", rescued[0].Name)
+			result.Content = cleaned
+			result.ToolCalls = append(result.ToolCalls, rescued...)
+		}
+
 		// Only override finish_reason when response wasn't truncated.
 		// Preserve "length" so agent loop can detect truncation and retry.
 		if len(result.ToolCalls) > 0 && result.FinishReason != "length" {
