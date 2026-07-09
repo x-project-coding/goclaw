@@ -1,11 +1,29 @@
 [
   {
+    "ID": "agent-handoff.open",
+    "Skill": "agent-handoff",
+    "Method": "POST",
+    "Path": "/agent-handoff/open",
+    "Summary": "Hand the user off to another workspace AI employee: opens that agent's chat in their browser.",
+    "InputHint": "targetAgent:string (agent key, display name, or role), openingMessage?:string, fromSessionKey:string (your current session key)"
+  },
+  {
     "ID": "deploy.app",
     "Skill": "deploy",
     "Method": "POST",
     "Path": "/deploy/app",
-    "Summary": "Deploy a multi-file app/page (HTML+CSS+JS) and get its public URL.",
-    "InputHint": "projectName:string, files:[{file:any, data:any, encoding?:any, contentType?:any}], projectSettings?:object"
+    "Summary": "Deploy a multi-file app/page (HTML+CSS+JS) and get its public URL (build is async).",
+    "InputHint": "projectName:string, files:[{file:any, data:any, encoding?:any, contentType?:any}], projectSettings?:object",
+    "Async": true,
+    "PollWith": "deploy.app-status"
+  },
+  {
+    "ID": "deploy.app-status",
+    "Skill": "deploy",
+    "Method": "GET",
+    "Path": "/deploy/app/status",
+    "Summary": "Poll a deploy.app build until READY (terminal: READY, ERROR, CANCELED).",
+    "InputHint": "deploymentId:string (from deploy.app)"
   },
   {
     "ID": "deploy.static",
@@ -14,6 +32,98 @@
     "Path": "/deploy/static",
     "Summary": "Publish a static file to the CDN and get a public immutable URL.",
     "InputHint": "file:{file:string, data:string(base64 or utf-8), encoding?:'base64'|'utf-8', contentType?:string}, note?:string"
+  },
+  {
+    "ID": "design.add-artifact",
+    "Skill": "design",
+    "Method": "POST",
+    "Path": "/design/projects/{id}/artifact",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Push a design artifact (HTML) into a design project.",
+    "InputHint": "name:string, content:string, encoding?:'utf8'|'base64', manifest?:any"
+  },
+  {
+    "ID": "design.create-project",
+    "Skill": "design",
+    "Method": "POST",
+    "Path": "/design/projects",
+    "Summary": "Create a Design App project (returns the live design surface).",
+    "InputHint": "name:string, sessionKey?:string"
+  },
+  {
+    "ID": "design.project",
+    "Skill": "design",
+    "Method": "GET",
+    "Path": "/design/projects/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get a design project and its artifacts.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.agents",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/agents",
+    "Summary": "List this workspace's AI call agents.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.call",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/calls/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one call (status, transcript, recording).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.calls",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/calls",
+    "Summary": "List recent calls.",
+    "InputHint": "direction?:string, status?:string, agentId?:string, campaignId?:string, sentiment?:string, disconnectionReason?:string, from?:string, to?:string, cursor?:string, limit?:1..100"
+  },
+  {
+    "ID": "manage-calls.campaign",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/campaigns/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one calling campaign and its progress.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.campaigns",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/campaigns",
+    "Summary": "List calling campaigns.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.numbers",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/numbers",
+    "Summary": "List the phone numbers provisioned for this workspace.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-calls.voices",
+    "Skill": "manage-calls",
+    "Method": "GET",
+    "Path": "/manage-calls/voices",
+    "Summary": "List the available AI voices for call agents.",
+    "InputHint": "(no input)"
   },
   {
     "ID": "manage-connections.catalog",
@@ -56,6 +166,159 @@
     "InputHint": "query?:string, limit?:1..25, toolkitSlug?:string"
   },
   {
+    "ID": "manage-databases.credentials",
+    "Skill": "manage-databases",
+    "Method": "GET",
+    "Path": "/manage-databases/{projectRef}/credentials",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Read the database connection credentials (host, password, connection strings, API keys). Audited.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.delete",
+    "Skill": "manage-databases",
+    "Method": "DELETE",
+    "Path": "/manage-databases/{projectRef}",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Permanently delete a database and stop its billing (irreversible).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.list",
+    "Skill": "manage-databases",
+    "Method": "GET",
+    "Path": "/manage-databases/list",
+    "Summary": "List this workspace's managed Postgres databases (excludes deleted).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.pause",
+    "Skill": "manage-databases",
+    "Method": "POST",
+    "Path": "/manage-databases/{projectRef}/pause",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Pause a free-tier database (paid databases are always-on; delete to stop billing).",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.pricing",
+    "Skill": "manage-databases",
+    "Method": "GET",
+    "Path": "/manage-databases/pricing",
+    "Summary": "Get the allowed regions, compute sizes, and credit pricing for managed databases.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.provision",
+    "Skill": "manage-databases",
+    "Method": "POST",
+    "Path": "/manage-databases/provision",
+    "Summary": "Provision a managed Postgres database for this workspace (async; billed in credits).",
+    "InputHint": "provisionRequestId:string (any unique id; retries with the same id are idempotent), name:string (2-32 chars, lowercase alphanumeric/hyphen), region:string, computeSize:string (get both from manage-databases.pricing), tier?:'free'|'paid' (default paid)",
+    "Async": true,
+    "PollWith": "manage-databases.status"
+  },
+  {
+    "ID": "manage-databases.query",
+    "Skill": "manage-databases",
+    "Method": "POST",
+    "Path": "/manage-databases/{projectRef}/query",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Run SQL on a database (DDL, DML, or SELECT). Results are row/size-capped with a truncated flag.",
+    "InputHint": "projectRef:string, query:string (SQL text, max 100KB), readOnly?:bool (true runs in a read-only transaction)"
+  },
+  {
+    "ID": "manage-databases.resume",
+    "Skill": "manage-databases",
+    "Method": "POST",
+    "Path": "/manage-databases/{projectRef}/resume",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Resume a paused database.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.schema",
+    "Skill": "manage-databases",
+    "Method": "GET",
+    "Path": "/manage-databases/{projectRef}/schema",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Get the database schema summary: tables with columns and RLS flags, indexes, RLS policies.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-databases.status",
+    "Skill": "manage-databases",
+    "Method": "GET",
+    "Path": "/manage-databases/{projectRef}/status",
+    "PathParams": [
+      "projectRef"
+    ],
+    "Summary": "Poll one database: status (ready when ACTIVE) + month-to-date cost preview.",
+    "InputHint": "projectRef:string (from manage-databases.provision)"
+  },
+  {
+    "ID": "manage-domains.add-dns",
+    "Skill": "manage-domains",
+    "Method": "POST",
+    "Path": "/manage-domains/domains/{domainId}/dns",
+    "PathParams": [
+      "domainId"
+    ],
+    "Summary": "Add a DNS record to a domain.",
+    "InputHint": "type:'A'|'AAAA'|'CNAME'|'MX'|'TXT', host:string, answer:string, ttl:300..604800, priority?:0..65535"
+  },
+  {
+    "ID": "manage-domains.dns",
+    "Skill": "manage-domains",
+    "Method": "GET",
+    "Path": "/manage-domains/domains/{domainId}/dns",
+    "PathParams": [
+      "domainId"
+    ],
+    "Summary": "List a domain's DNS records.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-domains.domains",
+    "Skill": "manage-domains",
+    "Method": "GET",
+    "Path": "/manage-domains/domains",
+    "Summary": "List domains owned by this workspace.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-domains.search",
+    "Skill": "manage-domains",
+    "Method": "GET",
+    "Path": "/manage-domains/search",
+    "Summary": "Search for available domains to buy (returns names + prices).",
+    "InputHint": "query:string"
+  },
+  {
+    "ID": "manage-domains.update-dns",
+    "Skill": "manage-domains",
+    "Method": "PATCH",
+    "Path": "/manage-domains/domains/{domainId}/dns/{recordId}",
+    "PathParams": [
+      "domainId",
+      "recordId"
+    ],
+    "Summary": "Update a DNS record.",
+    "InputHint": "type?:'A'|'AAAA'|'CNAME'|'MX'|'TXT', host?:string, answer?:string, ttl?:300..604800, priority?:0..65535"
+  },
+  {
     "ID": "manage-emails.address",
     "Skill": "manage-emails",
     "Method": "GET",
@@ -91,6 +354,102 @@
     "InputHint": "from:string, to:[string], cc?:[string], subject:string, text?:string, html?:string, idempotencyKey?:string"
   },
   {
+    "ID": "manage-operations.agents",
+    "Skill": "manage-operations",
+    "Method": "GET",
+    "Path": "/manage-operations/agents",
+    "Summary": "List the workspace AI Employees you can run or hand off to.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-operations.create-agent",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/create-agent",
+    "Summary": "Create a new AI Employee in this workspace.",
+    "InputHint": "name:string, role?:string, tagline?:string, description:string, avatarUrl:string, skills?:[string], fromSessionKey?:string, firstSystemMessage?:string|any"
+  },
+  {
+    "ID": "manage-operations.create-agent-from-draft",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/create-agent/from-draft",
+    "Summary": "Create an employee from a previously drafted proposal.",
+    "InputHint": "draftId?:string, fromSessionKey?:string"
+  },
+  {
+    "ID": "manage-operations.create-skill",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/create-skill",
+    "Summary": "Start authoring a new workspace skill.",
+    "InputHint": "name:string, slug?:string, description:string, fromSessionKey?:string"
+  },
+  {
+    "ID": "manage-operations.draft-agent",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/draft-agent",
+    "Summary": "Draft a proposed new employee for the user to confirm.",
+    "InputHint": "name:string, role?:string, tagline?:string, description:string, avatarUrl:string, reason?:string, skills?:[string], fromSessionKey?:string, html:string"
+  },
+  {
+    "ID": "manage-operations.history",
+    "Skill": "manage-operations",
+    "Method": "GET",
+    "Path": "/manage-operations/history",
+    "Summary": "Get recent cross-agent activity history.",
+    "InputHint": "fromSessionKey:string, sessionKey:string, limit?:1..100"
+  },
+  {
+    "ID": "manage-operations.open-agent",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/open-agent",
+    "Summary": "Open a chat with another employee and send it an opening message.",
+    "InputHint": "agentId:string, openingMessage?:string, fromSessionKey:string"
+  },
+  {
+    "ID": "manage-operations.pending-tasks",
+    "Skill": "manage-operations",
+    "Method": "GET",
+    "Path": "/manage-operations/pending-tasks",
+    "Summary": "List human tasks waiting across the workspace's employees.",
+    "InputHint": "fromSessionKey:string, priority?:'low'|'normal'|'high'|'urgent', limit?:1..50"
+  },
+  {
+    "ID": "manage-operations.publish-skill",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/publish-skill",
+    "Summary": "Author or update a workspace skill from a files map.",
+    "InputHint": "slug:string, files:object, name?:string, description?:string, connectTo?:string"
+  },
+  {
+    "ID": "manage-operations.sessions",
+    "Skill": "manage-operations",
+    "Method": "GET",
+    "Path": "/manage-operations/sessions",
+    "Summary": "List active/recent agent sessions.",
+    "InputHint": "fromSessionKey:string, agentId?:string, limit?:1..100"
+  },
+  {
+    "ID": "manage-operations.start-session",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/start-session",
+    "Summary": "Start a background session with another employee (delegate work).",
+    "InputHint": "agentId:string, openingMessage?:string, fromSessionKey:string"
+  },
+  {
+    "ID": "manage-operations.switch-ui",
+    "Skill": "manage-operations",
+    "Method": "POST",
+    "Path": "/manage-operations/switch-ui",
+    "Summary": "Hand the user's chat UI over to another employee.",
+    "InputHint": "fromSessionKey:string, targetSessionKey?:string, agentId?:string, openingMessage?:string"
+  },
+  {
     "ID": "manage-qa.report",
     "Skill": "manage-qa",
     "Method": "POST",
@@ -103,8 +462,8 @@
     "Skill": "manage-qa",
     "Method": "POST",
     "Path": "/manage-qa/runs",
-    "Summary": "Enqueue a QA run for a test or a project (async).",
-    "InputHint": "one of {testId:string} or {projectId:string}; trigger?:'UI'|'CLAUDE'|'API'|'SCHEDULE', triggeredBy?:string",
+    "Summary": "Enqueue a QA run for a test, a suite (folder, recursive), or a project (async).",
+    "InputHint": "exactly one of {testId:string} | {suiteId:string} | {projectId:string}; environmentId?:string, trigger?:'UI'|'CLAUDE'|'API'|'SCHEDULE', triggeredBy?:string",
     "Async": true,
     "PollWith": "manage-qa.run-status"
   },
@@ -118,6 +477,187 @@
     ],
     "Summary": "Poll a QA run (terminal statuses: PASSED, FAILED, BLOCKED, ERRORED).",
     "InputHint": "id:string (the run id from manage-qa.run)"
+  },
+  {
+    "ID": "manage-reports.add-snapshot",
+    "Skill": "manage-reports",
+    "Method": "POST",
+    "Path": "/manage-reports/reports/{id}/snapshots",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Record a built snapshot (deployed URL + data-as-of) for a report.",
+    "InputHint": "deployedUrl:string, deployRef?:string, dataAsOf?:string, status:'BUILDING'|'READY'|'FAILED', buildJobId?:string, summary?:string, error?:string"
+  },
+  {
+    "ID": "manage-reports.create",
+    "Skill": "manage-reports",
+    "Method": "POST",
+    "Path": "/manage-reports/reports",
+    "Summary": "Create a report (data sources + refresh schedule).",
+    "InputHint": "projectId:string, name:string, description?:string, refreshMode?:'MANUAL'|'SCHEDULED'|'REALTIME', refreshCron?:string, dataSources:[{kind:any, ref:any, config?:any}], buildRecipe:{intent:string, dataSources:[any], sections:[any], layout?:string}"
+  },
+  {
+    "ID": "manage-reports.create-monitor",
+    "Skill": "manage-reports",
+    "Method": "POST",
+    "Path": "/manage-reports/monitors",
+    "Summary": "Create a monitor that alerts on a report condition.",
+    "InputHint": "reportId?:string, name:string, condition:string, cron:string, channel?:'IN_CHAT'|'EMAIL'|'BOTH', workflowId?:string"
+  },
+  {
+    "ID": "manage-reports.create-project",
+    "Skill": "manage-reports",
+    "Method": "POST",
+    "Path": "/manage-reports/projects",
+    "Summary": "Create a reporting project (groups reports).",
+    "InputHint": "name:string, description?:string"
+  },
+  {
+    "ID": "manage-reports.get",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/reports/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one report.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-reports.list",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/reports",
+    "Summary": "List reports.",
+    "InputHint": "projectId?:string"
+  },
+  {
+    "ID": "manage-reports.monitors",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/monitors",
+    "Summary": "List report monitors.",
+    "InputHint": "reportId?:string"
+  },
+  {
+    "ID": "manage-reports.project",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/projects/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one reporting project.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-reports.projects",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/projects",
+    "Summary": "List reporting projects.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-reports.snapshots",
+    "Skill": "manage-reports",
+    "Method": "GET",
+    "Path": "/manage-reports/reports/{id}/snapshots",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "List a report's snapshots.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-seo.add-keywords",
+    "Skill": "manage-seo",
+    "Method": "POST",
+    "Path": "/manage-seo/projects/{projectId}/keywords",
+    "PathParams": [
+      "projectId"
+    ],
+    "Summary": "Add tracked keywords to an SEO project.",
+    "InputHint": "keywords:[string]"
+  },
+  {
+    "ID": "manage-seo.add-site",
+    "Skill": "manage-seo",
+    "Method": "POST",
+    "Path": "/manage-seo/projects/{projectId}/sites",
+    "PathParams": [
+      "projectId"
+    ],
+    "Summary": "Add a tracked site/domain to an SEO project.",
+    "InputHint": "domain:string"
+  },
+  {
+    "ID": "manage-seo.create-job",
+    "Skill": "manage-seo",
+    "Method": "POST",
+    "Path": "/manage-seo/jobs",
+    "Summary": "Enqueue an SEO job (audit/rank-check/etc) (async).",
+    "InputHint": "type:'KEYWORD_RESEARCH'|'RANK_CHECK'|'SITE_CRAWL'|'LIGHTHOUSE'|'SCHEMA_AUDIT'|'GEO_PROBE'|'SOV_AGGREGATE'|'CONTENT_BRIEF'|'CONTENT_REWRITE', projectId?:string, payload?:object",
+    "Async": true,
+    "PollWith": "manage-seo.job"
+  },
+  {
+    "ID": "manage-seo.create-project",
+    "Skill": "manage-seo",
+    "Method": "POST",
+    "Path": "/manage-seo/projects",
+    "Summary": "Create an SEO project (domain + competitors + locale).",
+    "InputHint": "name:string, primaryDomain:string, competitors?:[string], locationCode?:number, languageCode?:string"
+  },
+  {
+    "ID": "manage-seo.job",
+    "Skill": "manage-seo",
+    "Method": "GET",
+    "Path": "/manage-seo/jobs/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Poll an SEO job.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-seo.jobs",
+    "Skill": "manage-seo",
+    "Method": "GET",
+    "Path": "/manage-seo/jobs",
+    "Summary": "List SEO jobs.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-seo.keywords",
+    "Skill": "manage-seo",
+    "Method": "GET",
+    "Path": "/manage-seo/projects/{projectId}/keywords",
+    "PathParams": [
+      "projectId"
+    ],
+    "Summary": "List an SEO project's tracked keywords + rankings.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-seo.project",
+    "Skill": "manage-seo",
+    "Method": "GET",
+    "Path": "/manage-seo/projects/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one SEO project.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-seo.projects",
+    "Skill": "manage-seo",
+    "Method": "GET",
+    "Path": "/manage-seo/projects",
+    "Summary": "List SEO projects.",
+    "InputHint": "(no input)"
   },
   {
     "ID": "manage-skills.catalog",
@@ -190,6 +730,55 @@
     "Path": "/manage-view/set",
     "Summary": "Set the chat view hints (prompt pills, placeholder, templates, browser pane).",
     "InputHint": "sessionKey:string, hints:{pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?,title?}}"
+  },
+  {
+    "ID": "manage-workflows.add-step",
+    "Skill": "manage-workflows",
+    "Method": "POST",
+    "Path": "/manage-workflows/{id}/steps",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Append a step (instruction) to a workflow.",
+    "InputHint": "instruction:string, position?:1..64"
+  },
+  {
+    "ID": "manage-workflows.create",
+    "Skill": "manage-workflows",
+    "Method": "POST",
+    "Path": "/manage-workflows/create",
+    "Summary": "Create a scheduled/triggered workflow (steps run an agent on a trigger).",
+    "InputHint": "name:string, description?:string, agentId?:string, triggerKind:'schedule'|'webhook'|'api_poll', triggerConfig:{cron:any, tz?:any}|{secret?:any}|{url:any, method?:any, headers?:any, body?:any, intervalSeconds:any, conditionJsonPath?:any, conditionExpected?:any}, steps:[{instruction:any}], active?:bool, maxRuns?:1..10000|any, promptedBy?:string|any"
+  },
+  {
+    "ID": "manage-workflows.get",
+    "Skill": "manage-workflows",
+    "Method": "GET",
+    "Path": "/manage-workflows/{id}",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Get one workflow with its steps and run history.",
+    "InputHint": "(no input)"
+  },
+  {
+    "ID": "manage-workflows.list",
+    "Skill": "manage-workflows",
+    "Method": "GET",
+    "Path": "/manage-workflows/list",
+    "Summary": "List this workspace's workflows.",
+    "InputHint": "archived?:'true'|'false'|'all'"
+  },
+  {
+    "ID": "manage-workflows.run",
+    "Skill": "manage-workflows",
+    "Method": "POST",
+    "Path": "/manage-workflows/{id}/run",
+    "PathParams": [
+      "id"
+    ],
+    "Summary": "Run a workflow now (manual trigger).",
+    "InputHint": "(no input)"
   },
   {
     "ID": "media-forge.edit",
