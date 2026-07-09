@@ -212,3 +212,80 @@ func TestFilterCallSkillServiceDef_DoesNotMutateToolSchema(t *testing.T) {
 		t.Fatalf("tool schema mutated: enum now %d ops, want %d", len(enum), len(skillServiceCatalog))
 	}
 }
+
+// ─── Session-key auto-fill + origin headers ────────────────────────────────
+
+func TestCallSkillService_AutoFillsSessionKey(t *testing.T) {
+	var gotBody map[string]any
+	var gotOriginKind, gotOriginID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotOriginKind = r.Header.Get("X-Origin-Kind")
+		gotOriginID = r.Header.Get("X-Origin-Id")
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_, _ = w.Write([]byte(`{"data":{"ok":true}}`))
+	}))
+	defer srv.Close()
+	t.Setenv("X_API_BASE_URL", srv.URL)
+
+	ctx := WithToolSessionKey(runCtx(), "agent:test:ws:direct:sk-123")
+	res := NewCallSkillServiceTool().Execute(ctx, map[string]any{
+		"operation": "manage-view.set",
+		"input":     map[string]any{"hints": map[string]any{}}, // sessionKey omitted
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %s", res.ForLLM)
+	}
+	if gotBody["sessionKey"] != "agent:test:ws:direct:sk-123" {
+		t.Fatalf("sessionKey not auto-filled: %v", gotBody["sessionKey"])
+	}
+	if gotOriginKind != "chat_session" {
+		t.Fatalf("X-Origin-Kind = %q", gotOriginKind)
+	}
+	if gotOriginID != "agent:test:ws:direct:sk-123" {
+		t.Fatalf("X-Origin-Id = %q", gotOriginID)
+	}
+}
+
+func TestCallSkillService_ModelProvidedSessionKeyWins(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_, _ = w.Write([]byte(`{"data":{"ok":true}}`))
+	}))
+	defer srv.Close()
+	t.Setenv("X_API_BASE_URL", srv.URL)
+
+	ctx := WithToolSessionKey(runCtx(), "auto-key")
+	res := NewCallSkillServiceTool().Execute(ctx, map[string]any{
+		"operation": "manage-view.set",
+		"input":     map[string]any{"sessionKey": "explicit-key", "hints": map[string]any{}},
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %s", res.ForLLM)
+	}
+	if gotBody["sessionKey"] != "explicit-key" {
+		t.Fatalf("explicit sessionKey overwritten: %v", gotBody["sessionKey"])
+	}
+}
+
+func TestCallSkillService_NoSessionKeyFillForOpsWithoutIt(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_, _ = w.Write([]byte(`{"data":{"ok":true}}`))
+	}))
+	defer srv.Close()
+	t.Setenv("X_API_BASE_URL", srv.URL)
+
+	ctx := WithToolSessionKey(runCtx(), "auto-key")
+	res := NewCallSkillServiceTool().Execute(ctx, map[string]any{
+		"operation": "research.search",
+		"input":     map[string]any{"query": "x"},
+	})
+	if res.IsError {
+		t.Fatalf("unexpected error: %s", res.ForLLM)
+	}
+	if _, present := gotBody["sessionKey"]; present {
+		t.Fatal("sessionKey injected into an operation that does not take it")
+	}
+}
