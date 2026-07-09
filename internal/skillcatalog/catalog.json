@@ -729,7 +729,7 @@
     "Method": "POST",
     "Path": "/manage-view/set",
     "Summary": "Set the chat view hints (prompt pills, placeholder, templates, browser pane).",
-    "InputHint": "sessionKey:string, hints:{pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?,title?}}"
+    "InputHint": "sessionKey:string, hints:{pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?:10..80,title?}}"
   },
   {
     "ID": "manage-workflows.add-step",

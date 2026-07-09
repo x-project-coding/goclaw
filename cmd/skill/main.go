@@ -118,6 +118,20 @@ func runCall(args []string) int {
 		}
 	}
 
+	// Auto-fill the caller's session key when the operation takes one and it
+	// was omitted — the runtime injects GOCLAW_SESSION_KEY into every exec.
+	// An explicitly provided value always wins.
+	if sk := os.Getenv("GOCLAW_SESSION_KEY"); sk != "" {
+		for _, field := range []string{"sessionKey", "fromSessionKey"} {
+			if !skillcatalog.HintHasField(op.InputHint, field) {
+				continue
+			}
+			if v, ok := input[field]; !ok || v == "" || v == nil {
+				input[field] = sk
+			}
+		}
+	}
+
 	// Fill {placeholders} in the path from input, removing them from the body.
 	path := op.Path
 	for _, name := range op.PathParams {
@@ -284,6 +298,11 @@ func do(method, fullURL, skill, authHdr string, body []byte, extra []string, lab
 	}
 	if uid := os.Getenv("GOCLAW_USER_ID"); uid != "" {
 		req.Header.Set("X-User-Id", uid)
+	}
+	// Origin attribution — some routes (manage-tasks) validate X-Origin-Kind.
+	req.Header.Set("X-Origin-Kind", "chat_session")
+	if sk := os.Getenv("GOCLAW_SESSION_KEY"); sk != "" {
+		req.Header.Set("X-Origin-Id", sk)
 	}
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")

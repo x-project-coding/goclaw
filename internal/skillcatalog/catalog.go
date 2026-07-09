@@ -154,3 +154,27 @@ func BaseURL() string {
 	}
 	return "https://api.42bucks.com"
 }
+
+// HintHasField reports whether an operation's InputHint names `field` as an
+// input, matching on a word boundary so "sessionKey" does not match inside
+// "fromSessionKey". Hints are generated from the real route schemas, so a
+// field appears in the hint iff the route accepts it. Shared by the native
+// call_skill_service tool and the skill CLI for session-key auto-fill.
+func HintHasField(hint, field string) bool {
+	for i := 0; ; {
+		j := strings.Index(hint[i:], field)
+		if j < 0 {
+			return false
+		}
+		j += i
+		var before byte
+		if j > 0 {
+			before = hint[j-1]
+		}
+		isAlnum := (before >= 'a' && before <= 'z') || (before >= 'A' && before <= 'Z') || (before >= '0' && before <= '9')
+		if !isAlnum {
+			return true
+		}
+		i = j + len(field)
+	}
+}

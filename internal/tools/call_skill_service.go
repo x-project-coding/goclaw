@@ -130,6 +130,23 @@ func (t *CallSkillServiceTool) Execute(ctx context.Context, args map[string]any)
 		}
 	}
 
+	// Auto-fill the caller's chat session key when the operation's input takes
+	// one and the model omitted it. The runtime already knows the key (it is
+	// what SkillServiceEnv exports as GOCLAW_SESSION_KEY) — omitting it was the
+	// single biggest live failure class (manage-view.set "must have required
+	// properties sessionKey", manage-operations OPS_BAD_SESSION_KEY). A value
+	// the model DID provide always wins.
+	if sk := ToolSessionKeyFromCtx(ctx); sk != "" {
+		for _, field := range []string{"sessionKey", "fromSessionKey"} {
+			if !skillcatalog.HintHasField(op.InputHint, field) {
+				continue
+			}
+			if v, ok := input[field]; !ok || v == "" || v == nil {
+				input[field] = sk
+			}
+		}
+	}
+
 	// Fill {placeholders} in the path from `input`, removing them from the body.
 	path := op.Path
 	for _, name := range op.PathParams {
@@ -211,6 +228,14 @@ func applySkillServiceHeaders(ctx context.Context, req *http.Request, rc *store.
 	}
 	if skillSlug != "" {
 		req.Header.Set("X-Skill-Slug", skillSlug)
+	}
+	// Origin attribution. Some routes (manage-tasks) validate X-Origin-Kind;
+	// the old hand-curl SKILL.mds set these headers explicitly, so the tool
+	// must too (live gap: TASKS_INVALID_ORIGIN). Tool calls always originate
+	// from an agent chat turn.
+	req.Header.Set("X-Origin-Kind", "chat_session")
+	if sk := ToolSessionKeyFromCtx(ctx); sk != "" {
+		req.Header.Set("X-Origin-Id", sk)
 	}
 	if hasBody {
 		req.Header.Set("Content-Type", "application/json")

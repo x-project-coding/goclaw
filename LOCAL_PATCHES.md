@@ -582,3 +582,28 @@ in append order. Do not place fork migrations below `099000`.
   round 2); this catalog is the typed contract they call. Directly targets the INVALID_REQUEST
   retry-loops the dialog analysis found on uncataloged namespaces (manage-helpdesk/outreach/etc).
 - **Recovery grep:** `python3 -c "import json;print(len(json.load(open('internal/skillcatalog/catalog.json'))))"` → 106.
+
+### Patch 21 — `fix(skill-calling): session-key auto-fill + X-Origin headers`
+
+- **Base upstream commit:** `29f0de02` (catalog-expand merge, PR #50 → dev)
+- **Files:**
+  - `internal/skillcatalog/catalog.go` — `HintHasField(hint, field)`: word-boundary field lookup in
+    generated InputHints ("sessionKey" does not match inside "fromSessionKey"). +`hint_test.go`.
+  - `internal/tools/call_skill_service.go` — Execute auto-fills `sessionKey`/`fromSessionKey` into
+    `input` from `ToolSessionKeyFromCtx` when the operation's hint names the field and the model
+    omitted it (explicit values always win). `applySkillServiceHeaders` now sends
+    `X-Origin-Kind: chat_session` + `X-Origin-Id: <session key>` on every call.
+  - `cmd/skill/main.go` — CLI parity: same auto-fill from `$GOCLAW_SESSION_KEY`, same origin headers.
+  - `internal/skillcatalog/catalog.json` — manage-view.set hint documents `widthPct?:10..80`
+    (matches the updated x-api generator hintOverride, PR x-api#516).
+  - Tests: auto-fill, explicit-wins, no-fill-for-ops-without-the-field, origin headers.
+- **Why:** the 2026-07-09 full session scan found the two biggest remaining failure classes of the
+  typed surface: models omitting sessionKey/fromSessionKey (manage-view.set "must have required
+  properties sessionKey", OPS_BAD_SESSION_KEY — the runtime already knows the key), and
+  TASKS_INVALID_ORIGIN (manage-tasks validates X-Origin-Kind, which only the old hand-curl set).
+- **Recovery grep:**
+  ```
+  grep -n "HintHasField" internal/skillcatalog/catalog.go internal/tools/call_skill_service.go cmd/skill/main.go
+  grep -n "X-Origin-Kind" internal/tools/call_skill_service.go cmd/skill/main.go
+  ```
+  Expects >=1 hit in each file.
