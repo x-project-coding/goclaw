@@ -48,6 +48,7 @@ const callSkillServicePreamble = "Call a 42bucks skill-service operation. Prefer
 	"authentication, identity headers, and the base URL are handled for you, and you cannot " +
 	"call an operation that does not exist. Pick an `operation` and pass its arguments as " +
 	"`input`. Async operations return an id; poll it with the paired status operation.\n\n" +
+	"UI-prep operations (like manage-view.set) run BEFORE you compose your final reply: after their result, your next message is the user-facing reply itself — never follow them with a status note or a restatement.\n\n" +
 	"Operations:\n"
 
 func (t *CallSkillServiceTool) Description() string {

@@ -607,3 +607,32 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "X-Origin-Kind" internal/tools/call_skill_service.go cmd/skill/main.go
   ```
   Expects >=1 hit in each file.
+
+### Patch 22 — `fix(skillcatalog): manage-view.set timing + required-input + content hint`
+
+- **Base upstream commit:** `c93a6cad` (css-sessionkey-origin merge, PR #51 → dev)
+- **Files:**
+  - `internal/skillcatalog/catalog.json` — the `manage-view.set` entry only. Summary now states the
+    TIMING contract (call it BEFORE composing the reply, as the last tool call of the turn; the
+    message after its result must BE the user-facing reply, written once; never attach the call to
+    the reply message, never restate the reply, never announce "pills are set"). InputHint marks
+    both `sessionKey` and `hints` **(required)** and documents the new `content` card field
+    (`surface`/`title`/`body`/`blocks`/`actions`/`visible`).
+  - `internal/tools/call_skill_service.go` — `callSkillServicePreamble` gains a UI-prep timing line
+    (before the `Operations:` block) so every agent that only sees the catalog-path description —
+    which never reads the manage-view SKILL.md — learns that UI-prep ops run before the reply and
+    are never followed by a status note or restatement.
+- **Why:** catalog-path agents attach `manage-view.set` to the message carrying their reply → the
+  tool-call forces one more assistant turn → the model restates the whole reply (user sees it twice)
+  or leaks "pills are set" (prod, `agent:roman` 2026-07-11). The catalog entry was the ONLY
+  instruction such agents see, and it had no timing rule, nothing marked required (Roman's first
+  call sent no input → 400), and no `content` hint. Companion to Patch 21 (same typed-surface
+  hardening from live session scans). Catalog Summary/InputHint text should be mirrored into the
+  x-api generator (`scripts/generate-skill-catalog.mjs` summary + hintOverride) so a future
+  `catalog:dump` regeneration does not revert it.
+- **Recovery grep:**
+  ```
+  grep -n "never restate the reply" internal/skillcatalog/catalog.json
+  grep -n "UI-prep operations" internal/tools/call_skill_service.go
+  ```
+  Expects >=1 hit in each file.

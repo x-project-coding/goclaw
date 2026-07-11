@@ -728,8 +728,8 @@
     "Skill": "manage-view",
     "Method": "POST",
     "Path": "/manage-view/set",
-    "Summary": "Set the chat view hints (prompt pills, placeholder, templates, browser pane).",
-    "InputHint": "sessionKey:string, hints:{pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?:10..80,title?}}"
+    "Summary": "Set the chat view hints (prompt pills, placeholder, templates, browser pane, content card). Call BEFORE composing your reply — the last tool call of your turn; the message after its result must be your user-facing reply itself, written once. Never attach this call to the message carrying your reply, never restate the reply after it, and never announce it ('pills are set').",
+    "InputHint": "sessionKey:string (required; the session you are replying in), hints:object (required) — {pills?:[{text:string}] (objects with a text field, NOT bare strings; max 8), placeholder?:string|null, templates?:[{label:string,value:string}], browser?:{url?,visible?,widthPct?:10..80,title?}, content?:{surface:'bubble'|'panel', title:string, body?:string(markdown), blocks?:[kv|checklist|progress|table], actions?:[{label,kind:'send'|'open-url'|'dismiss',value?}], visible?:bool}}"
   },
   {
     "ID": "manage-workflows.add-step",
