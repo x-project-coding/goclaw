@@ -10,6 +10,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/permissions"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -20,10 +21,11 @@ import (
 
 type stubSessionStore struct {
 	store.SessionStore // embed for unimplemented default (panics on unimplemented calls — intentional)
-	sessions          map[string]*store.SessionData
-	deleted           []string
-	resetCalled       []string
-	labelSet          map[string]string
+	sessions           map[string]*store.SessionData
+	deleted            []string
+	resetCalled        []string
+	labelSet           map[string]string
+	lastListOpts       store.SessionListOpts // captured by ListPagedRich for assertions
 }
 
 func newStubSessionStore() *stubSessionStore {
@@ -70,6 +72,7 @@ func (s *stubSessionStore) SetSessionMetadata(_ context.Context, _ string, _ map
 func (s *stubSessionStore) Save(_ context.Context, _ string) error { return nil }
 
 func (s *stubSessionStore) ListPagedRich(_ context.Context, opts store.SessionListOpts) store.SessionListRichResult {
+	s.lastListOpts = opts
 	var items []store.SessionInfoRich
 	for _, sess := range s.sessions {
 		if opts.UserID != "" && sess.UserID != opts.UserID {
@@ -90,9 +93,9 @@ func (s *stubSessionStore) ListPagedRich(_ context.Context, opts store.SessionLi
 // stub EventPublisher (no-op)
 type stubEventPub struct{}
 
-func (s *stubEventPub) Subscribe(_ string, _ bus.EventHandler)   {}
-func (s *stubEventPub) Unsubscribe(_ string)                     {}
-func (s *stubEventPub) Broadcast(_ bus.Event)                    {}
+func (s *stubEventPub) Subscribe(_ string, _ bus.EventHandler) {}
+func (s *stubEventPub) Unsubscribe(_ string)                   {}
+func (s *stubEventPub) Broadcast(_ bus.Event)                  {}
 
 // ---- helpers ----
 
@@ -265,4 +268,62 @@ func TestSessionsPreview_AdminPath_NoKeyOwnershipCheck(t *testing.T) {
 	req := sessionReqFrame(t, protocol.MethodSessionsPreview, map[string]any{"key": "preview-key"})
 	m.handlePreview(context.Background(), client, req)
 	// No panic = success
+}
+
+// ---- Tests: managed_by list filter (ops-lead delegation) ----
+
+// TestSessionsList_ManagedByParam_FlowsToOpts verifies the WS `managed_by` param
+// is threaded into SessionListOpts.ManagedBy so the store applies the
+// metadata->>'managedBy' filter. This is the exact param x-api codes against.
+func TestSessionsList_ManagedByParam_FlowsToOpts(t *testing.T) {
+	sess := newStubSessionStore()
+	m := buildSessionMethods(t, sess)
+	client := nullClient()
+
+	req := sessionReqFrame(t, protocol.MethodSessionsList, map[string]any{
+		"managed_by": "ops-lead-1",
+		"limit":      20,
+	})
+	m.handleList(context.Background(), client, req)
+
+	if sess.lastListOpts.ManagedBy != "ops-lead-1" {
+		t.Fatalf("expected opts.ManagedBy=ops-lead-1, got %q", sess.lastListOpts.ManagedBy)
+	}
+}
+
+// TestSessionsList_NoManagedBy_LeavesOptsEmpty guards against an accidental
+// default that would over-filter every list call.
+func TestSessionsList_NoManagedBy_LeavesOptsEmpty(t *testing.T) {
+	sess := newStubSessionStore()
+	m := buildSessionMethods(t, sess)
+	client := nullClient()
+
+	req := sessionReqFrame(t, protocol.MethodSessionsList, map[string]any{"limit": 20})
+	m.handleList(context.Background(), client, req)
+
+	if sess.lastListOpts.ManagedBy != "" {
+		t.Fatalf("expected empty opts.ManagedBy when param omitted, got %q", sess.lastListOpts.ManagedBy)
+	}
+}
+
+// ---- Tests: patch label (verify pre-existing support) ----
+
+// TestSessionsPatch_Label_CallsSetLabel confirms sessions.patch already applies a
+// `label` patch via the store (used by ops-lead delegation to name a session).
+// Admin client so the ownership branch is skipped.
+func TestSessionsPatch_Label_CallsSetLabel(t *testing.T) {
+	sess := newStubSessionStore()
+	sess.addSession("del-sess", "system:delegate")
+	m := buildSessionMethods(t, sess)
+	client := gateway.NewTestClient(permissions.RoleAdmin, uuid.Nil, "admin")
+
+	req := sessionReqFrame(t, protocol.MethodSessionsPatch, map[string]any{
+		"key":   "del-sess",
+		"label": "Build snake game",
+	})
+	m.handlePatch(context.Background(), client, req)
+
+	if got := sess.labelSet["del-sess"]; got != "Build snake game" {
+		t.Fatalf("expected label 'Build snake game' applied via SetLabel, got %q", got)
+	}
 }

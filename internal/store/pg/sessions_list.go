@@ -50,6 +50,15 @@ func buildSessionFilter(ctx context.Context, opts store.SessionListOpts, tableAl
 		args = append(args, opts.UserID)
 		idx++
 	}
+	if opts.ManagedBy != "" {
+		// Ops-lead delegation filter: sessions whose metadata.managedBy == caller.
+		// The JSON key is a hardcoded literal; only the value is parameterized.
+		// Composes as an additional AND — it narrows within the already-applied
+		// tenant (and, for non-admin callers, user_id) scope, never widens it.
+		conditions = append(conditions, fmt.Sprintf("%smetadata->>'managedBy' = $%d", prefix, idx))
+		args = append(args, opts.ManagedBy)
+		idx++
+	}
 
 	// Resolve tenant filter — opts override beats ctx.
 	tenantID := opts.TenantID

@@ -677,3 +677,37 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "GOCLAW_SKILL_CATALOG" internal/tools/skill_service_auth.go cmd/skill/main.go
   ```
   Expects >=1 hit in each file.
+
+### Patch 24 — `feat(sessions): managed_by list filter + label patch (ops-lead delegation)`
+
+- **Base upstream commit:** `86eed92c` (origin/dev at branch time)
+- **Files:**
+  - `internal/store/session_store.go` — adds `ManagedBy string` to `SessionListOpts`
+    (optional filter on `metadata->>'managedBy'`, the ops-lead delegation owner).
+  - `internal/store/pg/sessions_list.go` — `buildSessionFilter` appends
+    `metadata->>'managedBy' = $N` when `opts.ManagedBy != ""` (JSON key is a hardcoded
+    literal; only the value is parameterized). Composes as an additional AND — narrows
+    within the existing tenant/user_id scope, never widens it.
+  - `internal/store/sqlitestore/sessions_list.go` — mirror clause with `?` placeholder
+    (dual-DB parity; SQLite 3.38+ `->>` operator).
+  - `internal/gateway/methods/sessions.go` — `sessionsListParams` gains
+    `ManagedBy string json:"managed_by"`, threaded into `store.SessionListOpts`.
+    (`sessions.patch` already supported `label` via `SetLabel` — no change; test added.)
+  - Tests: `internal/store/pg/sessions_list_filter_test.go`,
+    `internal/store/sqlitestore/sessions_list_filter_test.go`,
+    `internal/gateway/methods/sessions_test.go` (managed_by flow-through + label patch).
+- **Why:** the Operations Lead ("manager, not doer") delegates work into silent named
+  goclaw sessions stamped with `metadata.managedBy = <ops-lead agent id>`. x-api's
+  `GET /managed-sessions` op needs `sessions.list` to filter by that owner so the
+  manager can track her delegated fleet. See `2026-07-11-ops-lead-manager-design.md` §2.
+  x-api's workspace-scoped connection authenticates with the gateway token as
+  RoleAdmin (tenant-scoped), so `canSeeAll` is true and no user_id scope is forced —
+  the managed_by filter stands on its own within the tenant. Delegated sessions carry a
+  synthetic user_id, so an accidental non-admin caller would (correctly) see none.
+- **Recovery grep:**
+  ```
+  grep -n "metadata->>'managedBy'" internal/store/pg/sessions_list.go internal/store/sqlitestore/sessions_list.go
+  grep -n "managed_by" internal/gateway/methods/sessions.go
+  grep -n "ManagedBy string" internal/store/session_store.go
+  ```
+  Expects >=1 hit in each.
