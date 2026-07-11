@@ -553,6 +553,18 @@ func (m *ChatMethods) handleHistory(ctx context.Context, client *gateway.Client,
 
 	history := m.sessions.GetHistory(ctx, sessionKey)
 
+	// Drop silent-reply (NO_REPLY) assistant turns from user-facing history.
+	// The session store deliberately KEEPS these verbatim so the next turn's LLM
+	// context still sees the agent chose to stay silent (loop_finalize.go:57
+	// "save to session for context but mark as silent"). But the sentinel must
+	// never reach a user surface: finalizeRun only blanks the returned
+	// RunResult / run.completed payload — the persisted message is flushed with
+	// its raw "NO_REPLY" content BEFORE that blanking, so any history reload
+	// (x-api chatHistory → x-ui, goclaw ui/web) re-served the literal token.
+	// A pure-text silent reply carries no media/tool output worth keeping, so
+	// dropping the whole turn is safe; anything with media is preserved.
+	history = filterSilentReplies(history)
+
 	// Sign file URLs before delivery — sessions store clean paths.
 	secret := httpapi.FileSigningKey()
 	for i := range history {
@@ -565,6 +577,23 @@ func (m *ChatMethods) handleHistory(ctx context.Context, client *gateway.Client,
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 		"messages": history,
 	}))
+}
+
+// filterSilentReplies removes assistant turns whose content is a NO_REPLY
+// sentinel (bare or decorated) from a user-facing history slice, using the same
+// agent.IsSilentReply semantics the delivery/channel/cron paths already use to
+// suppress silent replies. Assistant turns that carry media are never dropped
+// (a silent reply has none, but we guard so a real deliverable is never lost).
+// Non-assistant turns pass through untouched. The input slice is not mutated.
+func filterSilentReplies(history []providers.Message) []providers.Message {
+	filtered := history[:0:0]
+	for _, msg := range history {
+		if msg.Role == "assistant" && len(msg.MediaRefs) == 0 && agent.IsSilentReply(msg.Content) {
+			continue
+		}
+		filtered = append(filtered, msg)
+	}
+	return filtered
 }
 
 // handleInject injects a message into a session transcript without running the agent.
