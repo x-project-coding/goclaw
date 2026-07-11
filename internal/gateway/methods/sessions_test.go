@@ -272,7 +272,7 @@ func TestSessionsPreview_AdminPath_NoKeyOwnershipCheck(t *testing.T) {
 
 // ---- Tests: managed_by list filter (ops-lead delegation) ----
 
-// TestSessionsList_ManagedByParam_FlowsToOpts verifies the WS `managed_by` param
+// TestSessionsList_ManagedByParam_FlowsToOpts verifies the WS `managedBy` param
 // is threaded into SessionListOpts.ManagedBy so the store applies the
 // metadata->>'managedBy' filter. This is the exact param x-api codes against.
 func TestSessionsList_ManagedByParam_FlowsToOpts(t *testing.T) {
@@ -281,7 +281,7 @@ func TestSessionsList_ManagedByParam_FlowsToOpts(t *testing.T) {
 	client := nullClient()
 
 	req := sessionReqFrame(t, protocol.MethodSessionsList, map[string]any{
-		"managed_by": "ops-lead-1",
+		"managedBy": "ops-lead-1",
 		"limit":      20,
 	})
 	m.handleList(context.Background(), client, req)

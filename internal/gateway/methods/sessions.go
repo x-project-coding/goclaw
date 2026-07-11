@@ -36,7 +36,7 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 type sessionsListParams struct {
 	AgentID   string `json:"agentId"`
 	Channel   string `json:"channel"`    // optional: filter by channel prefix ("ws", "telegram")
-	ManagedBy string `json:"managed_by"` // optional: filter by metadata->>'managedBy' (ops-lead delegation owner)
+	ManagedBy string `json:"managedBy"` // optional: filter by metadata->>'managedBy' (ops-lead delegation owner)
 	Limit     int    `json:"limit"`
 	Offset    int    `json:"offset"`
 }
@@ -61,7 +61,7 @@ func (m *SessionsMethods) handleList(ctx context.Context, client *gateway.Client
 	}
 	// Role-based filtering: admins/owners see all sessions; regular users see only their own.
 	// Tenant scope is always applied above — admin sees all sessions within the tenant.
-	// The managed_by filter (when set) composes as an additional AND on top of whatever
+	// The managedBy filter (when set) composes as an additional AND on top of whatever
 	// scope applies: for admin/owner callers (x-api's workspace-scoped gateway-token
 	// connection) it narrows within the tenant; for a non-admin operator it narrows within
 	// their own user_id scope. It never widens visibility.
