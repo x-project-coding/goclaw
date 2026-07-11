@@ -35,6 +35,12 @@ func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, 
 		conditions = append(conditions, prefix+"user_id = ?")
 		args = append(args, opts.UserID)
 	}
+	if opts.ManagedBy != "" {
+		// Ops-lead delegation filter: sessions whose metadata.managedBy == caller.
+		// JSON key is a hardcoded literal; only the value is parameterized.
+		conditions = append(conditions, prefix+"metadata->>'managedBy' = ?")
+		args = append(args, opts.ManagedBy)
+	}
 	if opts.TenantID != uuid.Nil {
 		conditions = append(conditions, prefix+"tenant_id = ?")
 		args = append(args, opts.TenantID)
