@@ -636,3 +636,44 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "UI-prep operations" internal/tools/call_skill_service.go
   ```
   Expects >=1 hit in each file.
+
+### Patch 23 — `feat(skillcatalog): runtime catalog reload from x-api (embedded fallback)`
+
+- **Base upstream commit:** `bb81b23c` (PR #52 → dev, `fix/manage-view-catalog-timing` merge)
+- **Files:**
+  - `internal/skillcatalog/catalog.go` — the init-frozen `Catalog`/`byID` package
+    vars are replaced by an `atomic.Pointer[state]` snapshot (`state{ops,byID,version}`).
+    init still loads the EMBEDDED `catalog.json` as the floor (panics on an invalid
+    embed). Adds `Load(jsonBytes, version) error` (parse + validate non-empty /
+    required fields / unique ids, then atomic swap — invalid input keeps the current
+    snapshot), `Version() string`, and `const DefaultCatalogPath = "/app/data/skill-catalog.json"`.
+    `Catalog` is now a func (`Catalog()`). Stays stdlib-only.
+  - `internal/skillcatalog/reload/reload.go` — the runtime loader (compiled only
+    into the gateway, uses log/slog). Boot fetch + 10-min poll of
+    `GET {BaseURL()}/api/skill-services/catalog` with `If-None-Match: <last version>`,
+    10s timeout. 200 → `skillcatalog.Load` + atomic best-effort persist of the raw
+    operations JSON to `DefaultCatalogPath` (0644, tmp+rename). 304 / any error →
+    keep current snapshot, DEBUG/WARN log, never crash.
+  - `cmd/gateway.go` — `skillcatalogreload.Start(context.Background(), Options{})`
+    wired next to the system_configs overlay; stop func deferred for clean shutdown.
+  - `cmd/skill/main.go` — `loadCatalogOverride()` reads `$GOCLAW_SKILL_CATALOG`
+    (default `DefaultCatalogPath`) before dispatch; a readable+valid file swaps the
+    embedded catalog, any error falls back silently to the embed. Stays stdlib-only.
+  - `internal/tools/skill_service_auth.go` — `SkillServiceEnv` (HOST exec) also sets
+    `GOCLAW_SKILL_CATALOG=<DefaultCatalogPath>`. NOT added to `skillServiceEnvMap`
+    (the Docker sandbox path) — the file is not mounted and the CLI is not in that image.
+  - `internal/tools/skill_service_catalog.go` — `skillServiceCatalog` var → func so
+    it reflects a hot-swap. Test call-sites updated (`Catalog()` / `skillServiceCatalog()`).
+  - Tests: `catalog_load_test.go`, `reload/reload_test.go`, `cmd/skill/main_test.go`.
+- **Why:** catalog.json is baked into the goclaw image at compile time, so a curated
+  operation/summary/hint change (authored in x-api's generator) only reaches the
+  runtime on a full fork rebuild+deploy. This lets x-api serve the catalog and goclaw
+  hot-swap it (embedded stays the floor, so a fetch failure is harmless). No protocol
+  change; the x-api endpoint ships separately.
+- **Recovery grep:**
+  ```
+  grep -n "atomic.Pointer\[state\]\|func Load(\|func Version()\|DefaultCatalogPath" internal/skillcatalog/catalog.go
+  grep -n "api/skill-services/catalog\|If-None-Match" internal/skillcatalog/reload/reload.go
+  grep -n "GOCLAW_SKILL_CATALOG" internal/tools/skill_service_auth.go cmd/skill/main.go
+  ```
+  Expects >=1 hit in each file.

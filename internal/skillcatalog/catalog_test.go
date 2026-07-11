@@ -7,8 +7,8 @@ import (
 
 func TestOperationIDsFor_NilMeansAll(t *testing.T) {
 	all := OperationIDsFor(nil)
-	if len(all) != len(Catalog) {
-		t.Fatalf("nil allowed: got %d ids, want %d (full catalog)", len(all), len(Catalog))
+	if len(all) != len(Catalog()) {
+		t.Fatalf("nil allowed: got %d ids, want %d (full catalog)", len(all), len(Catalog()))
 	}
 	if got := OperationIDs(); len(got) != len(all) {
 		t.Fatalf("OperationIDs() = %d ids, want %d", len(got), len(all))
@@ -32,7 +32,7 @@ func TestOperationIDsFor_FiltersBySkill(t *testing.T) {
 	}
 	// manage-skills has 5 ops + deploy has 1 in the Phase 1 catalog.
 	want := 0
-	for _, op := range Catalog {
+	for _, op := range Catalog() {
 		if allowed[op.Skill] {
 			want++
 		}
