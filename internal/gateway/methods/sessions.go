@@ -35,7 +35,7 @@ func (m *SessionsMethods) Register(router *gateway.MethodRouter) {
 
 type sessionsListParams struct {
 	AgentID   string `json:"agentId"`
-	Channel   string `json:"channel"`    // optional: filter by channel prefix ("ws", "telegram")
+	Channel   string `json:"channel"`   // optional: filter by channel prefix ("ws", "telegram")
 	ManagedBy string `json:"managedBy"` // optional: filter by metadata->>'managedBy' (ops-lead delegation owner)
 	Limit     int    `json:"limit"`
 	Offset    int    `json:"offset"`
@@ -154,6 +154,15 @@ func (m *SessionsMethods) handlePatch(ctx context.Context, client *gateway.Clien
 		}
 	}
 
+	// Apply metadata patch FIRST: SetSessionMetadata get-or-inits the session row,
+	// while SetLabel is a cache-only update that silently no-ops when the session
+	// hasn't materialized yet. A patch racing the session's first run (ops-lead
+	// delegation stamps label+managedBy right after dispatch) would otherwise
+	// drop the label while keeping the metadata.
+	if len(params.Metadata) > 0 {
+		m.sessions.SetSessionMetadata(ctx, params.Key, params.Metadata)
+	}
+
 	// Apply label patch
 	if params.Label != nil {
 		m.sessions.SetLabel(ctx, params.Key, *params.Label)
@@ -162,11 +171,6 @@ func (m *SessionsMethods) handlePatch(ctx context.Context, client *gateway.Clien
 	// Apply model patch
 	if params.Model != nil {
 		m.sessions.UpdateMetadata(ctx, params.Key, *params.Model, "", "")
-	}
-
-	// Apply metadata patch
-	if len(params.Metadata) > 0 {
-		m.sessions.SetSessionMetadata(ctx, params.Key, params.Metadata)
 	}
 
 	// Save changes to DB

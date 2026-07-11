@@ -25,6 +25,7 @@ type stubSessionStore struct {
 	deleted            []string
 	resetCalled        []string
 	labelSet           map[string]string
+	callOrder          []string
 	lastListOpts       store.SessionListOpts // captured by ListPagedRich for assertions
 }
 
@@ -63,11 +64,14 @@ func (s *stubSessionStore) Reset(_ context.Context, key string) {
 
 func (s *stubSessionStore) SetLabel(_ context.Context, key, label string) {
 	s.labelSet[key] = label
+	s.callOrder = append(s.callOrder, "label")
 }
 
 func (s *stubSessionStore) UpdateMetadata(_ context.Context, _, _, _, _ string) {}
 
-func (s *stubSessionStore) SetSessionMetadata(_ context.Context, _ string, _ map[string]string) {}
+func (s *stubSessionStore) SetSessionMetadata(_ context.Context, _ string, _ map[string]string) {
+	s.callOrder = append(s.callOrder, "metadata")
+}
 
 func (s *stubSessionStore) Save(_ context.Context, _ string) error { return nil }
 
@@ -282,7 +286,7 @@ func TestSessionsList_ManagedByParam_FlowsToOpts(t *testing.T) {
 
 	req := sessionReqFrame(t, protocol.MethodSessionsList, map[string]any{
 		"managedBy": "ops-lead-1",
-		"limit":      20,
+		"limit":     20,
 	})
 	m.handleList(context.Background(), client, req)
 
@@ -325,5 +329,27 @@ func TestSessionsPatch_Label_CallsSetLabel(t *testing.T) {
 
 	if got := sess.labelSet["del-sess"]; got != "Build snake game" {
 		t.Fatalf("expected label 'Build snake game' applied via SetLabel, got %q", got)
+	}
+}
+
+// TestSessionsPatch_MetadataBeforeLabel pins the ordering fix: metadata (which
+// get-or-inits the session row in the real store) must be applied before label
+// (cache-only no-op on a missing row), so a patch racing the session's first
+// run keeps BOTH fields.
+func TestSessionsPatch_MetadataBeforeLabel(t *testing.T) {
+	sess := newStubSessionStore()
+	sess.addSession("del-sess2", "system:delegate")
+	m := buildSessionMethods(t, sess)
+	client := gateway.NewTestClient(permissions.RoleAdmin, uuid.Nil, "admin")
+
+	req := sessionReqFrame(t, protocol.MethodSessionsPatch, map[string]any{
+		"key":      "del-sess2",
+		"label":    "Landing page build",
+		"metadata": map[string]string{"managedBy": "ops-1"},
+	})
+	m.handlePatch(context.Background(), client, req)
+
+	if len(sess.callOrder) < 2 || sess.callOrder[0] != "metadata" || sess.callOrder[1] != "label" {
+		t.Fatalf("expected metadata applied before label, got %v", sess.callOrder)
 	}
 }
