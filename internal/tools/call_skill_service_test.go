@@ -27,15 +27,15 @@ func TestCallSkillService_Parameters_EnumIsCatalog(t *testing.T) {
 	params := NewCallSkillServiceTool().Parameters()
 	props := params["properties"].(map[string]any)
 	enum := props["operation"].(map[string]any)["enum"].([]string)
-	if len(enum) != len(skillServiceCatalog) {
-		t.Fatalf("enum size %d != catalog size %d", len(enum), len(skillServiceCatalog))
+	if len(enum) != len(skillServiceCatalog()) {
+		t.Fatalf("enum size %d != catalog size %d", len(enum), len(skillServiceCatalog()))
 	}
 	// The enum must be exactly the catalog ids (no invented routes reachable).
 	got := map[string]bool{}
 	for _, id := range enum {
 		got[id] = true
 	}
-	for _, op := range skillServiceCatalog {
+	for _, op := range skillServiceCatalog() {
 		if !got[op.ID] {
 			t.Fatalf("catalog op %q missing from tool enum", op.ID)
 		}
@@ -208,8 +208,8 @@ func TestFilterCallSkillServiceDef_DoesNotMutateToolSchema(t *testing.T) {
 	// agent's definition must never poison the shared tool.
 	fresh := tool.Parameters()
 	enum := fresh["properties"].(map[string]any)["operation"].(map[string]any)["enum"].([]string)
-	if len(enum) != len(skillServiceCatalog) {
-		t.Fatalf("tool schema mutated: enum now %d ops, want %d", len(enum), len(skillServiceCatalog))
+	if len(enum) != len(skillServiceCatalog()) {
+		t.Fatalf("tool schema mutated: enum now %d ops, want %d", len(enum), len(skillServiceCatalog()))
 	}
 }
 

@@ -44,6 +44,8 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/media"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
+	"github.com/nextlevelbuilder/goclaw/internal/skillcatalog"
+	skillcatalogreload "github.com/nextlevelbuilder/goclaw/internal/skillcatalog/reload"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
@@ -226,6 +228,16 @@ func runGateway() {
 			slog.Info("system_configs applied to in-memory config", "keys", len(sysConfigs))
 		}
 	}
+
+	// Skill-service catalog: hot-reload from x-api on boot + every 10 min, with
+	// the compiled-in embedded catalog as the floor. Runs alongside the
+	// system_configs overlay above — both fetch remote config and apply it to
+	// in-memory state. A fetch failure keeps the current (embedded) catalog, so
+	// this is safe to start before x-api ships the endpoint.
+	stopCatalogReload := skillcatalogreload.Start(context.Background(), skillcatalogreload.Options{})
+	defer stopCatalogReload()
+	slog.Info("skill-service catalog reloader started", "version", skillcatalog.Version())
+
 	setupMemoryEmbeddings(pgStores, providerRegistry)
 	usageCapSvc := usagecaps.NewService(pgStores.UsageCaps, pgStores.Providers)
 

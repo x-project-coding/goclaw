@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/crypto"
+	"github.com/nextlevelbuilder/goclaw/internal/skillcatalog"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -144,14 +145,22 @@ func skillServiceEnvMap(ctx context.Context) map[string]string {
 // SkillServiceEnv returns the standard skill-service auth env vars for the
 // current run context as KEY=VALUE strings (for exec.Cmd.Env). Returns nil
 // when there is no run context; callers append it unconditionally.
+//
+// HOST-exec only: it also points GOCLAW_SKILL_CATALOG at the runtime-persisted
+// catalog the gateway hot-reloads (internal/skillcatalog/reload) so the static
+// `skill` CLI in a skill's bash tracks catalog updates without a rebuild. This
+// is deliberately NOT part of skillServiceEnvMap (which also feeds the Docker
+// sandbox): the sandbox neither mounts that file nor ships the `skill` CLI, so
+// the pointer would be dead there.
 func SkillServiceEnv(ctx context.Context) []string {
 	m := skillServiceEnvMap(ctx)
 	if len(m) == 0 {
 		return nil
 	}
-	env := make([]string, 0, len(m))
+	env := make([]string, 0, len(m)+1)
 	for k, v := range m {
 		env = append(env, k+"="+v)
 	}
+	env = append(env, "GOCLAW_SKILL_CATALOG="+skillcatalog.DefaultCatalogPath)
 	return env
 }

@@ -70,8 +70,8 @@ func TestSkillOpGate_NilAllowList_FullCatalog(t *testing.T) {
 	if td == nil {
 		t.Fatal("call_skill_service missing with nil allow-list")
 	}
-	if got := enumOf(t, td); len(got) != len(skillcatalog.Catalog) {
-		t.Fatalf("nil allow-list should keep the full catalog: got %d ops, want %d", len(got), len(skillcatalog.Catalog))
+	if got := enumOf(t, td); len(got) != len(skillcatalog.Catalog()) {
+		t.Fatalf("nil allow-list should keep the full catalog: got %d ops, want %d", len(got), len(skillcatalog.Catalog()))
 	}
 }
 

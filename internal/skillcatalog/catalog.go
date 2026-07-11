@@ -12,18 +12,41 @@
 //     skill's bash (and code-job sandboxes) where there is no tool loop; it reads
 //     the pre-injected SKILL_RUNTIME_TOKEN + identity env vars instead.
 //
-// The package intentionally depends only on the standard library (os/sort/
-// strings) so the CLI stays a small static binary (CGO_ENABLED=0) that runs on
-// both the Alpine host-exec image and the Debian sandbox image.
+// The catalog is served from an atomic snapshot (see [current]). init loads the
+// EMBEDDED catalog.json as the floor; a runtime loader (internal/skillcatalog/
+// reload, wired only into the gateway) may hot-swap a fresher catalog fetched
+// from x-api via [Load]. Every accessor reads the live snapshot per call, so a
+// swap is visible immediately with no reader locking. If x-api is unreachable or
+// serves an invalid catalog, the embedded floor stays in place — the catalog
+// never becomes empty.
+//
+// The package intentionally depends only on the standard library (embed/
+// encoding-json/errors/fmt/os/sort/strings/sync-atomic) so the CLI stays a small
+// static binary (CGO_ENABLED=0) that runs on both the Alpine host-exec image and
+// the Debian sandbox image.
 package skillcatalog
 
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
+	"sync/atomic"
 )
+
+// DefaultCatalogPath is where the runtime loader persists the latest catalog and
+// where the `skill` CLI looks for a hot-swapped override (see cmd/skill). It is
+// the same path the gateway exec-env injection points GOCLAW_SKILL_CATALOG at.
+const DefaultCatalogPath = "/app/data/skill-catalog.json"
+
+// embeddedVersion tags the compile-time floor catalog. It is deliberately not a
+// content hash of the embed: x-api serves its own sha256 version, and a distinct
+// sentinel keeps boot logs unambiguous ("old=embedded new=<sha>") and guarantees
+// the first runtime fetch is never mistaken for a 304 no-op.
+const embeddedVersion = "embedded"
 
 // Operation describes one callable skill-service endpoint.
 type Operation struct {
@@ -50,8 +73,8 @@ type Operation struct {
 	PollWith string
 }
 
-// Catalog is loaded from the embedded catalog.json, which is GENERATED from
-// x-api's route schemas — do not edit catalog.json by hand. To regenerate:
+// catalogJSON is the embedded floor catalog. It is GENERATED from x-api's route
+// schemas — do not edit catalog.json by hand. To regenerate:
 //
 //	cd x-api && npm run catalog:dump     # verifies every op against the live
 //	cp dist/skill-catalog.json .../internal/skillcatalog/catalog.json  # schemas
@@ -64,38 +87,104 @@ type Operation struct {
 //go:embed catalog.json
 var catalogJSON []byte
 
-// Catalog is the generated operation set.
-var Catalog = func() []Operation {
-	var ops []Operation
-	if err := json.Unmarshal(catalogJSON, &ops); err != nil {
-		panic("skillcatalog: embedded catalog.json is invalid: " + err.Error())
-	}
-	if len(ops) == 0 {
-		panic("skillcatalog: embedded catalog.json is empty")
-	}
-	return ops
-}()
+// state is an immutable snapshot of the catalog: the operation slice, its id
+// index, and the version identifying it. Accessors read the current *state
+// through an atomic pointer so [Load] can hot-swap the whole catalog without
+// locking readers. A snapshot is never mutated after it is stored.
+type state struct {
+	ops     []Operation
+	byID    map[string]Operation
+	version string
+}
 
-// byID indexes the catalog for O(1) lookup.
-var byID = func() map[string]Operation {
-	m := make(map[string]Operation, len(Catalog))
-	for _, op := range Catalog {
+// current holds the live snapshot. Seeded by init from the embedded catalog.json
+// (the floor) and swapped in by Load.
+var current atomic.Pointer[state]
+
+// newState builds a snapshot from an already-validated operation slice.
+func newState(ops []Operation, version string) *state {
+	m := make(map[string]Operation, len(ops))
+	for _, op := range ops {
 		m[op.ID] = op
 	}
-	return m
-}()
+	return &state{ops: ops, byID: m, version: version}
+}
+
+// parseCatalog unmarshals a catalog operation array and validates it: non-empty,
+// every operation has ID/Skill/Method/Path, and ids are unique. It returns the
+// parsed operations or an error (never a partial result).
+func parseCatalog(jsonBytes []byte) ([]Operation, error) {
+	var ops []Operation
+	if err := json.Unmarshal(jsonBytes, &ops); err != nil {
+		return nil, fmt.Errorf("skillcatalog: invalid catalog JSON: %w", err)
+	}
+	if len(ops) == 0 {
+		return nil, errors.New("skillcatalog: catalog is empty")
+	}
+	seen := make(map[string]bool, len(ops))
+	for i, op := range ops {
+		if op.ID == "" || op.Skill == "" || op.Method == "" || op.Path == "" {
+			return nil, fmt.Errorf("skillcatalog: operation %d missing required field (id/skill/method/path)", i)
+		}
+		if seen[op.ID] {
+			return nil, fmt.Errorf("skillcatalog: duplicate operation id %q", op.ID)
+		}
+		seen[op.ID] = true
+	}
+	return ops, nil
+}
+
+func init() {
+	ops, err := parseCatalog(catalogJSON)
+	if err != nil {
+		panic("skillcatalog: embedded catalog.json is invalid: " + err.Error())
+	}
+	current.Store(newState(ops, embeddedVersion))
+}
+
+// Load parses jsonBytes as a []Operation, validates it (non-empty, every op has
+// ID/Skill/Method/Path, ids unique), and atomically swaps it in as the live
+// catalog tagged with version. On any parse/validation error the current
+// snapshot is left untouched and the error is returned, so a bad fetch can never
+// blank the catalog.
+func Load(jsonBytes []byte, version string) error {
+	ops, err := parseCatalog(jsonBytes)
+	if err != nil {
+		return err
+	}
+	current.Store(newState(ops, version))
+	return nil
+}
+
+// Version returns the version string identifying the live catalog snapshot
+// ("embedded" until a runtime Load succeeds, then x-api's sha256 hex).
+func Version() string {
+	return current.Load().version
+}
+
+// Catalog returns the live operation snapshot. The returned slice is shared with
+// the current snapshot and MUST NOT be mutated.
+func Catalog() []Operation {
+	return current.Load().ops
+}
 
 // OperationIDs returns the sorted list of operation ids (the tool enum).
 func OperationIDs() []string {
-	return OperationIDsFor(nil)
+	return operationIDs(current.Load(), nil)
 }
 
 // OperationIDsFor returns the sorted operation ids whose owning skill slug is in
 // allowed. A nil map means unrestricted (the full catalog); a non-nil map gates
 // strictly, so an empty map yields no operations.
 func OperationIDsFor(allowed map[string]bool) []string {
-	ids := make([]string, 0, len(Catalog))
-	for _, op := range Catalog {
+	return operationIDs(current.Load(), allowed)
+}
+
+// operationIDs filters+sorts ids from a single snapshot so callers that also need
+// the operations (DescriptionFor) see a consistent view even across a swap.
+func operationIDs(st *state, allowed map[string]bool) []string {
+	ids := make([]string, 0, len(st.ops))
+	for _, op := range st.ops {
 		if allowed != nil && !allowed[op.Skill] {
 			continue
 		}
@@ -105,9 +194,9 @@ func OperationIDsFor(allowed map[string]bool) []string {
 	return ids
 }
 
-// Lookup resolves an operation id.
+// Lookup resolves an operation id against the live snapshot.
 func Lookup(id string) (Operation, bool) {
-	op, ok := byID[id]
+	op, ok := current.Load().byID[id]
 	return op, ok
 }
 
@@ -124,10 +213,11 @@ func Description() string {
 // OperationIDsFor. Used to prune the tool description to an agent's granted
 // skills alongside the enum.
 func DescriptionFor(allowed map[string]bool) string {
-	ids := OperationIDsFor(allowed)
+	st := current.Load()
+	ids := operationIDs(st, allowed)
 	var b strings.Builder
 	for _, id := range ids {
-		op := byID[id]
+		op := st.byID[id]
 		b.WriteString("- ")
 		b.WriteString(op.ID)
 		b.WriteString(" — ")

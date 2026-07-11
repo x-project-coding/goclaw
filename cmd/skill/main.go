@@ -42,6 +42,7 @@ const maxResponseBytes = 8 << 20 // 8 MiB, mirrors the native tool's cap.
 var httpClient = &http.Client{Timeout: 60 * time.Second}
 
 func main() {
+	loadCatalogOverride()
 	args := os.Args[1:]
 	if len(args) == 0 {
 		usage(os.Stderr)
@@ -61,6 +62,27 @@ func main() {
 		usage(os.Stderr)
 		os.Exit(2)
 	}
+}
+
+// loadCatalogOverride hot-swaps the embedded catalog with the on-disk catalog
+// the gateway persists (internal/skillcatalog/reload) when it is present and
+// valid, so the static CLI tracks a runtime catalog update without a rebuild.
+// GOCLAW_SKILL_CATALOG overrides the path; otherwise the default is used. Any
+// failure — no file, unreadable, or invalid — falls back silently to the
+// compiled-in embedded catalog (the floor), so the CLI is never worse off than
+// before.
+func loadCatalogOverride() {
+	path := os.Getenv("GOCLAW_SKILL_CATALOG")
+	if path == "" {
+		path = skillcatalog.DefaultCatalogPath
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return // no override file → embedded floor
+	}
+	// Load validates (non-empty, required fields, unique ids); on any error the
+	// embedded snapshot is left in place.
+	_ = skillcatalog.Load(data, "file")
 }
 
 func usage(w io.Writer) {

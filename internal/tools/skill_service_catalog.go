@@ -10,8 +10,9 @@ import "github.com/nextlevelbuilder/goclaw/internal/skillcatalog"
 // skillOperation is the catalog operation type.
 type skillOperation = skillcatalog.Operation
 
-// skillServiceCatalog is the operation catalog (Phase 1 set).
-var skillServiceCatalog = skillcatalog.Catalog
+// skillServiceCatalog returns the live operation catalog snapshot. It is a
+// function (not a var) so it reflects a runtime catalog hot-swap.
+func skillServiceCatalog() []skillOperation { return skillcatalog.Catalog() }
 
 // catalogOperationIDs returns the sorted list of operation ids (the tool enum).
 func catalogOperationIDs() []string { return skillcatalog.OperationIDs() }
