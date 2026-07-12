@@ -282,9 +282,9 @@ func buildDelegateReviewPrompt(label, targetAgent, content string) string {
 	return fmt.Sprintf(
 		"Your delegated task %q to %s just finished. Here is their result:\n\n%s\n\n"+
 			"Review it now. If it's good, report it to the user here in your own words — a brief, clear update. "+
-			"If it needs changes, note exactly what to fix and relay that back to %s via managed-sessions/send. "+
+			"If it needs changes, note exactly what to fix and request the changes with the review-fix tool. "+
 			"Then decide the next step. Do not send the user to another chat or the app — everything happens here with you.",
-		task, who, content, who,
+		task, who, content,
 	)
 }
 

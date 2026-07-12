@@ -134,7 +134,7 @@ func TestRunCompletedContent(t *testing.T) {
 
 func TestBuildDelegateReviewPrompt(t *testing.T) {
 	p := buildDelegateReviewPrompt("Landing page build", "roman", "It's live at https://x")
-	for _, want := range []string{"Landing page build", "roman", "It's live at https://x", "in your own words", "managed-sessions/send"} {
+	for _, want := range []string{"Landing page build", "roman", "It's live at https://x", "in your own words", "review-fix tool"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("prompt missing %q\nprompt: %s", want, p)
 		}
