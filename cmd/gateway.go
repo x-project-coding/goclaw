@@ -685,6 +685,11 @@ func runGateway() {
 	// Subscribe to agent events for channel streaming/reaction forwarding.
 	deps.wireChannelStreamingSubscriber()
 
+	// Deliver delegated-work results back into the ops-lead↔user chat for review
+	// on completion (delegate-result-delivery). Gated strictly on the
+	// `system:delegate:*` session prefix, so the normal chat path is untouched.
+	deps.wireDelegateResultDeliverySubscriber(sched)
+
 	// Slow tool notification subscriber — direct outbound when tool exceeds adaptive threshold.
 	wireSlowToolNotifySubscriber(msgBus)
 

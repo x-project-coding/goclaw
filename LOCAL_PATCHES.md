@@ -711,3 +711,45 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "ManagedBy string" internal/store/session_store.go
   ```
   Expects >=1 hit in each.
+
+### Patch 25 — `feat(delegate): announce delegated-run results into the ops-lead chat on completion`
+
+- **Base upstream commit:** `5840dd50` (origin/dev at branch time)
+- **Files:**
+  - `cmd/gateway_delegate_delivery.go` — NEW. `wireDelegateResultDeliverySubscriber`
+    subscribes to agent `run.completed` events under the UNIQUE bus id
+    `bus.TopicDelegateResultDelivery`; gates strictly on the `system:delegate:`
+    session-key prefix (load-bearing — normal chat is untouched). On a match it
+    RE-INVOKES the Operations Lead into the originating ops-lead↔user session
+    (`originSessionKey` from the delegate session's metadata) via a
+    `RunKind:"announce"` + `HideInput:true` RunRequest (the specialist's result is
+    the hidden review prompt) so Samantha reviews it and produces the user-facing
+    message herself — mirrors `processSubagentAnnounceLoop`. Then POSTs
+    `POST $X_API_BASE_URL/internal/workspaces/delegate/completed` (HMAC-SHA256 over
+    the raw body with `SKILL_RUNTIME_TOKEN`, header `x-internal-signature`) so x-api
+    busts+rewarms the chat cache and pushes a realtime refresh. Idempotency stamped
+    on the delegate session metadata (`resultDeliveredRunID` per-run guard +
+    `resultDeliveredAt` for x-api's daily backstop). Pure helper
+    `evaluateDelegateDelivery` holds the gate/skip/idempotency rules.
+  - `cmd/gateway.go` — calls `deps.wireDelegateResultDeliverySubscriber(sched)`
+    right after `deps.wireChannelStreamingSubscriber()`.
+  - `internal/bus/types.go` — adds the `TopicDelegateResultDelivery` subscriber-id
+    constant (Broadcast fans to every subscriber keyed by id; this must not collide).
+  - Tests: `cmd/gateway_delegate_delivery_test.go` — `evaluateDelegateDelivery`
+    (prefix gate, no-origin, per-run idempotency, follow-up delivers, empty/NO_REPLY
+    skip), `parseSessionRouting`, `runCompletedContent`, `buildDelegateReviewPrompt`.
+- **Why:** George: a completed delegated task's result must land in the user's
+  Samantha chat the moment the specialist finishes — but as a REVIEWED ops-lead
+  turn (Samantha decides what the user sees), not a raw dump. This is the goclaw
+  half of the delegate-result-delivery vertical; the x-api half stamps
+  `originSessionKey`/`originUserId` on the delegate session and serves the internal
+  notify route. See `2026-07-12-delegate-result-delivery-design.md`. goclaw holds
+  `SKILL_RUNTIME_TOKEN` (byte-identical to x-api's) but NOT
+  `CODE_RUNNER_INTERNAL_SECRET`, so the notify is signed with the former.
+- **Recovery grep:**
+  ```
+  grep -n "wireDelegateResultDeliverySubscriber" cmd/gateway.go cmd/gateway_delegate_delivery.go
+  grep -n "TopicDelegateResultDelivery" internal/bus/types.go
+  grep -n "delegate/completed" cmd/gateway_delegate_delivery.go
+  ```
+  Expects >=1 hit in each.

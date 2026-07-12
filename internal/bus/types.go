@@ -106,6 +106,12 @@ const (
 	TopicAgentStatusChanged    = "agent:status_changed"
 	TopicAgentDeleted          = "agent:deleted"
 	TopicTenantDeleted         = "tenant:deleted"
+	// TopicDelegateResultDelivery is the UNIQUE subscriber id for the
+	// delegate-result-delivery hook. Broadcast() fans every event to every
+	// subscriber keyed by its id, so this must not collide with any other
+	// Subscribe() id (reusing TopicChannelStreaming would OVERWRITE the channel
+	// streaming subscriber in the subscribers map).
+	TopicDelegateResultDelivery = "delegate-result-delivery"
 )
 
 // EventPairingRevoked is the event name broadcast when a paired device is revoked.
