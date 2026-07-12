@@ -507,7 +507,6 @@ func isCodeReviewCallback(meta map[string]string) bool {
 // is what actually shows her reply in x-ui. Best-effort throughout.
 func scheduleCodeReviewDelivery(ctx context.Context, originSessionKey, result string, msg bus.InboundMessage, deps *ConsumerDeps) {
 	jobID := msg.Metadata["job_id"]
-	originUserID := originUserIDForReview(msg)
 	tenantID := msg.TenantID
 	// Tenant-scope the ctx BEFORE the review run — scheduleOpsLeadReviewRun
 	// resolves the ops-lead agent via GetByKey, which returns "agent not found"
@@ -519,6 +518,16 @@ func scheduleCodeReviewDelivery(ctx context.Context, originSessionKey, result st
 		reviewCtx = store.WithTenantID(reviewCtx, tenantID)
 	} else {
 		reviewCtx = store.WithTenantID(reviewCtx, store.MasterTenantID)
+	}
+	// Resolve the origin chat's REAL owner. The job callback carries no user id,
+	// so originUserIDForReview falls back to the session key's chatID segment —
+	// which is a UUID for a "New Chat", NOT the user id. Writing the review run
+	// under that would corrupt sessions.user_id (owner := chatID) and lock the
+	// real user out of their own chat (history read → permission denied → 500).
+	// The origin chat already exists with the correct owner; preserve it.
+	originUserID := originUserIDForReview(msg)
+	if sess := deps.SessStore.Get(reviewCtx, originSessionKey); sess != nil && sess.UserID != "" {
+		originUserID = sess.UserID
 	}
 	deps.BgWg.Go(func() {
 		defer safego.Recover(nil, "component", "code_review_delivery", "session", originSessionKey)
