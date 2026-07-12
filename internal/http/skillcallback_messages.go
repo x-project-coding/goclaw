@@ -28,6 +28,13 @@ type messagesRequest struct {
 	// it is wasteful and unreliable. When false (default) the legacy path runs:
 	// the message is delivered as an inbound and the agent relays it.
 	Announce bool `json:"announce"`
+	// Review (manage-operations delegation v2, Layer C): when true, this
+	// callback carries a delegated JOB's result that must go back to the
+	// launching manager (the ops-lead) FOR REVIEW. handleCodeAnnounce then
+	// schedules a HideInput ops-lead review run into the callback session
+	// instead of the passive announce. Only meaningful alongside Announce=true
+	// (the default for terminal completions). Absent/false → unchanged announce.
+	Review bool `json:"review"`
 }
 
 // handleMessages receives an async result from a skill-backing service (the
@@ -124,6 +131,14 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 			content = "A background job finished."
 		}
 		meta["announce"] = "true"
+		// Delegation v2 (Layer C): route the announce through the ops-lead
+		// review run rather than a passive insert. Carried on the same
+		// InboundMessage.Metadata as `announce`; handleCodeAnnounce branches on
+		// it. Only stamped when Announce is set (review has no meaning on the
+		// legacy relay path, which already re-invokes an agent turn).
+		if req.Review {
+			meta[bus.MetaCodeReview] = "true"
+		}
 	} else {
 		// Legacy relay path: the agent rephrases title+summary for the user.
 		content = strings.TrimSpace(strings.TrimSpace(req.Title) + "\n\n" + strings.TrimSpace(req.Summary))

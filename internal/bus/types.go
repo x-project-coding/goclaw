@@ -17,6 +17,20 @@ type MediaFile struct {
 	Caption  string `json:"caption,omitempty"`   // optional outbound caption attached to this file
 }
 
+// Code-skill-callback InboundMessage.Metadata keys — set by the
+// /callback/v1/messages handler (internal/http/skillcallback_messages.go) when
+// a skill-backing service (code-runner) delivers an async job result, and read
+// by the consumer's handleCodeAnnounce. MetaCodeReview carries the delegation
+// v2 (Layer C) review flag: "true" → re-invoke the launching manager (the
+// ops-lead) for a HideInput review turn instead of the passive announce.
+const (
+	// MetaCodeReview is set to "true" when the code-runner completion callback
+	// carried `review: true`. It routes the announce through the shared
+	// ops-lead review-run scheduler (scheduleOpsLeadReviewRun) — the same
+	// primitive the delegate-SESSION completion path uses.
+	MetaCodeReview = "review"
+)
+
 // InboundMessage represents a message received from a channel (Telegram, Discord, etc.)
 type InboundMessage struct {
 	Channel      string            `json:"channel"`

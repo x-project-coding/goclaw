@@ -160,41 +160,18 @@ func (d *gatewayDeps) deliverDelegateResult(
 	// a successful review turn, so a failed turn is still reported by the backstop.
 	stampDelegateMeta(ctx, sessions, delegateSessionKey, map[string]string{dmMetaResultDeliveredRunID: runID})
 
-	channel, peerKind, chatID := parseSessionRouting(originSessionKey)
-	req := agent.RunRequest{
-		SessionKey: originSessionKey,
-		Message:    buildDelegateReviewPrompt(label, meta[dmMetaTargetAgent], content),
-		Channel:    channel,
-		ChatID:     chatID,
-		PeerKind:   peerKind,
-		UserID:     meta[dmMetaOriginUserID],
-		RunID:      fmt.Sprintf("delegate-review-%s-%d", shortID(runID), time.Now().UnixNano()),
-		RunKind:    "announce",
-		HideInput:  true, // the review trigger is hidden from the user
-		Stream:     false,
-	}
-
-	outcome := <-sched.Schedule(ctx, scheduler.LaneSubagent, req)
-	if outcome.Err != nil {
+	if err := scheduleOpsLeadReviewRun(ctx, sched, d.msgBus, opsLeadReviewInput{
+		OriginSessionKey: originSessionKey,
+		OriginUserID:     meta[dmMetaOriginUserID],
+		Label:            label,
+		TargetAgent:      meta[dmMetaTargetAgent],
+		Result:           content,
+		RunIDSeed:        runID,
+	}); err != nil {
 		slog.Error("delegate delivery: ops-lead review run failed",
-			"origin", originSessionKey, "delegate", delegateSessionKey, "error", outcome.Err)
+			"origin", originSessionKey, "delegate", delegateSessionKey, "error", err)
 		// Leave resultDeliveredAt UNSET → the daily backstop still reports it.
 		return
-	}
-
-	// Push the ops-lead's user-facing turn to the origin channel. Web (ws) reads
-	// the persisted transcript + the x-api realtime refresh below; external
-	// channels (Telegram/etc.) need this outbound. Mirrors processSubagentAnnounceLoop.
-	if outcome.Result != nil {
-		out := outcome.Result.Content
-		if agent.IsSilentReply(out) {
-			out = ""
-		}
-		if out != "" || len(outcome.Result.Media) > 0 {
-			outMsg := bus.OutboundMessage{Channel: channel, ChatID: chatID, Content: out}
-			appendMediaToOutbound(&outMsg, outcome.Result.Media)
-			d.msgBus.PublishOutbound(outMsg)
-		}
 	}
 
 	// Delivery done — stamp the timestamp the daily "Managed work check-in"
@@ -207,6 +184,76 @@ func (d *gatewayDeps) deliverDelegateResult(
 	// cache and push a render-neutral realtime refresh, so the ops-lead's new
 	// turn appears live in x-ui without the user reloading.
 	notifyXAPIDelegateCompleted(delegateSessionKey, originSessionKey, meta[dmMetaOriginUserID])
+}
+
+// opsLeadReviewInput is the parameter set for one ops-lead review turn. Shared
+// by the delegate-SESSION completion path (Layer B, deliverDelegateResult) and
+// the delegate-JOB callback path (Layer C, handleCodeAnnounce).
+type opsLeadReviewInput struct {
+	// OriginSessionKey is the ops-lead↔user chat the review turn runs in
+	// (`agent:<opsLeadKey>:<channel>:<peerKind>:<chatID>`).
+	OriginSessionKey string
+	// OriginUserID scopes the run to the origin user (memory/bootstrap). For a
+	// `ws:direct` origin this is the chatID; may be empty for other shapes.
+	OriginUserID string
+	// Label / TargetAgent frame the hidden review prompt ("your task X to Y
+	// finished"). Both tolerate empty (the prompt falls back to generic wording).
+	Label       string
+	TargetAgent string
+	// Result is the specialist/job final output handed to the ops-lead as the
+	// hidden review input.
+	Result string
+	// RunIDSeed makes the synthetic review RunID unique (the source run/job id).
+	RunIDSeed string
+}
+
+// scheduleOpsLeadReviewRun re-invokes the ops-lead for a HideInput "announce"
+// review turn into OriginSessionKey with the specialist/job result as hidden
+// input, then pushes her user-facing reply to the origin channel (web reads the
+// persisted transcript + the x-api realtime refresh; external channels need the
+// outbound). This is the load-bearing review semantic: the ops-lead decides what
+// the user sees — we never dump the raw result into the user's chat. Returns nil
+// on a completed review turn; the schedule error otherwise (caller leaves
+// resultDeliveredAt unset so the daily backstop still reports it).
+func scheduleOpsLeadReviewRun(
+	ctx context.Context,
+	sched *scheduler.Scheduler,
+	msgBus *bus.MessageBus,
+	in opsLeadReviewInput,
+) error {
+	channel, peerKind, chatID := parseSessionRouting(in.OriginSessionKey)
+	req := agent.RunRequest{
+		SessionKey: in.OriginSessionKey,
+		Message:    buildDelegateReviewPrompt(in.Label, in.TargetAgent, in.Result),
+		Channel:    channel,
+		ChatID:     chatID,
+		PeerKind:   peerKind,
+		UserID:     in.OriginUserID,
+		RunID:      fmt.Sprintf("delegate-review-%s-%d", shortID(in.RunIDSeed), time.Now().UnixNano()),
+		RunKind:    "announce",
+		HideInput:  true, // the review trigger is hidden from the user
+		Stream:     false,
+	}
+
+	outcome := <-sched.Schedule(ctx, scheduler.LaneSubagent, req)
+	if outcome.Err != nil {
+		return outcome.Err
+	}
+
+	// Push the ops-lead's user-facing turn to the origin channel. Mirrors
+	// processSubagentAnnounceLoop.
+	if outcome.Result != nil {
+		out := outcome.Result.Content
+		if agent.IsSilentReply(out) {
+			out = ""
+		}
+		if out != "" || len(outcome.Result.Media) > 0 {
+			outMsg := bus.OutboundMessage{Channel: channel, ChatID: chatID, Content: out}
+			appendMediaToOutbound(&outMsg, outcome.Result.Media)
+			msgBus.PublishOutbound(outMsg)
+		}
+	}
+	return nil
 }
 
 // stampDelegateMeta merges keys into the delegate session metadata and persists.
@@ -275,22 +322,37 @@ func shortID(s string) string {
 // (goclaw already holds it; it does NOT hold CODE_RUNNER_INTERNAL_SECRET), which
 // x-api verifies on POST /internal/workspaces/delegate/completed. Best-effort.
 func notifyXAPIDelegateCompleted(delegateSessionKey, originSessionKey, originUserID string) {
-	base := strings.TrimRight(os.Getenv("X_API_BASE_URL"), "/")
-	secret := os.Getenv("SKILL_RUNTIME_TOKEN")
-	if base == "" || secret == "" {
-		slog.Warn("delegate delivery: x-api notify skipped (X_API_BASE_URL or SKILL_RUNTIME_TOKEN unset)")
-		return
-	}
 	// workspaceId = the <workspaceId> segment of
 	// system:delegate:<workspaceId>:<shortid> (x-api's own workspace id).
 	workspaceID := ""
 	if parts := strings.Split(delegateSessionKey, ":"); len(parts) >= 3 {
 		workspaceID = parts[2]
 	}
+	postDelegateCompletedNotify(workspaceID, originSessionKey, delegateSessionKey, originUserID)
+}
+
+// postDelegateCompletedNotify signs + POSTs the delegate-completed notify to
+// x-api so it busts + rewarms the origin chat's history cache and pushes a
+// render-neutral realtime refresh. `workspaceID` may be x-api's workspace id
+// (session-lane, from the delegate key) OR the goclaw tenant uuid (job-lane —
+// x-api's internal route resolves either form via `gatewayTenantId`). `traceID`
+// is opaque to x-ui (a `result.landed` signal), carried for traceability.
+// Signed with the SHARED SKILL_RUNTIME_TOKEN. Best-effort.
+func postDelegateCompletedNotify(workspaceID, originSessionKey, traceID, originUserID string) {
+	base := strings.TrimRight(os.Getenv("X_API_BASE_URL"), "/")
+	secret := os.Getenv("SKILL_RUNTIME_TOKEN")
+	if base == "" || secret == "" {
+		slog.Warn("delegate delivery: x-api notify skipped (X_API_BASE_URL or SKILL_RUNTIME_TOKEN unset)")
+		return
+	}
+	if workspaceID == "" {
+		slog.Warn("delegate delivery: x-api notify skipped (no workspace id)", "origin", originSessionKey)
+		return
+	}
 	payload := map[string]string{
 		"workspaceId":        workspaceID,
 		"sessionKey":         originSessionKey,
-		"delegateSessionKey": delegateSessionKey,
+		"delegateSessionKey": traceID,
 	}
 	if originUserID != "" {
 		payload["userId"] = originUserID
@@ -313,14 +375,14 @@ func notifyXAPIDelegateCompleted(delegateSessionKey, originSessionKey, originUse
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Warn("delegate delivery: x-api notify failed", "delegate", delegateSessionKey, "error", err)
+		slog.Warn("delegate delivery: x-api notify failed", "trace", traceID, "error", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		slog.Warn("delegate delivery: x-api notify non-2xx", "delegate", delegateSessionKey, "status", resp.StatusCode)
+		slog.Warn("delegate delivery: x-api notify non-2xx", "trace", traceID, "status", resp.StatusCode)
 		return
 	}
 	slog.Info("delegate delivery: delivered to ops-lead + x-api notified",
-		"delegate", delegateSessionKey, "origin", originSessionKey)
+		"trace", traceID, "origin", originSessionKey)
 }
