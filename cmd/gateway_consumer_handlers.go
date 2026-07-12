@@ -509,9 +509,20 @@ func scheduleCodeReviewDelivery(ctx context.Context, originSessionKey, result st
 	jobID := msg.Metadata["job_id"]
 	originUserID := originUserIDForReview(msg)
 	tenantID := msg.TenantID
+	// Tenant-scope the ctx BEFORE the review run — scheduleOpsLeadReviewRun
+	// resolves the ops-lead agent via GetByKey, which returns "agent not found"
+	// when the ctx carries no tenant (the session lane does this in
+	// deliverDelegateResult; the job lane must match or every job-lane review
+	// fails at agent resolution).
+	reviewCtx := ctx
+	if tenantID != uuid.Nil {
+		reviewCtx = store.WithTenantID(reviewCtx, tenantID)
+	} else {
+		reviewCtx = store.WithTenantID(reviewCtx, store.MasterTenantID)
+	}
 	deps.BgWg.Go(func() {
 		defer safego.Recover(nil, "component", "code_review_delivery", "session", originSessionKey)
-		if err := scheduleOpsLeadReviewRun(ctx, deps.Sched, deps.MsgBus, opsLeadReviewInput{
+		if err := scheduleOpsLeadReviewRun(reviewCtx, deps.Sched, deps.MsgBus, opsLeadReviewInput{
 			OriginSessionKey: originSessionKey,
 			OriginUserID:     originUserID,
 			// The job callback carries no human task label / target name (only
