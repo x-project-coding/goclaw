@@ -753,3 +753,52 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "delegate/completed" cmd/gateway_delegate_delivery.go
   ```
   Expects >=1 hit in each.
+
+### Patch 26 — `feat(delegate): route review:true job callbacks into the ops-lead review run (Layer C)`
+
+- **Base upstream commit:** `769f754b` (origin/dev at branch time; builds on Patch 25).
+- **Files:**
+  - `internal/http/skillcallback_messages.go` — the code-runner completion callback
+    body (`messagesRequest`) gains `Review bool json:"review"`. On the announce
+    path, when `Review` is set it stamps `Metadata[bus.MetaCodeReview]="true"` on
+    the published InboundMessage (only meaningful alongside `announce=true`).
+  - `internal/bus/types.go` — adds the `MetaCodeReview = "review"` InboundMessage
+    metadata-key constant (carries the flag from the callback handler to the
+    consumer).
+  - `cmd/gateway_delegate_delivery.go` — REFACTOR: extracts the review-run
+    scheduling out of `deliverDelegateResult` into a SHARED helper
+    `scheduleOpsLeadReviewRun(ctx, sched, msgBus, opsLeadReviewInput)` (schedules a
+    `RunKind:"announce"` + `HideInput:true` run into the origin session + pushes
+    the ops-lead reply outbound). Also splits the x-api notify into
+    `postDelegateCompletedNotify(workspaceID, originSessionKey, traceID,
+    originUserID)` so the JOB path can pass the goclaw tenant uuid (x-api resolves
+    it via `gatewayTenantId`). `deliverDelegateResult` (Layer B, session path) now
+    calls the shared helper.
+  - `cmd/gateway_consumer_handlers.go` — `handleCodeAnnounce` gains a review branch:
+    when `isCodeReviewCallback(msg.Metadata)` it calls `scheduleCodeReviewDelivery`
+    (spawns a BgWg goroutine → `scheduleOpsLeadReviewRun` → `postDelegateCompletedNotify`)
+    INSTEAD of the passive `AddMessage`, and returns. Every non-review code job keeps
+    the passive announce. `originUserIDForReview` derives the review-run user id
+    (ws:direct chatID). 
+  - Tests: `cmd/gateway_code_review_delivery_test.go` — `isCodeReviewCallback`
+    (true/absent/false/nil), `originUserIDForReview`, `scheduleOpsLeadReviewRun`
+    (shared helper: announce+HideInput into origin, outbound push), and
+    `scheduleCodeReviewDelivery` (Layer C trigger schedules the review run, not a
+    passive insert).
+- **Why:** delegation v2 (Layer C). `manage-operations.delegate` now launches a
+  code-runner JOB that runs AS the delegated employee; its completion must post
+  back to the ops-lead FOR REVIEW (same review-turn semantic as the session path,
+  Patch 25) rather than the passive job announce. The `review` flag rides the job
+  callback (x-code `code_jobs.callback_review` → completion POST). See
+  `2026-07-12-ops-lead-delegation-v2-design.md`.
+- **Contract:** the callback field is `review` (bool) on the `callback` object at
+  job-create (x-code), persisted on `code_jobs.callback_review`, echoed as `review`
+  (bool) on the completion POST to goclaw `/callback/v1/messages`; goclaw reads it
+  as `messagesRequest.Review` and branches.
+- **Recovery grep:**
+  ```
+  grep -n "MetaCodeReview" internal/bus/types.go internal/http/skillcallback_messages.go cmd/gateway_consumer_handlers.go
+  grep -n "scheduleOpsLeadReviewRun" cmd/gateway_delegate_delivery.go cmd/gateway_consumer_handlers.go
+  grep -n "scheduleCodeReviewDelivery\|isCodeReviewCallback" cmd/gateway_consumer_handlers.go
+  ```
+  Expects >=1 hit in each.

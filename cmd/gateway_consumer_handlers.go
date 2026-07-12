@@ -436,6 +436,18 @@ func handleCodeAnnounce(
 		return true
 	}
 
+	// Delegation v2 (Layer C): a delegated JOB whose create-callback carried
+	// `review: true` must go BACK to the launching manager (the ops-lead) for
+	// review — she reviews the result and decides what the user sees — instead
+	// of the passive assistant-insert below. Same review semantic as the
+	// delegate-SESSION completion path (deliverDelegateResult), reached through
+	// the shared scheduleOpsLeadReviewRun helper. Gated strictly on the review
+	// flag so every normal code job keeps the passive announce.
+	if isCodeReviewCallback(msg.Metadata) {
+		scheduleCodeReviewDelivery(ctx, sessionKey, content, msg, deps)
+		return true
+	}
+
 	actx := store.WithTenantID(ctx, msg.TenantID)
 	// Persist as an assistant turn so the chat transcript (and the web UI's
 	// history poll) surfaces it immediately — no agent turn involved.
@@ -476,6 +488,67 @@ func handleCodeAnnounce(
 	slog.Info("inbound: code job announce delivered",
 		"session", sessionKey, "job_id", msg.Metadata["job_id"])
 	return true
+}
+
+// isCodeReviewCallback reports whether a code-skill-callback InboundMessage
+// carries the Layer C review flag — i.e. its result must be routed to the
+// ops-lead review run instead of the passive announce. Absent/anything-else
+// keeps the legacy announce path.
+func isCodeReviewCallback(meta map[string]string) bool {
+	return meta[bus.MetaCodeReview] == "true"
+}
+
+// scheduleCodeReviewDelivery re-invokes the ops-lead for a HideInput review turn
+// carrying a delegated JOB's result (Layer C). The review turn is a full LLM
+// run, so it runs on a background goroutine (tracked by BgWg for graceful
+// shutdown) — never block the inbound consumer. On a completed turn it notifies
+// x-api so the ops-lead's user-facing reply surfaces live: x-code's own
+// announce-notify fires BEFORE the review turn lands, so this post-turn notify
+// is what actually shows her reply in x-ui. Best-effort throughout.
+func scheduleCodeReviewDelivery(ctx context.Context, originSessionKey, result string, msg bus.InboundMessage, deps *ConsumerDeps) {
+	jobID := msg.Metadata["job_id"]
+	originUserID := originUserIDForReview(msg)
+	tenantID := msg.TenantID
+	deps.BgWg.Go(func() {
+		defer safego.Recover(nil, "component", "code_review_delivery", "session", originSessionKey)
+		if err := scheduleOpsLeadReviewRun(ctx, deps.Sched, deps.MsgBus, opsLeadReviewInput{
+			OriginSessionKey: originSessionKey,
+			OriginUserID:     originUserID,
+			// The job callback carries no human task label / target name (only
+			// the result summary); the review prompt falls back to generic
+			// wording ("your delegated task to the specialist") — the ops-lead's
+			// own chat context + managed record identify the work.
+			Label:       "",
+			TargetAgent: "",
+			Result:      result,
+			RunIDSeed:   jobID,
+		}); err != nil {
+			slog.Error("code review delivery: ops-lead review run failed",
+				"origin", originSessionKey, "job_id", jobID, "error", err)
+			return
+		}
+		// x-api resolves the workspace by the goclaw tenant uuid via
+		// `gatewayTenantId` (its internal route tolerates either form).
+		wsID := ""
+		if tenantID != uuid.Nil {
+			wsID = tenantID.String()
+		}
+		postDelegateCompletedNotify(wsID, originSessionKey, "job:"+jobID, originUserID)
+	})
+}
+
+// originUserIDForReview resolves the user id to scope the ops-lead review run to.
+// The delegated job's callback session key is the ops-lead↔user chat
+// (`agent:<opsLeadKey>:ws:direct:<userId>`), where the chatID segment IS the
+// user id — so for a ws:direct origin we use the chatID. Empty for other shapes.
+func originUserIDForReview(msg bus.InboundMessage) string {
+	if msg.UserID != "" {
+		return msg.UserID
+	}
+	if msg.Channel == "ws" && (msg.PeerKind == "" || msg.PeerKind == string(sessions.PeerDirect)) {
+		return msg.ChatID
+	}
+	return ""
 }
 
 // handleResetCommand processes /reset command: clears session history.
