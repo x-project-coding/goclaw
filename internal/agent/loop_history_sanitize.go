@@ -289,7 +289,7 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 			Model:    l.model,
 			// "auto" routing mode → x-router ignores the agent's pinned model and
 			// picks the model itself, instead of forwarding it to OpenRouter.
-			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "auto"},
+			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
 		}
 		resp, err := l.callInternalLLMWithUsage(sctx, chatReq, "session-summarization")
 		if err != nil {

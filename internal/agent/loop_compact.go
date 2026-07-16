@@ -98,7 +98,7 @@ func (l *Loop) compactMessagesInPlace(ctx context.Context, messages []providers.
 		// "auto" routing mode → x-router ignores the agent's pinned model (e.g.
 		// gpt-5.4) and picks the model itself; without a mode it would forward
 		// the pinned model verbatim to OpenRouter.
-		Options: map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "auto"},
+		Options: map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
 	}
 	resp, err := l.callInternalLLMWithUsage(sctx, chatReq, "mid-loop-compaction")
 	if err != nil {

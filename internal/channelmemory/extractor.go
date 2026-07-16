@@ -51,7 +51,7 @@ func Extract(ctx context.Context, provider providers.Provider, model string, cap
 			{Role: "system", Content: extractionPrompt(allowed)},
 			{Role: "user", Content: sb.String()},
 		},
-		Options: map[string]any{"max_tokens": 1200, "temperature": 0.1},
+		Options: map[string]any{"max_tokens": 1200, "temperature": 0.1, providers.OptRoutingMode: "background"},
 	}
 	var resp *providers.ChatResponse
 	var err error

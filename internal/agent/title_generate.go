@@ -49,7 +49,7 @@ func GenerateTitleWithUsageCaps(ctx context.Context, usageCaps *usagecaps.Servic
 			// Route via x-router "fast" mode so this trivial call ignores the
 			// agent's pinned model (e.g. gpt-5.4) and uses the cheap tier. With no
 			// mode, x-router forwards the pinned model verbatim to OpenRouter.
-			providers.OptRoutingMode: "fast",
+			providers.OptRoutingMode: "background",
 		},
 	}
 	resp, err := usageCaps.Chat(ctx, provider, req, usagecaps.ChatOptions{

@@ -196,7 +196,7 @@ func (l *Loop) runMemoryFlush(ctx context.Context, sessionKey string, settings *
 				// "auto" routing mode → x-router ignores the agent's pinned model
 				// (e.g. gpt-5.4) and picks the model; without a mode it would
 				// forward the pinned model verbatim to OpenRouter.
-				providers.OptRoutingMode: "auto",
+				providers.OptRoutingMode: "background",
 			},
 		}
 		resp, err := l.callInternalLLMWithUsage(flushCtx, chatReq, "memory-flush")
