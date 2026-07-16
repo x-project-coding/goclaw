@@ -74,8 +74,9 @@ func (e *Extractor) extractChunk(ctx context.Context, text string) (*ExtractionR
 		},
 		Model: e.model,
 		Options: map[string]any{
-			"max_tokens":  8192,
-			"temperature": 0.2,
+			"max_tokens":             8192,
+			"temperature":            0.2,
+			providers.OptRoutingMode: "background",
 		},
 	}
 

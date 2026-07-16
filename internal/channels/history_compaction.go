@@ -104,7 +104,7 @@ func CompactGroup(ctx context.Context, s store.PendingMessageStore, channelName,
 		Model:   model,
 		// "auto" routing mode → x-router ignores the agent's pinned model and
 		// picks the model itself, instead of forwarding it to OpenRouter.
-		Options: map[string]any{"max_tokens": maxTokens, "temperature": 0.3, providers.OptRoutingMode: "auto"},
+		Options: map[string]any{"max_tokens": maxTokens, "temperature": 0.3, providers.OptRoutingMode: "background"},
 	}
 	resp, err := usageCaps.Chat(ctx, provider, req, usagecaps.ChatOptions{
 		ModelID:         model,
