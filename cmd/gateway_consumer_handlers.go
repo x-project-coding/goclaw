@@ -498,6 +498,13 @@ func isCodeReviewCallback(meta map[string]string) bool {
 	return meta[bus.MetaCodeReview] == "true"
 }
 
+// metaCodeReviewFallbackJobID marks the origin session as having received the
+// plain fallback announce for a given job id. It is the job lane's analog of
+// the delegate session's resultDeliveredRunID (evaluateDelegateDelivery): a
+// replayed completion callback for the SAME job may legitimately re-run the
+// review turn, but must never double-post the fallback announce.
+const metaCodeReviewFallbackJobID = "codeReviewFallbackJobId"
+
 // scheduleCodeReviewDelivery re-invokes the ops-lead for a HideInput review turn
 // carrying a delegated JOB's result (Layer C). The review turn is a full LLM
 // run, so it runs on a background goroutine (tracked by BgWg for graceful
@@ -531,24 +538,46 @@ func scheduleCodeReviewDelivery(ctx context.Context, originSessionKey, result st
 	}
 	deps.BgWg.Go(func() {
 		defer safego.Recover(nil, "component", "code_review_delivery", "session", originSessionKey)
-		if err := scheduleOpsLeadReviewRun(reviewCtx, deps.Sched, deps.MsgBus, opsLeadReviewInput{
+		in := opsLeadReviewInput{
 			OriginSessionKey: originSessionKey,
 			OriginUserID:     originUserID,
-			// The job callback carries no human task label / target name (only
-			// the result summary); the review prompt falls back to generic
-			// wording ("your delegated task to the specialist") — the ops-lead's
-			// own chat context + managed record identify the work.
-			Label:       "",
-			TargetAgent: "",
+			// The callback MAY carry the job's human task label + the
+			// specialist's name (x-code sends the optional jobName/agentName
+			// fields — see skillcallback_messages.go). Absent → empty, and the
+			// review prompt falls back to its generic wording ("your delegated
+			// task to the specialist").
+			Label:       msg.Metadata[bus.MetaCodeJobName],
+			TargetAgent: msg.Metadata[bus.MetaCodeAgentName],
 			Result:      result,
 			RunIDSeed:   jobID,
-		}); err != nil {
+		}
+		if err := scheduleOpsLeadReviewRun(reviewCtx, deps.Sched, deps.MsgBus, in); err != nil {
 			slog.Error("code review delivery: ops-lead review run failed",
 				"origin", originSessionKey, "job_id", jobID, "error", err)
-			return
+			// NEVER-SILENT fallback: the review turn failed but the job's
+			// finished result must still reach the user — deliver it as a plain
+			// announce (the non-review handleCodeAnnounce mechanics) instead of
+			// dropping it with only a log line. At-most-once per job: stamp the
+			// origin session BEFORE delivering (optimistic, mirroring the
+			// session lane's resultDeliveredRunID) so a replayed callback for
+			// the same job never double-posts the fallback.
+			if jobID != "" && deps.SessStore != nil {
+				if deps.SessStore.GetSessionMetadata(reviewCtx, originSessionKey)[metaCodeReviewFallbackJobID] == jobID {
+					slog.Warn("code review delivery: fallback already delivered for this job, skipping",
+						"job_id", jobID, "session", originSessionKey)
+					return
+				}
+				stampDelegateMeta(reviewCtx, deps.SessStore, originSessionKey,
+					map[string]string{metaCodeReviewFallbackJobID: jobID})
+			}
+			slog.Warn("code review delivery: review run failed, delivering plain fallback announce",
+				"run_id", in.RunIDSeed, "job_id", jobID, "session", originSessionKey)
+			deliverReviewFallback(reviewCtx, deps.SessStore, deps.MsgBus, in)
 		}
-		// x-api resolves the workspace by the goclaw tenant uuid via
-		// `gatewayTenantId` (its internal route tolerates either form).
+		// Notify x-api after the review turn OR the fallback announce landed —
+		// either way there is a new user-visible turn to surface. x-api resolves
+		// the workspace by the goclaw tenant uuid via `gatewayTenantId` (its
+		// internal route tolerates either form).
 		wsID := ""
 		if tenantID != uuid.Nil {
 			wsID = tenantID.String()
