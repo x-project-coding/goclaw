@@ -35,6 +35,13 @@ type messagesRequest struct {
 	// instead of the passive announce. Only meaningful alongside Announce=true
 	// (the default for terminal completions). Absent/false → unchanged announce.
 	Review bool `json:"review"`
+	// JobName / AgentName (OPTIONAL): the delegated job's human task label
+	// (x-code's code_jobs.name) and the specialist agent's name. Threaded into
+	// the ops-lead review prompt so it reads "your task X to Y finished"
+	// instead of the generic wording. Senders that predate these fields simply
+	// omit them — the prompt falls back to its generic phrasing.
+	JobName   string `json:"jobName"`
+	AgentName string `json:"agentName"`
 }
 
 // handleMessages receives an async result from a skill-backing service (the
@@ -118,6 +125,15 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 	}
 
 	meta := map[string]string{"source": "code-skill-callback", "job_id": req.JobID}
+	// Optional task-label / specialist-name metadata (see messagesRequest).
+	// Stamped only when non-empty so downstream map lookups keep treating
+	// "absent" and "not sent" identically.
+	if v := strings.TrimSpace(req.JobName); v != "" {
+		meta[bus.MetaCodeJobName] = v
+	}
+	if v := strings.TrimSpace(req.AgentName); v != "" {
+		meta[bus.MetaCodeAgentName] = v
+	}
 	var content string
 	if req.Announce {
 		// Direct-announce: the summary IS the user-facing message. Post it

@@ -29,6 +29,15 @@ const (
 	// ops-lead review-run scheduler (scheduleOpsLeadReviewRun) — the same
 	// primitive the delegate-SESSION completion path uses.
 	MetaCodeReview = "review"
+
+	// MetaCodeJobName / MetaCodeAgentName carry the delegated job's human task
+	// label (x-code's code_jobs.name) and the specialist agent's name, when the
+	// completion callback sent the optional `jobName` / `agentName` fields.
+	// They let the ops-lead review prompt say "your task X to Y finished"
+	// instead of the generic fallback wording. OPTIONAL: senders that predate
+	// the fields simply omit them and the prompt keeps its generic fallback.
+	MetaCodeJobName   = "job_name"
+	MetaCodeAgentName = "agent_name"
 )
 
 // InboundMessage represents a message received from a channel (Telegram, Discord, etc.)

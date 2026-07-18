@@ -18,7 +18,9 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
+	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -160,22 +162,33 @@ func (d *gatewayDeps) deliverDelegateResult(
 	// a successful review turn, so a failed turn is still reported by the backstop.
 	stampDelegateMeta(ctx, sessions, delegateSessionKey, map[string]string{dmMetaResultDeliveredRunID: runID})
 
-	if err := scheduleOpsLeadReviewRun(ctx, sched, d.msgBus, opsLeadReviewInput{
+	in := opsLeadReviewInput{
 		OriginSessionKey: originSessionKey,
 		OriginUserID:     meta[dmMetaOriginUserID],
 		Label:            label,
 		TargetAgent:      meta[dmMetaTargetAgent],
 		Result:           content,
 		RunIDSeed:        runID,
-	}); err != nil {
+	}
+	if err := scheduleOpsLeadReviewRun(ctx, sched, d.msgBus, in); err != nil {
 		slog.Error("delegate delivery: ops-lead review run failed",
 			"origin", originSessionKey, "delegate", delegateSessionKey, "error", err)
-		// Leave resultDeliveredAt UNSET → the daily backstop still reports it.
-		return
+		// NEVER-SILENT fallback: the review turn failed (e.g. an upstream
+		// provider error), but the specialist's finished result was promised to
+		// the user and must still reach them — deliver it as a plain announce
+		// into the origin chat instead of dropping it with only a log line.
+		// At-most-once: the optimistic resultDeliveredRunID stamp above already
+		// skips a re-emitted completion event for THIS run before it gets here,
+		// and the fallback runs only on review failure (never alongside a
+		// successful review turn).
+		slog.Warn("delegate delivery: review run failed, delivering plain fallback announce",
+			"run_id", runID, "origin", originSessionKey, "delegate", delegateSessionKey)
+		deliverReviewFallback(ctx, sessions, d.msgBus, in)
 	}
 
-	// Delivery done — stamp the timestamp the daily "Managed work check-in"
-	// workflow reads so it never re-reports this run's result.
+	// Delivery done (review turn, or the plain fallback announce) — stamp the
+	// timestamp the daily "Managed work check-in" workflow reads so it never
+	// re-reports this run's result.
 	stampDelegateMeta(ctx, sessions, delegateSessionKey, map[string]string{
 		dmMetaResultDeliveredAt: time.Now().UTC().Format(time.RFC3339),
 	})
@@ -286,6 +299,61 @@ func buildDelegateReviewPrompt(label, targetAgent, content string) string {
 			"Then decide the next step. Do not send the user to another chat or the app — everything happens here with you.",
 		task, who, content,
 	)
+}
+
+// deliverReviewFallback posts the specialist's finished result DIRECTLY into
+// the origin session as a plain assistant announce. It is the never-silent
+// safety net shared by BOTH review lanes (the delegate-SESSION completion path
+// and the delegate-JOB callback path): when the scheduled ops-lead review turn
+// fails, the user was promised the result "the moment it's ready" — a logged
+// error alone silently drops finished work. Mechanics mirror the non-review
+// code announce (handleCodeAnnounce): persist an assistant turn (web clients
+// read the transcript) and push the outbound (external channels need it).
+// Callers own the at-most-once guarantee: the session lane via its optimistic
+// resultDeliveredRunID stamp, the job lane via metaCodeReviewFallbackJobID.
+func deliverReviewFallback(ctx context.Context, sessStore store.SessionStore, msgBus *bus.MessageBus, in opsLeadReviewInput) {
+	if msgBus == nil {
+		return
+	}
+	content := buildReviewFallbackMessage(in.Label, in.TargetAgent, in.Result)
+
+	// Persist under the ops-lead's identity (the agent segment of the origin
+	// key) so the transcript reads as her announce — matches handleCodeAnnounce
+	// stamping SenderID with the session's agent.
+	if sessStore != nil {
+		agentID, _ := sessions.ParseSessionKey(in.OriginSessionKey)
+		sessStore.AddMessage(ctx, in.OriginSessionKey, providers.Message{
+			Role:     "assistant",
+			Content:  content,
+			SenderID: agentID,
+		})
+		if err := sessStore.Save(ctx, in.OriginSessionKey); err != nil {
+			slog.Error("review fallback: session save failed", "session", in.OriginSessionKey, "error", err)
+		}
+	}
+
+	// Deliver to the originating channel too (external channels need the
+	// outbound; web clients already have it from the persisted transcript).
+	if channel, _, chatID := parseSessionRouting(in.OriginSessionKey); channel != "" {
+		msgBus.PublishOutbound(bus.OutboundMessage{Channel: channel, ChatID: chatID, Content: content})
+	}
+}
+
+// buildReviewFallbackMessage frames the raw result for the fallback announce so
+// the manager framing survives without a review turn: a "<who> finished: <task>"
+// title line with the raw result as the body (the title+body shape the legacy
+// relay announce uses). Falls back to the same generic wording as
+// buildDelegateReviewPrompt when the label / specialist name are unknown.
+func buildReviewFallbackMessage(label, targetAgent, result string) string {
+	who := targetAgent
+	if who == "" {
+		who = "The specialist"
+	}
+	task := label
+	if task == "" {
+		task = "the delegated task"
+	}
+	return fmt.Sprintf("%s finished: %s\n\n%s", who, task, result)
 }
 
 // parseSessionRouting splits agent:<key>:<channel>:<peerKind>:<chatID>[:…] into
