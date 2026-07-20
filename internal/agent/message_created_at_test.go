@@ -152,7 +152,7 @@ func TestInjectedSessionMessage_ZeroCreatedAtStaysNil(t *testing.T) {
 
 func TestRouterInjectMessage_StampsArrivalTime(t *testing.T) {
 	r := NewRouter()
-	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func() {})
+	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func(error) {})
 	defer r.UnregisterRun("run-1")
 
 	before := time.Now().UTC()
@@ -181,7 +181,7 @@ func TestRouterInjectMessage_StampsArrivalTime(t *testing.T) {
 
 func TestRouterInjectMessage_PreservesCallerTimestamp(t *testing.T) {
 	r := NewRouter()
-	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func() {})
+	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func(error) {})
 	defer r.UnregisterRun("run-1")
 
 	receivedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)

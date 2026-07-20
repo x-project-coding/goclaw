@@ -18,8 +18,9 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 	input := convertRunInput(&req)
 	// Bridge runState shares loop detection state between pipeline and agent.
 	bridgeRS := &runState{}
-	// Shared between the pipeline's flush callback and the cancel path below,
-	// so the user message persists exactly once whichever side gets there.
+	// Shared by the pipeline's flush callback and the user-abort persist
+	// below (strictly sequential on this goroutine), so the user message
+	// persists exactly once.
 	userFlusher := l.newUserMessageFlusher(&req)
 	deps := l.buildPipelineDeps(&req, bridgeRS, userFlusher)
 
@@ -41,14 +42,24 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 
 	pResult, err := p.Run(ctx, state)
 	if err != nil {
-		// A cancellation that interrupts a stage in flight returns before the
+		// A user abort that interrupts a stage in flight returns before the
 		// pipeline's finalize could flush anything — without this, the
 		// cancelled turn simply vanishes from the transcript and chat clients
 		// are left holding an optimistic bubble no snapshot will ever
-		// confirm. Persist the user message + a stop marker (no-op when a
-		// checkpoint/finalize flush already persisted the turn).
-		if ctx.Err() != nil {
-			l.persistAbortedTurn(context.WithoutCancel(ctx), req.SessionKey, userFlusher)
+		// confirm. Persist the user message + a stop marker, and write the
+		// session through to the DB (checkpoint flushes are cache-only and
+		// finalize's Save never runs on this path). Gated on the router's
+		// abort cause: timeouts, client disconnects, and shutdown must not
+		// fabricate a "[Stopped by user]" turn.
+		if runAbortedByUser(ctx) {
+			// state.Ctx carries the pipeline's context enrichment (tenant
+			// scoping via injectContext) — the raw caller ctx may lack it and
+			// would persist under the wrong tenant.
+			persistCtx := state.Ctx
+			if persistCtx == nil {
+				persistCtx = ctx
+			}
+			l.persistAbortedTurn(context.WithoutCancel(persistCtx), req.SessionKey, userFlusher)
 		}
 		return nil, err
 	}

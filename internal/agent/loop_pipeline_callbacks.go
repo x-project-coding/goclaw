@@ -23,8 +23,8 @@ import (
 
 // pipelineCallbacks creates all callback closures that capture *Loop.
 // Each callback bridges a pipeline.PipelineDeps function to an existing Loop method.
-// userFlusher is shared with the run's cancel path (persistAbortedTurn) so
-// the user message persists exactly once whichever side flushes first.
+// userFlusher is shared with the run's user-abort persist path
+// (persistAbortedTurn) so the user message persists exactly once.
 func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState, userFlusher *userMessageFlusher) pipelineCallbackSet {
 	// Shared emitRun enriches events with routing context (matching v2 pattern).
 	emitRun := func(event AgentEvent) {
@@ -600,9 +600,9 @@ func (l *Loop) makeFlushMessages(userFlusher *userMessageFlusher) func(ctx conte
 	// The user message is persisted on the FIRST flush only (v2 adds it to
 	// pendingMsgs explicitly; v3 keeps it in history via BuildMessages so it
 	// never reaches FlushPending). The once-guard and the receipt-time stamp
-	// live in userMessageFlusher, shared with the cancel path
+	// live in userMessageFlusher, shared with the user-abort persist path
 	// (persistAbortedTurn) so a cancelled run persists the same message
-	// exactly once no matter which side gets there first.
+	// exactly once.
 	return func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
 		userFlusher.flushIfNeeded(ctx, sessionKey)
 		for _, msg := range msgs {

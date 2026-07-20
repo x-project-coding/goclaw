@@ -354,14 +354,14 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 	runCtxBase, drainTeamDispatch := tools.InjectTeamDispatch(runCtxBase, m.postTurn)
 
 	// Create cancellable context for abort support (matching TS AbortController pattern).
-	runCtx, cancel := context.WithCancel(runCtxBase)
+	runCtx, cancel := context.WithCancelCause(runCtxBase)
 	runID := uuid.NewString()
 	injectCh := m.agents.RegisterRun(runCtxBase, runID, sessionKey, params.AgentID, cancel)
 
 	// Run agent asynchronously - events are broadcast via the event system
 	go func() {
 		defer m.agents.UnregisterRun(runID)
-		defer cancel()
+		defer cancel(nil)
 		defer drainTeamDispatch() // dispatch pending team tasks + release lock (even on panic)
 
 		// Parse media items (supports both legacy string paths and new {path,filename} objects).

@@ -254,7 +254,7 @@ type ActiveRun struct {
 	RunID      string
 	SessionKey string
 	AgentID    string
-	Cancel     context.CancelFunc
+	Cancel     context.CancelCauseFunc
 	StartedAt  time.Time
 	InjectCh   chan InjectedMessage // buffered channel for mid-run user message injection
 	Done       chan struct{}        // closed when goroutine actually exits (via UnregisterRun)
@@ -288,7 +288,7 @@ func safeClose(ch chan struct{}) {
 // RegisterRun records an active run so it can be aborted later.
 // ctx is used to capture the tenant ID for forceMarkTraceAborted.
 // Returns a receive-only channel for mid-run message injection.
-func (r *Router) RegisterRun(ctx context.Context, runID, sessionKey, agentID string, cancel context.CancelFunc) <-chan InjectedMessage {
+func (r *Router) RegisterRun(ctx context.Context, runID, sessionKey, agentID string, cancel context.CancelCauseFunc) <-chan InjectedMessage {
 	injectCh := make(chan InjectedMessage, injectBufferSize)
 	r.activeRuns.Store(runID, &ActiveRun{
 		RunID:      runID,
@@ -361,7 +361,9 @@ func (r *Router) AbortRun(runID, sessionKey string) AbortResult {
 		return res
 	}
 
-	run.Cancel()
+	// Cancel with an explicit cause so the run loop can tell a deliberate
+	// user stop apart from timeouts/disconnects (see runAbortedByUser).
+	run.Cancel(ErrRunAbortedByUser)
 
 	select {
 	case <-run.Done:

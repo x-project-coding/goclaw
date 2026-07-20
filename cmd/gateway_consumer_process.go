@@ -39,10 +39,10 @@ func makeSchedulerRunFunc(agents *agent.Router, cfg *config.Config) scheduler.Ru
 		// work correctly for inbound channel runs (Telegram DM intent classifier, /stop, etc.).
 		// The ctx from the scheduler is already cancellable; we create a child so the router's
 		// cancel func is independent from the scheduler's cancel func. Calling cancel twice is safe.
-		runCtx, cancel := context.WithCancel(ctx)
+		runCtx, cancel := context.WithCancelCause(ctx)
 		injectCh := agents.RegisterRun(runCtx, req.RunID, req.SessionKey, agentID, cancel)
 		defer agents.UnregisterRun(req.RunID)
-		defer cancel()
+		defer cancel(nil)
 
 		req.InjectCh = injectCh
 		return loop.Run(runCtx, req)

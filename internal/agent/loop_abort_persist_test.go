@@ -104,10 +104,9 @@ func TestMakeFlushMessages_SkipsUserMessageAfterAbortPersist(t *testing.T) {
 	req := &RunRequest{Message: "do the thing"}
 
 	f := l.newUserMessageFlusher(req)
-	// Cancel path persisted the turn first (abort raced a late finalize)…
+	// Pure once-guard property: however the persist paths are ordered, the
+	// user message lands exactly once.
 	l.persistAbortedTurn(context.Background(), "sess-1", f)
-	// …then a finalize flush still runs (pipeline finalizes under
-	// WithoutCancel): it must NOT re-add the user message.
 	flush := l.makeFlushMessages(f)
 	if err := flush(context.Background(), "sess-1", nil); err != nil {
 		t.Fatalf("flush returned error: %v", err)
@@ -146,5 +145,73 @@ func TestSanitizeHistory_AbortedTurnDoesNotMergeIntoNextRequest(t *testing.T) {
 	}
 	if sanitized[2].Content != "real question" {
 		t.Errorf("next request mutated: %q", sanitized[2].Content)
+	}
+}
+
+func TestRunAbortedByUser_DistinguishesUserAbortsFromOtherCancellations(t *testing.T) {
+	// User abort: cancelled with the router's sentinel cause.
+	userCtx, userCancel := context.WithCancelCause(context.Background())
+	userCancel(ErrRunAbortedByUser)
+	if !runAbortedByUser(userCtx) {
+		t.Error("user-abort cause not recognized")
+	}
+
+	// Deadline (cron JobTimeout, delegate/webhook timeouts): NOT a user abort.
+	deadlineCtx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-deadlineCtx.Done()
+	if runAbortedByUser(deadlineCtx) {
+		t.Error("deadline expiry misclassified as user abort — would write a false '[Stopped by user]' marker")
+	}
+
+	// Plain cancellation (client disconnect, shutdown): NOT a user abort.
+	plainCtx, plainCancel := context.WithCancel(context.Background())
+	plainCancel()
+	if runAbortedByUser(plainCtx) {
+		t.Error("plain cancellation misclassified as user abort")
+	}
+
+	// Live context: not aborted at all.
+	if runAbortedByUser(context.Background()) {
+		t.Error("live context misclassified as user abort")
+	}
+}
+
+func TestAbortRun_CancelsWithUserAbortCause(t *testing.T) {
+	r := NewRouter()
+	runCtx, cancel := context.WithCancelCause(context.Background())
+	r.RegisterRun(context.Background(), "run-abort-1", "sess-1", "agent-1", cancel)
+	defer r.UnregisterRun("run-abort-1")
+
+	go func() {
+		// Let AbortRun's grace wait observe the goroutine finishing.
+		<-runCtx.Done()
+		r.UnregisterRun("run-abort-1")
+	}()
+	res := r.AbortRun("run-abort-1", "sess-1")
+	if res.NotFound || res.Unauthorized {
+		t.Fatalf("unexpected abort result: %+v", res)
+	}
+	if !runAbortedByUser(runCtx) {
+		t.Error("AbortRun did not cancel with ErrRunAbortedByUser cause")
+	}
+}
+
+func TestPersistAbortedTurn_SavesEvenWhenAlreadyFlushed(t *testing.T) {
+	rec := &savingSessionStore{}
+	l := &Loop{sessions: rec}
+	req := &RunRequest{Message: "long job"}
+
+	f := l.newUserMessageFlusher(req)
+	// A checkpoint flush persisted the turn into the CACHE (AddMessage only)…
+	flush := l.makeFlushMessages(f)
+	if err := flush(context.Background(), "sess-1", []providers.Message{{Role: "assistant", Content: "partial"}}); err != nil {
+		t.Fatalf("flush returned error: %v", err)
+	}
+	// …and finalize never ran (mid-stage cancel), so nothing has Saved yet.
+	l.persistAbortedTurn(context.Background(), "sess-1", f)
+
+	if rec.saves == 0 {
+		t.Error("persistAbortedTurn skipped Save for a checkpoint-flushed turn — aborted rows stay cache-only and vanish on restart")
 	}
 }
