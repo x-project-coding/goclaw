@@ -29,3 +29,22 @@ func ContextStartIndex(meta map[string]string, historyLen int) int {
 	}
 	return n
 }
+
+// NextContextStartIndex computes where the window should start after a
+// compaction that keeps the last keepLast window messages: clamped to
+// [current, historyLen] so a compaction can never move the pointer BACKWARD
+// (re-exposing already-summarized messages — or, with a large caller-supplied
+// keepLast, going negative and un-compacting the whole transcript).
+func NextContextStartIndex(current, historyLen, keepLast int) int {
+	next := historyLen - keepLast
+	if next < current {
+		next = current
+	}
+	if next > historyLen {
+		next = historyLen
+	}
+	if next < 0 {
+		next = 0
+	}
+	return next
+}

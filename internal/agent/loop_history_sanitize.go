@@ -11,6 +11,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/safego"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // limitHistoryTurns keeps only the last N user turns (and their associated
@@ -294,7 +295,7 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 			Model:    l.model,
 			// "auto" routing mode → x-router ignores the agent's pinned model and
 			// picks the model itself, instead of forwarding it to OpenRouter.
-			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
+			Options: map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
 		}
 		resp, err := l.callInternalLLMWithUsage(sctx, chatReq, "session-summarization")
 		if err != nil {
@@ -309,7 +310,12 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 		// so rows appended concurrently stay inside the new window.
 		// Pre-window media refs stay referenceable via the carry-in at
 		// context assembly (makeLoadSessionHistory).
-		l.setContextStartIndex(sctx, sessionKey, windowStart+len(window)-keepLast)
+		newStart := store.NextContextStartIndex(windowStart, windowStart+len(window), keepLast)
+		// Never open the window on tool-result rows — their tool_use call is
+		// pre-window, and sanitize would re-drop the orphans on every
+		// request forever.
+		full, _ := l.historyWindow(sctx, sessionKey)
+		l.setContextStartIndex(sctx, sessionKey, advancePastToolRows(full, newStart))
 		l.sessions.IncrementCompaction(sctx, sessionKey)
 		// Mirror SessionMetaKeyLastCompactionAt from the v3 prune/compact path
 		// so the legacy v2 post-turn summarizer also surfaces compaction cadence.

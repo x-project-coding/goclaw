@@ -334,3 +334,59 @@ func TestContextStartIndexFromMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestNextContextStartIndex_ClampsAndNeverMovesBackward(t *testing.T) {
+	cases := []struct{ current, historyLen, keepLast, want int }{
+		{0, 100, 4, 96},     // first compaction
+		{96, 110, 4, 106},   // second compaction advances
+		{100, 110, 50, 100}, // keepLast larger than window → never move backward
+		{0, 3, 99999, 0},    // keepLast > len → clamp at 0, not negative
+		{96, 100, 0, 100},   // degenerate keepLast
+	}
+	for _, c := range cases {
+		if got := store.NextContextStartIndex(c.current, c.historyLen, c.keepLast); got != c.want {
+			t.Errorf("NextContextStartIndex(%d,%d,%d) = %d, want %d", c.current, c.historyLen, c.keepLast, got, c.want)
+		}
+	}
+}
+
+func TestAdvancePastToolRows_CleanWindowBoundary(t *testing.T) {
+	msgs := []providers.Message{
+		{Role: "user", Content: "q"},
+		{Role: "assistant", Content: "", ToolCalls: []providers.ToolCall{{ID: "t1"}}},
+		{Role: "tool", Content: "r1", ToolCallID: "t1"},
+		{Role: "tool", Content: "r2", ToolCallID: "t2"},
+		{Role: "assistant", Content: "done"},
+		{Role: "user", Content: "next"},
+	}
+	// A naive cut landing on the tool rows must advance past them so the
+	// window never starts with orphaned tool results (which sanitize would
+	// re-drop in memory on every turn forever).
+	if got := advancePastToolRows(msgs, 2); got != 4 {
+		t.Errorf("advancePastToolRows(msgs, 2) = %d, want 4", got)
+	}
+	if got := advancePastToolRows(msgs, 5); got != 5 {
+		t.Errorf("clean boundary moved: got %d, want 5", got)
+	}
+	if got := advancePastToolRows(msgs, 6); got != 6 {
+		t.Errorf("end boundary: got %d, want 6", got)
+	}
+}
+
+func TestSetContextStartIndex_MonotonicAgainstConcurrentAdvance(t *testing.T) {
+	// A summarizer holding a pre-LLM-call value must not regress a pointer
+	// that a concurrent sessions.compact advanced further.
+	sessions := &virtualCompactionStore{
+		nopSessionStore: nopSessionStore{history: overThresholdHistory(10)},
+		meta:            map[string]string{store.SessionMetaContextStartIndex: "116"},
+	}
+	l := &Loop{sessions: sessions}
+	l.setContextStartIndex(context.Background(), "sess-mono", 96)
+	if got := sessions.metaStart(); got != "116" {
+		t.Errorf("pointer regressed to %q, want kept at \"116\"", got)
+	}
+	l.setContextStartIndex(context.Background(), "sess-mono", 120)
+	if got := sessions.metaStart(); got != "120" {
+		t.Errorf("pointer = %q, want advanced to \"120\"", got)
+	}
+}

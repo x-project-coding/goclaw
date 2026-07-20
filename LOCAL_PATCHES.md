@@ -33,6 +33,25 @@ in append order. Do not place fork migrations below `099000`.
 
 ## Active patches
 
+### Virtual compaction — transcript is append-only, window pointer in session metadata
+- **Files:** `internal/store/session_meta.go`, `internal/agent/loop_context_window.go`,
+  `internal/agent/loop_history_sanitize.go` (maybeSummarize), `internal/agent/loop_history.go`,
+  `internal/agent/loop_pipeline_callbacks.go` (makeLoadSessionHistory), `internal/agent/memoryflush.go`,
+  `internal/gateway/methods/sessions.go` (handleCompact/handlePatch), `internal/gateway/methods/chat.go`,
+  `internal/consolidation/episodic_worker.go`, `cmd/gateway_heartbeat.go`,
+  `internal/store/pg/sessions_ops.go`, `internal/store/pg/sessions_branch.go`,
+  `internal/store/sqlitestore/sessions_ops.go`, `internal/store/sqlitestore/sessions_branch.go`,
+  `internal/sessions/manager.go`
+- **Why:** sessions.messages is the ONLY store backing the chat UI transcript; upstream
+  compaction TruncateHistory's it in place — on 2026-07-20 this erased ~90% of a 5-week
+  production conversation. Compaction now advances `context_start_index` in session
+  metadata; everything model-facing reads `messages[start:]`, readers keep the full array.
+  An upstream merge that reintroduces a TruncateHistory caller silently reverts the fix.
+- **Recovery grep:** `grep -rn "SessionMetaContextStartIndex" internal/ | head -1` and
+  `grep -n "TruncateHistory" internal/agent/loop_history_sanitize.go internal/gateway/methods/sessions.go`
+  (the second MUST return nothing).
+
+
 ### Patch 1 — `feat(subagents): raise maxChildrenPerAgent default 5→30, ceiling 20→50`
 
 - **Base upstream commit:** `a97e5028` (`lite-v3.9.1-1-ga97e5028`)

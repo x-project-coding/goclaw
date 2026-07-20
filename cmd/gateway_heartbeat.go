@@ -81,8 +81,13 @@ func startCronAndHeartbeat(
 	sched.SetTokenEstimateFunc(func(sessionKey string) (int, int) {
 		bctx := context.Background()
 		history := pgStores.Sessions.GetHistory(bctx, sessionKey)
+		// Estimate over the ACTIVE WINDOW (virtual compaction): the full
+		// transcript is append-only, so estimating it would read every
+		// compacted session as permanently over budget and pin its
+		// concurrency at the floor forever.
+		start := store.ContextStartIndex(pgStores.Sessions.GetSessionMetadata(bctx, sessionKey), len(history))
 		lastPT, lastMC := pgStores.Sessions.GetLastPromptTokens(bctx, sessionKey)
-		tokens := agent.EstimateTokensWithCalibration(history, lastPT, lastMC)
+		tokens := agent.EstimateTokensWithCalibration(history[start:], lastPT, lastMC)
 		cw := pgStores.Sessions.GetContextWindow(bctx, sessionKey)
 		if cw <= 0 {
 			cw = config.DefaultContextWindow

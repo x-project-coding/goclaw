@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 func (s *PGSessionStore) TruncateHistory(ctx context.Context, key string, keepLast int) {
@@ -35,6 +36,10 @@ func (s *PGSessionStore) Reset(ctx context.Context, key string) {
 	if data, ok := s.cache[sessionCacheKey(ctx, key)]; ok {
 		data.Messages = []providers.Message{}
 		data.Summary = ""
+		// A cleared transcript must also clear the context-window pointer —
+		// a stale pointer clamps the window empty until that many NEW
+		// messages accumulate (silent total amnesia after "clear chat").
+		delete(data.Metadata, store.SessionMetaContextStartIndex)
 		data.Updated = time.Now()
 		s.mu.Unlock()
 		return
@@ -45,7 +50,9 @@ func (s *PGSessionStore) Reset(ctx context.Context, key string) {
 	// so the next GetOrCreate loads a clean session instead of stale history.
 	tid := tenantIDForInsert(ctx)
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE sessions SET messages = '[]', summary = '', updated_at = $1
+		`UPDATE sessions SET messages = '[]', summary = '',
+			metadata = COALESCE(metadata, '{}'::jsonb) - '`+store.SessionMetaContextStartIndex+`',
+			updated_at = $1
 		 WHERE session_key = $2 AND tenant_id = $3`,
 		time.Now(), key, tid,
 	); err != nil {

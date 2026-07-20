@@ -296,8 +296,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	if droppedCount > 0 {
 		slog.Info("sanitizeHistory: cleaned session history",
 			"session", sessionKey, "dropped", droppedCount)
-		full := l.sessions.GetHistory(ctx, sessionKey)
-		if store.ContextStartIndex(l.sessions.GetSessionMetadata(ctx, sessionKey), len(full)) == 0 {
+		if store.ContextStartIndex(l.sessions.GetSessionMetadata(ctx, sessionKey), 1) == 0 {
 			cleanedHistory, _ := sanitizeHistory(history)
 			l.sessions.SetHistory(ctx, sessionKey, cleanedHistory)
 			l.sessions.Save(ctx, sessionKey)
