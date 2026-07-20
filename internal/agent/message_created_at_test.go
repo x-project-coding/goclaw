@@ -32,7 +32,7 @@ func TestMakeFlushMessages_UserMessageKeepsReceiptTimestamp(t *testing.T) {
 		SenderName:       "Alice",
 	}
 
-	flush := l.makeFlushMessages(req)
+	flush := l.makeFlushMessages(l.newUserMessageFlusher(req))
 	// Simulate a flush that happens long after receipt (checkpoint/finalize).
 	time.Sleep(5 * time.Millisecond)
 	if err := flush(context.Background(), "sess-1", nil); err != nil {
@@ -64,7 +64,7 @@ func TestMakeFlushMessages_FallsBackToRunStartWhenUnset(t *testing.T) {
 	req := &RunRequest{Message: "hi"}
 
 	before := time.Now().UTC()
-	flush := l.makeFlushMessages(req)
+	flush := l.makeFlushMessages(l.newUserMessageFlusher(req))
 	after := time.Now().UTC()
 
 	// Flush later — the stamp must come from closure creation (run start), not flush time.
@@ -91,7 +91,7 @@ func TestMakeFlushMessages_UserMessagePersistedOnceAndPendingPassThrough(t *test
 	receivedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)
 	req := &RunRequest{Message: "hello", MessageCreatedAt: receivedAt}
 
-	flush := l.makeFlushMessages(req)
+	flush := l.makeFlushMessages(l.newUserMessageFlusher(req))
 
 	pendingAt := time.Date(2026, 6, 30, 12, 5, 0, 0, time.UTC)
 	pending := []providers.Message{{Role: "assistant", Content: "working...", CreatedAt: &pendingAt}}
@@ -152,7 +152,7 @@ func TestInjectedSessionMessage_ZeroCreatedAtStaysNil(t *testing.T) {
 
 func TestRouterInjectMessage_StampsArrivalTime(t *testing.T) {
 	r := NewRouter()
-	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func() {})
+	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func(error) {})
 	defer r.UnregisterRun("run-1")
 
 	before := time.Now().UTC()
@@ -181,7 +181,7 @@ func TestRouterInjectMessage_StampsArrivalTime(t *testing.T) {
 
 func TestRouterInjectMessage_PreservesCallerTimestamp(t *testing.T) {
 	r := NewRouter()
-	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func() {})
+	ch := r.RegisterRun(context.Background(), "run-1", "sess-1", "agent-1", func(error) {})
 	defer r.UnregisterRun("run-1")
 
 	receivedAt := time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC)

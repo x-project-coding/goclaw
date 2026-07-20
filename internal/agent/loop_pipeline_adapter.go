@@ -18,7 +18,11 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 	input := convertRunInput(&req)
 	// Bridge runState shares loop detection state between pipeline and agent.
 	bridgeRS := &runState{}
-	deps := l.buildPipelineDeps(&req, bridgeRS)
+	// Shared by the pipeline's flush callback and the user-abort persist
+	// below (strictly sequential on this goroutine), so the user message
+	// persists exactly once.
+	userFlusher := l.newUserMessageFlusher(&req)
+	deps := l.buildPipelineDeps(&req, bridgeRS, userFlusher)
 
 	model := l.model
 	if req.ModelOverride != "" {
@@ -38,19 +42,38 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 
 	pResult, err := p.Run(ctx, state)
 	if err != nil {
+		// A user abort that interrupts a stage in flight returns before the
+		// pipeline's finalize could flush anything — without this, the
+		// cancelled turn simply vanishes from the transcript and chat clients
+		// are left holding an optimistic bubble no snapshot will ever
+		// confirm. Persist the user message + a stop marker, and write the
+		// session through to the DB (checkpoint flushes are cache-only and
+		// finalize's Save never runs on this path). Gated on the router's
+		// abort cause: timeouts, client disconnects, and shutdown must not
+		// fabricate a "[Stopped by user]" turn.
+		if runAbortedByUser(ctx) {
+			// state.Ctx carries the pipeline's context enrichment (tenant
+			// scoping via injectContext) — the raw caller ctx may lack it and
+			// would persist under the wrong tenant.
+			persistCtx := state.Ctx
+			if persistCtx == nil {
+				persistCtx = ctx
+			}
+			l.persistAbortedTurn(context.WithoutCancel(persistCtx), req.SessionKey, userFlusher)
+		}
 		return nil, err
 	}
 	return convertRunResult(pResult), nil
 }
 
 // buildPipelineDeps maps Loop fields + methods to PipelineDeps callbacks.
-func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.PipelineDeps {
+func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState, userFlusher *userMessageFlusher) pipeline.PipelineDeps {
 	maxIter := l.maxIterations
 	if req.MaxIterations > 0 && req.MaxIterations < maxIter {
 		maxIter = req.MaxIterations
 	}
 
-	cb := l.pipelineCallbacks(req, bridgeRS)
+	cb := l.pipelineCallbacks(req, bridgeRS, userFlusher)
 	emitBlockReply := func(content, source string) {
 		sanitized := SanitizeAssistantContent(content)
 		if sanitized == "" || IsSilentReply(sanitized) {

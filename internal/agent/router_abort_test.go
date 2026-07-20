@@ -45,8 +45,8 @@ func newRouterWithCollector(tc TraceCollector) *Router {
 
 // registerRun is a test helper that creates a cancel func and registers a run.
 // Returns the cancel func and Done channel from the stored ActiveRun.
-func registerRun(r *Router, runID, sessionKey string) (context.CancelFunc, chan struct{}) {
-	_, cancel := context.WithCancel(context.Background())
+func registerRun(r *Router, runID, sessionKey string) (context.CancelCauseFunc, chan struct{}) {
+	_, cancel := context.WithCancelCause(context.Background())
 	r.RegisterRun(context.Background(), runID, sessionKey, "agent-1", cancel)
 	val, _ := r.activeRuns.Load(runID)
 	return cancel, val.(*ActiveRun).Done
@@ -252,10 +252,10 @@ func TestAbortRunsForSession_ReturnsResults(t *testing.T) {
 
 	// Goroutines close Done channels 50ms after they're signalled (Cancel called).
 	// We use a separate goroutine per run that watches for Cancel via context.
-	ctxA, cancelA := context.WithCancel(context.Background())
-	ctxB, cancelB := context.WithCancel(context.Background())
-	defer cancelA()
-	defer cancelB()
+	ctxA, cancelA := context.WithCancelCause(context.Background())
+	ctxB, cancelB := context.WithCancelCause(context.Background())
+	defer cancelA(nil)
+	defer cancelB(nil)
 
 	// Replace stored cancel funcs with our instrumented ones.
 	if valA, ok := r.activeRuns.Load("run-a"); ok {

@@ -23,7 +23,9 @@ import (
 
 // pipelineCallbacks creates all callback closures that capture *Loop.
 // Each callback bridges a pipeline.PipelineDeps function to an existing Loop method.
-func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCallbackSet {
+// userFlusher is shared with the run's user-abort persist path
+// (persistAbortedTurn) so the user message persists exactly once.
+func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState, userFlusher *userMessageFlusher) pipelineCallbackSet {
 	// Shared emitRun enriches events with routing context (matching v2 pattern).
 	emitRun := func(event AgentEvent) {
 		event.RunKind = req.RunKind
@@ -60,7 +62,7 @@ func (l *Loop) pipelineCallbacks(req *RunRequest, bridgeRS *runState) pipelineCa
 		authorizeToolCall:  l.makeAuthorizeToolCall(),
 		checkReadOnly:      l.makeCheckReadOnly(req, bridgeRS),
 		sanitizeContent:    SanitizeAssistantContent,
-		flushMessages:      l.makeFlushMessages(req),
+		flushMessages:      l.makeFlushMessages(userFlusher),
 		updateMetadata:     l.makeUpdateMetadata(req),
 		bootstrapCleanup:   l.makeBootstrapCleanup(),
 		maybeSummarize:     l.maybeSummarize,
@@ -594,33 +596,15 @@ func (l *Loop) makeRunMemoryFlush() func(ctx context.Context, state *pipeline.Ru
 	}
 }
 
-func (l *Loop) makeFlushMessages(req *RunRequest) func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
-	// Track whether user message has been persisted (first flush only).
-	// v2 adds user message to pendingMsgs explicitly; v3 keeps it in history
-	// (via BuildMessages) so it never reaches FlushPending. This closure
-	// persists the user message on first flush to match v2 session format.
-	var userMsgFlushed bool
-	// 42bucks fork patch: stamp the user message with its receipt time so created_at reflects when
-	// the user sent it, not when the run flushed (the first flush can land
-	// many minutes later on long tool loops). Callers that don't set
-	// MessageCreatedAt fall back to run start — still far closer to arrival
-	// than flush time.
-	userMsgCreatedAt := req.MessageCreatedAt
-	if userMsgCreatedAt.IsZero() {
-		userMsgCreatedAt = time.Now().UTC()
-	}
+func (l *Loop) makeFlushMessages(userFlusher *userMessageFlusher) func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
+	// The user message is persisted on the FIRST flush only (v2 adds it to
+	// pendingMsgs explicitly; v3 keeps it in history via BuildMessages so it
+	// never reaches FlushPending). The once-guard and the receipt-time stamp
+	// live in userMessageFlusher, shared with the user-abort persist path
+	// (persistAbortedTurn) so a cancelled run persists the same message
+	// exactly once.
 	return func(ctx context.Context, sessionKey string, msgs []providers.Message) error {
-		if !userMsgFlushed && !req.HideInput && req.Message != "" {
-			userMsgFlushed = true
-			l.sessions.AddMessage(ctx, sessionKey, providers.Message{
-				ID:         req.MessageID,
-				Role:       "user",
-				Content:    req.Message,
-				SenderID:   req.SenderID,
-				SenderName: req.SenderName,
-				CreatedAt:  &userMsgCreatedAt,
-			})
-		}
+		userFlusher.flushIfNeeded(ctx, sessionKey)
 		for _, msg := range msgs {
 			l.sessions.AddMessage(ctx, sessionKey, msg)
 		}
