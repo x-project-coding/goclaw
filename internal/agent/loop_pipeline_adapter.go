@@ -18,7 +18,10 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 	input := convertRunInput(&req)
 	// Bridge runState shares loop detection state between pipeline and agent.
 	bridgeRS := &runState{}
-	deps := l.buildPipelineDeps(&req, bridgeRS)
+	// Shared between the pipeline's flush callback and the cancel path below,
+	// so the user message persists exactly once whichever side gets there.
+	userFlusher := l.newUserMessageFlusher(&req)
+	deps := l.buildPipelineDeps(&req, bridgeRS, userFlusher)
 
 	model := l.model
 	if req.ModelOverride != "" {
@@ -38,19 +41,28 @@ func (l *Loop) runViaPipeline(ctx context.Context, req RunRequest) (*RunResult, 
 
 	pResult, err := p.Run(ctx, state)
 	if err != nil {
+		// A cancellation that interrupts a stage in flight returns before the
+		// pipeline's finalize could flush anything — without this, the
+		// cancelled turn simply vanishes from the transcript and chat clients
+		// are left holding an optimistic bubble no snapshot will ever
+		// confirm. Persist the user message + a stop marker (no-op when a
+		// checkpoint/finalize flush already persisted the turn).
+		if ctx.Err() != nil {
+			l.persistAbortedTurn(context.WithoutCancel(ctx), req.SessionKey, userFlusher)
+		}
 		return nil, err
 	}
 	return convertRunResult(pResult), nil
 }
 
 // buildPipelineDeps maps Loop fields + methods to PipelineDeps callbacks.
-func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.PipelineDeps {
+func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState, userFlusher *userMessageFlusher) pipeline.PipelineDeps {
 	maxIter := l.maxIterations
 	if req.MaxIterations > 0 && req.MaxIterations < maxIter {
 		maxIter = req.MaxIterations
 	}
 
-	cb := l.pipelineCallbacks(req, bridgeRS)
+	cb := l.pipelineCallbacks(req, bridgeRS, userFlusher)
 	emitBlockReply := func(content, source string) {
 		sanitized := SanitizeAssistantContent(content)
 		if sanitized == "" || IsSilentReply(sanitized) {
