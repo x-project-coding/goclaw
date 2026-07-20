@@ -119,8 +119,10 @@ func (l *Loop) runMemoryFlush(ctx context.Context, sessionKey string, settings *
 	flushCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	// Build messages: system prompt + history summary + flush prompt
-	history := l.sessions.GetHistory(ctx, sessionKey)
+	// Build messages: system prompt + history summary + flush prompt.
+	// Active window only (virtual compaction): pre-window content was already
+	// flushed in the compaction cycle that advanced the pointer.
+	history, _ := l.activeHistoryWindow(ctx, sessionKey)
 	summary := l.sessions.GetSummary(ctx, sessionKey)
 
 	var messages []providers.Message

@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
@@ -281,24 +282,29 @@ func (m *SessionsMethods) handleCompact(ctx context.Context, client *gateway.Cli
 	}
 
 	history := m.sessions.GetHistory(ctx, params.Key)
-	originalLen := len(history)
-	if originalLen < 6 {
+	start := store.ContextStartIndex(m.sessions.GetSessionMetadata(ctx, params.Key), len(history))
+	windowLen := len(history) - start
+	if windowLen < 6 {
 		client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 			"ok":      true,
 			"message": "session too short to compact",
-			"kept":    originalLen,
+			"kept":    windowLen,
 		}))
 		return
 	}
 
-	// Truncate history to last N messages
-	m.sessions.TruncateHistory(ctx, params.Key, keepLast)
+	// Virtual compaction: advance the context-window pointer instead of
+	// truncating — the persisted transcript backs the chat UI and is
+	// append-only (see store.SessionMetaContextStartIndex).
+	m.sessions.SetSessionMetadata(ctx, params.Key, map[string]string{
+		store.SessionMetaContextStartIndex: strconv.Itoa(len(history) - keepLast),
+	})
 	m.sessions.IncrementCompaction(ctx, params.Key)
 	m.sessions.Save(ctx, params.Key)
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 		"ok":       true,
-		"original": originalLen,
+		"original": windowLen,
 		"kept":     keepLast,
 	}))
 	emitAudit(m.eventBus, client, "session.compacted", "session", params.Key)
