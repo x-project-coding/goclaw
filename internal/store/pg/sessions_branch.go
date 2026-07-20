@@ -45,6 +45,11 @@ func (s *PGSessionStore) BranchSession(ctx context.Context, sourceKey string, op
 	copy(copied, sourceSnapshot.Messages[:opts.UpToIndex])
 	meta := make(map[string]string, len(sourceSnapshot.Metadata)+len(opts.Metadata)+3)
 	maps.Copy(meta, sourceSnapshot.Metadata)
+	// The branch's transcript is cut at up_to_index — inheriting the source's
+	// context-window pointer could exceed the branch length and clamp its
+	// window empty (the copied history invisible to the model). Fresh branch
+	// = fresh window.
+	delete(meta, store.SessionMetaContextStartIndex)
 	maps.Copy(meta, opts.Metadata)
 	meta["branched_from"] = sourceKey
 	meta["branched_from_index"] = strconv.Itoa(opts.UpToIndex)

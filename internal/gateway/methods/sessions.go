@@ -3,12 +3,14 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	httpapi "github.com/nextlevelbuilder/goclaw/internal/http"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
@@ -105,12 +107,20 @@ func (m *SessionsMethods) handlePreview(ctx context.Context, client *gateway.Cli
 	history := m.sessions.GetHistory(ctx, params.Key)
 	summary := m.sessions.GetSummary(ctx, params.Key)
 
-	// Sign file URLs before delivery — sessions store clean paths.
+	// Sign file URLs before delivery — sessions store clean paths. GetHistory
+	// copies the outer slice but MediaRefs backing arrays alias the store
+	// cache: clone them before mutating, or the signed (later: expired)
+	// paths get persisted by the next Save and fed back to the model.
 	secret := httpapi.FileSigningKey()
 	for i := range history {
 		history[i].Content = httpapi.SignFileURLs(history[i].Content, secret)
-		for j := range history[i].MediaRefs {
-			history[i].MediaRefs[j].Path = httpapi.SignMediaPath(history[i].MediaRefs[j].Path, secret)
+		if len(history[i].MediaRefs) > 0 {
+			refs := make([]providers.MediaRef, len(history[i].MediaRefs))
+			copy(refs, history[i].MediaRefs)
+			for j := range refs {
+				refs[j].Path = httpapi.SignMediaPath(refs[j].Path, secret)
+			}
+			history[i].MediaRefs = refs
 		}
 	}
 	summary = httpapi.SignFileURLs(summary, secret)
@@ -159,6 +169,13 @@ func (m *SessionsMethods) handlePatch(ctx context.Context, client *gateway.Clien
 	// hasn't materialized yet. A patch racing the session's first run (ops-lead
 	// delegation stamps label+managedBy right after dispatch) would otherwise
 	// drop the label while keeping the metadata.
+	if len(params.Metadata) > 0 {
+		// Reserved: the context-window pointer is runtime state owned by
+		// compaction — a stale round-tripped copy patched back would blow
+		// the window open (full transcript to the provider) or clamp it
+		// empty. Manage it via sessions.compact / reset, not patch.
+		delete(params.Metadata, store.SessionMetaContextStartIndex)
+	}
 	if len(params.Metadata) > 0 {
 		m.sessions.SetSessionMetadata(ctx, params.Key, params.Metadata)
 	}
@@ -281,24 +298,32 @@ func (m *SessionsMethods) handleCompact(ctx context.Context, client *gateway.Cli
 	}
 
 	history := m.sessions.GetHistory(ctx, params.Key)
-	originalLen := len(history)
-	if originalLen < 6 {
+	start := store.ContextStartIndex(m.sessions.GetSessionMetadata(ctx, params.Key), len(history))
+	windowLen := len(history) - start
+	if windowLen < 6 {
 		client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 			"ok":      true,
 			"message": "session too short to compact",
-			"kept":    originalLen,
+			"kept":    windowLen,
 		}))
 		return
 	}
 
-	// Truncate history to last N messages
-	m.sessions.TruncateHistory(ctx, params.Key, keepLast)
+	// Virtual compaction: advance the context-window pointer instead of
+	// truncating — the persisted transcript backs the chat UI and is
+	// append-only (see store.SessionMetaContextStartIndex). The clamp keeps
+	// the pointer monotonic: a caller-supplied keepLast larger than the
+	// window must not move it backward (or negative), which would re-expose
+	// summarized messages — or the whole transcript — to the model.
+	m.sessions.SetSessionMetadata(ctx, params.Key, map[string]string{
+		store.SessionMetaContextStartIndex: strconv.Itoa(store.NextContextStartIndex(start, len(history), keepLast)),
+	})
 	m.sessions.IncrementCompaction(ctx, params.Key)
 	m.sessions.Save(ctx, params.Key)
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{
 		"ok":       true,
-		"original": originalLen,
+		"original": windowLen,
 		"kept":     keepLast,
 	}))
 	emitAudit(m.eventBus, client, "session.compacted", "session", params.Key)

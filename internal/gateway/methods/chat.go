@@ -565,12 +565,20 @@ func (m *ChatMethods) handleHistory(ctx context.Context, client *gateway.Client,
 	// dropping the whole turn is safe; anything with media is preserved.
 	history = filterSilentReplies(history)
 
-	// Sign file URLs before delivery — sessions store clean paths.
+	// Sign file URLs before delivery — sessions store clean paths. GetHistory
+	// copies the outer slice but MediaRefs backing arrays alias the store
+	// cache: clone them before mutating, or the signed (later: expired)
+	// paths get persisted by the next Save and fed back to the model.
 	secret := httpapi.FileSigningKey()
 	for i := range history {
 		history[i].Content = httpapi.SignFileURLs(history[i].Content, secret)
-		for j := range history[i].MediaRefs {
-			history[i].MediaRefs[j].Path = httpapi.SignMediaPath(history[i].MediaRefs[j].Path, secret)
+		if len(history[i].MediaRefs) > 0 {
+			refs := make([]providers.MediaRef, len(history[i].MediaRefs))
+			copy(refs, history[i].MediaRefs)
+			for j := range refs {
+				refs[j].Path = httpapi.SignMediaPath(refs[j].Path, secret)
+			}
+			history[i].MediaRefs = refs
 		}
 	}
 

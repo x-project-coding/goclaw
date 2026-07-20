@@ -114,6 +114,10 @@ type SessionCoreStore interface {
 	GetLabel(ctx context.Context, key string) string
 	SetLabel(ctx context.Context, key, label string)
 	SetAgentInfo(ctx context.Context, key string, agentUUID uuid.UUID, userID string)
+	// Deprecated: physically truncating the transcript destroys the chat UI's
+	// only history store (2026-07-20 incident). Advance the virtual window
+	// pointer instead (SessionMetaContextStartIndex / NextContextStartIndex);
+	// no production code should call this.
 	TruncateHistory(ctx context.Context, key string, keepLast int)
 	SetHistory(ctx context.Context, key string, msgs []providers.Message)
 	Reset(ctx context.Context, key string)

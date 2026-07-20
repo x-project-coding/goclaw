@@ -163,11 +163,16 @@ func (l *Loop) makeInjectContext(req *RunRequest) func(ctx context.Context, inpu
 }
 
 // makeLoadSessionHistory loads session history + summary before BuildMessages.
+// The MODEL gets the active window (virtual compaction — see
+// loop_context_window.go), never the full transcript; recent pre-window media
+// refs ride along so shared files stay referenceable.
 func (l *Loop) makeLoadSessionHistory() func(ctx context.Context, sessionKey string) ([]providers.Message, string) {
 	return func(ctx context.Context, sessionKey string) ([]providers.Message, string) {
-		history := l.sessions.GetHistory(ctx, sessionKey)
+		full := l.sessions.GetHistory(ctx, sessionKey)
+		start := store.ContextStartIndex(l.sessions.GetSessionMetadata(ctx, sessionKey), len(full))
+		window := carryRecentMediaRefs(full[start:], full[:start])
 		summary := l.sessions.GetSummary(ctx, sessionKey)
-		return history, summary
+		return window, summary
 	}
 }
 

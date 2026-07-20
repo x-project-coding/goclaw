@@ -135,6 +135,14 @@ func (w *episodicWorker) summarizeSession(ctx context.Context, provider provider
 	// Try reading session messages for a real summary.
 	if w.sessions != nil {
 		messages := w.sessions.GetHistory(ctx, payload.SessionKey)
+		// Active window only (virtual compaction): the transcript is
+		// append-only, so reading from index 0 would summarize the same
+		// immutable opening prefix on every session.completed forever.
+		if metaStore, ok := w.sessions.(interface {
+			GetSessionMetadata(ctx context.Context, key string) map[string]string
+		}); ok {
+			messages = messages[store.ContextStartIndex(metaStore.GetSessionMetadata(ctx, payload.SessionKey), len(messages)):]
+		}
 		if len(messages) > 0 {
 			return w.summarizeFromMessages(ctx, provider, model, messages)
 		}
@@ -176,7 +184,7 @@ func (w *episodicWorker) summarizeFromMessages(ctx context.Context, provider pro
 			{Role: "system", Content: summarizationPrompt},
 			{Role: "user", Content: sb.String()},
 		},
-		Model:   model,
+		Model: model,
 		// "auto" routing mode → x-router ignores the agent's pinned model and
 		// picks the model itself, instead of forwarding it to OpenRouter.
 		Options: map[string]any{"max_tokens": 1024, "temperature": 0.3, providers.OptRoutingMode: "background"},

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 func (s *SQLiteSessionStore) Save(ctx context.Context, key string) error {
@@ -125,6 +126,9 @@ func (s *SQLiteSessionStore) Reset(ctx context.Context, key string) {
 	if data, ok := s.cache[sessionCacheKey(ctx, key)]; ok {
 		data.Messages = []providers.Message{}
 		data.Summary = ""
+		// Clear the context-window pointer with the transcript (see the PG
+		// store) — a stale pointer means an empty window until it regrows.
+		delete(data.Metadata, store.SessionMetaContextStartIndex)
 		data.Updated = time.Now()
 		s.mu.Unlock()
 		return
@@ -134,7 +138,9 @@ func (s *SQLiteSessionStore) Reset(ctx context.Context, key string) {
 	// Session not in cache — clear directly in DB.
 	tid := tenantIDForInsert(ctx)
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE sessions SET messages = '[]', summary = '', updated_at = ?
+		`UPDATE sessions SET messages = '[]', summary = '',
+			metadata = json_remove(COALESCE(metadata, '{}'), '$.`+store.SessionMetaContextStartIndex+`'),
+			updated_at = ?
 		 WHERE session_key = ? AND tenant_id = ?`,
 		time.Now(), key, tid,
 	); err != nil {

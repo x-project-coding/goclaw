@@ -11,6 +11,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/safego"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
 // limitHistoryTurns keeps only the last N user turns (and their associated
@@ -183,7 +184,11 @@ func sanitizeHistory(msgs []providers.Message) ([]providers.Message, int) {
 }
 
 func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
-	history := l.sessions.GetHistory(ctx, sessionKey)
+	// Virtual compaction: everything here operates on the ACTIVE WINDOW, not
+	// the persisted transcript. The transcript is append-only (it backs the
+	// chat UI); compaction advances the window pointer. Estimating over the
+	// full array would re-trigger on every turn forever once compacted.
+	history, _ := l.activeHistoryWindow(ctx, sessionKey)
 
 	// Use calibrated token estimation, adjusted for overhead.
 	// lastPromptTokens includes everything (system prompt, tools, context files, history).
@@ -232,18 +237,19 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 		defer sessionMu.Unlock()
 		defer safego.Recover(nil, "session", sessionKey)
 
-		// Re-check: history may have been truncated by a concurrent summarize
-		// that finished between our threshold check and acquiring the lock.
+		// Re-check: the window may have been advanced by a concurrent
+		// summarize that finished between our threshold check and acquiring
+		// the lock.
 		sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 120*time.Second)
 		defer cancel()
 
-		history := l.sessions.GetHistory(sctx, sessionKey)
-		if len(history) <= keepLast {
+		window, windowStart := l.activeHistoryWindow(sctx, sessionKey)
+		if len(window) <= keepLast {
 			return
 		}
 
 		summary := l.sessions.GetSummary(sctx, sessionKey)
-		toSummarize := history[:len(history)-keepLast]
+		toSummarize := window[:len(window)-keepLast]
 
 		var sb strings.Builder
 		var mediaKinds []string
@@ -289,7 +295,7 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 			Model:    l.model,
 			// "auto" routing mode → x-router ignores the agent's pinned model and
 			// picks the model itself, instead of forwarding it to OpenRouter.
-			Options:  map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
+			Options: map[string]any{"max_tokens": dynamicSummaryMax(inTokens), "temperature": 0.3, providers.OptRoutingMode: "background"},
 		}
 		resp, err := l.callInternalLLMWithUsage(sctx, chatReq, "session-summarization")
 		if err != nil {
@@ -297,33 +303,19 @@ func (l *Loop) maybeSummarize(ctx context.Context, sessionKey string) {
 			return
 		}
 
-		// Collect MediaRefs from messages about to be truncated (keep up to 30 most recent).
-		const maxPreservedMediaRefs = 30
-		var preservedRefs []providers.MediaRef
-		for i := len(toSummarize) - 1; i >= 0 && len(preservedRefs) < maxPreservedMediaRefs; i-- {
-			for _, ref := range toSummarize[i].MediaRefs {
-				preservedRefs = append(preservedRefs, ref)
-				if len(preservedRefs) >= maxPreservedMediaRefs {
-					break
-				}
-			}
-		}
-
 		l.sessions.SetSummary(sctx, sessionKey, SanitizeAssistantContent(resp.Content))
-		l.sessions.TruncateHistory(sctx, sessionKey, keepLast)
-
-		// Inject preserved MediaRefs into the first kept message so they survive truncation.
-		if len(preservedRefs) > 0 {
-			kept := l.sessions.GetHistory(sctx, sessionKey)
-			if len(kept) > 0 {
-				kept[0].MediaRefs = append(preservedRefs, kept[0].MediaRefs...)
-				// Cap total refs on this message at maxPreservedMediaRefs.
-				if len(kept[0].MediaRefs) > maxPreservedMediaRefs {
-					kept[0].MediaRefs = kept[0].MediaRefs[:maxPreservedMediaRefs]
-				}
-				l.sessions.SetHistory(sctx, sessionKey, kept)
-			}
-		}
+		// Virtual compaction: advance the window pointer past the summarized
+		// prefix — the persisted transcript (which backs the chat UI) is
+		// never touched. The boundary is anchored to the messages we read,
+		// so rows appended concurrently stay inside the new window.
+		// Pre-window media refs stay referenceable via the carry-in at
+		// context assembly (makeLoadSessionHistory).
+		newStart := store.NextContextStartIndex(windowStart, windowStart+len(window), keepLast)
+		// Never open the window on tool-result rows — their tool_use call is
+		// pre-window, and sanitize would re-drop the orphans on every
+		// request forever.
+		full, _ := l.historyWindow(sctx, sessionKey)
+		l.setContextStartIndex(sctx, sessionKey, advancePastToolRows(full, newStart))
 		l.sessions.IncrementCompaction(sctx, sessionKey)
 		// Mirror SessionMetaKeyLastCompactionAt from the v3 prune/compact path
 		// so the legacy v2 post-turn summarizer also surfaces compaction cadence.

@@ -287,13 +287,20 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	messages = append(messages, sanitized...)
 
 	// If orphaned messages were found and dropped, persist the cleaned history
-	// back to the session store so the same orphans don't trigger on every request.
+	// back to the session store so the same orphans don't trigger on every
+	// request. ONLY for un-windowed sessions: after virtual compaction the
+	// `history` received here is the LLM window — writing it back would
+	// overwrite the full transcript with the window (the exact data loss
+	// virtual compaction exists to prevent). Windowed sessions just re-run
+	// the (cheap, in-memory) sanitize each request.
 	if droppedCount > 0 {
 		slog.Info("sanitizeHistory: cleaned session history",
 			"session", sessionKey, "dropped", droppedCount)
-		cleanedHistory, _ := sanitizeHistory(history)
-		l.sessions.SetHistory(ctx, sessionKey, cleanedHistory)
-		l.sessions.Save(ctx, sessionKey)
+		if store.ContextStartIndex(l.sessions.GetSessionMetadata(ctx, sessionKey), 1) == 0 {
+			cleanedHistory, _ := sanitizeHistory(history)
+			l.sessions.SetHistory(ctx, sessionKey, cleanedHistory)
+			l.sessions.Save(ctx, sessionKey)
+		}
 	}
 
 	// Current user message
