@@ -189,6 +189,14 @@ check_grep "Patch 26: user-message media_refs" 3 \
   internal/agent/loop_types.go internal/agent/loop_pipeline_callbacks.go \
   internal/agent/loop_abort_persist.go
 
+# Patch 27 — signed file URLs survive response caches + restarts. 24h token
+# TTL (outlives x-api's 1h signed-history cache) + signing key derived from
+# the stable gateway secret instead of random-per-boot.
+check_grep "Patch 27: file-token lifetime + stable key" 1 \
+  "24 \* time.Hour" internal/http/file_token.go
+check_grep "Patch 27: stable key derivation" 1 \
+  "deriveFileSigningKey" internal/http/file_token.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

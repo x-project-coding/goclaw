@@ -902,3 +902,30 @@ in append order. Do not place fork migrations below `099000`.
     internal/agent/loop_pipeline_callbacks.go internal/agent/loop_abort_persist.go
   ```
   Expects ≥ 1 hit in each file.
+
+### Patch 27 — `fix(http): signed file URLs must survive response caches and restarts`
+
+- **Base upstream commit:** `9d86f0ef` (v3.14.0 fork merge; landed via PR #66
+  on `main`)
+- **Files:**
+  - `internal/http/file_token.go` — `FileTokenTTL` 5min → 24h; `FileSigningKey`
+    derives via HMAC-SHA256 domain separation (`goclaw-file-signing-v1`) from
+    `GOCLAW_FILE_SIGNING_SECRET`, else `GOCLAW_GATEWAY_TOKEN`, falling back to
+    the upstream random in-memory key when neither is set.
+  - Tests: `internal/http/file_token_lifetime_test.go` (new — lifetime floor,
+    deterministic derivation, cross-restart verification, random fallback).
+- **Why:** signed `/v1/files/` URLs are embedded in history responses that
+  x-api caches for up to 1h and in browser tabs that re-render later. A
+  5-minute TTL made every cache read >5min after write serve dead URLs
+  (broken images on sessions restored from the archive), and the random
+  per-process key invalidated every cached URL on each gateway restart.
+  Live-repro'd on prod: cached `?ft=` URL 401'd while the cache still had
+  ~36min TTL. Externally files are only reachable through x-api's
+  authenticated membership-checked proxy; holding the gateway token already
+  grants strictly more than minting file tokens.
+- **Recovery grep:**
+  ```
+  grep -n "24 \* time.Hour" internal/http/file_token.go
+  grep -n "deriveFileSigningKey" internal/http/file_token.go
+  ```
+  Expects ≥ 1 hit each.
