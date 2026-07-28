@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"path"
 	"regexp"
 	"strconv"
@@ -15,23 +16,52 @@ import (
 )
 
 // FileTokenTTL is the default TTL for signed file tokens.
-const FileTokenTTL = 5 * time.Minute
+// 42bucks fork patch: raised from 5 minutes to 24 hours. Signed URLs are
+// embedded in history responses that x-api caches for up to an hour and in
+// browser tabs that re-render long after delivery — a 5-minute TTL made
+// every stale cache read serve dead URLs (broken images). Tokens stay
+// path-bound and expiring; 24h just guarantees they outlive any legitimate
+// response-cache staleness.
+const FileTokenTTL = 24 * time.Hour
 
 var (
 	fileSigningKey     string
 	fileSigningKeyOnce sync.Once
 )
 
-// FileSigningKey returns a random 32-byte key for HMAC file token signing.
-// Generated once at startup, lives in memory only. Tokens expire on restart
-// which is acceptable for the short TTL — clients re-fetch signed URLs on reconnect.
+// FileSigningKey returns the HMAC key for file token signing.
+// 42bucks fork patch: derived from a stable deployment secret when one is
+// available (GOCLAW_FILE_SIGNING_SECRET, else GOCLAW_GATEWAY_TOKEN) so that
+// signed URLs survive gateway restarts — a random per-process key invalidated
+// every URL sitting in x-api's cached history responses on each deploy.
+// Falls back to the upstream random in-memory key when no secret is set.
 func FileSigningKey() string {
 	fileSigningKeyOnce.Do(func() {
-		b := make([]byte, 32)
-		crypto_rand.Read(b)
-		fileSigningKey = base64.RawURLEncoding.EncodeToString(b)
+		fileSigningKey = resolveFileSigningKey()
 	})
 	return fileSigningKey
+}
+
+// resolveFileSigningKey picks the stable derived key when a deployment secret
+// exists, otherwise generates a random one (upstream behavior).
+func resolveFileSigningKey() string {
+	for _, env := range []string{"GOCLAW_FILE_SIGNING_SECRET", "GOCLAW_GATEWAY_TOKEN"} {
+		if secret := os.Getenv(env); secret != "" {
+			return deriveFileSigningKey(secret)
+		}
+	}
+	b := make([]byte, 32)
+	crypto_rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// deriveFileSigningKey derives a dedicated signing key from a deployment
+// secret via HMAC-SHA256 with a fixed domain-separation label. The raw
+// secret is never used directly and cannot be recovered from the key.
+func deriveFileSigningKey(secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte("goclaw-file-signing-v1"))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 // SignFileToken creates a short-lived HMAC token for file access.
