@@ -138,6 +138,14 @@ type chatSendParams struct {
 	// it to x-router as the X-Router-Mode header. Never 'custom' (custom mode
 	// uses ModelOverride only). Empty = no routing-mode header.
 	RoutingMode string `json:"routingMode,omitempty"`
+	// 42bucks fork patch (chat-view-context): server-built extra system context
+	// for THIS run only. x-api sets it when the user is chatting from an app's
+	// full-screen chat bubble (which app + which page they're viewing) so the
+	// agent can reference the on-screen context. Injected as
+	// RunRequest.ExtraSystemPrompt below — it rides the system prompt for this
+	// single run and is NEVER persisted as a visible history message. Empty =
+	// no extra context. Always server-built; never a client-trusted string.
+	ViewContext string `json:"viewContext,omitempty"`
 	SenderID    string `json:"senderId"`
 	SenderName  string `json:"senderName"`
 	PeerKind    string `json:"peerKind"`
@@ -427,8 +435,13 @@ func (m *ChatMethods) dispatchChatSends(requests []chatSendRequest) {
 			Stream:           params.Stream,
 			ModelOverride:    params.ModelOverride,
 			RoutingMode:      params.RoutingMode, // 42bucks fork patch: per-session routing mode → X-Router-Mode header
-			ProviderOverride: providerOverride,
-			InjectCh:         injectCh,
+			// 42bucks fork patch (chat-view-context): seed the run's extra system prompt with
+			// x-api's app view-context. Nothing else sets ExtraSystemPrompt on this WS path, so
+			// this is the seed; buildMessages (loop_history.go) still appends any bootstrap /
+			// group-writer prompt onto it. Applies to THIS run only; never persisted to visible history.
+			ExtraSystemPrompt: params.ViewContext,
+			ProviderOverride:  providerOverride,
+			InjectCh:          injectCh,
 			// Wire trace ID back to the active run so force-abort can mark the
 			// correct trace as cancelled if the goroutine does not exit within 3s.
 			OnTraceCreated: func(traceID uuid.UUID) {

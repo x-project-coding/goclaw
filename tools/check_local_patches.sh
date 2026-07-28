@@ -172,6 +172,23 @@ check_grep "Patch 24: managedBy list filter" 4 \
   internal/store/pg/sessions_list.go internal/store/sqlitestore/sessions_list.go \
   internal/gateway/methods/sessions.go internal/store/session_store.go
 
+# Patch 25 — per-call viewContext on WS chat.send → run-only ExtraSystemPrompt.
+# x-api sends the app view-context; goclaw injects it for THAT run only.
+check_grep "Patch 25: chat viewContext → ExtraSystemPrompt" 2 \
+  '"viewContext,omitempty"|ExtraSystemPrompt: params\.ViewContext' \
+  internal/gateway/methods/chat.go
+check_grep "Patch 25: chat viewContext tests" 1 \
+  'ViewContext|viewContext' \
+  internal/gateway/methods/chat_view_context_test.go
+
+# Patch 26 — user messages persist media_refs. makeEnrichMedia captures the
+# current-turn refs onto RunRequest; userMessageFlusher stamps them onto the
+# persisted user message so history can render attachments, not bare tags.
+check_grep "Patch 26: user-message media_refs" 3 \
+  "PersistedMediaRefs" \
+  internal/agent/loop_types.go internal/agent/loop_pipeline_callbacks.go \
+  internal/agent/loop_abort_persist.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

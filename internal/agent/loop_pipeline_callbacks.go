@@ -186,7 +186,11 @@ func (l *Loop) makeEnrichMedia(req *RunRequest) func(ctx context.Context, state 
 		if len(msgs) == 0 {
 			return nil
 		}
-		enrichedCtx, enrichedMsgs, _ := l.enrichInputMedia(ctx, req, msgs)
+		enrichedCtx, enrichedMsgs, mediaRefs := l.enrichInputMedia(ctx, req, msgs)
+		// 42bucks fork patch: capture the current-turn refs so makeFlushMessages
+		// can persist them on the user message (enrich always runs before the
+		// first flush — context stage precedes checkpoint/finalize).
+		req.PersistedMediaRefs = mediaRefs
 		// Propagate enriched context (media images/docs/audio/video refs for tools).
 		state.Ctx = enrichedCtx
 		// Update history with enriched messages (media tags, inline images).

@@ -821,3 +821,84 @@ in append order. Do not place fork migrations below `099000`.
   grep -n "scheduleCodeReviewDelivery\|isCodeReviewCallback" cmd/gateway_consumer_handlers.go
   ```
   Expects >=1 hit in each.
+
+### Patch 25 — `feat(chat): per-call viewContext → run-only ExtraSystemPrompt on WS chat.send`
+
+- **Base upstream commit:** `9d86f0ef` (`origin/dev` merge-base;
+  `v3.15.0-beta.81`)
+- **Files:**
+  - `internal/gateway/methods/chat.go` — `chatSendParams` gains a
+    `ViewContext string \`json:"viewContext,omitempty"\`` field (WS RPC
+    `chat.send`). In `dispatchChatSends` the handler seeds
+    `agent.RunRequest{ExtraSystemPrompt: params.ViewContext}` on the run it
+    builds. This WS path sets nothing else on `ExtraSystemPrompt`, so the
+    assignment is the seed value; `buildMessages`
+    (`internal/agent/loop_history.go`) still appends any bootstrap /
+    group-writer prompt onto it. The context is injected into the system
+    prompt for THAT run only and is **never** persisted as a visible history
+    message (`ExtraSystemPrompt` rides `RunInput` →
+    `loop_pipeline_adapter.go:convertRunInput` →
+    `loop_pipeline_callbacks.go:makeBuildMessages` → system prompt, not the
+    user/assistant transcript).
+  - `internal/gateway/methods/chat_view_context_test.go` — 4 unit tests:
+    `viewContext` unmarshals off the wire; absent → empty; `omitempty` keeps
+    empty sends byte-identical to today; `mergeChatSendRequests` preserves it
+    across a debounced burst (so the value handleSend reads is the latest
+    x-api attached).
+  - `tools/check_local_patches.sh` — two `check_grep` invocations verifying the
+    `chat.go` field + assignment and the test tokens survive a merge.
+- **Why:** 42bucks embeds prebuilt "agent apps" full-screen with a chat
+  bubble. When the user chats from that bubble, x-api (`workspace-chat.routes`
+  → `buildBubbleViewContext`) server-builds a one-sentence context —
+  *which app + which in-app page the user is looking at* — after confirming
+  the sender's fullscreen presence is fresh and its `bubbleSessionKey`
+  matches the target session, then passes it as `viewContext`. goclaw injects
+  it so the agent can reason about the on-screen context ("summarize this
+  page", "what am I looking at") without the user re-describing it. It is
+  **always server-built and never trusted from a client**, and must not leak
+  into stored history — hence run-only `ExtraSystemPrompt` rather than an
+  injected message. Upstream has no notion of an embedded app surface, so this
+  is 42bucks-specific. Companion to the iframe-surface batch (x-api Slice A).
+- **Recovery grep:**
+  ```
+  grep -nE '"viewContext,omitempty"|ExtraSystemPrompt: params\.ViewContext' \
+    internal/gateway/methods/chat.go
+  grep -nE 'ViewContext|viewContext' internal/gateway/methods/chat_view_context_test.go
+  ```
+  Expects ≥ 2 hits on the first grep and ≥ 1 on the second.
+
+### Patch 26 — `fix(agent): persist media_refs on flushed user messages`
+
+- **Base upstream commit:** `9d86f0ef` (v3.14.0 fork merge; landed via PR #65
+  on `main`, re-seated onto the `userMessageFlusher` refactor at the dev
+  merge)
+- **Files:**
+  - `internal/agent/loop_types.go` — `RunRequest` gains
+    `PersistedMediaRefs []providers.MediaRef`.
+  - `internal/agent/loop_pipeline_callbacks.go` — `makeEnrichMedia` captures
+    `enrichInputMedia`'s current-turn refs onto `req.PersistedMediaRefs`
+    (previously discarded with `_`).
+  - `internal/agent/loop_abort_persist.go` — `userMessageFlusher.flushIfNeeded`
+    stamps `MediaRefs: f.req.PersistedMediaRefs` onto the persisted user
+    message (read at flush time; context stage precedes any
+    checkpoint/finalize flush, so refs are set — nil on a pre-enrich cancel,
+    same as text-only).
+  - Tests: `internal/agent/media_refs_user_message_test.go` (new — flush
+    stamping, text-only leaves refs empty, enrich→request capture with a real
+    persisted file).
+- **Why:** `enrichInputMedia` persists uploads into the per-user workspace
+  `.uploads/` dir and returns refs, but the persisted user message was built
+  from `req.Message` alone — session history carried only literal
+  `<media:*>` tags with no `media_refs`, so chat clients (42bucks x-ui)
+  could never re-render a user's image/document after the run completed
+  (filename-chip degradation, gone entirely on reload). Assistant messages
+  and the Telegram channel already persist refs; this aligns the WS/user
+  path. Downstream needs no changes: history delivery signs `MediaRefs`
+  paths role-agnostically, `/v1/files/` confinement covers the tenant
+  workspace, and compaction preserves refs.
+- **Recovery grep:**
+  ```
+  grep -n "PersistedMediaRefs" internal/agent/loop_types.go \
+    internal/agent/loop_pipeline_callbacks.go internal/agent/loop_abort_persist.go
+  ```
+  Expects ≥ 1 hit in each file.

@@ -84,7 +84,13 @@ func (f *userMessageFlusher) flushIfNeeded(ctx context.Context, sessionKey strin
 		Content:    f.req.Message,
 		SenderID:   f.req.SenderID,
 		SenderName: f.req.SenderName,
-		CreatedAt:  &f.createdAt,
+		// 42bucks fork patch: persist the current-turn media refs (captured
+		// by makeEnrichMedia) so history can resolve the user's attachments
+		// to files instead of bare <media:*> tags. Read at flush time — the
+		// context stage has run by any checkpoint/finalize flush; on a
+		// cancel before enrich this is nil, same as a text-only message.
+		MediaRefs: f.req.PersistedMediaRefs,
+		CreatedAt: &f.createdAt,
 	})
 	return true
 }
