@@ -381,6 +381,15 @@ func registerProvidersFromDB(registry *providers.Registry, provStore store.Provi
 				base = store.NovitaDefaultAPIBase
 			}
 			registry.RegisterForTenant(p.TenantID, providers.NewOpenAIProvider(p.Name, p.APIKey, base, store.NovitaDefaultModel))
+		case store.ProviderXRouter:
+			// 42bucks router gateway — OpenAI wire plus the X-Router-{Agent,User,
+			// Session}-Id identity headers injected at HTTP send time from
+			// req.Options. Mirrors registerInMemory (internal/http/providers.go).
+			// Without this case the boot loader fell through to default: (plain
+			// OpenAIProvider), so every gateway restart silently rebuilt all
+			// tenant xrouter rows WITHOUT identity attribution — the router saw
+			// headerless chat and could never route turns to the seat tier.
+			registry.RegisterForTenant(p.TenantID, providers.NewXRouterProvider(p.Name, p.APIKey, p.APIBase, ""))
 		case store.ProviderBytePlus:
 			base := p.APIBase
 			if base == "" {
