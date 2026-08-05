@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -162,6 +163,10 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 	// (attachment-only send + quick typed text = file gone). Union media across
 	// ALL buffered sends, chronological order, deduped by path, normalized to
 	// the {path,filename} format (parseMedia accepts it everywhere downstream).
+	// Mirrors the channel debouncer's union (internal/bus/inbound_debounce.go,
+	// allMedia append) — the path dedup is a deliberate divergence: WS media
+	// paths are stable gateway file paths, so a re-referenced file is a true
+	// duplicate there, unlike channel media blobs.
 	mergedMedia := make([]chatMediaItem, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
@@ -174,7 +179,13 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 		}
 	}
 	if len(mergedMedia) > 0 {
-		if raw, err := json.Marshal(mergedMedia); err == nil {
+		raw, err := json.Marshal(mergedMedia)
+		if err != nil {
+			// Cannot realistically fail (two string fields), but if it ever
+			// does, falling through silently would reinstate the exact
+			// last-wins media drop this patch removes — make it loud.
+			slog.Warn("chat.debounce_media_merge_marshal_failed", "error", err)
+		} else {
 			last.Media = raw
 		}
 	} else {
