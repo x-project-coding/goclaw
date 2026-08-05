@@ -36,13 +36,13 @@ type HookTestRunner interface {
 
 // HookTestResult is the dry-run output surfaced to the Test panel UI.
 type HookTestResult struct {
-	Decision   hooks.Decision `json:"decision"`
-	Reason     string         `json:"reason,omitempty"`
-	DurationMS int            `json:"durationMs"`
-	Stdout     string         `json:"stdout,omitempty"`
-	Stderr     string         `json:"stderr,omitempty"`
-	StatusCode int            `json:"statusCode,omitempty"`
-	Error      string         `json:"error,omitempty"`
+	Decision     hooks.Decision `json:"decision"`
+	Reason       string         `json:"reason,omitempty"`
+	DurationMS   int            `json:"durationMs"`
+	Stdout       string         `json:"stdout,omitempty"`
+	Stderr       string         `json:"stderr,omitempty"`
+	StatusCode   int            `json:"statusCode,omitempty"`
+	Error        string         `json:"error,omitempty"`
 	UpdatedInput map[string]any `json:"updatedInput,omitempty"`
 }
 

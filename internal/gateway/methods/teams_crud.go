@@ -312,7 +312,7 @@ func (m *TeamsMethods) handleUpdate(ctx context.Context, client *gateway.Client,
 		EscalationActions     []string `json:"escalation_actions,omitempty"`
 		WorkspaceScope        string   `json:"workspace_scope,omitempty"`
 		WorkspaceQuotaMB      *int     `json:"workspace_quota_mb,omitempty"`
-		Notifications *struct {
+		Notifications         *struct {
 			Dispatched *bool  `json:"dispatched,omitempty"`
 			Progress   *bool  `json:"progress,omitempty"`
 			Failed     *bool  `json:"failed,omitempty"`

@@ -197,6 +197,16 @@ check_grep "Patch 27: file-token lifetime + stable key" 1 \
 check_grep "Patch 27: stable key derivation" 1 \
   "deriveFileSigningKey" internal/http/file_token.go
 
+# Patch 28 — union media across debounced chat-send merges (+ parseMedia
+# legacy phantom-item fix). Attachments must survive a merge with a text
+# follow-up inside the media debounce window.
+check_grep "Patch 28: debounce media union" 2 \
+  'mergedMedia|debounce-media-union' \
+  internal/gateway/methods/chat_debounce.go
+check_grep "Patch 28: debounce media union tests" 2 \
+  'UnionsMediaAcrossItems|LegacyFormatHasNoPhantomItem' \
+  internal/gateway/methods/chat_debounce_media_test.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

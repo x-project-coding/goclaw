@@ -22,13 +22,13 @@ type configDefaultsAgents struct {
 }
 
 type pruningDefaultsJSON struct {
-	KeepLastAssistants   int                   `json:"keepLastAssistants"`
-	SoftTrimRatio        float64               `json:"softTrimRatio"`
-	HardClearRatio       float64               `json:"hardClearRatio"`
-	MinPrunableToolChars int                   `json:"minPrunableToolChars"`
-	TTL                  string                `json:"ttl"`
-	SoftTrim             pruningSoftTrimJSON   `json:"softTrim"`
-	HardClear            pruningHardClearJSON  `json:"hardClear"`
+	KeepLastAssistants   int                  `json:"keepLastAssistants"`
+	SoftTrimRatio        float64              `json:"softTrimRatio"`
+	HardClearRatio       float64              `json:"hardClearRatio"`
+	MinPrunableToolChars int                  `json:"minPrunableToolChars"`
+	TTL                  string               `json:"ttl"`
+	SoftTrim             pruningSoftTrimJSON  `json:"softTrim"`
+	HardClear            pruningHardClearJSON `json:"hardClear"`
 }
 
 type pruningSoftTrimJSON struct {
