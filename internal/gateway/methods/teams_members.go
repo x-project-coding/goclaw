@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -188,4 +187,3 @@ func (m *TeamsMethods) handleRemoveMember(ctx context.Context, client *gateway.C
 		})
 	}
 }
-

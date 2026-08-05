@@ -85,9 +85,9 @@ type cacheHitStubAgent struct {
 	uid uuid.UUID
 }
 
-func (s *cacheHitStubAgent) ID() string                                          { return s.id }
-func (s *cacheHitStubAgent) UUID() uuid.UUID                                     { return s.uid }
-func (s *cacheHitStubAgent) OtherConfig() json.RawMessage                        { return nil }
+func (s *cacheHitStubAgent) ID() string                   { return s.id }
+func (s *cacheHitStubAgent) UUID() uuid.UUID              { return s.uid }
+func (s *cacheHitStubAgent) OtherConfig() json.RawMessage { return nil }
 func (s *cacheHitStubAgent) Run(context.Context, agent.RunRequest) (*agent.RunResult, error) {
 	return nil, nil
 }

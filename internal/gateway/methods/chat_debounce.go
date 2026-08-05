@@ -3,6 +3,7 @@ package methods
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -156,6 +157,54 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 		}
 	}
 	last.Message = strings.Join(parts, "\n")
+	// 42bucks fork patch (debounce-media-union): media must survive the merge.
+	// Every non-Message field is last-wins, which silently dropped attachments
+	// whenever a text follow-up landed inside the media debounce window
+	// (attachment-only send + quick typed text = file gone). Union media across
+	// ALL buffered sends, chronological order, deduped by path, normalized to
+	// the {path,filename} format (parseMedia accepts it everywhere downstream).
+	// Mirrors the channel debouncer's union (internal/bus/inbound_debounce.go,
+	// allMedia append) — the path dedup is a deliberate divergence: WS media
+	// paths are stable gateway file paths, so a re-referenced file is a true
+	// duplicate there, unlike channel media blobs.
+	mergedMedia := make([]chatMediaItem, 0, len(items))
+	seen := make(map[string]int, len(items))
+	for _, item := range items {
+		for _, mi := range item.params.parseMedia() {
+			// A pathless item is unusable downstream (DetectMIMEType/persist
+			// both key off Path) and one would swallow every other pathless
+			// item via the dedupe map — drop it here, defence-in-depth over
+			// the parseMedia phantom fix.
+			if mi.Path == "" {
+				continue
+			}
+			if at, dup := seen[mi.Path]; dup {
+				// Same file referenced twice: keep the first occurrence's slot
+				// (chronological order) but backfill a missing filename — a
+				// legacy []string reference carries none, and losing it would
+				// degrade the media tag the LLM sees.
+				if mergedMedia[at].Filename == "" {
+					mergedMedia[at].Filename = mi.Filename
+				}
+				continue
+			}
+			seen[mi.Path] = len(mergedMedia)
+			mergedMedia = append(mergedMedia, mi)
+		}
+	}
+	if len(mergedMedia) > 0 {
+		raw, err := json.Marshal(mergedMedia)
+		if err != nil {
+			// Cannot realistically fail (two string fields), but if it ever
+			// does, falling through silently would reinstate the exact
+			// last-wins media drop this patch removes — make it loud.
+			slog.Warn("chat.debounce_media_merge_marshal_failed", "error", err)
+		} else {
+			last.Media = raw
+		}
+	} else {
+		last.Media = nil
+	}
 	return last
 }
 

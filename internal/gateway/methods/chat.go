@@ -162,9 +162,13 @@ func (p *chatSendParams) parseMedia() []chatMediaItem {
 	if err := json.Unmarshal(p.Media, &items); err == nil {
 		return items
 	}
-	// Fallback: legacy ["path1", "path2"]
+	// Fallback: legacy ["path1", "path2"]. The failed unmarshal above may have
+	// left a partially-populated slice (a zero-value element is allocated
+	// before the per-element type error) — build the legacy result fresh so no
+	// phantom empty-path item leaks in.
 	var paths []string
 	if err := json.Unmarshal(p.Media, &paths); err == nil {
+		items = make([]chatMediaItem, 0, len(paths))
 		for _, path := range paths {
 			items = append(items, chatMediaItem{Path: path})
 		}

@@ -523,3 +523,53 @@ in append order. Do not place fork migrations below `099000`.
   grep -nE 'ViewContext|viewContext' internal/gateway/methods/chat_view_context_test.go
   ```
   Expects ≥ 2 hits on the first grep and ≥ 1 on the second.
+
+### Patch 28 — `fix(gateway): union media across debounced chat-send merges`
+
+> Numbering note: this entry is authored on `main` (whose registry ends at
+> Patch 15) but takes the next free number after `origin/dev`'s registry
+> (max 27, with known 25/26 duplicates) — dev is the deploy branch the
+> registries merge into.
+
+- **Base upstream commit:** `9d86f0ef` (`v3.15.0-beta.81`, last upstream sync
+  point — same anchor as Patch 15; every commit since is fork-only, incl. the
+  branch point `120522dc`)
+- **Files:**
+  - `internal/gateway/methods/chat_debounce.go` — `mergeChatSendRequests`
+    previously took `Media` (like every non-`Message` field) from the LAST
+    buffered request only. Media-bearing sends get a 1000 ms debounce floor
+    when the configured delay would be 0 (`chatMediaDebounceFloorMs`; a
+    non-zero operator/agent delay is honored verbatim), and a delay-0
+    follow-up merges into that buffer — so "attachment-only send, then a
+    quick typed text" dispatched `{Message:"text", Media:nil}` and the
+    attachment silently vanished (no media tags, no persisted media_refs).
+    The merge now unions media across ALL buffered sends: chronological
+    order, deduped by `Path`, marshalled back to the `[{path,filename}]`
+    format (`parseMedia` accepts it at every downstream site); text-only
+    merges keep `Media` nil so `hasMedia` stays false. Marshal failure is
+    logged (`chat.debounce_media_merge_marshal_failed`) instead of silently
+    reverting to last-wins.
+  - `internal/gateway/methods/chat.go` — `parseMedia` legacy-format fallback
+    rebuilds its result fresh: the failed unmarshal into `[]chatMediaItem`
+    leaves partially-populated zero-value elements in the slice, and the
+    legacy branch appended onto it, yielding one phantom `{Path:""}` item
+    PER PATH ELEMENT of a legacy `["path", ...]` payload (latent upstream
+    bug, exposed by the union).
+  - `internal/gateway/methods/chat_debounce_media_test.go` — 4 unit tests:
+    media survives a merge with a text follow-up; legacy+new formats union
+    chronologically deduped by path; text-only merges keep `Media` nil;
+    legacy parse has no phantom item.
+  - `tools/check_local_patches.sh` — two `check_grep` guards (implementation
+    + tests) for this patch.
+- **Why:** 42bucks x-ui allows attachment-only chat sends (empty text). Such
+  a send waits in the media debounce window; users then often type a short
+  text within that second. Losing the attachment there is silent data loss on
+  the primary chat path. Upstream has the same latent bug but no
+  attachment-only sender, so pressure to fix it here first.
+- **Recovery grep:**
+  ```
+  grep -nE 'mergedMedia|debounce-media-union' internal/gateway/methods/chat_debounce.go
+  grep -nE 'UnionsMediaAcrossItems|LegacyFormatHasNoPhantomItem' \
+    internal/gateway/methods/chat_debounce_media_test.go
+  ```
+  Expects ≥ 2 hits on each.
