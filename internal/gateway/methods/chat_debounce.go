@@ -156,6 +156,30 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 		}
 	}
 	last.Message = strings.Join(parts, "\n")
+	// 42bucks fork patch (debounce-media-union): media must survive the merge.
+	// Every non-Message field is last-wins, which silently dropped attachments
+	// whenever a text follow-up landed inside the media debounce window
+	// (attachment-only send + quick typed text = file gone). Union media across
+	// ALL buffered sends, chronological order, deduped by path, normalized to
+	// the {path,filename} format (parseMedia accepts it everywhere downstream).
+	mergedMedia := make([]chatMediaItem, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		for _, mi := range item.params.parseMedia() {
+			if _, dup := seen[mi.Path]; dup {
+				continue
+			}
+			seen[mi.Path] = struct{}{}
+			mergedMedia = append(mergedMedia, mi)
+		}
+	}
+	if len(mergedMedia) > 0 {
+		if raw, err := json.Marshal(mergedMedia); err == nil {
+			last.Media = raw
+		}
+	} else {
+		last.Media = nil
+	}
 	return last
 }
 
