@@ -20,10 +20,10 @@ import (
 
 type stubSessionStore struct {
 	store.SessionStore // embed for unimplemented default (panics on unimplemented calls — intentional)
-	sessions          map[string]*store.SessionData
-	deleted           []string
-	resetCalled       []string
-	labelSet          map[string]string
+	sessions           map[string]*store.SessionData
+	deleted            []string
+	resetCalled        []string
+	labelSet           map[string]string
 }
 
 func newStubSessionStore() *stubSessionStore {
@@ -90,9 +90,9 @@ func (s *stubSessionStore) ListPagedRich(_ context.Context, opts store.SessionLi
 // stub EventPublisher (no-op)
 type stubEventPub struct{}
 
-func (s *stubEventPub) Subscribe(_ string, _ bus.EventHandler)   {}
-func (s *stubEventPub) Unsubscribe(_ string)                     {}
-func (s *stubEventPub) Broadcast(_ bus.Event)                    {}
+func (s *stubEventPub) Subscribe(_ string, _ bus.EventHandler) {}
+func (s *stubEventPub) Unsubscribe(_ string)                   {}
+func (s *stubEventPub) Broadcast(_ bus.Event)                  {}
 
 // ---- helpers ----
 

@@ -116,14 +116,54 @@ func TestMergeChatSendRequests_UnionsLegacyAndNewFormats(t *testing.T) {
 	}
 }
 
-// TestParseMedia_LegacyFormatHasNoPhantomItem: unmarshalling legacy ["path"]
-// into []chatMediaItem fails AFTER allocating a zero-value element, so the
-// legacy fallback must not append onto the partially-populated slice.
+// TestParseMedia_LegacyFormatHasNoPhantomItem: unmarshalling legacy paths into
+// []chatMediaItem records the FIRST element's type error but keeps decoding, so
+// the failed parse leaves one zero-value element PER PATH ELEMENT — the legacy
+// fallback must not append onto that partially-populated slice. Two elements
+// distinguish per-element phantoms from a single leading one.
 func TestParseMedia_LegacyFormatHasNoPhantomItem(t *testing.T) {
-	p := chatSendParams{Media: json.RawMessage(`["/v1/files/x.png"]`)}
+	p := chatSendParams{Media: json.RawMessage(`["/v1/files/x.png","/v1/files/y.png"]`)}
 	items := p.parseMedia()
-	if len(items) != 1 || items[0].Path != "/v1/files/x.png" {
+	if len(items) != 2 || items[0].Path != "/v1/files/x.png" || items[1].Path != "/v1/files/y.png" {
 		t.Fatalf("legacy parse wrong: %#v", items)
+	}
+}
+
+// TestMergeChatSendRequests_DupPathBackfillsFilenameAndDropsPathless: a
+// duplicate path keeps its first (chronological) slot but gains a filename it
+// was missing; items with no path at all never enter the union.
+func TestMergeChatSendRequests_DupPathBackfillsFilenameAndDropsPathless(t *testing.T) {
+	items := []chatSendRequest{
+		{params: chatSendParams{Media: json.RawMessage(`["/v1/files/x.png"]`)}},
+		{params: chatSendParams{Media: json.RawMessage(`[{"path":"/v1/files/x.png","filename":"invoice.png"},{"filename":"pathless.pdf"}]`)}},
+	}
+	merged := mergeChatSendRequests(items)
+	media := merged.parseMedia()
+	if len(media) != 1 {
+		t.Fatalf("want 1 item (dup collapsed, pathless dropped), got %#v", media)
+	}
+	if media[0].Path != "/v1/files/x.png" || media[0].Filename != "invoice.png" {
+		t.Fatalf("filename not backfilled on dup: %#v", media[0])
+	}
+}
+
+// TestChatDebouncer_MediaSurvivesMergedFlush: end-to-end through the real
+// debouncer path — a buffered media send followed by a delay-0 text follow-up
+// must flush ONE dispatch whose merged params retain the attachment.
+func TestChatDebouncer_MediaSurvivesMergedFlush(t *testing.T) {
+	out := make(chan []chatSendRequest, 1)
+	d := newChatDebouncer(func(items []chatSendRequest) { out <- items })
+	d.Push("k", time.Hour, chatSendRequest{params: chatSendParams{Media: json.RawMessage(`[{"path":"/v1/files/a.pdf","filename":"a.pdf"}]`)}})
+	d.Push("k", 0, chatSendRequest{params: chatSendParams{Message: "look at this"}})
+	select {
+	case items := <-out:
+		merged := mergeChatSendRequests(items)
+		media := merged.parseMedia()
+		if merged.Message != "look at this" || len(media) != 1 || media[0].Path != "/v1/files/a.pdf" {
+			t.Fatalf("media dropped through the debouncer flush: msg=%q media=%#v", merged.Message, media)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("merged flush never fired")
 	}
 }
 

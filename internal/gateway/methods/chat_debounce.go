@@ -168,13 +168,27 @@ func mergeChatSendRequests(items []chatSendRequest) chatSendParams {
 	// paths are stable gateway file paths, so a re-referenced file is a true
 	// duplicate there, unlike channel media blobs.
 	mergedMedia := make([]chatMediaItem, 0, len(items))
-	seen := make(map[string]struct{}, len(items))
+	seen := make(map[string]int, len(items))
 	for _, item := range items {
 		for _, mi := range item.params.parseMedia() {
-			if _, dup := seen[mi.Path]; dup {
+			// A pathless item is unusable downstream (DetectMIMEType/persist
+			// both key off Path) and one would swallow every other pathless
+			// item via the dedupe map — drop it here, defence-in-depth over
+			// the parseMedia phantom fix.
+			if mi.Path == "" {
 				continue
 			}
-			seen[mi.Path] = struct{}{}
+			if at, dup := seen[mi.Path]; dup {
+				// Same file referenced twice: keep the first occurrence's slot
+				// (chronological order) but backfill a missing filename — a
+				// legacy []string reference carries none, and losing it would
+				// degrade the media tag the LLM sees.
+				if mergedMedia[at].Filename == "" {
+					mergedMedia[at].Filename = mi.Filename
+				}
+				continue
+			}
+			seen[mi.Path] = len(mergedMedia)
 			mergedMedia = append(mergedMedia, mi)
 		}
 	}
