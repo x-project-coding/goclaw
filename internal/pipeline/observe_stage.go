@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // ObserveStage runs per iteration after ToolStage. Drains InjectCh,
@@ -83,9 +84,10 @@ const claimGuardHoldingMessage = "I'm still working on this - I don't have a ver
 // applyOutputClaimGuard checks a candidate final reply for completion-claim
 // language ("built/tested/deployed/verified") that has no backing tool call
 // anywhere in the run (sync or async). Legitimate zero-tool-call replies
-// (plain Q&A, refusals, plans) don't match the guard's patterns; async job
-// announcements (cmd.handleCodeAnnounce) never enter the pipeline at all, so
-// they cannot be flagged here.
+// (plain Q&A, refusals, plans) don't match the guard's patterns; system
+// relay turns, whose whole job is to report work completed elsewhere with
+// zero tool calls, are carved out via isRelayTurn. (The announce=true code
+// job fast path, cmd.handleCodeAnnounce, never enters the pipeline at all.)
 //
 // Returns true when the stage consumed the response (forced a corrective
 // retry or substituted a holding message) — the caller must not set
@@ -96,6 +98,9 @@ func (s *ObserveStage) applyOutputClaimGuard(state *RunState, resp *providers.Ch
 		return false
 	}
 	if state.Tool.TotalToolCalls > 0 || len(state.Tool.AsyncToolCalls) > 0 {
+		return false
+	}
+	if isRelayTurn(state) {
 		return false
 	}
 	names, phrase := s.deps.ScanOutputClaims(resp.Content)
@@ -140,6 +145,32 @@ func (s *ObserveStage) applyOutputClaimGuard(state *RunState, resp *providers.Ch
 	default: // "log" (or unknown): record only, deliver unchanged
 		return false
 	}
+}
+
+// isRelayTurn reports whether this run is a system-generated relay of work
+// completed elsewhere rather than a fresh user-driven model turn. Relay turns
+// are structurally zero-tool-call and exist precisely to report finished work,
+// so the claim guard must never fire on them (they would otherwise dominate
+// guard telemetry and, in warn/block mode, suppress correct announcements):
+//   - teammate/subagent announce runs (cmd/gateway_announce_queue.go,
+//     cmd/gateway_subagent_announce_queue.go) and delegate runs
+//     (cmd/gateway_managed.go), which set RunKind on the RunRequest;
+//   - team progress notification relays, whose kind travels only in context
+//     (tools.WithRunKind, cmd/gateway_consumer_normal.go) — the injected
+//     prompt explicitly forbids tool actions;
+//   - any turn with HideInput set: true for every system-generated relay,
+//     including the legacy code-job callback path
+//     (internal/http/skillcallback_messages.go, announce=false).
+func isRelayTurn(state *RunState) bool {
+	if state.Input != nil {
+		if state.Input.RunKind == "announce" || state.Input.RunKind == "delegate" {
+			return true
+		}
+		if state.Input.HideInput {
+			return true
+		}
+	}
+	return state.Ctx != nil && tools.RunKindFromCtx(state.Ctx) != ""
 }
 
 // claimGuardRetryNote builds the corrective [System] note for "warn" mode.

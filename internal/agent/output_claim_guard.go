@@ -76,9 +76,13 @@ func (g *OutputClaimGuard) PatternNames() []string {
 func defaultOutputClaimPatterns() []guardPattern {
 	return []guardPattern{
 		{
-			// "I built", "we've deployed", "I have already tested", "I just set it up"
+			// "I built", "we've deployed", "I have already tested", "I just set it up".
+			// Deliberately excludes created/finished/completed: those describe
+			// inline text deliverables ("I have created a draft for you below"),
+			// which are the normal, correct, zero-tool-call path — they carry no
+			// build/test/deploy semantics on their own.
 			name:    "first_person_completed",
-			pattern: regexp.MustCompile(`(?i)\b(?:i|we)(?:'ve)?(?:\s+(?:have|just|already|now))*\s+(?:built|created|implemented|deployed|published|shipped|launched|finished|completed|fixed|tested|verified|confirmed|checked|set\s+(?:it|that|this|everything)\s+up)\b`),
+			pattern: regexp.MustCompile(`(?i)\b(?:i|we)(?:'ve)?(?:\s+(?:have|just|already|now))*\s+(?:built|implemented|deployed|published|shipped|launched|fixed|tested|verified|confirmed|checked|set\s+(?:it|that|this|everything)\s+up)\b`),
 		},
 		{
 			// "is built and working", "has been deployed", "it's live", "are tested"

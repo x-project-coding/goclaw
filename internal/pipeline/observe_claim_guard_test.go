@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // stubClaimScan simulates the agent-layer OutputClaimGuard: matches when the
@@ -148,6 +149,46 @@ func TestObserveStage_ClaimGuard_NotTriggeredWhenRunHasToolCalls(t *testing.T) {
 			}
 			if len(*triggers) != 0 {
 				t.Fatalf("triggers = %v, want none", *triggers)
+			}
+		})
+	}
+}
+
+func TestObserveStage_ClaimGuard_RelayTurnsNeverFlagged(t *testing.T) {
+	t.Parallel()
+	// Relay runs report work completed elsewhere with zero tool calls by
+	// design — the guard must deliver them unchanged (see isRelayTurn).
+	const relayReply = "Ivan finished the landing page - it is built and tested, here is the link."
+	for name, mutate := range map[string]func(*RunState){
+		"announce_run_kind": func(s *RunState) { s.Input.RunKind = "announce" },
+		"delegate_run_kind": func(s *RunState) { s.Input.RunKind = "delegate" },
+		"hidden_input_code_job_relay": func(s *RunState) { s.Input.HideInput = true },
+		"notification_kind_in_ctx": func(s *RunState) {
+			s.Ctx = tools.WithRunKind(context.Background(), tools.RunKindNotification)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			deps, triggers := claimGuardDeps("warn")
+			stage := NewObserveStage(deps)
+			state := defaultState()
+			mutate(state)
+			state.Think.LastResponse = &providers.ChatResponse{
+				Content:      relayReply,
+				FinishReason: "stop",
+			}
+
+			if err := stage.Execute(context.Background(), state); err != nil {
+				t.Fatalf("Execute() error: %v", err)
+			}
+			if state.Observe.FinalContent != relayReply {
+				t.Fatalf("FinalContent = %q, want relay reply delivered unchanged", state.Observe.FinalContent)
+			}
+			if state.Observe.ContinueAfterFinal || state.Observe.ClaimGuardRetried {
+				t.Fatal("guard state mutated on a relay turn")
+			}
+			if len(*triggers) != 0 {
+				t.Fatalf("triggers = %v, want none (relay turns are not telemetry)", *triggers)
 			}
 		})
 	}

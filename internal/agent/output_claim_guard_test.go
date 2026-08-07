@@ -68,6 +68,11 @@ func TestOutputClaimGuard_IgnoresOrdinaryReplies(t *testing.T) {
 		{"plan", "Here is the plan: first we will create the schema, then deploy it."},
 		{"conditional", "Once the build succeeds it can be deployed to production by CI."},
 		{"describing_user_stack", "Your site runs on WordPress with a custom theme."},
+		// Inline text deliverables: writing the artifact directly in chat is
+		// the normal, correct, zero-tool-call path for copy/ops personas.
+		{"inline_draft", "I have created a draft for you below: Dear customer, thank you for reaching out."},
+		{"inline_outline", "I finished the outline - here it is."},
+		{"inline_completed", "I've completed the summary you asked for - it's below."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
