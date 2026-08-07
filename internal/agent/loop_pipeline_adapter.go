@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
@@ -124,6 +126,27 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.P
 			emitBlockReply(content, "")
 		},
 		EmitBlockReplyWithSource: emitBlockReply,
+
+		// Observe callbacks — output claim guard: flags "built/tested/deployed"
+		// final replies produced by a run with zero tool calls.
+		ScanOutputClaims:       l.scanOutputClaims(),
+		OutputClaimGuardAction: l.outputClaimGuardAction,
+		EmitClaimGuardTrigger: func(action string, names []string, phrase string) {
+			slog.Warn("security.output_claim_detected",
+				"agent", l.id, "run_id", req.RunID,
+				"action", action, "patterns", strings.Join(names, ","), "phrase", phrase,
+			)
+			cb.emitRun(AgentEvent{
+				Type:    protocol.AgentEventClaimGuard,
+				AgentID: l.id,
+				RunID:   req.RunID,
+				Payload: map[string]any{
+					"action":   action,
+					"patterns": strings.Join(names, ","),
+					"phrase":   phrase,
+				},
+			})
+		},
 
 		// Prune callbacks
 		PruneMessages:   cb.pruneMessages,
@@ -278,7 +301,18 @@ func convertRunResult(pr *pipeline.RunResult) *RunResult {
 		BlockReplies:   pr.BlockReplies,
 		LastBlockReply: pr.LastBlockReply,
 		LoopKilled:     pr.LoopKilled,
+		ToolCalls:      pr.ToolCalls,
+		AsyncToolCalls: pr.AsyncToolCalls,
 	}
+}
+
+// scanOutputClaims adapts the loop's OutputClaimGuard to the pipeline's
+// ScanOutputClaims callback shape. Returns nil when the guard is disabled.
+func (l *Loop) scanOutputClaims() func(content string) ([]string, string) {
+	if l.outputClaimGuard == nil {
+		return nil
+	}
+	return l.outputClaimGuard.ScanWithPhrase
 }
 
 // makeAutoInjectCallback creates the AutoInject callback that captures agent/tenant context.

@@ -76,6 +76,11 @@ type ObserveState struct {
 	// stored without being answered.
 	ContinueAfterFinal bool
 
+	// ClaimGuardRetried is set after the output claim guard has forced its one
+	// corrective retry for this run. A second trigger falls through to log-only
+	// so the guard can never loop the run.
+	ClaimGuardRetried bool
+
 	// AssistantImages accumulates final (non-partial) images from every iteration's
 	// ChatResponse.Images. FinalizeStage persists these to workspace/media/.
 	// Accumulation is required because LastResponse holds only the final iteration's

@@ -143,6 +143,8 @@ func timelineKindForEvent(event AgentEvent) (string, string, bool) {
 			return store.RunTimelineItemTypeToolResult, store.RunTimelineStatusFailed, true
 		}
 		return store.RunTimelineItemTypeToolResult, store.RunTimelineStatusCompleted, true
+	case protocol.AgentEventClaimGuard:
+		return store.RunTimelineItemTypeActivity, store.RunTimelineStatusCompleted, true
 	default:
 		return "", "", false
 	}
@@ -165,6 +167,8 @@ func timelineTitle(event AgentEvent) string {
 		return "Assistant message"
 	case protocol.AgentEventActivity:
 		return "Activity"
+	case protocol.AgentEventClaimGuard:
+		return "Output claim guard"
 	default:
 		return event.Type
 	}
@@ -187,6 +191,8 @@ func timelinePreview(event AgentEvent) string {
 			return sanitizeTimelinePreview(result)
 		}
 		return sanitizeTimelinePreview(payloadString(event.Payload, "content"))
+	case protocol.AgentEventClaimGuard:
+		return sanitizeTimelinePreview(payloadString(event.Payload, "action") + ": " + payloadString(event.Payload, "phrase"))
 	default:
 		return ""
 	}

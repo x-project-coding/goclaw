@@ -48,6 +48,7 @@ func (c *Config) ApplySystemConfigs(configs map[string]string) {
 	integer("gateway.rate_limit_rpm", &c.Gateway.RateLimitRPM)
 	integer("gateway.max_message_chars", &c.Gateway.MaxMessageChars)
 	str("gateway.injection_action", &c.Gateway.InjectionAction)
+	str("gateway.output_claim_guard_action", &c.Gateway.OutputClaimGuardAction)
 	integer("gateway.inbound_debounce_ms", &c.Gateway.InboundDebounceMs)
 	boolean("gateway.block_reply", &c.Gateway.BlockReply)
 	boolean("gateway.tool_status", &c.Gateway.ToolStatus)

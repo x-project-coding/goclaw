@@ -105,6 +105,7 @@ func seedConfigForContext(ctx context.Context, sc store.SystemConfigStore, cfg *
 	setInt("gateway.rate_limit_rpm", cfg.Gateway.RateLimitRPM)
 	setInt("gateway.max_message_chars", cfg.Gateway.MaxMessageChars)
 	set("gateway.injection_action", cfg.Gateway.InjectionAction)
+	set("gateway.output_claim_guard_action", cfg.Gateway.OutputClaimGuardAction)
 	setIntAllowZero("gateway.inbound_debounce_ms", cfg.Gateway.InboundDebounceMs)
 	setBool("gateway.block_reply", cfg.Gateway.BlockReply)
 	setBool("gateway.tool_status", cfg.Gateway.ToolStatus)

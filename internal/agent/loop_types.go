@@ -175,6 +175,10 @@ type Loop struct {
 	injectionAction string // "log", "warn" (default), "block", "off"
 	maxMessageChars int    // 0 = use default (32000)
 
+	// Truthfulness: final-reply completion-claim scanning (zero-tool-call runs)
+	outputClaimGuard       *OutputClaimGuard
+	outputClaimGuardAction string // "log", "warn" (default), "block", "off"
+
 	// Global builtin tool settings (from builtin_tools.settings table).
 	// Tier 3 in the overlay — tenant (tier 2) and future per-agent (tier 1) sit above.
 	builtinToolSettings tools.BuiltinToolSettings
@@ -384,6 +388,11 @@ type LoopConfig struct {
 	InjectionAction string      // "log", "warn" (default), "block", "off"
 	MaxMessageChars int         // 0 = use default (32000)
 
+	// Truthfulness: output claim guard flags final replies that claim completed
+	// work (built/tested/deployed/verified) in a run with zero tool calls.
+	OutputClaimGuard       *OutputClaimGuard // nil = auto-create when OutputClaimGuardAction != "off"
+	OutputClaimGuardAction string            // "log", "warn" (default: one corrective retry), "block", "off"
+
 	// Global builtin tool settings (from builtin_tools table, merged with per-agent overrides)
 	BuiltinToolSettings tools.BuiltinToolSettings
 
@@ -511,6 +520,21 @@ func NewLoop(cfg LoopConfig) *Loop {
 		guard = NewInputGuard()
 	}
 
+	// Normalize output claim guard action (default: "warn" = one corrective retry)
+	claimAction := cfg.OutputClaimGuardAction
+	switch claimAction {
+	case "log", "warn", "block", "off":
+		// valid
+	default:
+		claimAction = "warn"
+	}
+
+	// Auto-create OutputClaimGuard unless explicitly disabled
+	claimGuard := cfg.OutputClaimGuard
+	if claimGuard == nil && claimAction != "off" {
+		claimGuard = NewOutputClaimGuard()
+	}
+
 	return &Loop{
 		id:                     cfg.ID,
 		displayName:            cfg.DisplayName,
@@ -566,6 +590,8 @@ func NewLoop(cfg LoopConfig) *Loop {
 		inputGuard:             guard,
 		injectionAction:        action,
 		maxMessageChars:        cfg.MaxMessageChars,
+		outputClaimGuard:       claimGuard,
+		outputClaimGuardAction: claimAction,
 		builtinToolSettings:    cfg.BuiltinToolSettings,
 		tenantToolSettings:     cfg.TenantToolSettings,
 		tenantAllowedPaths:     cfg.TenantAllowedPaths,
@@ -683,6 +709,8 @@ type RunResult struct {
 	BlockReplies   int              `json:"blockReplies,omitempty"`   // number of block.reply events emitted
 	LastBlockReply string           `json:"lastBlockReply,omitempty"` // last block reply content (for dedup)
 	LoopKilled     bool             `json:"loopKilled,omitempty"`     // true when run was terminated by loop detector
+	ToolCalls      int              `json:"toolCalls,omitempty"`      // total tool calls executed during the run
+	AsyncToolCalls []string         `json:"asyncToolCalls,omitempty"` // tool names that executed async (spawn)
 }
 
 // MediaResult represents a media file produced by a tool during the agent run.

@@ -67,6 +67,20 @@ type PipelineDeps struct {
 	EmitBlockReply           func(content string)         // emit block.reply for intermediate assistant content
 	EmitBlockReplyWithSource func(content, source string) // emit block.reply with payload source metadata
 
+	// Observe callbacks (ObserveStage) — output claim guard. ScanOutputClaims
+	// scans a candidate final reply for completion-claim language ("built and
+	// tested", "deployed", ...) and returns matched pattern names plus the
+	// first matched phrase. nil = guard disabled. Consulted ONLY when the run
+	// has zero tool calls (sync and async), so a "built/tested/verified" claim
+	// with no backing tool call is caught before delivery.
+	ScanOutputClaims func(content string) (names []string, phrase string)
+	// OutputClaimGuardAction: "log" (telemetry only), "warn" (one corrective
+	// retry, default), "block" (neutral holding message), "off".
+	OutputClaimGuardAction string
+	// EmitClaimGuardTrigger records a guard trigger (slog + run timeline) so
+	// unbacked-claim frequency is measurable. nil = no telemetry.
+	EmitClaimGuardTrigger func(action string, names []string, phrase string)
+
 	// Prune callbacks (PruneStage)
 	PruneMessages   func(msgs []providers.Message, budget int) ([]providers.Message, PruneStats)
 	SanitizeHistory func(msgs []providers.Message) ([]providers.Message, int)

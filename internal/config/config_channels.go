@@ -421,6 +421,7 @@ type GatewayConfig struct {
 	MaxMessageChars         int                 `json:"max_message_chars,omitempty"`          // max user message characters (default 32000)
 	RateLimitRPM            int                 `json:"rate_limit_rpm,omitempty"`             // rate limit: requests per minute per user (default 20, 0 = disabled)
 	InjectionAction         string              `json:"injection_action,omitempty"`           // prompt injection action: "log", "warn" (default), "block", "off"
+	OutputClaimGuardAction  string              `json:"output_claim_guard_action,omitempty"`  // final-reply completion-claim guard for zero-tool-call runs: "log", "warn" (default: one corrective retry), "block", "off"
 	InboundDebounceMs       int                 `json:"inbound_debounce_ms,omitempty"`        // silence-window in ms that merges rapid channel/Web Chat messages from the same sender/session; 0 disables for text but media-bearing messages still honor a built-in media floor so multi-attachment bursts (#63) coalesce into a single agent run. Agents may override via per-agent agent_config.inbound_debounce_ms.
 	Quota                   *QuotaConfig        `json:"quota,omitempty"`                      // per-user/group request quotas
 	BlockReply              *bool               `json:"block_reply,omitempty"`                // deliver intermediate text during tool iterations (default false)

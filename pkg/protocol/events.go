@@ -133,7 +133,8 @@ const (
 	AgentEventToolCall     = "tool.call"
 	AgentEventToolResult   = "tool.result"
 	AgentEventBlockReply   = "block.reply"
-	AgentEventActivity     = "activity" // agent phase transitions: thinking, tool_exec, compacting
+	AgentEventActivity     = "activity"    // agent phase transitions: thinking, tool_exec, compacting
+	AgentEventClaimGuard   = "claim.guard" // output claim guard trigger: completion-claim language with zero tool calls
 )
 
 // block.reply payload source values.

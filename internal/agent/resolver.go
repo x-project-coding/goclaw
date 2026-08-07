@@ -55,6 +55,9 @@ type ResolverDeps struct {
 	InjectionAction string // "log", "warn", "block", "off"
 	MaxMessageChars int
 
+	// Truthfulness: final-reply completion-claim guard for zero-tool-call runs
+	OutputClaimGuardAction string // "log", "warn" (default: one corrective retry), "block", "off"
+
 	// Global defaults (from config.json) — per-agent DB overrides take priority
 	CompactionCfg          *config.CompactionConfig
 	ContextPruningCfg      *config.ContextPruningConfig
@@ -558,6 +561,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			TraceCollector:         deps.TraceCollector,
 			InjectionAction:        deps.InjectionAction,
 			MaxMessageChars:        deps.MaxMessageChars,
+			OutputClaimGuardAction: deps.OutputClaimGuardAction,
 			CompactionCfg:          compactionCfg,
 			ContextPruningCfg:      contextPruningCfg,
 			SandboxEnabled:         sandboxEnabled,

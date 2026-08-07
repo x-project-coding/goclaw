@@ -232,6 +232,15 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 		if result != nil && len(result.Media) > 0 {
 			completedPayload["media"] = result.Media
 		}
+		// Tool-call counts surface unbacked-completion telemetry downstream
+		// (run timeline, Monitor): a "built/tested" reply with tool_calls=0
+		// and no async calls is the output-claim-guard trigger condition.
+		if result != nil {
+			completedPayload["tool_calls"] = result.ToolCalls
+			if len(result.AsyncToolCalls) > 0 {
+				completedPayload["async_tool_calls"] = result.AsyncToolCalls
+			}
+		}
 		emitRun(AgentEvent{Type: protocol.AgentEventRunCompleted, AgentID: l.id, RunID: req.RunID, Payload: completedPayload})
 		if !isChildTrace && l.traceCollector != nil && traceID != uuid.Nil {
 			traceFinalized = true
