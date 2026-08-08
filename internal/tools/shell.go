@@ -553,6 +553,16 @@ func posixShellPath() (string, error) {
 // ctx cancellation (e.g. agent abort) triggers SIGTERM → 3s grace → SIGKILL on the
 // entire process group so forked children are also cleaned up (no orphans).
 func (t *ExecTool) executeOnHost(ctx context.Context, command, cwd string) *Result {
+	// Cross-tenant filesystem isolation for the UNSANDBOXED host path. When no
+	// Docker sandbox is engaged (the current deployment — 100% of exec lands
+	// here), this is the only barrier stopping a shell command from naming an
+	// absolute path under another tenant's workspace, or `../`-escaping cwd into
+	// one. Mirrors the sandbox bind-mount narrowing from PR #100 / 4ed4eb95.
+	// See shell_tenant_scope.go and LOCAL_PATCHES.md.
+	if denied := t.enforceTenantPathScope(ctx, command, cwd); denied != nil {
+		return denied
+	}
+
 	timeout := t.effectiveTimeout(ctx)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
