@@ -151,7 +151,20 @@ func (s *ThinkStage) Execute(ctx context.Context, state *RunState) error {
 	}
 	state.Messages.AppendPending(assistantMsg)
 
-	s.emitToolIterationBlockReply(ctx, resp)
+	// 42bucks fork patch — duplicate-continuation dedup: a continuation turn
+	// (requested only because the previous turn carried a tool call) sometimes
+	// restates that turn's reply. The user already saw the text, so suppress
+	// the repeat block reply; the tool calls still execute normally.
+	prevTurnText := state.Think.LastContentTurnText
+	if strings.TrimSpace(resp.Content) != "" {
+		state.Think.LastContentTurnText = resp.Content
+	}
+	if IsDuplicateReplyText(resp.Content, prevTurnText) {
+		slog.Info("think: suppressed duplicate continuation reply",
+			"run_id", state.RunID, "iteration", state.Iteration)
+	} else {
+		s.emitToolIterationBlockReply(ctx, resp)
+	}
 
 	return nil
 }

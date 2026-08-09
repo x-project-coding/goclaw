@@ -207,6 +207,20 @@ check_grep "Patch 28: debounce media union tests" 2 \
   'UnionsMediaAcrossItems|LegacyFormatHasNoPhantomItem' \
   internal/gateway/methods/chat_debounce_media_test.go
 
+# Patch 29 — duplicate-continuation reply dedup. A continuation turn that
+# merely restates the previous tool-call turn's reply is suppressed at the
+# loop (block reply + streamed chunks); the gateway final-message net uses a
+# normalized compare and now also fires for streaming runs.
+check_grep "Patch 29: dedup helpers" 2 \
+  'NormalizeReplyText|StreamDedup' internal/pipeline/reply_dedup.go
+check_grep "Patch 29: think-stage suppression" 1 \
+  'LastContentTurnText' internal/pipeline/think_stage.go
+check_grep "Patch 29: gateway normalized final dedup" 1 \
+  'finalDuplicatesInterim' cmd/gateway_consumer_normal.go
+check_grep "Patch 29: dedup tests" 2 \
+  'TestStreamDedup_FullRepeatSuppressed|TestThinkStage_DuplicateContinuation_SuppressesBlockReply' \
+  internal/pipeline/reply_dedup_test.go internal/pipeline/think_stage_dup_continuation_test.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

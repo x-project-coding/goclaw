@@ -340,6 +340,15 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		rc.mu.Unlock()
 
 		if streaming {
+			// 42bucks fork patch — duplicate-continuation dedup: chunks already
+			// delivered this content live, so record it as the last interim
+			// reply. Without this the gateway's final-message dedup never fires
+			// for streaming runs (interimDelivered stays 0) and a final message
+			// that repeats a tool-call turn's text is delivered twice.
+			rc.mu.Lock()
+			rc.interimDelivered++
+			rc.lastInterimReply = content
+			rc.mu.Unlock()
 			return // streaming already delivered via chunks
 		}
 		if !blockReplyEnabled {

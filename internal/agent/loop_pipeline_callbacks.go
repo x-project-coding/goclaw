@@ -358,6 +358,11 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 			}
 		}
 
+		// 42bucks fork patch — duplicate-continuation dedup: hold streamed
+		// chunks of a continuation turn while they still replay the previous
+		// content-bearing turn's reply (state.Think.LastContentTurnText); a
+		// full replay is never emitted. See pipeline.StreamDedup.
+		streamDedup := pipeline.NewStreamDedup(state.Think.LastContentTurnText)
 		streamThinkingEmitted := false
 		emitChunk := func(chunk providers.StreamChunk) {
 			if chunk.Thinking != "" {
@@ -370,12 +375,14 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 				})
 			}
 			if chunk.Content != "" {
-				emitRun(AgentEvent{
-					Type:    protocol.ChatEventChunk,
-					AgentID: l.id,
-					RunID:   req.RunID,
-					Payload: map[string]string{"content": chunk.Content},
-				})
+				if out := streamDedup.Push(chunk.Content); out != "" {
+					emitRun(AgentEvent{
+						Type:    protocol.ChatEventChunk,
+						AgentID: l.id,
+						RunID:   req.RunID,
+						Payload: map[string]string{"content": out},
+					})
+				}
 			}
 		}
 		fallbackTraceClassifier := providers.NewDefaultClassifier()
@@ -454,6 +461,19 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 		}
 
 		resp, err := callProvider("initial", chatReq)
+		if req.Stream {
+			if flush, suppressed := streamDedup.Finish(); flush != "" {
+				emitRun(AgentEvent{
+					Type:    protocol.ChatEventChunk,
+					AgentID: l.id,
+					RunID:   req.RunID,
+					Payload: map[string]string{"content": flush},
+				})
+			} else if suppressed {
+				slog.Info("llm: suppressed duplicate continuation stream",
+					"run_id", req.RunID, "iteration", state.Iteration)
+			}
+		}
 		slog.Info("debug.llm.first_response",
 			"has_error", err != nil,
 			"tool_calls_count", func() int {
@@ -509,12 +529,17 @@ func (l *Loop) makeCallLLM(req *RunRequest, emitRun func(AgentEvent)) func(ctx c
 				})
 			}
 			if resp.Content != "" {
-				emitRun(AgentEvent{
-					Type:    protocol.ChatEventChunk,
-					AgentID: l.id,
-					RunID:   req.RunID,
-					Payload: map[string]string{"content": resp.Content},
-				})
+				if pipeline.IsDuplicateReplyText(resp.Content, state.Think.LastContentTurnText) {
+					slog.Info("llm: suppressed duplicate continuation content event",
+						"run_id", req.RunID, "iteration", state.Iteration)
+				} else {
+					emitRun(AgentEvent{
+						Type:    protocol.ChatEventChunk,
+						AgentID: l.id,
+						RunID:   req.RunID,
+						Payload: map[string]string{"content": resp.Content},
+					})
+				}
 			}
 		}
 		l.emitLLMSpanEnd(ctx, spanID, start, resp, err, opts...)

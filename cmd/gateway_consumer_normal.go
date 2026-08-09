@@ -15,6 +15,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram/voiceguard"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/pipeline"
 	"github.com/nextlevelbuilder/goclaw/internal/scheduler"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -559,7 +560,7 @@ func processNormalMessage(
 		// block reply, suppress the final message to avoid duplicate delivery.
 		// This uses channel delivery state, not emitted pipeline events, because streaming
 		// runs and quick-ack-disabled initial block replies can intentionally suppress them.
-		if interimDelivered > 0 && outcome.Result.Content == lastInterimReply && len(outcome.Result.Media) == 0 {
+		if finalDuplicatesInterim(interimDelivered, lastInterimReply, outcome.Result.Content, len(outcome.Result.Media)) {
 			slog.Debug("inbound: dedup final message (matches last block reply)",
 				"channel", channel, "run_id", rID)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
@@ -704,4 +705,16 @@ func isSafeBitrixEntityToken(s string, maxLen int) bool {
 		}
 	}
 	return true
+}
+
+// finalDuplicatesInterim reports whether the final message should be
+// suppressed because an already-delivered interim reply (block reply for
+// non-streaming runs, streamed chunks for streaming ones) carried the same
+// text. The compare is normalized (pipeline.IsDuplicateReplyText): a
+// formatting-only variant of the same reply counts as a duplicate — the
+// production repro differed only by markdown bold. Media-bearing finals are
+// never suppressed.
+func finalDuplicatesInterim(interimDelivered int, lastInterimReply, finalContent string, mediaCount int) bool {
+	return interimDelivered > 0 && mediaCount == 0 &&
+		pipeline.IsDuplicateReplyText(finalContent, lastInterimReply)
 }

@@ -979,3 +979,47 @@ in append order. Do not place fork migrations below `099000`.
     internal/gateway/methods/chat_debounce_media_test.go
   ```
   Expects ≥ 2 hits on each.
+
+### Patch 29 — `fix(loop): suppress duplicate continuation replies around tool calls`
+
+- **Base upstream commit:** `9d86f0ef` (`v3.15.0-beta.81`, last upstream sync
+  point — same anchor as Patch 28; every commit since is fork-only)
+- **Files:**
+  - `internal/pipeline/reply_dedup.go` (new) — `NormalizeReplyText` /
+    `IsDuplicateReplyText` (trim, strip markdown emphasis, collapse
+    whitespace) and `StreamDedup`, a chunk gate that holds streamed content
+    while it still replays the previous turn's reply and drops a full repeat.
+  - `internal/pipeline/substates.go` — `ThinkState.LastContentTurnText`: reply
+    text of the most recent content-bearing tool-call iteration (per run).
+  - `internal/pipeline/think_stage.go` — records that reference text and
+    suppresses the block reply of a continuation turn whose text is a
+    normalized duplicate of it; the turn's tool calls still execute.
+  - `internal/agent/loop_pipeline_callbacks.go` — `makeCallLLM` routes
+    streamed chunks through `StreamDedup` (flush on divergence, drop on full
+    repeat) and skips the non-streaming duplicate content event.
+  - `internal/channels/events.go` — block.reply handler records
+    `interimDelivered`/`lastInterimReply` for STREAMING runs too (chunks
+    already delivered that content), so the gateway net below can fire.
+  - `cmd/gateway_consumer_normal.go` — final-message dedup extracted to
+    `finalDuplicatesInterim` and switched from exact-match to the normalized
+    compare. Media-bearing finals are never suppressed.
+  - Tests: `internal/pipeline/reply_dedup_test.go`,
+    `internal/pipeline/think_stage_dup_continuation_test.go`,
+    `cmd/gateway_consumer_final_dedup_test.go`.
+  - `tools/check_local_patches.sh` — guards for this patch.
+- **Why:** monitor issue `cwangweeyph9v8ztmyd50ghvr` — the model's
+  internalized tool-calling convention treats a tool-call-bearing assistant
+  message as non-final and restates the same reply on the continuation turn
+  (proven via captured chain-of-thought), so users saw the reply twice around
+  manage-view `/set` calls. Five SKILL.md prose iterations did not close it
+  (non-deterministic model behavior), so the runtime now dedups at the
+  emission point. Same-run only: a repeat across separate user turns/runs is
+  never suppressed. Upstream has the identical loop shape but no manage-view
+  style always-call-a-tool skill, so pressure to fix it here first.
+- **Recovery grep:**
+  ```
+  grep -nE 'NormalizeReplyText|StreamDedup' internal/pipeline/reply_dedup.go
+  grep -n "LastContentTurnText" internal/pipeline/think_stage.go
+  grep -n "finalDuplicatesInterim" cmd/gateway_consumer_normal.go
+  ```
+  Expects ≥ 2 hits on the first, ≥ 1 on the others.

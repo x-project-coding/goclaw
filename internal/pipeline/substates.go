@@ -35,6 +35,14 @@ type ThinkState struct {
 	OverflowRetries int  // context overflow compact+retry attempts (max 1)
 	StreamingActive bool // true during active stream
 
+	// LastContentTurnText is the reply text of the most recent content-bearing
+	// tool-call iteration in this run. ThinkStage and the agent's CallLLM
+	// callback compare each continuation turn against it to suppress a turn
+	// that merely restates the previous reply (42bucks fork patch —
+	// duplicate-continuation dedup). Never carries across runs: RunState is
+	// per-run.
+	LastContentTurnText string
+
 	// Tools is populated by ContextStage (iteration=0) for overhead calculation.
 	// It holds the best-effort tool list at run start and is used exclusively by
 	// the overhead counter in ContextStage. ThinkStage does NOT consume this field —
