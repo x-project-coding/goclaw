@@ -573,3 +573,47 @@ in append order. Do not place fork migrations below `099000`.
     internal/gateway/methods/chat_debounce_media_test.go
   ```
   Expects ≥ 2 hits on each.
+
+### Patch 29 — `fix(security): scope host-exec filesystem to the caller's own tenant subtree`
+
+- **Base upstream commit:** `e89dd013` (fork `origin/main` at patch time)
+- **Files:**
+  - `internal/tools/shell_tenant_scope.go` — new. `tenantExecScopeFor`
+    derives the caller's tenant subtree (`<workspace>/tenants/<slug>`) from
+    `ToolWorkspaceFromCtx`; `crossesTenantBoundary` rejects any resolved
+    absolute path that reaches a sibling tenant (under `tenants/<other>`, the
+    `tenants/` index, or an ancestor of the workspace root from which a
+    recursive walk would descend into siblings); `enforceTenantPathScope`
+    symlink-resolves every path-shaped argument (absolute, `../`-escaping,
+    relative-symlink, `tenants/*` glob) against the cwd and returns a policy
+    tool-error naming the offending path.
+  - `internal/tools/shell.go` — `executeOnHost` calls
+    `t.enforceTenantPathScope(ctx, command, cwd)` before running the command,
+    so the unsandboxed host path (100% of exec in deployments without Docker
+    sandboxing) is confined the same way PR #100 / `4ed4eb95` confined the
+    Docker-sandboxed path via bind-mount narrowing.
+  - `internal/tools/shell_tenant_scope_test.go` — table-driven tests:
+    own-tenant absolute/relative allowed, `/tmp` allowed, sibling absolute +
+    `.git` objects rejected, `find <root>`/`find /`/`ls tenants/` rejected,
+    `tenants/*` glob rejected, `../` escape rejected, symlink escape rejected,
+    master (non-`tenants/`) workspace exempt, and an end-to-end
+    `executeOnHost` deny that proves no sibling contents leak.
+  - `tools/check_local_patches.sh` — three `check_grep` guards for this patch.
+- **Why:** Monitor issue `ckia19xs` (CRITICAL). The unsandboxed host-exec path
+  only confined the command's cwd, not the process filesystem view, so any
+  command naming an absolute path under `/app/workspace` walked the whole
+  multi-tenant tree. Reproduced twice in production — 2026-07-12 (agent
+  Samantha) and 2026-07-29 (agent Roman, leaking `.git` blobs and `.cc-sessions`
+  chat-log paths) — across all 443 provisioned tenants, because this deployment
+  has no Docker sandbox configured (no `docker.sock`, zero sandbox log lines in
+  30d). The upstream Docker-sandbox fix cannot help a deployment that never
+  engages that code path; this closes the gap on the host path itself.
+- **Recovery grep:**
+  ```
+  grep -nE 'enforceTenantPathScope|crossesTenantBoundary|tenantExecScopeFor' \
+    internal/tools/shell_tenant_scope.go
+  grep -nE 'enforceTenantPathScope' internal/tools/shell.go
+  grep -nE 'TestEnforceTenantPathScope|TestExecuteOnHostBlocksCrossTenant' \
+    internal/tools/shell_tenant_scope_test.go
+  ```
+  Expects ≥ 2 / ≥ 1 / ≥ 2 hits respectively.

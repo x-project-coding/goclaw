@@ -183,6 +183,16 @@ check_grep "Patch 28: debounce media union tests" 2 \
   'UnionsMediaAcrossItems|LegacyFormatHasNoPhantomItem' \
   internal/gateway/methods/chat_debounce_media_test.go
 
+check_grep "Patch 29: host-exec tenant path scope" 2 \
+  'enforceTenantPathScope|crossesTenantBoundary|tenantExecScopeFor' \
+  internal/tools/shell_tenant_scope.go
+check_grep "Patch 29: host-exec tenant path scope wiring" 1 \
+  'enforceTenantPathScope' \
+  internal/tools/shell.go
+check_grep "Patch 29: host-exec tenant path scope tests" 2 \
+  'TestEnforceTenantPathScope|TestExecuteOnHostBlocksCrossTenant' \
+  internal/tools/shell_tenant_scope_test.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0
