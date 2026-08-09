@@ -221,6 +221,19 @@ check_grep "Patch 29: dedup tests" 2 \
   'TestStreamDedup_FullRepeatSuppressed|TestThinkStage_DuplicateContinuation_SuppressesBlockReply' \
   internal/pipeline/reply_dedup_test.go internal/pipeline/think_stage_dup_continuation_test.go
 
+# Patch 30 (dev) / Patch 29 (main, PR #70) — host-exec cross-tenant path scope.
+# Confines the unsandboxed host exec path to the caller's own tenant subtree so
+# a shell command cannot name an absolute path into a sibling tenant.
+check_grep "Patch 30: host-exec tenant path scope" 2 \
+  'enforceTenantPathScope|crossesTenantBoundary|tenantExecScopeFor' \
+  internal/tools/shell_tenant_scope.go
+check_grep "Patch 30: host-exec tenant path scope wiring" 1 \
+  'enforceTenantPathScope' \
+  internal/tools/shell.go
+check_grep "Patch 30: host-exec tenant path scope tests" 2 \
+  'TestEnforceTenantPathScope|TestExecuteOnHostBlocksCrossTenant' \
+  internal/tools/shell_tenant_scope_test.go
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0
