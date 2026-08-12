@@ -419,6 +419,102 @@ func isWordChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
 }
 
+// --- Meta wrap-up detection ---
+
+// metaWrapupMaxRunes bounds IsMetaWrapupReply to short replies, so a substantive
+// answer that merely happens to contain one of the phrases below stays deliverable.
+const metaWrapupMaxRunes = 250
+
+// metaWrapupStandaloneTailRunes bounds what may follow a standalone phrase for
+// the reply to still count as content-free: "Ready when you are, Henry." leaves
+// only a name, while "Ready when you are to run the smoke test." leaves a real
+// object and is a legitimate reply.
+const metaWrapupStandaloneTailRunes = 15
+
+// metaWrapupTailCutset is the punctuation and whitespace stripped from what
+// trails a standalone phrase before it is measured.
+const metaWrapupTailCutset = " \t\r\n.,!?;:…—–-'\"’)"
+
+// metaWrapupPhrases is a deliberately narrow family of natural-language
+// "there is nothing to answer here" dismissals observed in production (monitor
+// issues cep62x82kb7y3qnb2q046ngzg, cbvi88r48fo6v3e2ngawxmw2y and
+// cc6fk76drjcaeg9uo5x8e883i). Matched case-insensitively anywhere in a short
+// reply, because none of them has a legitimate short-reply reading.
+//
+// Keep this list conservative and seed it only from confirmed recurrences: a
+// false positive discards a legitimate reply, which is worse than occasionally
+// shipping a meta-remark.
+var metaWrapupPhrases = []string{
+	"no new text",
+	"nothing new to add",
+	"unrelated technical content",
+	"got mixed into our chat",
+	"not a request from you",
+}
+
+// metaWrapupStandalonePhrases are confirmed wrap-ups whose wording is also
+// ordinary inside legitimate replies — "I've drafted the migration. Waiting on
+// your go-ahead." answers the user, and "Deployed. Ready when you are to run the
+// smoke test." reports real work. They therefore count as meta only when the
+// phrase opens the reply and nothing of substance follows it (see
+// isStandaloneMetaWrapup), which is the shape actually seen in production
+// ("Ready when you are, Henry.", "Waiting on your go-ahead.").
+var metaWrapupStandalonePhrases = []string{
+	"ready when you are",
+	"waiting on your",
+	"waiting on that",
+}
+
+// IsMetaWrapupReply reports whether text is a short meta-remark about the state
+// of the conversation rather than a substantive reply to the user.
+//
+// Unlike IsSilentReply (literal NO_REPLY token) this catches the natural-language
+// paraphrases a model emits on a zero-tool-call round after it has already done
+// the work: "(No new text — pills/template already cover the ask above.)",
+// "Ready when you are.", "Looks like some unrelated technical content got mixed
+// into our chat just now, not a request from you." Delivering those verbatim
+// throws away the turn's real output.
+//
+// False positives are the failure mode that matters — discarding a legitimate
+// reply is worse than occasionally shipping a meta-remark — so matching is gated
+// three ways: the reply must be short, the metaWrapupPhrases dismissals have no
+// legitimate short-reply reading, and the phrases that do
+// (metaWrapupStandalonePhrases) match only when they are effectively the whole
+// reply.
+//
+// Callers must NOT suppress delivery on this signal alone: they substitute the
+// turn's earlier substantive text, or ask the model for one more round.
+func IsMetaWrapupReply(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || utf8.RuneCountInString(trimmed) > metaWrapupMaxRunes {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	for _, phrase := range metaWrapupPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return isStandaloneMetaWrapup(lower)
+}
+
+// isStandaloneMetaWrapup reports whether lower (already trimmed and lowercased)
+// is a metaWrapupStandalonePhrases entry carrying nothing else of substance —
+// the phrase opens the reply and at most metaWrapupStandaloneTailRunes of text
+// follow it once punctuation is stripped.
+func isStandaloneMetaWrapup(lower string) bool {
+	for _, phrase := range metaWrapupStandalonePhrases {
+		if !strings.HasPrefix(lower, phrase) {
+			continue
+		}
+		tail := strings.Trim(lower[len(phrase):], metaWrapupTailCutset)
+		if utf8.RuneCountInString(tail) <= metaWrapupStandaloneTailRunes {
+			return true
+		}
+	}
+	return false
+}
+
 // --- Message Directives ([[name:value]]) ---
 
 // messageDirectivePattern matches structured routing tags: [[word]] or [[word:value]].

@@ -157,7 +157,8 @@ func (l *Loop) buildPipelineDeps(req *RunRequest, bridgeRS *runState) pipeline.P
 		ParallelEligibleToolCall: l.parallelEligibleToolCall,
 		CheckReadOnly:            cb.checkReadOnly,
 
-		// Observe: drain InjectCh
+		// Observe: meta wrap-up salvage + drain InjectCh
+		IsMetaWrapupReply: IsMetaWrapupReply,
 		DrainInjectCh: func() []providers.Message {
 			if req.InjectCh == nil {
 				return nil

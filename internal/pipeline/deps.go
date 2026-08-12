@@ -105,6 +105,10 @@ type PipelineDeps struct {
 
 	// Observe callbacks (ObserveStage)
 	DrainInjectCh func() []providers.Message
+	// IsMetaWrapupReply reports whether a zero-tool-call response is a short
+	// meta-remark about the conversation rather than an answer. Nil disables the
+	// meta wrap-up salvage in ObserveStage.
+	IsMetaWrapupReply func(content string) bool
 
 	// Checkpoint callbacks (CheckpointStage)
 	FlushMessages func(ctx context.Context, sessionKey string, msgs []providers.Message) error
