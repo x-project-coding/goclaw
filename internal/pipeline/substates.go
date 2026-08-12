@@ -76,6 +76,11 @@ type ObserveState struct {
 	// stored without being answered.
 	ContinueAfterFinal bool
 
+	// MetaWrapupRetried bounds the meta wrap-up salvage in ObserveStage to a
+	// single extra round per run. Without it a model that keeps emitting
+	// meta-remarks would be nudged on every iteration until the budget runs out.
+	MetaWrapupRetried bool
+
 	// AssistantImages accumulates final (non-partial) images from every iteration's
 	// ChatResponse.Images. FinalizeStage persists these to workspace/media/.
 	// Accumulation is required because LastResponse holds only the final iteration's

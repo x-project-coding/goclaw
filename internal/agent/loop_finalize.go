@@ -54,6 +54,18 @@ func (l *Loop) finalizeRun(
 	// 5. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
 	rs.finalContent = SanitizeAssistantContent(rs.finalContent)
 
+	// 5c. Meta wrap-up salvage — mirrors v3 ObserveStage.handleMetaWrapup so the
+	// two paths stay behaviourally consistent. When the last round was a short
+	// meta-remark about the conversation instead of an answer, deliver the turn's
+	// last block reply instead of discarding the work.
+	// Only the substitution half of the v3 behaviour applies here: finalizeRun
+	// runs after the loop has exited, so there is no iteration to retry into.
+	if rs.lastBlockReply != "" && IsMetaWrapupReply(rs.finalContent) {
+		slog.Warn("agent loop: meta wrap-up final reply replaced with last block reply",
+			"agent", l.id, "session", req.SessionKey, "discarded", rs.finalContent)
+		rs.finalContent = SanitizeAssistantContent(rs.lastBlockReply)
+	}
+
 	// 6. Handle NO_REPLY: save to session for context but mark as silent.
 	isSilent := IsSilentReply(rs.finalContent)
 

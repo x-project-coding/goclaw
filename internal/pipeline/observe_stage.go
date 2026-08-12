@@ -2,9 +2,17 @@ package pipeline
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
+
+// metaWrapupNudge is the one-shot instruction injected when the model's final
+// round was a meta-remark and the turn produced no other visible text.
+const metaWrapupNudge = "[System] Answer the user's last message directly — do not comment on the conversation state."
+
+// metaWrapupLogPreviewRunes bounds substituted content in structured logs.
+const metaWrapupLogPreviewRunes = 200
 
 // ObserveStage runs per iteration after ToolStage. Drains InjectCh,
 // accumulates final content when no tool calls, tracks block replies.
@@ -56,6 +64,9 @@ func (s *ObserveStage) drainInjectedMessages() []providers.Message {
 
 func (s *ObserveStage) observeFinalResponse(state *RunState, resp *providers.ChatResponse, injected []providers.Message) {
 	if len(injected) == 0 {
+		if s.handleMetaWrapup(state, resp) {
+			return
+		}
 		state.Observe.FinalContent = resp.Content
 		state.Observe.FinalThinking = resp.Thinking
 		return
@@ -71,6 +82,69 @@ func (s *ObserveStage) observeFinalResponse(state *RunState, resp *providers.Cha
 	state.Observe.FinalContent = ""
 	state.Observe.FinalThinking = ""
 	state.Observe.ContinueAfterFinal = true
+}
+
+// handleMetaWrapup salvages a turn whose final round is a short meta-remark about
+// the conversation ("no new text …", "unrelated technical content got mixed into
+// our chat …") instead of the substantive answer the model already worked on.
+// Returns true when it took over final-content selection.
+//
+// Two salvage paths:
+//  1. The turn already emitted visible text on a tool-call round — deliver that
+//     (LastBlockReply) instead of the meta-remark.
+//  2. Nothing substantive was said — give the model exactly one more round with a
+//     direct nudge rather than shipping the dismissal. MetaWrapupRetried bounds
+//     this to one retry per run; a second meta-remark falls through and is
+//     delivered as-is, so the user always gets something.
+func (s *ObserveStage) handleMetaWrapup(state *RunState, resp *providers.ChatResponse) bool {
+	if s.deps.IsMetaWrapupReply == nil || !s.deps.IsMetaWrapupReply(resp.Content) {
+		return false
+	}
+
+	if state.Observe.LastBlockReply != "" {
+		slog.Warn("observe: meta wrap-up final reply replaced with last block reply",
+			"session", state.Input.SessionKey,
+			"discarded", resp.Content,
+			"delivered", logPreview(state.Observe.LastBlockReply, metaWrapupLogPreviewRunes))
+		state.Observe.FinalContent = state.Observe.LastBlockReply
+		state.Observe.FinalThinking = resp.Thinking
+		return true
+	}
+
+	if state.Observe.MetaWrapupRetried {
+		return false
+	}
+	state.Observe.MetaWrapupRetried = true
+	slog.Warn("observe: meta wrap-up final reply with no block reply, retrying once",
+		"session", state.Input.SessionKey,
+		"discarded", resp.Content)
+
+	// Transient: the meta-remark and the nudge are runtime-only context for the
+	// retry round. FinalizeStage persists the definitive assistant message.
+	state.Messages.AppendPending(providers.Message{
+		Role:      "assistant",
+		Content:   resp.Content,
+		Thinking:  resp.Thinking,
+		Transient: true,
+	})
+	state.Messages.AppendPending(providers.Message{
+		Role:      "user",
+		Content:   metaWrapupNudge,
+		Transient: true,
+	})
+	state.Observe.FinalContent = ""
+	state.Observe.FinalThinking = ""
+	state.Observe.ContinueAfterFinal = true
+	return true
+}
+
+// logPreview bounds a string to max runes for structured logging.
+func logPreview(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "…"
 }
 
 func (s *ObserveStage) accumulateAssistantImages(state *RunState, resp *providers.ChatResponse) {

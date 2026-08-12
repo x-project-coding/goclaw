@@ -419,6 +419,59 @@ func isWordChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
 }
 
+// --- Meta wrap-up detection ---
+
+// metaWrapupMaxRunes bounds IsMetaWrapupReply to short replies, so a substantive
+// answer that merely happens to contain one of the phrases below stays deliverable.
+const metaWrapupMaxRunes = 250
+
+// metaWrapupPhrases is a deliberately narrow family of natural-language
+// "there is nothing to answer here" wrap-ups observed in production (monitor
+// issues cep62x82kb7y3qnb2q046ngzg, cbvi88r48fo6v3e2ngawxmw2y and
+// cc6fk76drjcaeg9uo5x8e883i). Matched case-insensitively as substrings.
+//
+// Keep this list conservative and seed it only from confirmed recurrences: a
+// false positive discards a legitimate reply, which is worse than occasionally
+// shipping a meta-remark.
+var metaWrapupPhrases = []string{
+	"no new text",
+	"nothing new to add",
+	"ready when you are",
+	"waiting on your",
+	"waiting on that",
+	"unrelated technical content",
+	"unrelated content",
+	"got mixed into our chat",
+	"not a request from you",
+}
+
+// IsMetaWrapupReply reports whether text is a short meta-remark about the state
+// of the conversation rather than a substantive reply to the user.
+//
+// Unlike IsSilentReply (literal NO_REPLY token) this catches the natural-language
+// paraphrases a model emits on a zero-tool-call round after it has already done
+// the work: "(No new text — pills/template already cover the ask above.)",
+// "Ready when you are.", "Looks like some unrelated technical content got mixed
+// into our chat just now, not a request from you." Delivering those verbatim
+// throws away the turn's real output.
+//
+// The length gate is the primary false-positive guard — only a short reply can be
+// meta. Callers must NOT suppress delivery on this signal alone: they substitute
+// the turn's earlier substantive text, or ask the model for one more round.
+func IsMetaWrapupReply(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" || utf8.RuneCountInString(trimmed) > metaWrapupMaxRunes {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	for _, phrase := range metaWrapupPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // --- Message Directives ([[name:value]]) ---
 
 // messageDirectivePattern matches structured routing tags: [[word]] or [[word:value]].
