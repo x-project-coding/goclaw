@@ -27,11 +27,13 @@ func TestIsMetaWrapupReply(t *testing.T) {
 			true,
 		},
 		{"no new text", "(No new text — pills/template already cover the ask above.)", true},
+		{"nothing new to add", "Nothing new to add here.", true},
+		// Standalone family — meta only when the phrase is effectively the whole
+		// reply, which is the shape confirmed in production.
 		{"waiting on go-ahead", "Waiting on your go-ahead.", true},
 		{"ready when you are", "Ready when you are, Henry.", true},
-		{"nothing new to add", "Nothing new to add here.", true},
-		{"waiting on that", "Waiting on that confirmation before I proceed.", true},
-		{"unrelated content", "That looks like unrelated content, not something you asked for.", true},
+		{"ready when you are bare", "Ready when you are.", true},
+		{"waiting on that bare", "Waiting on that!", true},
 		// Case-insensitive.
 		{"uppercase", "NO NEW TEXT.", true},
 		{"mixed case", "Not A Request From You.", true},
@@ -44,6 +46,16 @@ func TestIsMetaWrapupReply(t *testing.T) {
 		{"unrelated wording", "The unrelated PR is still open.", false},
 		{"empty", "", false},
 		{"whitespace only", "   \n\t ", false},
+		// Standalone phrases inside a reply that says something — these are
+		// legitimate answers and must not be salvaged over.
+		{"waiting phrase after an answer", "I've drafted the migration. Waiting on your go-ahead.", false},
+		{"ready phrase after an answer", "Deployed. Ready when you are to run the smoke test.", false},
+		{"ready phrase with an object", "Ready when you are to review the PR.", false},
+		{"waiting on that with substance", "Waiting on that confirmation before I proceed.", false},
+		// "unrelated content" alone is ordinary wording about the user's own input
+		// (only the full "unrelated technical content" dismissal is confirmed).
+		{"unrelated content in a question", "Your patch mixes in unrelated content — should I split it?", false},
+		{"unrelated content statement", "That looks like unrelated content, not something you asked for.", false},
 		// Length gate — the main false-positive guard.
 		{"long reply containing phrase", longReplyContaining("ready when you are"), false},
 		{"long reply containing dismissal phrase", longReplyContaining("no new text"), false},

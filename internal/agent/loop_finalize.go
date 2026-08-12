@@ -58,8 +58,13 @@ func (l *Loop) finalizeRun(
 	// two paths stay behaviourally consistent. When the last round was a short
 	// meta-remark about the conversation instead of an answer, deliver the turn's
 	// last block reply instead of discarding the work.
-	// Only the substitution half of the v3 behaviour applies here: finalizeRun
-	// runs after the loop has exited, so there is no iteration to retry into.
+	//
+	// LEGACY PATH ONLY — do not read this as coverage for the fix. finalizeRun has
+	// no call sites today (loop_run.go always takes the v3 pipeline), so this hunk
+	// is untested and unexercised; it exists so the v2 path, if ever revived, does
+	// not silently reintroduce the bug. The live behaviour is ObserveStage's.
+	// Only the substitution half applies here: finalizeRun runs after the loop has
+	// exited, so there is no iteration to retry into.
 	if rs.lastBlockReply != "" && IsMetaWrapupReply(rs.finalContent) {
 		slog.Warn("agent loop: meta wrap-up final reply replaced with last block reply",
 			"agent", l.id, "session", req.SessionKey, "discarded", rs.finalContent)

@@ -94,8 +94,16 @@ func (s *ObserveStage) observeFinalResponse(state *RunState, resp *providers.Cha
 //     (LastBlockReply) instead of the meta-remark.
 //  2. Nothing substantive was said — give the model exactly one more round with a
 //     direct nudge rather than shipping the dismissal. MetaWrapupRetried bounds
-//     this to one retry per run; a second meta-remark falls through and is
-//     delivered as-is, so the user always gets something.
+//     this to one retry per run, and the retry is skipped when the iteration
+//     budget has no round left to retry into; in both cases the remark falls
+//     through and is delivered as-is, so the user always gets something.
+//
+// Delivery caveat for path 1: on streaming channels the substituted block reply
+// has already been streamed to the user, and the gateway's interim dedup
+// (cmd/gateway_consumer_normal.go) only tracks non-streaming deliveries, so the
+// final message repeats it. Accepted deliberately — repeating the turn's real
+// output is better than the dismissal it replaces, and suppressing the final
+// message instead would leave the stream bubble as the turn's only record.
 func (s *ObserveStage) handleMetaWrapup(state *RunState, resp *providers.ChatResponse) bool {
 	if s.deps.IsMetaWrapupReply == nil || !s.deps.IsMetaWrapupReply(resp.Content) {
 		return false
@@ -107,11 +115,20 @@ func (s *ObserveStage) handleMetaWrapup(state *RunState, resp *providers.ChatRes
 			"discarded", resp.Content,
 			"delivered", logPreview(state.Observe.LastBlockReply, metaWrapupLogPreviewRunes))
 		state.Observe.FinalContent = state.Observe.LastBlockReply
-		state.Observe.FinalThinking = resp.Thinking
+		// The meta round's reasoning explains the discarded remark, not the text
+		// being delivered — persisting it would misdescribe the reply.
+		state.Observe.FinalThinking = ""
 		return true
 	}
 
-	if state.Observe.MetaWrapupRetried {
+	// The retry needs an iteration to land in: Pipeline.Run clears
+	// ContinueAfterFinal and continues, so requesting it on the last allowed
+	// iteration just exits the loop with no content and FinalizeStage delivers
+	// "..." — strictly worse than the remark. This is exactly where ThinkStage's
+	// 90%-of-budget nudge pushes the model toward a wrap-up remark, so it is a
+	// live case, not a corner one.
+	maxIter := s.deps.Config.MaxIterations
+	if state.Observe.MetaWrapupRetried || (maxIter > 0 && state.Iteration+1 >= maxIter) {
 		return false
 	}
 	state.Observe.MetaWrapupRetried = true
