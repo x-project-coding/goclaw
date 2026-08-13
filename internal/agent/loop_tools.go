@@ -137,8 +137,8 @@ func (l *Loop) processToolResult(
 		if level, msg := rs.loopDetector.detectSameResult(registryName, rh); level != "" {
 			if level == "critical" {
 				slog.Warn("tool loop critical: same result",
-					"tool", registryName, "agent", l.id, "run", req.RunID)
-				rs.finalContent = msg
+					"tool", registryName, "agent", l.id, "run", req.RunID, "message", msg)
+				rs.finalContent = "I was unable to complete this task — I kept getting the same result back from " + registryName + " across multiple calls, so I stopped to avoid a runaway loop. Please try again or rephrase your request."
 				rs.loopKilled = true
 				return toolMsg, nil, toolResultBreak
 			}
@@ -161,8 +161,8 @@ func (l *Loop) checkReadOnlyStreak(rs *runState, req *RunRequest) (warningMsg *p
 		slog.Warn("tool loop critical: read-only streak",
 			"streak", rs.loopDetector.readOnlyStreak,
 			"unique", rs.loopDetector.readOnlyUnique,
-			"agent", l.id, "run", req.RunID)
-		rs.finalContent = msg
+			"agent", l.id, "run", req.RunID, "message", msg)
+		rs.finalContent = "I was unable to complete this task — I got stuck re-reading the same information without making progress. Please try rephrasing your request or narrowing its scope."
 		rs.loopKilled = true
 		return nil, true
 	}
