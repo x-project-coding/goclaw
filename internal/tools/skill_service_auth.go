@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -139,6 +141,17 @@ func skillServiceEnvMap(ctx context.Context) map[string]string {
 	if sk := ToolSessionKeyFromCtx(ctx); sk != "" {
 		m["GOCLAW_SESSION_KEY"] = sk
 	}
+	// CRM_API — base URL for the manage-crm skill's `skill raw … --base
+	// "${CRM_API}"` calls. It must be injected by the runtime because the
+	// skills publisher rejects SKILL.md files carrying a literal functional
+	// 42bucks.com URL, so the skill itself cannot ship a fallback.
+	// CRM_SERVICE_BASE_URL overrides the default per environment (e.g. a
+	// white-labeled CRM instance) without a rebuild.
+	crmBase := strings.TrimRight(os.Getenv("CRM_SERVICE_BASE_URL"), "/")
+	if crmBase == "" {
+		crmBase = "https://crm.42bucks.com"
+	}
+	m["CRM_API"] = crmBase
 	return m
 }
 
