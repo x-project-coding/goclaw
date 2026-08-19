@@ -454,11 +454,26 @@ func handleCodeAnnounce(
 	// the freshest link as a context reminder on later turns (see
 	// injectLatestJobResultReminder) so the agent always points at the current
 	// version. Best-effort: if there's no URL, leave any prior pointer intact.
+	metaUpdate := map[string]string{}
 	if links := codeJobResultURLRe.FindAllString(content, -1); len(links) > 0 {
-		deps.SessStore.SetSessionMetadata(actx, sessionKey, map[string]string{
-			agent.MetaLatestJobResultLinks: strings.Join(dedupeStrings(links), " "),
-			agent.MetaLatestJobResultAt:    strconv.FormatInt(time.Now().Unix(), 10),
-		})
+		metaUpdate[agent.MetaLatestJobResultLinks] = strings.Join(dedupeStrings(links), " ")
+		metaUpdate[agent.MetaLatestJobResultAt] = strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	// Record where the job ACTUALLY wrote its output. The skill-callback handler
+	// stamps the resolved sandbox dir (tenants/<tenant>/<agentKey>/<userID>) on
+	// the completion; that dir is a sibling of the launching agent's own
+	// workspace, so without this pointer the agent has to `find` the whole
+	// workspace tree to reach its own job's files. Persisted as a small
+	// newest-first set (see agent.MergeJobOutputPaths): the next turn widens the
+	// READ-allowed prefixes with it and injectLatestJobOutputPathReminder names
+	// the newest path in-band. Best-effort: no stamp → leave prior pointers intact.
+	if dir := strings.TrimSpace(msg.Metadata[tools.MetaJobOutputPath]); dir != "" {
+		existing := deps.SessStore.GetSessionMetadata(actx, sessionKey)[agent.MetaLatestJobOutputPaths]
+		metaUpdate[agent.MetaLatestJobOutputPaths] = agent.MergeJobOutputPaths(existing, dir)
+		metaUpdate[agent.MetaLatestJobOutputPathAt] = strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	if len(metaUpdate) > 0 {
+		deps.SessStore.SetSessionMetadata(actx, sessionKey, metaUpdate)
 		if err := deps.SessStore.Save(actx, sessionKey); err != nil {
 			slog.Warn("code announce: metadata save failed", "session", sessionKey, "error", err)
 		}
@@ -474,7 +489,8 @@ func handleCodeAnnounce(
 	})
 
 	slog.Info("inbound: code job announce delivered",
-		"session", sessionKey, "job_id", msg.Metadata["job_id"])
+		"session", sessionKey, "job_id", msg.Metadata["job_id"],
+		"job_output_path", msg.Metadata[tools.MetaJobOutputPath])
 	return true
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -343,6 +344,22 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	// Inject agent key into context for tool-level resolution (multiple agents share tool registry)
 	ctx = tools.WithToolAgentKey(ctx, l.id)
 
+	// Background-job / delegate output dirs: a code-runner sandbox this session
+	// dispatched writes under tenants/<tenant>/<executingAgentKey>/<userID>, a
+	// sibling of (not inside) the workspace resolved above, so read_file /
+	// list_files would deny the agent its own job's output. Widen the READ-only
+	// prefix set with the dirs handleCodeAnnounce recorded on the session (never
+	// the write set — see tools.WithToolJobOutputPaths). Only paths under this
+	// agent's (tenant-scoped) workspace root are honored, so a poisoned metadata
+	// value cannot open reads outside the tenant's workspace tree.
+	if l.sessions != nil && req.SessionKey != "" && l.workspace != "" {
+		if raw := l.sessions.GetSessionMetadata(ctx, req.SessionKey)[MetaLatestJobOutputPaths]; raw != "" {
+			if jobPaths := filterJobOutputPathsUnderRoot(ParseJobOutputPaths(raw), l.workspace); len(jobPaths) > 0 {
+				ctx = tools.WithToolJobOutputPaths(ctx, jobPaths)
+			}
+		}
+	}
+
 	// Inject delivered media tracker so write_file and message tool can coordinate:
 	// write_file(deliver=true) marks paths, message self-send guard checks before allowing.
 	ctx = tools.WithDeliveredMedia(ctx, tools.NewDeliveredMedia())
@@ -416,4 +433,28 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		ctx:                  ctx,
 		resolvedTeamSettings: resolvedTeamSettings,
 	}, nil
+}
+
+// filterJobOutputPathsUnderRoot keeps only absolute, cleaned paths that sit
+// strictly inside root (the agent's tenant-scoped workspace root, e.g.
+// /app/workspace/tenants/<slug> — a job sandbox for this tenant resolves to
+// <root>/<agentKey>/<userID>). Session metadata is goclaw-written, but it is
+// still stored state — bounding it to the tenant's workspace tree keeps a
+// tampered value from widening reads to arbitrary paths. An empty or relative
+// root disables the widen entirely.
+func filterJobOutputPathsUnderRoot(paths []string, root string) []string {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if root == "" || root == "." || !filepath.IsAbs(root) {
+		return nil
+	}
+	rootPrefix := root + string(filepath.Separator)
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		p = filepath.Clean(strings.TrimSpace(p))
+		if !filepath.IsAbs(p) || !strings.HasPrefix(p, rootPrefix) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }

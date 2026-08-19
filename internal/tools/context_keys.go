@@ -440,6 +440,34 @@ func ToolTeamRootFromCtx(ctx context.Context) string {
 	return ""
 }
 
+// --- Job output paths (background job / delegate sandbox dirs, read-only widen) ---
+
+const ctxJobOutputPaths toolContextKey = "tool_job_output_paths"
+
+// WithToolJobOutputPaths stores the absolute workspace directories that this
+// session's background jobs (in-chat `jobs` skill runs, session-lane delegates
+// dispatched through code-runner) actually wrote to. Those sandboxes resolve
+// their workspace as tenants/<tenant>/<executingAgentKey>/<userID> (see
+// internal/http/skillcallback_verify_key.go resolveWorkspaceDir), which is NOT
+// the launching agent's own interactive workspace, so without this the agent
+// cannot read_file/list_files its own job's output and falls back to a
+// filesystem-wide `find`.
+//
+// Mirrors WithToolTeamRoot: the paths only widen the READ-allowed prefix set
+// (read_file, read_image, list_files, send_file); writes still resolve against
+// the agent's own workspace and never cross into a job's directory.
+func WithToolJobOutputPaths(ctx context.Context, paths []string) context.Context {
+	return context.WithValue(ctx, ctxJobOutputPaths, paths)
+}
+
+// ToolJobOutputPathsFromCtx returns the job output directories, or nil if not set.
+func ToolJobOutputPathsFromCtx(ctx context.Context) []string {
+	if v, _ := ctx.Value(ctxJobOutputPaths).([]string); len(v) > 0 {
+		return v
+	}
+	return nil
+}
+
 // --- Team task ID propagation (delegation origin → workspace tools) ---
 
 const ctxTeamTaskID toolContextKey = "tool_team_task_id"
