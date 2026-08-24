@@ -193,6 +193,21 @@ check_grep "Patch 29: host-exec tenant path scope tests" 2 \
   'TestEnforceTenantPathScope|TestExecuteOnHostBlocksCrossTenant' \
   internal/tools/shell_tenant_scope_test.go
 
+# Patch 30 — segment command substitutions before tenant path checks. Fixes a
+# jq `//` false positive AND the substitution bypass of Patch 29.
+check_grep "Patch 30: command-substitution segmentation" 2 \
+  'enclosingDouble|command-substitution boundaries' \
+  internal/tools/shell_path_exemption.go
+check_grep "Patch 30: command-substitution segmentation tests" 1 \
+  'TestEnforceTenantPathScope_CommandSubstitution' \
+  internal/tools/shell_tenant_scope_substitution_test.go
+
+# Patch 31 — jq in the runtime baseline (identical "jq: not found" results
+# otherwise trip the tool-loop guard).
+check_grep "Patch 31: jq in runtime baseline" 1 \
+  'su-exec jq' \
+  Dockerfile
+
 if [[ "$errors" -eq 0 ]]; then
   printf '\n\033[32mAll fork patches present.\033[0m\n'
   exit 0

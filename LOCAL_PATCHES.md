@@ -617,3 +617,63 @@ in append order. Do not place fork migrations below `099000`.
     internal/tools/shell_tenant_scope_test.go
   ```
   Expects ≥ 2 / ≥ 1 / ≥ 2 hits respectively.
+
+---
+
+### Patch 30 — `fix(tools): segment command substitutions before tenant path checks`
+
+- **Base upstream commit:** `9d86f0ef` (fork `main` at `b13a49f2`)
+- **Files:**
+  - `internal/tools/shell_path_exemption.go` — `splitExecCommandSegments` now
+    also cuts at `$(`, the matching `)`, and backticks. A substitution opens
+    even inside double quotes (a real shell expands it there); inside single
+    quotes nothing is cut.
+  - `internal/tools/shell_tenant_scope_substitution_test.go` — the production
+    command, nested and backtick substitutions, and four security cases that
+    pin the inner command of a substitution as still checked.
+  - `tools/check_local_patches.sh` — one `check_grep` guard for this patch.
+- **Why:** Two defects in Patch 29's tokenizer, one cosmetic and one a bypass.
+  (1) CORRECTNESS: cutting at an operator *inside* `$( … )` without cutting at
+  the delimiters left a segment carrying an unbalanced `)`. go-shellwords
+  rejects it, `parseExecCommandWords` falls back to `strings.Fields`, and the
+  fallback shatters quoted arguments — a jq filter
+  (`jq -r '.data.countsByResult // empty'`) became the bare word `//`, which is
+  absolute, cleans to `/`, and got denied as the filesystem root. Production
+  2026-08-24 (agent Jordan, XSOR Outreach) hit this three times on an ordinary
+  read-only command. (2) SECURITY: a substitution with no operator inside was
+  never cut at all, so `data=$(cat /app/workspace/tenants/<other>/secret.txt)`
+  canonicalized as one nonsense path under the caller's own cwd and the sibling
+  path inside it was never checked — the exact cross-tenant read Patch 29
+  exists to stop. Both regression directions are pinned by the new test.
+- **Recovery grep:**
+  ```
+  grep -nE 'enclosingDouble|command-substitution boundaries' \
+    internal/tools/shell_path_exemption.go
+  grep -nE 'TestEnforceTenantPathScope_CommandSubstitution' \
+    internal/tools/shell_tenant_scope_substitution_test.go
+  ```
+  Expects ≥ 2 / ≥ 1 hits respectively.
+
+---
+
+### Patch 31 — `fix(docker): install jq in the runtime baseline`
+
+- **Base upstream commit:** `9d86f0ef` (fork `main` at `b13a49f2`)
+- **Files:**
+  - `Dockerfile` — `apk add --no-cache ca-certificates wget su-exec jq` in the
+    runtime stage's unconditional baseline (not behind `ENABLE_*`).
+- **Why:** Agents drive our JSON HTTP surfaces from `exec` and reach for
+  `… | jq -r '.data…'` unprompted. Upstream's baseline is deliberately thin, so
+  every such call returned the identical string `/bin/sh: jq: not found`. N
+  different commands producing N identical results is exactly what the
+  tool-loop guard's `detectSameResult` counter kills at 6 — so a missing
+  10-line binary presents as "agent stops mid-task with CRITICAL: exec returned
+  identical results 6 times". Production 2026-08-24 (agent Jordan, XSOR
+  Outreach): twelve consecutive jq-not-found results ended the turn. Baked into
+  the image rather than installed via `POST /v1/packages/install` so a fresh
+  image or a new deployment cannot regress to the same failure.
+- **Recovery grep:**
+  ```
+  grep -nE 'su-exec jq' Dockerfile
+  ```
+  Expects ≥ 1 hit.
