@@ -166,6 +166,7 @@ func runGateway() {
 	}
 
 	toolsReg, execApprovalMgr, mcpMgr, sandboxMgr, browserMgr, webFetchTool, ttsTool, audioMgr, permPE, toolPE, dataDir, agentCfg := setupToolRegistry(cfg, workspace, providerRegistry)
+	defer startToolRateLimitCleanup(toolsReg)()
 	if browserMgr != nil {
 		defer browserMgr.Close()
 	}
@@ -224,6 +225,10 @@ func runGateway() {
 		); err == nil && len(sysConfigs) > 0 {
 			cfg.ApplySystemConfigs(sysConfigs)
 			slog.Info("system_configs applied to in-memory config", "keys", len(sysConfigs))
+			// The tool registry is built above, before this overlay runs, so any
+			// value that lands here has to be pushed into the live limiter — the
+			// config surface is otherwise inert and tuning it silently does nothing.
+			applyToolRateLimit(toolsReg, cfg.Tools.RateLimitPerHour)
 		}
 	}
 	setupMemoryEmbeddings(pgStores, providerRegistry)

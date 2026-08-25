@@ -158,10 +158,16 @@ func setupToolRegistry(
 		slog.Info("tts enabled", "provider", ttsMgr.PrimaryProvider(), "auto", string(ttsMgr.AutoMode()))
 	}
 
-	// Tool rate limiting (per session, sliding window)
+	// Tool rate limiting (per session, sliding window).
+	//
+	// Installed unconditionally, even when disabled (0): the limit is retuned at
+	// runtime from system_configs, and a limiter that was never installed cannot
+	// be switched back on without a restart.
+	toolsReg.SetRateLimiter(tools.NewToolRateLimiterAlways(cfg.Tools.RateLimitPerHour))
 	if cfg.Tools.RateLimitPerHour > 0 {
-		toolsReg.SetRateLimiter(tools.NewToolRateLimiter(cfg.Tools.RateLimitPerHour))
 		slog.Info("tool rate limiting enabled", "per_hour", cfg.Tools.RateLimitPerHour)
+	} else {
+		slog.Info("tool rate limiting disabled")
 	}
 
 	// Credential scrubbing (enabled by default, can be disabled via config)
@@ -616,4 +622,45 @@ func setupSkillsSystem(
 	}
 
 	return skillsLoader, skillSearchTool, globalSkillsDir, bundledSkillsDir, builtinSkillsDir
+}
+
+// applyToolRateLimit retunes the live tool rate limiter. Safe to call before the
+// limiter exists (no-op) and safe to call repeatedly; only a real change is logged.
+func applyToolRateLimit(toolsReg *tools.Registry, perHour int) {
+	if toolsReg == nil {
+		return
+	}
+	rl := toolsReg.RateLimiter()
+	if rl == nil || rl.Max() == perHour {
+		return
+	}
+	prev := rl.Max()
+	rl.SetMax(perHour)
+	slog.Info("tool rate limit updated", "per_hour", perHour, "previous", prev)
+}
+
+// startToolRateLimitCleanup drains rate-limiter history that has aged out of the
+// window. Allow() only prunes the key it touches, so sessions that go quiet keep
+// their timestamps forever — on a long-lived gateway that is an unbounded map.
+// Returns a stop func.
+func startToolRateLimitCleanup(toolsReg *tools.Registry) (stop func()) {
+	if toolsReg == nil || toolsReg.RateLimiter() == nil {
+		return func() {}
+	}
+	rl := toolsReg.RateLimiter()
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				rl.Cleanup()
+				slog.Debug("tool rate limiter cleaned", "tracked_keys", rl.TrackedKeys())
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() { close(done) }
 }
