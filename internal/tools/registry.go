@@ -75,6 +75,23 @@ func (r *Registry) SetRateLimiter(rl *ToolRateLimiter) {
 	r.rateLimiter = rl
 }
 
+// RateLimiter returns the installed limiter (nil when limiting was never wired).
+// The gateway uses this to retune the limit from system_configs without a restart.
+func (r *Registry) RateLimiter() *ToolRateLimiter {
+	return r.rateLimiter
+}
+
+// rateLimitExemptTools are never counted against the per-session budget.
+//
+// These cost nothing to run and are the only way an agent can respond to being
+// limited: wait is the backoff, datetime is how it works out how long it has
+// left. Counting them means a limited agent cannot pause or wind up its turn —
+// it just retries into the wall until the window drains.
+var rateLimitExemptTools = map[string]bool{
+	"wait":     true,
+	"datetime": true,
+}
+
 // SetScrubbing enables or disables credential scrubbing on tool output.
 func (r *Registry) SetScrubbing(enabled bool) {
 	r.scrubbing = enabled
@@ -200,8 +217,9 @@ func (r *Registry) ExecuteWithContext(ctx context.Context, name string, args map
 		ctx = WithToolAsyncCB(ctx, asyncCB)
 	}
 
-	// Rate limit check (per session key)
-	if r.rateLimiter != nil && sessionKey != "" {
+	// Rate limit check (per session key). Exempt tools bypass it entirely so a
+	// limited agent keeps a backoff and a clean way out of its turn.
+	if r.rateLimiter != nil && sessionKey != "" && !rateLimitExemptTools[tool.Name()] {
 		if err := r.rateLimiter.Allow(sessionKey); err != nil {
 			return ErrorResult(err.Error())
 		}
