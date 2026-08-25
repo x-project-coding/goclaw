@@ -85,8 +85,15 @@ COPY docker/requirements-base.txt docker/requirements-skills.txt /tmp/
 # Install ca-certificates + wget (healthcheck) + optional runtimes.
 # ENABLE_FULL_SKILLS=true pre-installs all skill deps (larger image, no on-demand install needed).
 # Otherwise, skill packages are installed on-demand via the admin UI.
+# FORK PATCH: jq is part of the baseline, not an optional runtime. Agents drive
+# our JSON HTTP surfaces from `exec` and reach for `… | jq -r '.data…'`
+# unprompted. Without it every such call returns the SAME string —
+# "/bin/sh: jq: not found" — so N different commands produce N identical
+# results and the tool-loop guard's identical-result counter kills the run at 6.
+# Observed in production 2026-08-24 (agent Jordan, XSOR Outreach): twelve
+# consecutive jq-not-found results ended the turn mid-task.
 RUN set -eux; \
-    apk add --no-cache ca-certificates wget su-exec; \
+    apk add --no-cache ca-certificates wget su-exec jq; \
     if [ "$ENABLE_SANDBOX" = "true" ]; then \
         apk add --no-cache docker-cli; \
     fi; \

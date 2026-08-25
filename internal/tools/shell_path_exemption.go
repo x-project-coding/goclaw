@@ -197,50 +197,103 @@ func parseExecCommandWords(command string) []string {
 	return words
 }
 
-// splitExecCommandSegments splits a command string at shell operators (;|&<>)
-// while respecting single and double quotes. Each segment can then be safely
-// parsed by go-shellwords independently.
+// splitExecCommandSegments splits a command string at shell operators
+// (;|&<>) and at command-substitution boundaries ($( … ), ` … `), while
+// respecting single and double quotes. Each segment can then be safely parsed
+// by go-shellwords independently.
+//
+// Command substitutions are cut for two reasons, and both are load-bearing:
+//
+//   - CORRECTNESS. Cutting at an operator INSIDE `$( … )` without also cutting
+//     at the delimiters leaves a segment carrying an unbalanced parenthesis
+//     (`jq -r '.a // empty')`). go-shellwords rejects it, parseExecCommandWords
+//     falls back to strings.Fields, and the fallback shatters quoted arguments
+//     into fragments — a jq filter turned into a bare `//`, which reads as the
+//     filesystem root and got an ordinary read-only command denied in prod.
+//
+//   - SECURITY. A substitution that is never cut stays one opaque word:
+//     `data=$(cat /app/workspace/tenants/other/secret.txt)` canonicalizes as a
+//     single nonsense path under the caller's own cwd, so the sibling-tenant
+//     path inside it was never checked at all. Cutting exposes the inner
+//     command's words to the same per-path validation as any other command.
+//
+// A substitution opens even inside double quotes, because a real shell expands
+// it there; inside single quotes nothing expands, so nothing is cut.
 func splitExecCommandSegments(command string) []string {
 	var segments []string
 	start := 0
 	inSingle := false
 	inDouble := false
+	// Double-quote state of each enclosing context, saved when a substitution
+	// opens: the body of `$( … )` is quoted independently of its surroundings.
+	var enclosingDouble []bool
+
+	flush := func(end int) {
+		if segment := strings.TrimSpace(command[start:end]); segment != "" {
+			segments = append(segments, segment)
+		}
+	}
 
 	for i := 0; i < len(command); i++ {
 		ch := command[i]
-		switch {
-		case inSingle:
+
+		// Single quotes are literal: no expansion, no substitution, no operators.
+		if inSingle {
 			if ch == '\'' {
 				inSingle = false
 			}
-		case inDouble:
+			continue
+		}
+
+		// `$(` opens a command substitution — inside double quotes too.
+		if ch == '$' && i+1 < len(command) && command[i+1] == '(' {
+			flush(i)
+			enclosingDouble = append(enclosingDouble, inDouble)
+			inDouble = false
+			i++ // consume the '('
+			start = i + 1
+			continue
+		}
+		if len(enclosingDouble) > 0 && ch == ')' {
+			flush(i)
+			inDouble = enclosingDouble[len(enclosingDouble)-1]
+			enclosingDouble = enclosingDouble[:len(enclosingDouble)-1]
+			start = i + 1
+			continue
+		}
+		// Backticks are the older substitution form and do not nest; both the
+		// opening and the closing tick end a segment.
+		if ch == '`' {
+			flush(i)
+			start = i + 1
+			continue
+		}
+
+		if inDouble {
 			if ch == '\\' && i+1 < len(command) {
 				i++
 			} else if ch == '"' {
 				inDouble = false
 			}
-		default:
-			switch ch {
-			case '\\':
-				if i+1 < len(command) {
-					i++
-				}
-			case '\'':
-				inSingle = true
-			case '"':
-				inDouble = true
-			case ';', '|', '&', '<', '>', '\n', '\r':
-				if segment := strings.TrimSpace(command[start:i]); segment != "" {
-					segments = append(segments, segment)
-				}
-				start = i + 1
+			continue
+		}
+
+		switch ch {
+		case '\\':
+			if i+1 < len(command) {
+				i++
 			}
+		case '\'':
+			inSingle = true
+		case '"':
+			inDouble = true
+		case ';', '|', '&', '<', '>', '(', ')', '\n', '\r':
+			flush(i)
+			start = i + 1
 		}
 	}
 
-	if tail := strings.TrimSpace(command[start:]); tail != "" {
-		segments = append(segments, tail)
-	}
+	flush(len(command))
 	return segments
 }
 
