@@ -114,7 +114,7 @@ func Default() *Config {
 				Security: "full",
 				Ask:      "off",
 			},
-			RateLimitPerHour: 150,
+			RateLimitPerHour: DefaultToolRateLimitPerHour,
 		},
 		Skills: SkillsConfig{
 			MaxUploadSizeMB: DefaultSkillMaxUploadSizeMB,

@@ -377,3 +377,38 @@ func TestRegistry_TryActivateDeferred_NilActivatorAfterSet(t *testing.T) {
 		t.Error("expected false after setting nil activator")
 	}
 }
+
+// wait and datetime must stay reachable when a session is rate limited — they are
+// the agent's only way to back off and wind up its turn. Mock tools stand in for the
+// real ones so this exercises the registry's exemption, not wait's sleep behaviour.
+func TestRegistry_RateLimitExemptTools(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&mockTool{name: "wait"})
+	reg.Register(&mockTool{name: "datetime"})
+	reg.Register(&mockTool{name: "metered"})
+	reg.SetRateLimiter(NewToolRateLimiterAlways(1))
+
+	run := func(name string) *Result {
+		return reg.ExecuteWithContext(context.Background(), name, map[string]any{"a": 1}, "", "", "", "sess1", nil)
+	}
+
+	// Burn the single slot on a metered tool.
+	if res := run("metered"); res.IsError {
+		t.Fatalf("first metered call should pass: %s", res.ForLLM)
+	}
+	if res := run("metered"); !res.IsError || !strings.Contains(res.ForLLM, "rate limit exceeded") {
+		t.Fatalf("second metered call should be rate limited, got: %+v", res)
+	}
+
+	// Exempt tools still run, and do not consume budget.
+	for _, name := range []string{"datetime", "wait", "datetime"} {
+		if res := run(name); res.IsError {
+			t.Errorf("%s must be exempt from rate limiting, got: %s", name, res.ForLLM)
+		}
+	}
+
+	// The metered tool is still limited — exempt calls did not free or consume slots.
+	if res := run("metered"); !res.IsError {
+		t.Error("metered tool should still be rate limited after exempt calls")
+	}
+}

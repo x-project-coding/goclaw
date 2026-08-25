@@ -126,6 +126,10 @@ func (d *gatewayDeps) wireHTTPHandlersOnServer(
 						pgMem.UpdateChunkConfig(mem.MaxChunkLen, mem.ChunkOverlap)
 					}
 				}
+				// Retune the live tool rate limiter — the registry was built at
+				// startup, so updating cfg alone would leave the old limit in force
+				// and make tools.rate_limit_per_hour look editable when it is not.
+				applyToolRateLimit(d.toolsReg, d.cfg.Tools.RateLimitPerHour)
 				// Note: vault enrichment provider is resolved per-tenant at runtime,
 				// no hot-reload needed here
 				slog.Debug("system_configs refreshed to in-memory config", "keys", len(sysConfigs))
