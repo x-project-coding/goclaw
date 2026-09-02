@@ -41,13 +41,28 @@ func TestFullModeAllSections(t *testing.T) {
 func TestFullModeToolCallStyleGuidesNaturalProgress(t *testing.T) {
 	prompt := BuildSystemPrompt(fullTestConfig())
 	for _, want := range []string{
-		"short progress sentence before tool calls",
+		"Multi-step work: a short progress sentence before tool calls is fine",
 		"write it naturally in the user's language",
 		"not the tool",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("tool call style missing progress guidance %q", want)
 		}
+	}
+}
+
+// TestFullModeToolCallStyleForbidsSingleCallPreamble locks the single-call default:
+// the progress-sentence allowance must stay scoped to multi-step work, otherwise it
+// re-legitimizes narration before a lone tool call (e.g. "I'm opening the mailbox
+// connection flow now.") and contradicts the "call tools without narration" default.
+func TestFullModeToolCallStyleForbidsSingleCallPreamble(t *testing.T) {
+	prompt := BuildSystemPrompt(fullTestConfig())
+	if !strings.Contains(prompt, "Single quick call: skip the preamble entirely") {
+		t.Fatal("tool call style missing explicit single-call no-preamble rule")
+	}
+	// The old unscoped phrasing permitted a preamble for any tool call.
+	if strings.Contains(prompt, "If you include a short progress sentence") {
+		t.Fatal("tool call style still permits an unscoped pre-call progress sentence")
 	}
 }
 
