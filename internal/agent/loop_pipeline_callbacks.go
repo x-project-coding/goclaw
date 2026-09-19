@@ -199,6 +199,7 @@ func (l *Loop) makeInjectReminders(req *RunRequest) func(ctx context.Context, in
 	return func(ctx context.Context, input *pipeline.RunInput, msgs []providers.Message) []providers.Message {
 		updated, _ := l.injectTeamTaskReminders(ctx, req, msgs)
 		updated = l.injectLatestJobResultReminder(ctx, req, updated)
+		updated = l.injectLatestJobOutputPathReminder(ctx, req, updated)
 		return updated
 	}
 }

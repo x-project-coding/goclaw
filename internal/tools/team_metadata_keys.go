@@ -49,6 +49,12 @@ const (
 	// appended to the agent's system prompt so the LLM does not confuse its own
 	// platform handle for a different bot when users @mention it.
 	MetaChannelSelfIdentity = "channel_self_identity"
+	// MetaJobOutputPath carries the ABSOLUTE (container-local) workspace
+	// directory a code-runner job / delegate sandbox was mounted at, stamped by
+	// the skill-callback messages handler on the completion inbound and persisted
+	// by handleCodeAnnounce as session metadata (agent.MetaLatestJobOutputPaths)
+	// so the launching agent can read its own job's output directly.
+	MetaJobOutputPath = "job_output_path"
 )
 
 // Task metadata keys stored in store.TeamTaskData.Metadata.

@@ -1,16 +1,20 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/sessions"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
 // messagesRequest is the body POSTed by a skill-backing service to deliver an
@@ -28,6 +32,20 @@ type messagesRequest struct {
 	// it is wasteful and unreliable. When false (default) the legacy path runs:
 	// the message is delivered as an inbound and the agent relays it.
 	Announce bool `json:"announce"`
+	// AgentName is code-runner's `callbackNameFields().agentName`: the job row's
+	// launching_agent_id (the X-Goclaw-Agent-Id the job was created with — the
+	// key its sandbox workspace is resolved under) when present, else the
+	// requested employee label. Used only to decide whether the job ran as
+	// this session's own agent (see jobOutputDirForCompletion).
+	AgentName string `json:"agentName"`
+	// LaunchingAgentID / LaunchingUserID: the exact X-Goclaw-Agent-Id /
+	// X-Goclaw-User-Id identity the job was created with. Optional and
+	// forward-compatible (code-runner does not send them yet); when both are
+	// present they pin the job's workspace dir exactly (delegates run under a
+	// synthetic user id the session cannot infer). Absent → the in-chat case is
+	// inferred from the callback session (its agent + persisted user id).
+	LaunchingAgentID string `json:"launchingAgentId"`
+	LaunchingUserID  string `json:"launchingUserId"`
 }
 
 // handleMessages receives an async result from a skill-backing service (the
@@ -111,6 +129,17 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 	}
 
 	meta := map[string]string{"source": "code-skill-callback", "job_id": req.JobID}
+	if req.Announce {
+		// Stamp the ABSOLUTE directory the job's sandbox workspace was mounted
+		// at (tenants/<tenant>/<agentKey>/<userID>, resolved exactly like
+		// verify-key did at job start). handleCodeAnnounce persists it on the
+		// session so the launching agent can read its own job's output directly
+		// instead of hunting for it — the job's own "/workspace/…" report is a
+		// sandbox-local path. Best-effort: unresolvable → no stamp.
+		if dir := h.jobOutputDirForCompletion(authCtx, keyData.TenantID, agentID, req); dir != "" {
+			meta[tools.MetaJobOutputPath] = dir
+		}
+	}
 	var content string
 	if req.Announce {
 		// Direct-announce: the summary IS the user-facing message. Post it
@@ -149,4 +178,65 @@ func (h *SkillCallbackHandler) handleMessages(w http.ResponseWriter, r *http.Req
 	slog.Info("skillcallback.messages delivered to session",
 		"agent_id", agentID, "channel", channel, "job_id", req.JobID, "announce", req.Announce)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "delivered"})
+}
+
+// jobOutputDirForCompletion resolves the container-local workspace directory a
+// completed code-runner job actually wrote to, i.e. the same dir verify-key
+// handed the runner as the sandbox bind-mount for the job's identity headers:
+//
+//	{workspaceBase}/tenants/{tenantSlug}/{agentKey}/{userID}
+//
+// Identity resolution, most to least explicit:
+//   - LaunchingAgentID + LaunchingUserID both present → use them verbatim
+//     (the agent key must resolve in the caller's tenant).
+//   - otherwise, the job must have run as THIS session's agent (AgentName /
+//     LaunchingAgentID absent or equal to the session agent — the in-chat
+//     `jobs` skill sends its own GOCLAW_AGENT_ID / GOCLAW_USER_ID); its user
+//     is the session's persisted user id. A job that ran as a DIFFERENT agent
+//     (a session-lane delegate under a synthetic system:workflow:* user we
+//     cannot infer) yields "" rather than a plausible-but-wrong path.
+//
+// Returns "" whenever any input is missing or the resolver fails.
+func (h *SkillCallbackHandler) jobOutputDirForCompletion(ctx context.Context, tenantID uuid.UUID, sessionAgentID string, req messagesRequest) string {
+	agentKey := strings.TrimSpace(req.LaunchingAgentID)
+	userID := strings.TrimSpace(req.LaunchingUserID)
+	if agentKey == "" || userID == "" {
+		// Inference path: only when the job ran as the session's own agent.
+		ranAs := agentKey
+		if ranAs == "" {
+			ranAs = strings.TrimSpace(req.AgentName)
+		}
+		if ranAs != "" && ranAs != sessionAgentID {
+			return ""
+		}
+		if h.sessions == nil || req.SessionKey == "" {
+			return ""
+		}
+		sd := h.sessions.Get(ctx, req.SessionKey)
+		if sd == nil || strings.TrimSpace(sd.UserID) == "" {
+			return ""
+		}
+		agentKey = sessionAgentID
+		userID = strings.TrimSpace(sd.UserID)
+	} else if agentKey != sessionAgentID {
+		// Explicit identity naming another agent: it must exist in the caller's
+		// tenant (GetByKey is tenant-scoped via ctx), else refuse to resolve.
+		if h.agents == nil {
+			return ""
+		}
+		if _, err := h.agents.GetByKey(ctx, agentKey); err != nil {
+			return ""
+		}
+	}
+
+	if tenantID == uuid.Nil {
+		tenantID = store.MasterTenantID
+	}
+	tenantSlug := ""
+	if pkgTenantCache != nil {
+		if tenant, err := pkgTenantCache.GetTenant(ctx, tenantID); err == nil && tenant != nil {
+			tenantSlug = tenant.Slug
+		}
+	}
+	return h.resolveWorkspaceDir(ctx, tenantID, tenantSlug, agentKey, userID)
 }

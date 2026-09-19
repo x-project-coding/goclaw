@@ -31,14 +31,17 @@ import (
 // store instead of relying on the generic requireAuth middleware (which would
 // also accept the gateway token / no-auth dev mode).
 type SkillCallbackHandler struct {
-	cfg    *config.Config
-	msgBus *bus.MessageBus  // for /callback/v1/messages → chat session delivery
-	agents store.AgentStore // for /callback/v1/messages → authorize target agent against caller tenant
+	cfg      *config.Config
+	msgBus   *bus.MessageBus    // for /callback/v1/messages → chat session delivery
+	agents   store.AgentStore   // for /callback/v1/messages → authorize target agent against caller tenant
+	sessions store.SessionStore // for /callback/v1/messages → resolve the job's workspace dir (session user id); optional
 }
 
-// NewSkillCallbackHandler creates the skill-callback HTTP handler.
-func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus, agents store.AgentStore) *SkillCallbackHandler {
-	return &SkillCallbackHandler{cfg: cfg, msgBus: msgBus, agents: agents}
+// NewSkillCallbackHandler creates the skill-callback HTTP handler. sessions may
+// be nil — it only powers the job-output-path stamp on completion messages
+// (see jobOutputDirForCompletion), which then degrades to "not resolvable".
+func NewSkillCallbackHandler(cfg *config.Config, msgBus *bus.MessageBus, agents store.AgentStore, sessions store.SessionStore) *SkillCallbackHandler {
+	return &SkillCallbackHandler{cfg: cfg, msgBus: msgBus, agents: agents, sessions: sessions}
 }
 
 // RegisterRoutes registers the /callback/v1/* skill-callback routes on the mux.
